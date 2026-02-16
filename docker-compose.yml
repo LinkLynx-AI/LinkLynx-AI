@@ -1,0 +1,97 @@
+version: "3.9"
+
+services:
+  # Next.js Frontend
+  typescript:
+    build:
+      context: ./typescript
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=http://rust:8080
+    depends_on:
+      - rust
+    networks:
+      - linklynx-network
+
+  # Rust Backend (Axum)
+  rust:
+    build:
+      context: ./rust
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - DATABASE_URL=postgres://postgres:password@postgres:5432/linklynx
+      - RUST_LOG=info
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - linklynx-network
+
+  # Python Service
+  python:
+    build:
+      context: ./python
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+    networks:
+      - linklynx-network
+
+  # Elixir Service
+  elixir:
+    build:
+      context: ./elixir
+      dockerfile: Dockerfile
+    ports:
+      - "4000:4000"
+    environment:
+      - PHX_HOST=localhost
+      - PORT=4000
+    networks:
+      - linklynx-network
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=linklynx
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - linklynx-network
+
+  # ScyllaDB (NoSQL for chat messages)
+  scylladb:
+    image: scylladb/scylla:5.4
+    ports:
+      - "9042:9042"
+    volumes:
+      - scylla_data:/var/lib/scylla
+    command: --smp 1 --memory 512M
+    networks:
+      - linklynx-network
+
+volumes:
+  postgres_data:
+  scylla_data:
+
+networks:
+  linklynx-network:
+    driver: bridge
