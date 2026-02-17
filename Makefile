@@ -1,5 +1,5 @@
 .PHONY: help setup setup-check dev build up down logs clean test
-.PHONY: ts-dev ts-build ts-lint rust-dev rust-build rust-test py-dev py-test elixir-dev elixir-build
+.PHONY: ts-dev ts-build ts-lint rust-dev rust-build rust-test rust-fmt rust-clippy rust-lint rust-ci py-dev py-test elixir-dev elixir-build
 .PHONY: db-up db-down db-reset worktree-sync-env
 
 # 色設定
@@ -93,6 +93,19 @@ rust-test: ## Rust テストを実行
 
 rust-check: ## Rust コードをチェック
 	cd rust && cargo check
+
+rust-fmt: ## Rust フォーマットを実行（workspace準拠）
+	cd rust && cargo fmt --all
+
+rust-clippy: ## Rust Clippy を実行（warningをエラー化）
+	cd rust && cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+rust-lint: ## Rust 規約チェック（fmt + clippy + test）
+	cd rust && cargo fmt --all --check
+	cd rust && cargo clippy --workspace --all-targets --all-features -- -D warnings
+	cd rust && cargo test --workspace
+
+rust-ci: rust-lint ## CI相当のRust品質ゲートを実行
 
 # ============================================
 # Python コマンド
