@@ -5,46 +5,49 @@ set -euo pipefail
 usage() {
     cat <<'EOF'
 Usage:
-  ./setup/create-worktree-with-env.sh <new-worktree-path> <branch-name> [source-repo-path]
+  ./setup/create-worktree-with-env.sh
 
-Examples:
-  ./setup/create-worktree-with-env.sh ../linklinx-feature feat/my-task
-  ./setup/create-worktree-with-env.sh /tmp/linklinx-test feat/my-task /path/to/linklinx
+Example:
+  ./setup/create-worktree-with-env.sh
 EOF
 }
 
-if [[ $# -lt 2 || $# -gt 3 ]]; then
+if [[ $# -ne 0 ]]; then
     usage
     exit 1
 fi
 
-TARGET_WORKTREE_PATH="$1"
-BRANCH_NAME="$2"
-SOURCE_REPO_PATH="${3:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
+TARGET_WORKTREE_PATH="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 
-if [[ ! -d "$SOURCE_REPO_PATH" ]]; then
-    echo "Error: source repository path does not exist: $SOURCE_REPO_PATH" >&2
+if [[ ! -d "$TARGET_WORKTREE_PATH/.git" && ! -f "$TARGET_WORKTREE_PATH/.git" ]]; then
+    echo "Error: current directory is not a git repository: $TARGET_WORKTREE_PATH" >&2
     exit 1
 fi
 
-if [[ -e "$TARGET_WORKTREE_PATH" ]]; then
-    echo "Error: target worktree path already exists: $TARGET_WORKTREE_PATH" >&2
+SOURCE_REPO_PATHS=()
+while IFS= read -r path; do
+    if [[ "$path" != "$TARGET_WORKTREE_PATH" && -d "$path/.git" ]]; then
+        SOURCE_REPO_PATHS+=("$path")
+    fi
+done < <(git -C "$TARGET_WORKTREE_PATH" worktree list --porcelain | awk '/^worktree / {print substr($0, 10)}')
+
+if [[ ${#SOURCE_REPO_PATHS[@]} -eq 0 ]]; then
+    echo "Error: could not auto-detect source local repo path from git worktree list" >&2
     exit 1
 fi
 
-if [[ ! -d "$SOURCE_REPO_PATH/.git" && ! -f "$SOURCE_REPO_PATH/.git" ]]; then
-    echo "Error: source path is not a git repository: $SOURCE_REPO_PATH" >&2
+if [[ ${#SOURCE_REPO_PATHS[@]} -gt 1 ]]; then
+    echo "Error: multiple source local repo candidates detected. keep only one main checkout." >&2
+    for path in "${SOURCE_REPO_PATHS[@]}"; do
+        echo "  - $path" >&2
+    done
     exit 1
 fi
 
-echo "Creating git worktree..."
-if git -C "$SOURCE_REPO_PATH" show-ref --verify --quiet "refs/heads/$BRANCH_NAME"; then
-    git -C "$SOURCE_REPO_PATH" worktree add "$TARGET_WORKTREE_PATH" "$BRANCH_NAME"
-else
-    git -C "$SOURCE_REPO_PATH" worktree add -b "$BRANCH_NAME" "$TARGET_WORKTREE_PATH"
-fi
+SOURCE_REPO_PATH="${SOURCE_REPO_PATHS[0]}"
 
-echo "Copying env files..."
+echo "Copying env files to current worktree: $TARGET_WORKTREE_PATH"
+echo "Detected source local repo: $SOURCE_REPO_PATH"
 copied_count=0
 
 while IFS= read -r source_file; do
@@ -63,5 +66,5 @@ done < <(
         -not -path "$SOURCE_REPO_PATH/.git/*"
 )
 
-echo "Done. Created worktree: $TARGET_WORKTREE_PATH"
+echo "Done. Synced env files to: $TARGET_WORKTREE_PATH"
 echo "Copied env files: $copied_count"

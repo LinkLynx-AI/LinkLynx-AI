@@ -1,6 +1,6 @@
 .PHONY: help setup setup-check dev build up down logs clean test
 .PHONY: ts-dev ts-build ts-lint rust-dev rust-build rust-test py-dev py-test elixir-dev elixir-build
-.PHONY: db-up db-down db-reset worktree-add
+.PHONY: db-up db-down db-reset worktree-sync-env
 
 # 色設定
 GREEN  := \033[0;32m
@@ -28,13 +28,8 @@ setup: ## 全環境の自動セットアップを実行
 setup-check: ## 環境構築状況を確認
 	@./setup/check-env.sh
 
-worktree-add: ## 新規worktreeを作成し.envファイルをコピー (例: make worktree-add WORKTREE_PATH=../linklinx-x WORKTREE_BRANCH=feat/x [SOURCE_REPO=/path])
-	@if [ -z "$(WORKTREE_PATH)" ] || [ -z "$(WORKTREE_BRANCH)" ]; then \
-		echo "$(RED)WORKTREE_PATH と WORKTREE_BRANCH は必須です$(NC)"; \
-		echo "例: make worktree-add WORKTREE_PATH=../linklinx-x WORKTREE_BRANCH=feat/x"; \
-		exit 1; \
-	fi
-	@./setup/create-worktree-with-env.sh "$(WORKTREE_PATH)" "$(WORKTREE_BRANCH)" "$(if $(SOURCE_REPO),$(SOURCE_REPO),.)"
+worktree-sync-env: ## 現在のworktreeへ.envファイルを自動検出元からコピー
+	@./setup/create-worktree-with-env.sh
 
 # ============================================
 # Docker コマンド
