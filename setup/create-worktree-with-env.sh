@@ -50,10 +50,16 @@ echo "Copying env files to current worktree: $TARGET_WORKTREE_PATH"
 echo "Detected source local repo: $SOURCE_REPO_PATH"
 copied_count=0
 skipped_count=0
+non_ignored_count=0
 
 while IFS= read -r source_file; do
     rel_path="${source_file#"$SOURCE_REPO_PATH"/}"
     dest_file="$TARGET_WORKTREE_PATH/$rel_path"
+
+    if ! git -C "$SOURCE_REPO_PATH" check-ignore -q "$rel_path"; then
+        non_ignored_count=$((non_ignored_count + 1))
+        continue
+    fi
 
     if [[ -e "$dest_file" ]]; then
         echo "Warning: destination env file already exists, skipping: $dest_file" >&2
@@ -67,12 +73,11 @@ while IFS= read -r source_file; do
 done < <(
     find "$SOURCE_REPO_PATH" \
         -type f \
-        \( -name ".env" -o -name ".env.*" \) \
-        -not -name ".env.example" \
-        -not -name ".env.*.example" \
+        -name ".env*" \
         -not -path "$SOURCE_REPO_PATH/.git/*"
 )
 
 echo "Done. Synced env files to: $TARGET_WORKTREE_PATH"
 echo "Copied env files: $copied_count"
 echo "Skipped existing env files: $skipped_count"
+echo "Skipped non-ignored env files: $non_ignored_count"
