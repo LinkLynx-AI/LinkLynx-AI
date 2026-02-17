@@ -1,6 +1,6 @@
 .PHONY: help setup setup-check dev build up down logs clean test
 .PHONY: ts-dev ts-build ts-lint rust-dev rust-build rust-test py-dev py-test elixir-dev elixir-build
-.PHONY: db-up db-down db-reset
+.PHONY: db-up db-down db-reset worktree-sync-env
 
 # 色設定
 GREEN  := \033[0;32m
@@ -27,6 +27,9 @@ setup: ## 全環境の自動セットアップを実行
 
 setup-check: ## 環境構築状況を確認
 	@./setup/check-env.sh
+
+worktree-sync-env: ## 現在のworktreeへ.envファイルを自動検出元からコピー
+	@./setup/create-worktree-with-env.sh
 
 # ============================================
 # Docker コマンド
