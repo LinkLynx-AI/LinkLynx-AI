@@ -49,10 +49,17 @@ SOURCE_REPO_PATH="${SOURCE_REPO_PATHS[0]}"
 echo "Copying env files to current worktree: $TARGET_WORKTREE_PATH"
 echo "Detected source local repo: $SOURCE_REPO_PATH"
 copied_count=0
+skipped_count=0
 
 while IFS= read -r source_file; do
     rel_path="${source_file#"$SOURCE_REPO_PATH"/}"
     dest_file="$TARGET_WORKTREE_PATH/$rel_path"
+
+    if [[ -e "$dest_file" ]]; then
+        echo "Warning: destination env file already exists, skipping: $dest_file" >&2
+        skipped_count=$((skipped_count + 1))
+        continue
+    fi
 
     mkdir -p "$(dirname "$dest_file")"
     cp "$source_file" "$dest_file"
@@ -68,3 +75,4 @@ done < <(
 
 echo "Done. Synced env files to: $TARGET_WORKTREE_PATH"
 echo "Copied env files: $copied_count"
+echo "Skipped existing env files: $skipped_count"
