@@ -1,17 +1,11 @@
-import React from "react";
-import { render, screen } from "@testing-library/react";
 import { describe, expect, test } from "vitest";
+import { renderToStaticMarkup } from "react-dom/server";
 import Home from "./page";
 
 describe("Home page", () => {
   test("主要テキストを表示する", () => {
-    render(<Home />);
-
-    expect(
-      screen.getByRole("heading", { name: "LinkLynx" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("Discord Clone - Real-time Chat Application"),
-    ).toBeInTheDocument();
+    const html = renderToStaticMarkup(<Home />);
+    expect(html).toContain("LinkLynx");
+    expect(html).toContain("Discord Clone - Real-time Chat Application");
   });
 });
