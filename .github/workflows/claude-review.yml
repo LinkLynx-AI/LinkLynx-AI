@@ -1,0 +1,53 @@
+name: Claude Auto Review
+
+on:
+  pull_request:
+    types: [opened, reopened, ready_for_review]
+
+jobs:
+  auto-review:
+    runs-on: ubuntu-slim
+    permissions:
+      contents: read
+      pull-requests: read
+      id-token: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          fetch-depth: 1
+
+      - name: Automatic PR Review
+        uses: anthropics/claude-code-action@beta
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          timeout_minutes: "10"
+          direct_prompt: |
+            Please review this pull request and provide comprehensive feedback according to the project guidelines.
+
+            IMPORTANT: Always check for and reference the relevant CLAUDE.md file(s) in the changed directories to follow project-specific guidelines and coding standards.
+
+            Focus on:
+            - Adherence to project-specific guidelines from CLAUDE.md files
+            - Code quality and best practices per project standards
+            - Potential bugs or issues
+            - Performance considerations
+            - Security implications
+            - Test coverage requirements
+            - Documentation updates if needed
+            - Architecture compliance (Clean Architecture for Go, FSD for TypeScript-v2)
+
+            For multi-service projects, check these CLAUDE.md files as applicable:
+            - /CLAUDE.md (root project guidelines)
+            - /go/CLAUDE.md (Go backend guidelines)
+            - /typescript-v2/CLAUDE.md (TypeScript-v2 frontend guidelines)
+
+            Additionally, review the QA items listed at the end of the pull request description (dev環境でのQA項目):
+            - Verify that the QA checklist is comprehensive and covers all necessary testing scenarios
+            - Check if any important test cases are missing based on the code changes
+            - Suggest additional QA items if critical functionality is not covered
+
+            Provide constructive feedback with specific suggestions for improvement based on the project's documented standards.
+            Use inline comments to highlight specific areas of concern.
+            ALWAYS RESPOND IN JAPANESE even if provided information is in other languages.
+            allowed_tools: "mcp__github__create_pending_pull_request_review,mcp__github__add_pull_request_review_comment_to_pending_review,mcp__github__submit_pending_pull_request_review,mcp__github__get_pull_request_diff"
