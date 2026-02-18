@@ -81,6 +81,7 @@ export default tseslint.config(
             "@/entities/*",
             "@/widgets/*",
             "@/pages/*",
+            "@testing-library/jest-dom/vitest",
           ],
         },
       ],
