@@ -46,25 +46,22 @@ jobs:
           if [ -z "$(echo "$DIFF" | tr -d '[:space:]')" ]; then
             REVIEW="差分が空のため、レビューをスキップしました。"
           else
-            # OpenAI API 呼び出し (jq でJSONを安全に構築)
+            # Codex API 呼び出し (Responses API + jq でJSONを安全に構築)
             RESPONSE=$(jq -n \
-              --arg system "あなたは経験豊富なシニアエンジニアです。提供されたgit diffに対してコードレビューを行ってください。\n\n## レビューの観点\n- **バグ・論理的な誤り**: 潜在的なバグや意図しない動作\n- **セキュリティ**: 脆弱性・インジェクション・機密情報の漏洩リスク\n- **パフォーマンス**: 不必要なN+1クエリ、無駄なアロケーション等\n- **可読性・保守性**: 命名・コメント・複雑すぎるロジック\n- **テスト**: 重要なケースのテスト漏れ\n\n## 出力フォーマット\nMarkdownで以下のセクションに分けて出力してください。\n\n### 🔍 サマリー\n変更内容を1〜3文で要約する。\n\n### ✅ 良い点\n評価できる点をリストアップ（なければ省略可）。\n\n### ⚠️ 要確認・改善提案\n問題点・改善案を優先度（高/中/低）とともにリストアップ。ファイル名と行番号が特定できる場合は記載する。\n\n### 💡 その他コメント\n補足情報（なければ省略可）。\n\n問題がなければ「問題なし、LGTMです。」と記載してください。" \
-              --arg user "PRタイトル: $PR_TITLE\nベース: $BASE_REF ← $HEAD_REF\n\n\`\`\`diff\n$DIFF\n\`\`\`" \
+              --arg instructions "あなたは経験豊富なシニアエンジニアです。提供されたgit diffに対してコードレビューを行ってください。\n\n## レビューの観点\n- **バグ・論理的な誤り**: 潜在的なバグや意図しない動作\n- **セキュリティ**: 脆弱性・インジェクション・機密情報の漏洩リスク\n- **パフォーマンス**: 不必要なN+1クエリ、無駄なアロケーション等\n- **可読性・保守性**: 命名・コメント・複雑すぎるロジック\n- **テスト**: 重要なケースのテスト漏れ\n\n## 出力フォーマット\nMarkdownで以下のセクションに分けて出力してください。\n\n### 🔍 サマリー\n変更内容を1〜3文で要約する。\n\n### ✅ 良い点\n評価できる点をリストアップ（なければ省略可）。\n\n### ⚠️ 要確認・改善提案\n問題点・改善案を優先度（高/中/低）とともにリストアップ。ファイル名と行番号が特定できる場合は記載する。\n\n### 💡 その他コメント\n補足情報（なければ省略可）。\n\n問題がなければ「問題なし、LGTMです。」と記載してください。" \
+              --arg input "PRタイトル: $PR_TITLE\nベース: $BASE_REF ← $HEAD_REF\n\n\`\`\`diff\n$DIFF\n\`\`\`" \
               '{
-                model: "gpt-4o",
-                temperature: 0.2,
-                max_tokens: 2000,
-                messages: [
-                  {role: "system", content: $system},
-                  {role: "user",   content: $user}
-                ]
+                model: "codex-mini-latest",
+                max_output_tokens: 2000,
+                instructions: $instructions,
+                input: $input
               }' \
-            | curl -s https://api.openai.com/v1/chat/completions \
+            | curl -s https://api.openai.com/v1/responses \
                 -H "Authorization: Bearer $OPENAI_API_KEY" \
                 -H "Content-Type: application/json" \
                 -d @-)
 
-            REVIEW=$(echo "$RESPONSE" | jq -r '.choices[0].message.content // "レビューの取得に失敗しました。\n\n```\n\(.error.message // .)\n```"')
+            REVIEW=$(echo "$RESPONSE" | jq -r '.output[0].content[0].text // "レビューの取得に失敗しました。\n\n```\n\(.error.message // .)\n```"')
           fi
 
           # PR コメント投稿
