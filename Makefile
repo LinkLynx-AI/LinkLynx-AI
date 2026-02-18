@@ -1,5 +1,5 @@
 .PHONY: help setup setup-check dev build up down logs clean test
-.PHONY: ts-dev ts-build ts-lint rust-dev rust-build rust-test py-dev py-test elixir-dev elixir-build
+.PHONY: ts-dev ts-build ts-lint ts-test rust-dev rust-build rust-test py-dev py-test elixir-dev elixir-build
 .PHONY: db-up db-down db-reset worktree-sync-env
 
 # 色設定
@@ -74,6 +74,9 @@ ts-build: ## Next.js を本番用にビルド
 
 ts-lint: ## ESLint でコードチェック
 	cd typescript && npm run lint
+
+ts-test: ## TypeScript テストを実行
+	cd typescript && npm run test
 
 ts-install: ## 依存パッケージをインストール
 	cd typescript && npm install
@@ -150,7 +153,7 @@ dev: db-up ## 開発環境を起動（DB + ローカルサービス）
 
 test: ## 全テストを実行
 	@echo "$(BLUE)TypeScript テスト実行中...$(NC)"
-	-cd typescript && npm test 2>/dev/null || echo "$(YELLOW)テスト未設定$(NC)"
+	cd typescript && npm run test
 	@echo "$(BLUE)Rust テスト実行中...$(NC)"
 	cd rust && cargo test
 	@echo "$(BLUE)Python テスト実行中...$(NC)"

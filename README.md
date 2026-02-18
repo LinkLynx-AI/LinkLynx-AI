@@ -225,6 +225,7 @@ make clean          # コンテナ・ボリュームを削除
 make ts-dev         # 開発サーバー起動
 make ts-build       # 本番ビルド
 make ts-lint        # ESLint実行
+make ts-test        # テスト実行
 make ts-install     # 依存パッケージインストール
 
 # Rust
@@ -247,6 +248,43 @@ make db-up          # DBのみ起動
 make db-down        # DBを停止
 make db-reset       # DBをリセット（※データ全削除）
 ```
+
+## テスト・品質チェック手順（Rust / TypeScript）
+
+```bash
+# TypeScript
+cd typescript
+npm install
+npm run lint
+npm run test
+npm run build
+
+# Rust
+cd ../rust
+cargo test
+cargo build --release
+```
+
+## CI/CD 運用
+
+- CI (`.github/workflows/ci.yml`)
+  - トリガー: `main` 向け Pull Request
+  - 実行内容: TypeScript `lint/test/build`、Rust `test/build`
+- CD (`.github/workflows/cd.yml`)
+  - トリガー: `main` への push
+  - 実行内容: Rust/TypeScript の Docker build、Rust `/health` の smoke test、deploy ジョブ枠（placeholder）
+
+## 失敗時の確認ポイント
+
+- まず GitHub Actions の失敗ジョブログを確認する
+- TypeScript 失敗時:
+  - `typescript-lint` / `typescript-test` / `typescript-build` のどのジョブで落ちたかを確認
+- Rust 失敗時:
+  - `rust-test` / `rust-build` のどちらで失敗したかを確認
+- CD 失敗時:
+  - `build-images` か `smoke-test` のログを確認（`/health` 到達可否と `docker compose logs rust`）
+- 通知先（暫定）:
+  - GitHub の通知（Web/メール）を一次導線とする
 
 ## 技術スタック
 
