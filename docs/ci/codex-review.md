@@ -2,7 +2,7 @@
 
 ## 概要
 
-`main` ブランチへの Pull Request 作成・更新時に、OpenAI Codex（`codex-mini-latest`）を用いたコードレビューが自動実行されます。レビュー結果は PR コメントとして投稿されます。
+`main` ブランチへの Pull Request 作成・更新時に、OpenAI Codex（`codex-5.3`）を用いたコードレビューが自動実行されます。レビュー結果は PR コメントとして投稿されます。
 
 ## アーキテクチャ
 
@@ -97,7 +97,7 @@ on:
 
 | 項目 | 詳細 |
 |---|---|
-| 使用モデル | `codex-mini-latest` |
+| 使用モデル | `codex-5.3` |
 | 使用エンドポイント | `POST /v1/responses` |
 | 最大 diff サイズ | 30,000 文字（超過分は切り捨て） |
 | 最大出力トークン | 2,000 tokens |
