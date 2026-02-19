@@ -100,7 +100,6 @@ LinkLynx-AI/
 ├── rust/                # 🦀 Axum + Tokio
 │   ├── src/
 │   │   └── main.rs
-│   ├── migrations/      # sqlx migrations (LIN-137/138/139)
 │   ├── Cargo.toml
 │   └── Dockerfile
 │
@@ -117,7 +116,7 @@ LinkLynx-AI/
 │
 ├── database/            # 🗄️ データベース
 │   ├── init.sql         # 初期化導線（スキーマ本体はmigration管理）
-│   ├── postgres/        # PostgreSQL運用SQL
+│   ├── postgres/        # PostgreSQL運用SQL / migrations
 │   ├── scylla/          # Scylla CQL
 │   └── contracts/       # Search/PubSub/Redis運用契約
 │
@@ -258,7 +257,7 @@ make db-migrate-info   # sqlx migrationの適用状態を確認
 
 ## DBスキーマ運用（LIN-135）
 
-PostgreSQLスキーマは `rust/migrations` を正として管理します。
+PostgreSQLスキーマは `database/postgres/migrations` を正として管理します。
 
 ```bash
 # 事前準備（未インストール時）

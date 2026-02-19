@@ -1,5 +1,5 @@
--- LIN-139 monotonic and NULL-safe upsert contract for channel_reads.
--- Reverse movement is prohibited for last_read_message_id and last_client_seq.
+-- LIN-139: channel_reads の単調増加かつ NULL 安全な upsert 契約。
+-- last_read_message_id と last_client_seq の逆行更新を禁止する。
 
 INSERT INTO channel_reads (
   channel_id,

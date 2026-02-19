@@ -1,5 +1,5 @@
--- LIN-139 Scylla schema for message bodies
--- Apply after Scylla cluster is ready.
+-- LIN-139: メッセージ本文用の Scylla スキーマ
+-- Scylla クラスタ起動後に適用する。
 
 CREATE KEYSPACE IF NOT EXISTS chat
 WITH replication = {'class': 'NetworkTopologyStrategy', 'dc1': 3};
@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS chat.messages_by_channel (
   PRIMARY KEY ((channel_id, bucket), message_id)
 ) WITH CLUSTERING ORDER BY (message_id DESC);
 
--- Optional direct-lookup table.
+-- 任意: message_id 直参照用テーブル
 CREATE TABLE IF NOT EXISTS chat.messages_by_id (
   message_id bigint PRIMARY KEY,
   channel_id bigint,
@@ -34,7 +34,7 @@ CREATE TABLE IF NOT EXISTS chat.messages_by_id (
   created_at timestamp
 );
 
--- Bucket operation policy (fixed for v1):
--- 1. Start with 10-day bucket width.
--- 2. Compute bucket from created_at or Snowflake message_id.
--- 3. Allow runtime bucket-width change when partition threshold is exceeded.
+-- バケット運用規約（v1固定）
+-- 1. 初期バケット幅は 10 日
+-- 2. created_at または Snowflake の message_id から bucket を算出
+-- 3. パーティション閾値超過時に実行時で bucket 幅変更を許容

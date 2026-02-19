@@ -1,15 +1,15 @@
-# LIN-139 Runtime Contracts (Search / PubSub / Redis)
+# LIN-139 実行時契約（検索 / PubSub / Redis）
 
-This document defines runtime contracts that are required by the DB selection assumptions.
-It is part of LIN-139 scope and must be implemented with the schema.
+この文書は、DB選定前提を満たすために必要な実行時契約を定義します。
+LIN-139 のスコープに含め、スキーマ実装とセットで適用します。
 
-## 1. Search Contract
+## 1. 検索（Search）契約
 
-- Engine: Elastic Cloud on GCP (primary), OpenSearch on GKE (fallback).
-- Index name: `messages`.
-- Document id: `message_id`.
-- Required fields:
-  - `guild_id` (nullable for DM)
+- エンジン: Elastic Cloud on GCP（第一候補）、OpenSearch on GKE（代替）
+- インデックス名: `messages`
+- ドキュメントID: `message_id`
+- 必須フィールド:
+  - `guild_id`（DMでは `null` 許容）
   - `channel_id`
   - `author_id`
   - `content`
@@ -17,13 +17,13 @@ It is part of LIN-139 scope and must be implemented with the schema.
   - `is_deleted`
   - `version`
 
-### Version Guard Rule
+### バージョンガード規約
 
-- Update must be atomic.
-- Reject stale events where incoming `version <= stored.version`.
-- Read-compare-write in application code is prohibited.
+- 更新は原子的に実行すること
+- `incoming.version <= stored.version` のイベントは反映しないこと
+- アプリケーション側の read-compare-write 実装は禁止
 
-### Example Mapping (minimum)
+### マッピング例（最小）
 
 ```json
 {
@@ -41,13 +41,13 @@ It is part of LIN-139 scope and must be implemented with the schema.
 }
 ```
 
-## 2. Pub/Sub Contract
+## 2. Pub/Sub 契約
 
-- Transport: GCP Pub/Sub with DLQ enabled.
-- Ordering key: `channel:{channel_id}`.
-- Event types: `MessageCreated`, `MessageUpdated`, `MessageDeleted`.
+- 伝送基盤: GCP Pub/Sub（DLQ有効）
+- 順序キー: `channel:{channel_id}`
+- イベント種別: `MessageCreated` / `MessageUpdated` / `MessageDeleted`
 
-### Payload Schema
+### ペイロードスキーマ
 
 ```json
 {
@@ -62,32 +62,32 @@ It is part of LIN-139 scope and must be implemented with the schema.
     "author_id": 111,
     "bucket": 999,
     "version": 2,
-    "content": "edited text",
+    "content": "編集後テキスト",
     "is_deleted": false
   }
 }
 ```
 
-### Delivery / Retry Rules
+### 配信 / 再試行ルール
 
-- Subscriber logic must be idempotent by `event_id` or `message_id + version`.
-- DLQ retry flow must preserve ordering key.
-- `MessageDeleted` must be indexed as tombstone (`is_deleted=true`).
+- 購読側ロジックは `event_id` もしくは `message_id + version` で冪等にすること
+- DLQ からの再試行時も順序キーを維持すること
+- `MessageDeleted` はトゥームストーン（`is_deleted=true`）としてインデックス更新すること
 
-## 3. Redis RateLimit L2 Contract
+## 3. Redis レート制限（RateLimit）L2 契約
 
-- L1: local node memory GCRA/TAT.
-- L2: Redis fallback only when needed.
-- Required keys:
+- L1: 各ノードのローカルメモリ GCRA/TAT
+- L2: 必要時のみ Redis フォールバックを使う
+- 必須キー:
   - `rl2:gcra:user:{user_id}:{action}`
   - `rl2:gcra:ip:{ip}:{action}`
-- Value format: `tat_ms` as integer.
-- TTL: few minutes (default 300 seconds).
+- 値形式: 整数の `tat_ms`
+- TTL: 数分（デフォルト `300` 秒）
 
-### L2 Access Conditions
+### L2 参照条件
 
-- near threshold boundary
-- suspicious access pattern
-- critical actions
-- node restart or rebalance period
-- L1 state cache miss
+- 閾値境界付近の判定時
+- 疑わしいアクセスパターン検知時
+- 重要操作の判定時
+- ノード再起動 / リバランス直後
+- L1 状態キャッシュミス時

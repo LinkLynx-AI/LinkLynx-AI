@@ -1,20 +1,20 @@
-# LIN-135 Integration Verification
+# LIN-135 統合検証
 
-This checklist verifies migration ordering and rollback consistency.
+このチェックリストは、migration の適用順序とロールバックの整合性を検証するためのものです。
 
-## Preconditions
+## 事前条件
 
-- PostgreSQL is running on `localhost:5432`.
-- `sqlx-cli` is installed locally.
-- `DATABASE_URL` points to the test database.
+- PostgreSQL が `localhost:5432` で起動していること
+- `sqlx-cli` がローカルにインストールされていること
+- `DATABASE_URL` が検証用データベースを指していること
 
-## Required Migration Order
+## 必須 migration 適用順
 
 1. `0001_lin137_auth_profile`
 2. `0002_lin138_guild_channel_invite`
 3. `0003_lin139_permissions_reads_outbox`
 
-## Commands
+## 実行コマンド
 
 ```bash
 make db-up
@@ -24,12 +24,12 @@ make db-migrate-revert
 make db-migrate
 ```
 
-## Verification Items
+## 検証項目
 
-1. `users` theme check blocks invalid values.
-2. `uq_users_email_lower` blocks case-insensitive duplicates.
-3. `password_reset_tokens` enforces one active token per user.
-4. `invites` blocks `uses > max_uses`.
-5. `dm_pairs` blocks non-dm channel references.
-6. `channel_reads` monotonic upsert contract is documented and applied in application SQL.
-7. `outbox_events` pending index exists and is used by pending query plans.
+1. `users` の `theme` 制約で不正値が拒否されること
+2. `uq_users_email_lower` により、大文字小文字違いの重複メールが拒否されること
+3. `password_reset_tokens` が「1ユーザー1有効トークン」を保証すること
+4. `invites` で `uses > max_uses` が拒否されること
+5. `dm_pairs` で `dm` 以外のチャネル参照が拒否されること
+6. `channel_reads` の単調増加 upsert 契約が文書化され、アプリ側SQLに適用されていること
+7. `outbox_events` の pending 用インデックスが存在し、取得クエリで利用されること
