@@ -1,1 +1,2 @@
 -- PostgreSQL initialization script for LinkLynx
+-- The relational schema is managed via sqlx migrations in rust/migrations.
