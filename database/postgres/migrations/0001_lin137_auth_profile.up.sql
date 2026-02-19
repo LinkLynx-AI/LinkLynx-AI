@@ -12,11 +12,16 @@ CREATE TABLE users (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 
-  CONSTRAINT chk_users_theme CHECK (theme IN ('dark', 'light'))
+  CONSTRAINT chk_users_theme CHECK (theme IN ('dark', 'light')),
+  CONSTRAINT chk_users_password_hash_argon2id
+    CHECK (password_hash LIKE '$argon2id$%')
 );
 
 CREATE UNIQUE INDEX uq_users_email_lower
   ON users (lower(email));
+
+COMMENT ON COLUMN users.password_hash
+  IS 'Argon2id の PHC 文字列（例: $argon2id$v=19$...）を保存する。';
 
 CREATE TABLE email_verification_tokens (
   user_id BIGINT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,

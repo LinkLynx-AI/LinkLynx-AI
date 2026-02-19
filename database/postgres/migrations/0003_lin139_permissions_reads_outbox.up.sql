@@ -36,6 +36,11 @@ CREATE TABLE channel_permission_overrides (
   PRIMARY KEY (channel_id, level)
 );
 
+COMMENT ON COLUMN channel_permission_overrides.can_view
+  IS 'NULL はロール既定値を継承、TRUE/FALSE は明示上書き。';
+COMMENT ON COLUMN channel_permission_overrides.can_post
+  IS 'NULL はロール既定値を継承、TRUE/FALSE は明示上書き。';
+
 CREATE TABLE channel_reads (
   channel_id BIGINT NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
   user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -60,8 +65,8 @@ CREATE INDEX idx_channel_last_message_time
 
 CREATE TABLE audit_logs (
   id BIGINT PRIMARY KEY,
-  guild_id BIGINT REFERENCES guilds(id) ON DELETE CASCADE,
-  actor_id BIGINT REFERENCES users(id),
+  guild_id BIGINT REFERENCES guilds(id) ON DELETE SET NULL,
+  actor_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
   action audit_action NOT NULL,
   target_type TEXT,
   target_id BIGINT,
@@ -70,7 +75,8 @@ CREATE TABLE audit_logs (
 );
 
 CREATE INDEX idx_audit_guild_time
-  ON audit_logs (guild_id, created_at DESC);
+  ON audit_logs (guild_id, created_at DESC)
+  WHERE guild_id IS NOT NULL;
 
 CREATE TABLE outbox_events (
   id BIGINT PRIMARY KEY,
@@ -87,3 +93,7 @@ CREATE TABLE outbox_events (
 
 CREATE INDEX idx_outbox_pending
   ON outbox_events (status, next_retry_at, created_at);
+
+CREATE INDEX idx_outbox_failed
+  ON outbox_events (status, created_at DESC)
+  WHERE status = 'FAILED';

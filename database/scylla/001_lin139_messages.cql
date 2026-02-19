@@ -1,5 +1,10 @@
 -- LIN-139: メッセージ本文用の Scylla スキーマ
 -- Scylla クラスタ起動後に適用する。
+-- `dc1:3` は本番想定のデフォルト例。
+-- 環境ごとに `nodetool status` のDC名へ置換して適用すること。
+-- 例:
+--   - 開発: {'class': 'NetworkTopologyStrategy', 'dc1': 1}
+--   - 本番: {'class': 'NetworkTopologyStrategy', 'asia-northeast1': 3}
 
 CREATE KEYSPACE IF NOT EXISTS chat
 WITH replication = {'class': 'NetworkTopologyStrategy', 'dc1': 3};

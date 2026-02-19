@@ -3,7 +3,7 @@ CREATE TYPE channel_type AS ENUM ('guild_text', 'dm');
 CREATE TABLE guilds (
   id BIGINT PRIMARY KEY,
   name TEXT NOT NULL,
-  owner_id BIGINT NOT NULL REFERENCES users(id),
+  owner_id BIGINT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
   icon_key TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -20,13 +20,10 @@ CREATE TABLE guild_members (
 CREATE INDEX idx_guild_members_user
   ON guild_members (user_id);
 
-CREATE INDEX idx_guild_members_user_guild
-  ON guild_members (user_id, guild_id);
-
 CREATE TABLE invites (
   id BIGINT PRIMARY KEY,
   guild_id BIGINT NOT NULL REFERENCES guilds(id) ON DELETE CASCADE,
-  created_by BIGINT NOT NULL REFERENCES users(id),
+  created_by BIGINT REFERENCES users(id) ON DELETE SET NULL,
   code TEXT UNIQUE NOT NULL,
   expires_at TIMESTAMPTZ,
   max_uses INT,
@@ -43,13 +40,14 @@ CREATE INDEX idx_invites_guild
   ON invites (guild_id);
 
 CREATE INDEX idx_invites_expires
-  ON invites (expires_at);
+  ON invites (expires_at)
+  WHERE expires_at IS NOT NULL;
 
 CREATE TABLE invite_uses (
   invite_id BIGINT NOT NULL REFERENCES invites(id) ON DELETE CASCADE,
-  used_by BIGINT NOT NULL REFERENCES users(id),
+  used_by BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   used_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  PRIMARY KEY (invite_id, used_by, used_at)
+  PRIMARY KEY (invite_id, used_by)
 );
 
 CREATE TABLE channels (
@@ -59,7 +57,7 @@ CREATE TABLE channels (
   guild_id BIGINT REFERENCES guilds(id) ON DELETE CASCADE,
   name TEXT,
 
-  created_by BIGINT NOT NULL REFERENCES users(id),
+  created_by BIGINT REFERENCES users(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 

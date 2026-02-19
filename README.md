@@ -115,7 +115,7 @@ LinkLynx-AI/
 │   └── Dockerfile
 │
 ├── database/            # 🗄️ データベース
-│   ├── init.sql         # 初期化導線（スキーマ本体はmigration管理）
+│   ├── init.sql         # 初期化導線（スキーマ本体は database/postgres/migrations で管理）
 │   ├── postgres/        # PostgreSQL運用SQL / migrations
 │   ├── scylla/          # Scylla CQL
 │   └── contracts/       # Search/PubSub/Redis運用契約

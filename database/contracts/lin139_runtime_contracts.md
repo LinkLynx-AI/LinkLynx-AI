@@ -12,6 +12,7 @@ LIN-139 のスコープに含め、スキーマ実装とセットで適用しま
   - `guild_id`（DMでは `null` 許容）
   - `channel_id`
   - `author_id`
+  - `bucket`
   - `content`
   - `created_at`
   - `is_deleted`
@@ -23,6 +24,15 @@ LIN-139 のスコープに含め、スキーマ実装とセットで適用しま
 - `incoming.version <= stored.version` のイベントは反映しないこと
 - アプリケーション側の read-compare-write 実装は禁止
 
+### 実装方式（必須）
+
+- Elasticsearch / OpenSearch ともに、ドキュメント更新は `version_type=external` を使う
+- `version` には Pub/Sub の `message.version` をそのまま使う
+- 具体例:
+  - `PUT /messages/_doc/{message_id}?version={incoming.version}&version_type=external`
+  - 競合（`version_conflict_engine_exception`）は「古いイベント」として握り潰す
+- `MessageDeleted` も同一方式で `is_deleted=true` のトゥームストーン更新を行う
+
 ### マッピング例（最小）
 
 ```json
@@ -32,6 +42,7 @@ LIN-139 のスコープに含め、スキーマ実装とセットで適用しま
       "guild_id": { "type": "long" },
       "channel_id": { "type": "long" },
       "author_id": { "type": "long" },
+      "bucket": { "type": "integer" },
       "content": { "type": "text" },
       "created_at": { "type": "date" },
       "is_deleted": { "type": "boolean" },
@@ -83,6 +94,15 @@ LIN-139 のスコープに含め、スキーマ実装とセットで適用しま
   - `rl2:gcra:ip:{ip}:{action}`
 - 値形式: 整数の `tat_ms`
 - TTL: 数分（デフォルト `300` 秒）
+
+### TTL 失効時の扱い
+
+- TTL切れでキーが消えていた場合は「L2の状態なし」として扱う
+- ただし burst 過多を防ぐため、L2ミス時は次の順で処理する:
+  1. まず L1 判定結果を使う
+  2. L2 に `SET ... NX EX 300` で `tat_ms=max(now_ms, l1_tat_ms)` を初期化する
+  3. `SET NX` が負けた場合のみ `GET` 再読込して再判定する
+- これにより、TTL失効/再起動直後でも多重ノードでの過剰許可を最小化する
 
 ### L2 参照条件
 

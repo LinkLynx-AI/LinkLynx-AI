@@ -33,3 +33,15 @@ make db-migrate
 5. `dm_pairs` で `dm` 以外のチャネル参照が拒否されること
 6. `channel_reads` の単調増加 upsert 契約が文書化され、アプリ側SQLに適用されていること
 7. `outbox_events` の pending 用インデックスが存在し、取得クエリで利用されること
+
+## 検証コマンド（項目6の具体化）
+
+```bash
+# 契約SQLの配置確認
+test -f database/postgres/channel_reads_upsert.sql
+
+# Rust 側で単調増加 upsert SQL を実際に参照していることを確認
+rg -n "channel_reads_upsert|ON CONFLICT \\(channel_id, user_id\\)" rust/src
+```
+
+- `rg` が0件の場合は「契約未適用」として LIN-135 を未完了扱いにする
