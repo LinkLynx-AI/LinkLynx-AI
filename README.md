@@ -115,7 +115,10 @@ LinkLynx-AI/
 │   └── Dockerfile
 │
 ├── database/            # 🗄️ データベース
-│   └── init.sql
+│   ├── init.sql         # 初期化導線（スキーマ本体は database/postgres/migrations で管理）
+│   ├── postgres/        # PostgreSQL運用SQL / migrations
+│   ├── scylla/          # Scylla CQL
+│   └── contracts/       # Search/PubSub/Redis運用契約
 │
 ├── setup/               # 🔧 セットアップスクリプト
 │   ├── setup.sh         # 自動環境構築
@@ -247,7 +250,33 @@ make elixir-deps    # 依存パッケージインストール
 make db-up          # DBのみ起動
 make db-down        # DBを停止
 make db-reset       # DBをリセット（※データ全削除）
+make db-migrate     # sqlx migration適用
+make db-migrate-revert # sqlx migrationを1件ロールバック
+make db-migrate-info   # sqlx migrationの適用状態を確認
 ```
+
+## DBスキーマ運用（LIN-135）
+
+PostgreSQLスキーマは `database/postgres/migrations` を正として管理します。
+
+```bash
+# 事前準備（未インストール時）
+cargo install sqlx-cli --no-default-features --features rustls,postgres
+
+# DB起動
+make db-up
+
+# 137 -> 138 -> 139 の順でmigration適用
+make db-migrate
+
+# 適用状態を確認
+make db-migrate-info
+
+# rollback確認（逆順で1件戻す）
+make db-migrate-revert
+```
+
+検証チェックリストは `database/contracts/lin135_integration_verification.md` を参照してください。
 
 ## テスト・品質チェック手順（Rust / TypeScript）
 
@@ -309,8 +338,12 @@ cargo build --release
 - **JSON**: Jason
 
 ### データベース
-- **PostgreSQL**: ユーザー、サーバー、フレンドリスト（リレーショナルデータ）
-- **ScyllaDB**: チャット履歴（大量の時系列データ）
+- **PostgreSQL**: 強整合が必要な正データ（ユーザー/ギルド/権限/招待/監査/既読）
+- **ScyllaDB**: メッセージ本体（履歴ページング、編集/削除、水平スケール）
+- **Search (Elastic/OpenSearch)**: 全文検索（派生、非同期更新）
+- **Redis (Memorystore)**: Presence / 共有Cache + RateLimitのL2
+- **Local Storage**: RateLimitのL1（ローカルGCRA / TAT）
+- **Pub/Sub + DLQ**: 非同期処理（検索更新、last_message更新、通知、監査追記）
 
 ## ライセンス
 

@@ -1,1 +1,2 @@
--- PostgreSQL initialization script for LinkLynx
+-- LinkLynx 用 PostgreSQL 初期化スクリプト
+-- リレーショナルスキーマ本体は database/postgres/migrations の sqlx migration で管理する。

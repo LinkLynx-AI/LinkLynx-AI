@@ -1,6 +1,6 @@
 .PHONY: help setup setup-check dev build up down logs clean test
 .PHONY: ts-dev ts-build ts-lint ts-test rust-dev rust-build rust-test rust-fmt rust-clippy rust-lint rust-ci py-dev py-test elixir-dev elixir-build
-.PHONY: db-up db-down db-reset worktree-sync-env
+.PHONY: db-up db-down db-reset db-migrate db-migrate-revert db-migrate-info worktree-sync-env
 
 # 色設定
 GREEN  := \033[0;32m
@@ -8,6 +8,9 @@ RED    := \033[0;31m
 YELLOW := \033[0;33m
 BLUE   := \033[0;34m
 NC     := \033[0m
+
+DATABASE_URL ?= postgres://postgres:password@localhost:5432/linklynx
+SQLX_MIGRATIONS_DIR ?= ../database/postgres/migrations
 
 help: ## ヘルプを表示
 	@echo "$(BLUE)LinkLynx-AI$(NC) - Discord Clone 開発コマンド"
@@ -152,6 +155,15 @@ db-down: ## データベースを停止
 db-reset: ## データベースをリセット（※データ全削除）
 	docker-compose down -v postgres scylladb
 	docker-compose up -d postgres scylladb
+
+db-migrate: ## sqlx migration を適用
+	cd rust && DATABASE_URL=$(DATABASE_URL) sqlx migrate run --source $(SQLX_MIGRATIONS_DIR)
+
+db-migrate-revert: ## sqlx migration を1件ロールバック
+	cd rust && DATABASE_URL=$(DATABASE_URL) sqlx migrate revert --source $(SQLX_MIGRATIONS_DIR)
+
+db-migrate-info: ## sqlx migration の適用状態を表示
+	cd rust && DATABASE_URL=$(DATABASE_URL) sqlx migrate info --source $(SQLX_MIGRATIONS_DIR)
 
 # ============================================
 # 開発ワークフロー
