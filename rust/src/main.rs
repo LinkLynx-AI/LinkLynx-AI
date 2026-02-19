@@ -78,6 +78,8 @@ mod tests {
     };
     use tower::ServiceExt;
 
+    const MAX_RESPONSE_BYTES: usize = 16 * 1024;
+
     #[tokio::test]
     async fn root_returns_server_name() {
         let app = app();
@@ -87,7 +89,9 @@ mod tests {
             .unwrap();
 
         assert_eq!(response.status(), StatusCode::OK);
-        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
         assert_eq!(body.as_ref(), b"LinkLynx API Server");
     }
 
@@ -105,7 +109,9 @@ mod tests {
             .unwrap();
 
         assert_eq!(response.status(), StatusCode::OK);
-        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
         assert_eq!(body.as_ref(), b"OK");
     }
 }

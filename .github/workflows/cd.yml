@@ -6,22 +6,13 @@ on:
       - main
 
 jobs:
-  build-images:
-    name: Build Docker Images
+  build-and-smoke:
+    name: Build and Smoke Test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Build Rust image
-        run: docker build -t linklynx-rust:ci ./rust
-      - name: Build TypeScript image
-        run: docker build -t linklynx-typescript:ci ./typescript
-
-  smoke-test:
-    name: Smoke Test
-    runs-on: ubuntu-latest
-    needs: build-images
-    steps:
-      - uses: actions/checkout@v4
+      - name: Build images for smoke test
+        run: docker compose build rust typescript
       - name: Start services for smoke test
         run: docker compose up -d postgres rust
       - name: Wait for /health endpoint
@@ -42,7 +33,7 @@ jobs:
   deploy:
     name: Deploy (Placeholder)
     runs-on: ubuntu-latest
-    needs: smoke-test
+    needs: build-and-smoke
     steps:
       - name: Placeholder deploy step
         run: echo "Deploy step is not connected yet. Build + Smoke completed."

@@ -1,5 +1,4 @@
 .PHONY: help setup setup-check dev build up down logs clean test
-.PHONY: ts-dev ts-build ts-lint ts-test rust-dev rust-build rust-test py-dev py-test elixir-dev elixir-build
 .PHONY: ts-dev ts-build ts-lint ts-test rust-dev rust-build rust-test rust-fmt rust-clippy rust-lint rust-ci py-dev py-test elixir-dev elixir-build
 .PHONY: db-up db-down db-reset worktree-sync-env
 
