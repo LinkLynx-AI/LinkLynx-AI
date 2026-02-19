@@ -18,16 +18,7 @@ async fn main() {
         )
         .init();
 
-    let cors = CorsLayer::new()
-        .allow_origin(Any)
-        .allow_methods(Any)
-        .allow_headers(Any);
-
-    let app = Router::new()
-        .route("/", get(root))
-        .route("/health", get(health_check))
-        .route("/ws", get(ws_handler))
-        .layer(cors);
+    let app = app();
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 8080));
     tracing::info!("Server running on {}", addr);
@@ -42,6 +33,19 @@ async fn root() -> &'static str {
 
 async fn health_check() -> &'static str {
     "OK"
+}
+
+fn app() -> Router {
+    let cors = CorsLayer::new()
+        .allow_origin(Any)
+        .allow_methods(Any)
+        .allow_headers(Any);
+
+    Router::new()
+        .route("/", get(root))
+        .route("/health", get(health_check))
+        .route("/ws", get(ws_handler))
+        .layer(cors)
 }
 
 async fn ws_handler(ws: WebSocketUpgrade) -> impl IntoResponse {
@@ -62,5 +66,52 @@ async fn handle_socket(mut socket: WebSocket) {
                 _ => {}
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::app;
+    use axum::{
+        body::{to_bytes, Body},
+        http::{Request, StatusCode},
+    };
+    use tower::ServiceExt;
+
+    const MAX_RESPONSE_BYTES: usize = 16 * 1024;
+
+    #[tokio::test]
+    async fn root_returns_server_name() {
+        let app = app();
+        let response = app
+            .oneshot(Request::builder().uri("/").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        assert_eq!(body.as_ref(), b"LinkLynx API Server");
+    }
+
+    #[tokio::test]
+    async fn health_returns_ok() {
+        let app = app();
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/health")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        assert_eq!(body.as_ref(), b"OK");
     }
 }

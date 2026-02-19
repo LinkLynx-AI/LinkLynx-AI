@@ -24,7 +24,7 @@ export default tseslint.config(
       "dist/**",
       "coverage/**",
       "out/**",
-      "*.config.{js,mjs,cjs,ts}",
+      "*.config.{js,mjs,cjs,ts,mts,cts}",
       "eslint.config.mjs",
       "prettier.config.mjs",
     ],
@@ -81,6 +81,7 @@ export default tseslint.config(
             "@/entities/*",
             "@/widgets/*",
             "@/pages/*",
+            "@testing-library/jest-dom/vitest",
           ],
         },
       ],
@@ -136,6 +137,14 @@ export default tseslint.config(
           ],
         },
       ],
+    },
+  },
+  {
+    files: ["src/**/*.test.{ts,tsx}", "src/**/__tests__/**/*.{ts,tsx}"],
+    rules: {
+      "import/no-internal-modules": "off",
+      "@typescript-eslint/no-unsafe-assignment": "off",
+      "@typescript-eslint/no-unsafe-call": "off",
     },
   },
 );
