@@ -66,6 +66,11 @@
 - `useEffect` は外部システム同期（network, browser API, event subscription, timer, non-React library）に限定
 - props/state から導出できる値を `useEffect` + `setState` で同期しない
 
+## 5.1 実装・テスト方針
+- 関数はテスト可能なように、責務ごとに可能な限り分割する。
+- テストは可能な限り実装し、回帰防止を優先する。
+- 純粋関数と外部連携（I/O・HTTP・ブラウザAPI・状態更新など）を分離する。
+
 ## 6. コメント規約
 - 「何をするか」ではなく「なぜそうするか」を書く
 - TODO/FIXME にはチケットIDを必須化
