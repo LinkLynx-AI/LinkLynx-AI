@@ -3,11 +3,10 @@ import { renderToStaticMarkup } from "react-dom/server";
 import Home from "./page";
 
 describe("Home page", () => {
-  test("共通UI部品のプレビューを表示する", () => {
+  test("FSDのPublic API経由で描画できる", () => {
     const html = renderToStaticMarkup(<Home />);
-
-    expect(html).toContain("Common UI Components Preview");
-    expect(html).toContain("Action menu");
-    expect(html).toContain("Skeleton");
+    expect(html).toContain("LinkLynx");
+    expect(html).toContain("FSD Public API Sandbox");
+    expect(html).toContain("v1 UIスライスの雛形");
   });
 });
