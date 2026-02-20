@@ -47,6 +47,30 @@ command_exists() {
     command -v "$1" >/dev/null 2>&1
 }
 
+# Pythonのバージョン判定
+python_minor_version() {
+    local python_cmd=$1
+    "$python_cmd" -c 'import sys; print(sys.version_info.minor)' 2>/dev/null
+}
+
+# プロジェクトで利用可能なPython(3.13以下)を選択
+select_python_for_project() {
+    local candidates=(python3.13 python3.12 python3.11 python3.10 python3)
+
+    for python_cmd in "${candidates[@]}"; do
+        if command_exists "$python_cmd"; then
+            local minor
+            minor=$(python_minor_version "$python_cmd")
+            if [[ -n "$minor" ]] && [[ "$minor" -le 13 ]]; then
+                echo "$python_cmd"
+                return 0
+            fi
+        fi
+    done
+
+    return 1
+}
+
 # Homebrewのインストール (macOS)
 install_homebrew() {
     if [[ "$OS" == "macos" ]] && ! command_exists brew; then
@@ -137,7 +161,7 @@ install_python() {
     echo -e "${YELLOW}Pythonをインストール中...${NC}"
     case $OS in
         macos)
-            brew install python
+            brew install python@3.13
             ;;
         debian)
             sudo apt-get install -y python3 python3-pip python3-venv
@@ -202,14 +226,29 @@ setup_python() {
     echo -e "\n${BLUE}Python をセットアップ中...${NC}"
     cd python
     if [[ -f requirements.txt ]]; then
-        python3 -m venv .venv 2>/dev/null || true
-        if [[ -f .venv/bin/activate ]]; then
-            source .venv/bin/activate
-            pip install -r requirements.txt
-            deactivate
-        else
-            pip3 install -r requirements.txt
+        local python_cmd
+        python_cmd=$(select_python_for_project || true)
+
+        if [[ -z "$python_cmd" ]]; then
+            echo -e "${CROSS} Python 3.13以下が見つかりません"
+            echo -e "${YELLOW}Python 3.13をインストールして再実行してください（例: macOSは 'brew install python@3.13'）${NC}"
+            return 1
         fi
+
+        if [[ -x .venv/bin/python ]]; then
+            local venv_minor
+            venv_minor=$(.venv/bin/python -c 'import sys; print(sys.version_info.minor)' 2>/dev/null || true)
+            if [[ -n "$venv_minor" ]] && [[ "$venv_minor" -gt 13 ]]; then
+                echo -e "${YELLOW}既存の .venv はPython 3.${venv_minor} のため再作成します${NC}"
+                rm -rf .venv
+            fi
+        fi
+
+        "$python_cmd" -m venv .venv
+        source .venv/bin/activate
+        pip install --upgrade pip
+        pip install -r requirements.txt
+        deactivate
         echo -e "${CHECK} Python 依存パッケージをインストールしました"
     fi
     cd ..

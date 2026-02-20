@@ -53,6 +53,12 @@ make setup-check
   ✅ Docker Compose 設定
 ```
 
+## Python バージョン要件
+
+- `python/requirements.txt` は一部ネイティブ依存（`pydantic-core`）を含むため、**Python 3.13 以下**を使用してください。
+- Python 3.14 ではビルドに失敗する場合があります。
+- `make setup` は `python3.13` → `python3.12` → `python3.11` → `python3.10` の順で利用可能なPythonを自動選択します。
+
 ## クイックスタート
 
 ### 1. 環境構築（macOS / Linux）
@@ -163,6 +169,7 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 
 # Python
 sudo apt install -y python3 python3-pip python3-venv
+# 必要に応じて Python 3.13 を追加インストール
 
 # Elixir
 sudo apt install -y elixir
@@ -182,6 +189,7 @@ sudo usermod -aG docker $USER
 
 # Node.js, Python, Elixir
 sudo dnf install -y nodejs npm python3 python3-pip elixir
+# 必要に応じて Python 3.13 を追加インストール
 
 # Rust
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
