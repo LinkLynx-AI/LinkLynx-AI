@@ -10,6 +10,13 @@ type ThemeToggleButtonProps = {
   disabled?: boolean;
 };
 
+/**
+ * テーマ切替UIの見た目を共通化したボタンを描画する。
+ *
+ * Contract:
+ * - `currentTheme` は `light` または `dark`
+ * - `disabled` 時は見た目のみ表示し、操作を受け付けない
+ */
 export function ThemeToggleButton({
   currentTheme,
   onToggle,

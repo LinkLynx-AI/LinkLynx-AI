@@ -6,6 +6,13 @@ export type AppShellSlots = {
   contentSlot: ReactNode;
 };
 
+/**
+ * Discord系3カラムUIの骨格を提供する。
+ *
+ * Contract:
+ * - `contentSlot` は必須
+ * - `headerSlot` / `sidebarSlot` は任意
+ */
 export function AppShellFrame({
   headerSlot,
   sidebarSlot,

@@ -7,6 +7,12 @@ export type MemberSummary = {
   avatarLabel: string;
 };
 
+/**
+ * メンバー表示名からアバター用イニシャルを返す。
+ *
+ * Contract:
+ * - `displayName` が空の場合は `avatarLabel` をフォールバックする
+ */
 export function getMemberInitials(member: MemberSummary): string {
   const names = member.displayName
     .trim()
@@ -30,6 +36,12 @@ type MemberAvatarProps = {
   size?: MemberAvatarSize;
 };
 
+/**
+ * メンバー名と状態を表示する共通アバターコンポーネント。
+ *
+ * Contract:
+ * - `size` は `sm` / `md` / `lg` のみ
+ */
 export function MemberAvatar({ member, size = "md" }: MemberAvatarProps) {
   const sizeClass =
     size === "sm"
