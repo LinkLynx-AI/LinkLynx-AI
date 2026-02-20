@@ -3,12 +3,10 @@ import { renderToStaticMarkup } from "react-dom/server";
 import Home from "./page";
 
 describe("Home page", () => {
-  test("ライト/ダークのテーマトークンを表示する", () => {
+  test("FSDのPublic API経由で描画できる", () => {
     const html = renderToStaticMarkup(<Home />);
-
-    expect(html).toContain("Theme Tokens Preview");
-    expect(html).toContain("Dark theme");
-    expect(html).toContain("Light theme");
-    expect(html).toContain("spacing.lg");
+    expect(html).toContain("LinkLynx");
+    expect(html).toContain("FSD Public API Sandbox");
+    expect(html).toContain("v1 UIスライスの雛形");
   });
 });

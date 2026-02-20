@@ -238,6 +238,9 @@ make ts-build       # 本番ビルド
 make ts-lint        # ESLint実行
 make ts-test        # テスト実行
 make ts-install     # 依存パッケージインストール
+make ts-prisma-generate # Prisma Clientを生成
+make ts-prisma-migrate  # Prisma migrationを作成・適用（開発用）
+make ts-prisma-check    # PrismaのDB接続確認
 
 # Rust
 make rust-dev       # 開発サーバー起動
@@ -294,6 +297,30 @@ make db-migrate-revert
 ```
 
 検証チェックリストは `database/contracts/lin135_integration_verification.md` を参照してください。
+
+## Prisma 導入手順（TypeScript）
+
+`typescript` アプリに Prisma を導入しています。DB接続文字列は `typescript/.env` の `DATABASE_URL` を利用します。
+
+```bash
+# 1) 依存関係（未インストール時）
+cd typescript
+npm install
+
+# 2) Prisma Client 生成
+npm run prisma:generate
+
+# 3) 開発用 migration の作成・適用
+# 既存DBに直接適用する前に、対象環境で差分を確認してください
+npm run prisma:migrate:dev
+
+# 4) 接続確認
+npm run prisma:check
+```
+
+主要ファイル:
+- Prismaスキーマ: `typescript/prisma/schema.prisma`
+- 初期migration: `typescript/prisma/migrations/0001_init/migration.sql`
 
 ## テスト・品質チェック手順（Rust / TypeScript）
 
