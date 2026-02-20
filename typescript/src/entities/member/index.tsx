@@ -12,6 +12,7 @@ export type MemberSummary = {
  *
  * Contract:
  * - `displayName` が空の場合は `avatarLabel` をフォールバックする
+ * - `displayName` と `avatarLabel` がともに空の場合は `??` を返す
  */
 export function getMemberInitials(member: MemberSummary): string {
   const names = member.displayName
@@ -20,7 +21,8 @@ export function getMemberInitials(member: MemberSummary): string {
     .filter((value) => value.length > 0);
 
   if (names.length === 0) {
-    return member.avatarLabel.slice(0, 2).toUpperCase();
+    const fallbackLabel = member.avatarLabel.trim().slice(0, 2).toUpperCase();
+    return fallbackLabel.length > 0 ? fallbackLabel : "??";
   }
 
   return names
