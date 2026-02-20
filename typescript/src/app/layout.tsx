@@ -14,7 +14,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ja">
-      <body className="bg-discord-darkest text-white">
+      <body data-theme="dark">
         <Providers>{children}</Providers>
       </body>
     </html>
