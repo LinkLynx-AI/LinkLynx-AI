@@ -1,4 +1,4 @@
-/** @vitest-environment jsdom */
+/** @vitest-environment happy-dom */
 
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, test, vi } from "vitest";
@@ -16,7 +16,7 @@ describe("Menu", () => {
           { id: "disabled", label: "Disabled", disabled: true },
           { id: "delete", label: "Delete", destructive: true },
         ]}
-      />
+      />,
     );
 
     const menu = screen.getByRole("menu", { name: "actions" });
@@ -25,7 +25,7 @@ describe("Menu", () => {
     const items = screen.getAllByRole("menuitem");
     expect(items).toHaveLength(3);
 
-    fireEvent.click(items[0]);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Edit" }));
     expect(onEdit).toHaveBeenCalledTimes(1);
   });
 
@@ -38,11 +38,12 @@ describe("Menu", () => {
           { id: "disabled", label: "Disabled", disabled: true },
           { id: "delete", label: "Delete" },
         ]}
-      />
+      />,
     );
 
     const menu = screen.getByRole("menu", { name: "actions" });
-    const [editButton, , deleteButton] = screen.getAllByRole("menuitem");
+    const editButton = screen.getByRole("menuitem", { name: "Edit" });
+    const deleteButton = screen.getByRole("menuitem", { name: "Delete" });
 
     editButton.focus();
     fireEvent.keyDown(menu, { key: "ArrowDown" });

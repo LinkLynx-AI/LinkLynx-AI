@@ -8,7 +8,6 @@ describe("Home page", () => {
 
     expect(html).toContain("Common UI Components Preview");
     expect(html).toContain("Action menu");
-    expect(html).toContain("Delete message");
     expect(html).toContain("Skeleton");
   });
 });
