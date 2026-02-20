@@ -1,5 +1,8 @@
-import type { ThemeMode } from "../model/types";
 import { classNames } from "@/shared";
+
+export const themeModes = ["light", "dark"] as const;
+
+export type ThemeMode = (typeof themeModes)[number];
 
 type ThemeToggleButtonProps = {
   currentTheme: ThemeMode;

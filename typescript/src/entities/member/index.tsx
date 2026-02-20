@@ -1,14 +1,29 @@
-import { getMemberInitials } from "../lib/getMemberInitials";
-import type { MemberSummary } from "../model/types";
 import { classNames } from "@/shared";
 
-const sizeClassMap = {
-  sm: "h-8 w-8 text-xs",
-  md: "h-10 w-10 text-sm",
-  lg: "h-12 w-12 text-base",
-} as const;
+export type MemberSummary = {
+  id: string;
+  displayName: string;
+  statusLabel: string;
+  avatarLabel: string;
+};
 
-type MemberAvatarSize = keyof typeof sizeClassMap;
+export function getMemberInitials(member: MemberSummary): string {
+  const names = member.displayName
+    .trim()
+    .split(/\s+/)
+    .filter((value) => value.length > 0);
+
+  if (names.length === 0) {
+    return member.avatarLabel.slice(0, 2).toUpperCase();
+  }
+
+  return names
+    .slice(0, 2)
+    .map((name) => name.charAt(0).toUpperCase())
+    .join("");
+}
+
+type MemberAvatarSize = "sm" | "md" | "lg";
 
 type MemberAvatarProps = {
   member: MemberSummary;
@@ -16,13 +31,20 @@ type MemberAvatarProps = {
 };
 
 export function MemberAvatar({ member, size = "md" }: MemberAvatarProps) {
+  const sizeClass =
+    size === "sm"
+      ? "h-8 w-8 text-xs"
+      : size === "lg"
+        ? "h-12 w-12 text-base"
+        : "h-10 w-10 text-sm";
+
   return (
     <div className="flex items-center gap-3">
       <div
         aria-hidden="true"
         className={classNames(
           "flex items-center justify-center rounded-full bg-discord-primary font-semibold text-white",
-          sizeClassMap[size]
+          sizeClass
         )}
       >
         {getMemberInitials(member)}

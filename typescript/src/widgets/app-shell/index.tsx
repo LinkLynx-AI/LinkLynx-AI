@@ -1,4 +1,10 @@
-import type { AppShellSlots } from "../model/types";
+import type { ReactNode } from "react";
+
+export type AppShellSlots = {
+  headerSlot?: ReactNode;
+  sidebarSlot?: ReactNode;
+  contentSlot: ReactNode;
+};
 
 export function AppShellFrame({
   headerSlot,
