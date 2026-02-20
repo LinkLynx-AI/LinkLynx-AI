@@ -320,7 +320,6 @@ npm run prisma:check
 
 主要ファイル:
 - Prismaスキーマ: `typescript/prisma/schema.prisma`
-- Prisma設定: `typescript/prisma.config.ts`
 - 初期migration: `typescript/prisma/migrations/0001_init/migration.sql`
 
 ## テスト・品質チェック手順（Rust / TypeScript）
