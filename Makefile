@@ -1,6 +1,6 @@
 .PHONY: help setup setup-check dev build up down logs clean test
 .PHONY: ts-dev ts-build ts-lint ts-test rust-dev rust-build rust-test rust-fmt rust-clippy rust-lint rust-ci py-dev py-test elixir-dev elixir-build
-.PHONY: db-up db-down db-reset db-migrate db-migrate-revert db-migrate-info worktree-sync-env
+.PHONY: db-up db-down db-reset db-migrate db-migrate-revert db-migrate-info db-schema db-schema-check worktree-sync-env
 
 # 色設定
 GREEN  := \033[0;32m
@@ -11,6 +11,8 @@ NC     := \033[0m
 
 DATABASE_URL ?= postgres://postgres:password@localhost:5432/linklynx
 SQLX_MIGRATIONS_DIR ?= ../database/postgres/migrations
+SCHEMA_SNAPSHOT_PATH ?= database/postgres/schema.sql
+POSTGRES_DUMP_CMD ?= docker compose exec -T postgres pg_dump -U postgres -d linklynx --schema-only --no-owner --no-privileges --exclude-table=_sqlx_migrations
 
 help: ## ヘルプを表示
 	@echo "$(BLUE)LinkLynx-AI$(NC) - Discord Clone 開発コマンド"
@@ -164,6 +166,51 @@ db-migrate-revert: ## sqlx migration を1件ロールバック
 
 db-migrate-info: ## sqlx migration の適用状態を表示
 	cd rust && DATABASE_URL=$(DATABASE_URL) sqlx migrate info --source $(SQLX_MIGRATIONS_DIR)
+
+db-schema: ## 現在のDBから schema.sql スナップショットを生成
+	@mkdir -p "$(dir $(SCHEMA_SNAPSHOT_PATH))"
+	@raw_file="$$(mktemp)"; \
+	tmp_file="$$(mktemp)"; \
+	if ! $(POSTGRES_DUMP_CMD) > "$$raw_file"; then \
+		rm -f "$$raw_file" "$$tmp_file"; \
+		echo "$(RED)pg_dump の実行に失敗しました$(NC)"; \
+		exit 1; \
+	fi; \
+	sed -e '/^--/d' -e '/^[\\]restrict /d' -e '/^[\\]unrestrict /d' "$$raw_file" > "$$tmp_file"; \
+	if [ ! -s "$$tmp_file" ]; then \
+		rm -f "$$raw_file" "$$tmp_file"; \
+		echo "$(RED)schema.sql の生成結果が空です。DB接続を確認してください$(NC)"; \
+		exit 1; \
+	fi; \
+	mv "$$tmp_file" "$(SCHEMA_SNAPSHOT_PATH)"; \
+	rm -f "$$raw_file"; \
+	echo "$(GREEN)$(SCHEMA_SNAPSHOT_PATH) を更新しました$(NC)"
+
+db-schema-check: ## schema.sql と現在DBスキーマの差分を検証
+	@if [ ! -f "$(SCHEMA_SNAPSHOT_PATH)" ]; then \
+		echo "$(RED)$(SCHEMA_SNAPSHOT_PATH) がありません。make db-schema を実行してください$(NC)"; \
+		exit 1; \
+	fi
+	@raw_file="$$(mktemp)"; \
+	tmp_file="$$(mktemp)"; \
+	if ! $(POSTGRES_DUMP_CMD) > "$$raw_file"; then \
+		rm -f "$$raw_file" "$$tmp_file"; \
+		echo "$(RED)pg_dump の実行に失敗しました$(NC)"; \
+		exit 1; \
+	fi; \
+	sed -e '/^--/d' -e '/^[\\]restrict /d' -e '/^[\\]unrestrict /d' "$$raw_file" > "$$tmp_file"; \
+	if [ ! -s "$$tmp_file" ]; then \
+		rm -f "$$raw_file" "$$tmp_file"; \
+		echo "$(RED)schema比較用の生成結果が空です。DB接続を確認してください$(NC)"; \
+		exit 1; \
+	fi; \
+	if ! diff -u "$(SCHEMA_SNAPSHOT_PATH)" "$$tmp_file"; then \
+		echo "$(RED)schema.sql が最新ではありません。make db-schema を実行してください$(NC)"; \
+		rm -f "$$raw_file" "$$tmp_file"; \
+		exit 1; \
+	fi; \
+	rm -f "$$raw_file" "$$tmp_file"; \
+	echo "$(GREEN)schema snapshot は最新です$(NC)"
 
 # ============================================
 # 開発ワークフロー

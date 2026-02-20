@@ -253,11 +253,14 @@ make db-reset       # DBをリセット（※データ全削除）
 make db-migrate     # sqlx migration適用
 make db-migrate-revert # sqlx migrationを1件ロールバック
 make db-migrate-info   # sqlx migrationの適用状態を確認
+make db-schema      # 現在DBから schema.sql を生成
+make db-schema-check # schema.sql と現在DBの差分を検証
 ```
 
 ## DBスキーマ運用（LIN-135）
 
-PostgreSQLスキーマは `database/postgres/migrations` を正として管理します。
+PostgreSQLスキーマは `database/postgres/migrations` を正として管理します。  
+`database/postgres/schema.sql` は、レビューしやすいスナップショット（派生物）として扱います。
 
 ```bash
 # 事前準備（未インストール時）
@@ -271,6 +274,12 @@ make db-migrate
 
 # 適用状態を確認
 make db-migrate-info
+
+# schema snapshot を更新
+make db-schema
+
+# schema snapshot のドリフト検証
+make db-schema-check
 
 # rollback確認（逆順で1件戻す）
 make db-migrate-revert
