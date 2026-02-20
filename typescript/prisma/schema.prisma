@@ -1,0 +1,22 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id            BigInt   @id @db.BigInt
+  email         String   @unique
+  emailVerified Boolean  @default(false) @map("email_verified")
+  passwordHash  String   @map("password_hash")
+  displayName   String   @map("display_name")
+  avatarKey     String?  @map("avatar_key")
+  statusText    String?  @map("status_text")
+  theme         String   @default("dark")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@map("users")
+}
