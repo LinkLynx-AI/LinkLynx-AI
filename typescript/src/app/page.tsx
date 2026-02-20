@@ -15,7 +15,7 @@ const surfaceStyle: CSSProperties = {
 const primaryButtonStyle: CSSProperties = {
   backgroundColor: "var(--color-accent)",
   borderRadius: "var(--radius-sm)",
-  color: "#ffffff",
+  color: "var(--color-text-on-accent)",
 };
 
 const secondaryButtonStyle: CSSProperties = {

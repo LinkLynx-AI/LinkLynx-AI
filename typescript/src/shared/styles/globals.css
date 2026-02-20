@@ -25,6 +25,7 @@
   --color-surface-muted: #e9ebef;
   --color-text-primary: #1f2328;
   --color-text-muted: #59636e;
+  --color-text-on-accent: #ffffff;
   --color-border-subtle: #d4d9e0;
   --color-accent: #5865f2;
   --color-accent-muted: #dde2ff;
@@ -37,6 +38,7 @@
   --color-surface-muted: #232428;
   --color-text-primary: #f2f3f5;
   --color-text-muted: #b5bac1;
+  --color-text-on-accent: #ffffff;
   --color-border-subtle: #3b3f45;
   --color-accent: #5865f2;
   --color-accent-muted: #31366f;
