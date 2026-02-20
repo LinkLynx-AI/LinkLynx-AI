@@ -268,6 +268,7 @@ CREATE TABLE public.users (
     display_name text NOT NULL,
     avatar_key text,
     status_text text,
+    birth_date date,
     theme text DEFAULT 'dark'::text NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
@@ -568,7 +569,6 @@ ALTER TABLE ONLY public.invites
 
 ALTER TABLE ONLY public.password_reset_tokens
     ADD CONSTRAINT password_reset_tokens_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
-
 
 
 

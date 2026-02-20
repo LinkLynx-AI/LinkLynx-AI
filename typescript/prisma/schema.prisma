@@ -16,6 +16,7 @@ model User {
   displayName                        String                     @map("display_name")
   avatarKey                          String?                    @map("avatar_key")
   statusText                         String?                    @map("status_text")
+  birthDate                          DateTime?                  @map("birth_date") @db.Date
   theme                              String                     @default("dark")
   createdAt                          DateTime                   @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt                          DateTime                   @default(now()) @map("updated_at") @db.Timestamptz(6)
