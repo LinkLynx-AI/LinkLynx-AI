@@ -3,17 +3,57 @@
 @tailwind utilities;
 
 :root {
-  --foreground-rgb: 255, 255, 255;
-  --background-start-rgb: 30, 30, 30;
-  --background-end-rgb: 30, 30, 30;
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 24px;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+
+  --font-size-body: 14px;
+  --font-size-title: 20px;
+  --font-weight-regular: 400;
+  --font-weight-semibold: 600;
+}
+
+[data-theme="light"] {
+  --color-bg-canvas: #f2f3f5;
+  --color-surface-default: #ffffff;
+  --color-surface-muted: #e9ebef;
+  --color-text-primary: #1f2328;
+  --color-text-muted: #59636e;
+  --color-text-on-accent: #ffffff;
+  --color-border-subtle: #d4d9e0;
+  --color-accent: #5865f2;
+  --color-accent-muted: #dde2ff;
+  --color-danger: #d83c3e;
+}
+
+[data-theme="dark"] {
+  --color-bg-canvas: #1e1f22;
+  --color-surface-default: #2b2d31;
+  --color-surface-muted: #232428;
+  --color-text-primary: #f2f3f5;
+  --color-text-muted: #b5bac1;
+  --color-text-on-accent: #ffffff;
+  --color-border-subtle: #3b3f45;
+  --color-accent: #5865f2;
+  --color-accent-muted: #31366f;
+  --color-danger: #ed4245;
+}
+
+html,
+body {
+  min-height: 100%;
 }
 
 body {
-  color: rgb(var(--foreground-rgb));
-  background: linear-gradient(
-      to bottom,
-      transparent,
-      rgb(var(--background-end-rgb))
-    )
-    rgb(var(--background-start-rgb));
+  margin: 0;
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-canvas);
+  font-family: "Noto Sans JP", "Segoe UI", sans-serif;
+  font-size: var(--font-size-body);
 }
