@@ -1,19 +1,11 @@
 import { describe, expect, test } from "vitest";
-import HomePage from "./page";
+import { renderToStaticMarkup } from "react-dom/server";
+import Home from "./page";
 
 describe("Home page", () => {
-  test("ルートアクセスで /login へリダイレクトする", () => {
-    try {
-      HomePage();
-      throw new Error("redirect was not triggered");
-    } catch (error) {
-      if (!(error instanceof Error)) {
-        throw error;
-      }
-
-      expect(error.message).toContain("NEXT_REDIRECT");
-      const redirectError = error as Error & { digest?: string };
-      expect(redirectError.digest ?? "").toContain("/login");
-    }
+  test("主要テキストを表示する", () => {
+    const html = renderToStaticMarkup(<Home />);
+    expect(html).toContain("LinkLynx");
+    expect(html).toContain("Discord Clone - Real-time Chat Application");
   });
 });

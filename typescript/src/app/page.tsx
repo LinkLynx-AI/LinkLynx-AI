@@ -1,6 +1,12 @@
-// eslint-disable-next-line import/no-internal-modules -- LIN-237: Next標準redirectを使うためnext/navigationが必須。期限: 2026-03-31
-import { redirect } from "next/navigation";
-
-export default function HomePage() {
-  redirect("/login");
+export default function Home() {
+  return (
+    <main className="flex min-h-screen flex-col items-center justify-center">
+      <h1 className="text-4xl font-bold text-discord-primary">
+        LinkLynx
+      </h1>
+      <p className="mt-4 text-gray-400">
+        Discord Clone - Real-time Chat Application
+      </p>
+    </main>
+  );
 }
