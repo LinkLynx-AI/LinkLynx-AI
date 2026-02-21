@@ -1,15 +1,16 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { MemberAvatar } from "@/entities";
+import { MemberAvatar, type Message } from "@/entities";
 import {
+  MessageComposer,
   MessageDeliveryStatus,
   ThemeToggleButton,
   UnreadJumpButton,
   type MessageDeliveryState,
 } from "@/features";
 import { classNames } from "@/shared";
-import { AppShellFrame } from "@/widgets";
+import { AppShellFrame, MessageTimeline } from "@/widgets";
 
 type DemoMessage = {
   id: string;
@@ -25,6 +26,30 @@ const demoMember = {
   statusLabel: "Online",
   avatarLabel: "LB",
 };
+
+const timelineMessages: Message[] = [
+  {
+    id: "message-1",
+    senderId: "member-1",
+    senderName: "LinkLynx Bot",
+    body: "デザイン反映完了です。メッセージ一覧UIを確認してください。",
+    sentAt: "2025-01-01T10:00:00.000Z",
+  },
+  {
+    id: "message-2",
+    senderId: "member-1",
+    senderName: "LinkLynx Bot",
+    body: "同一送信者の5分以内連投は同じグループで表示します。",
+    sentAt: "2025-01-01T10:03:00.000Z",
+  },
+  {
+    id: "message-3",
+    senderId: "member-2",
+    senderName: "Design Reviewer",
+    body: "了解しました。次はモバイル幅での余白も確認します。",
+    sentAt: "2025-01-01T10:08:00.000Z",
+  },
+];
 
 const retryTargetMessageId = "message-2";
 const retryCompletionDelayMs = 800;
@@ -61,6 +86,9 @@ function updateDeliveryState(
 }
 
 export default function Home() {
+  const [composerValue, setComposerValue] = useState("");
+  const [lastSubmittedMessage, setLastSubmittedMessage] = useState<string | null>(null);
+  const canSubmit = composerValue.trim().length > 0;
   const [messages, setMessages] = useState<DemoMessage[]>(initialMessages);
   const [isAtBottom, setIsAtBottom] = useState(true);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -73,6 +101,17 @@ export default function Home() {
       }
     };
   }, []);
+
+  const handleComposerSubmit = () => {
+    const trimmedValue = composerValue.trim();
+
+    if (trimmedValue.length === 0) {
+      return;
+    }
+
+    setLastSubmittedMessage(trimmedValue);
+    setComposerValue("");
+  };
 
   const handleRetry = () => {
     if (retryTimerRef.current !== null) {
@@ -113,16 +152,27 @@ export default function Home() {
         </div>
       }
       contentSlot={
-        <article className="space-y-5">
-          <header className="space-y-1">
-            <h2 className="text-xl font-semibold">送信状態と新着導線のモック</h2>
-            <p className="text-sm text-white/75">
-              failed時の再送導線と、新着ジャンプ表示条件を画面上で確認できます。
-            </p>
-          </header>
-
+        <article className="space-y-6">
+          <MessageTimeline messages={timelineMessages} />
           <section className="space-y-3 rounded-lg border border-white/10 bg-discord-dark/40 p-4">
-            <h3 className="text-sm font-semibold text-white/80">Message timeline</h3>
+            <h3 className="text-lg font-semibold text-white">Composer UI Demo</h3>
+            <MessageComposer
+              value={composerValue}
+              canSubmit={canSubmit}
+              onValueChange={setComposerValue}
+              onSubmit={handleComposerSubmit}
+            />
+            <p className="text-xs text-white/70">
+              直近の送信内容（UI only）: {lastSubmittedMessage ?? "未送信"}
+            </p>
+          </section>
+          <section className="space-y-4 rounded-lg border border-white/10 bg-discord-dark/40 p-4">
+            <header className="space-y-1">
+              <h3 className="text-sm font-semibold text-white/80">送信状態と新着導線のモック</h3>
+              <p className="text-xs text-white/70">
+                failed時の再送導線と、新着ジャンプ表示条件を画面上で確認できます。
+              </p>
+            </header>
             <div className="space-y-3">
               {messages.map((message) => (
                 <article
@@ -147,10 +197,6 @@ export default function Home() {
                 </article>
               ))}
             </div>
-          </section>
-
-          <section className="space-y-3 rounded-lg border border-white/10 bg-discord-dark/40 p-4">
-            <h3 className="text-sm font-semibold text-white/80">Unread jump mock controls</h3>
             <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
