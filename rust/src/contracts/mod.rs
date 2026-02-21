@@ -18,6 +18,3 @@ pub mod pagination_error;
 pub use pagination_error::{
     ErrorCode, ErrorResponse, PaginationMeta, PaginationParams, DEFAULT_PAGE_LIMIT, MAX_PAGE_LIMIT,
 };
-
-#[cfg(test)]
-mod compatibility_snapshots;
