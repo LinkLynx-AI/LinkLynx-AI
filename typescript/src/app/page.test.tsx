@@ -8,5 +8,9 @@ describe("Home page", () => {
     expect(html).toContain("LinkLynx");
     expect(html).toContain("FSD Public API Sandbox");
     expect(html).toContain("v1 UIスライスの雛形");
+    expect(html).toContain("Composer UI Demo");
+    expect(html).toContain("入力モード: 通常入力");
+    expect(html).toContain("Enterで送信 / Shift+Enterで改行");
+    expect(html).toContain("直近の送信内容（UI only）: 未送信");
   });
 });
