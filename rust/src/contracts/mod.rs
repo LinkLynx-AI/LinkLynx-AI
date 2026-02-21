@@ -12,9 +12,3 @@ pub use protocol_events::{
     MessageCreatedPayload, MessageDeletedPayload, MessageEventType, MessagePayload,
     MessagePayloadBase, MessageUpdatedPayload, ProtocolEventEnvelope,
 };
-
-pub mod pagination_error;
-
-pub use pagination_error::{
-    ErrorCode, ErrorResponse, PaginationMeta, PaginationParams, DEFAULT_PAGE_LIMIT, MAX_PAGE_LIMIT,
-};
