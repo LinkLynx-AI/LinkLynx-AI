@@ -7,7 +7,7 @@ type ChannelListVisualState = {
   mentionCount?: number;
 };
 
-type ChannelListItemKind = "channel" | "dm";
+export type ChannelListItemKind = "channel" | "dm";
 
 export type ChannelListItem = ChannelListVisualState & {
   id: string;
