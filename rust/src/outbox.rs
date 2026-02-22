@@ -121,8 +121,14 @@ impl<P: EventPublisher> OutboxWorker<P> {
 WITH pending AS (
   SELECT id
   FROM outbox_events
-  WHERE status = 'PENDING'
+  WHERE (
+    status = 'PENDING'
     AND (next_retry_at IS NULL OR next_retry_at <= now())
+  ) OR (
+    status = 'FAILED'
+    AND next_retry_at IS NOT NULL
+    AND next_retry_at <= now()
+  )
   ORDER BY created_at
   LIMIT $1
   FOR UPDATE SKIP LOCKED
