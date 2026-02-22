@@ -19,6 +19,7 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 mod channel_reads;
 mod outbox;
+mod search_indexer;
 
 #[derive(Clone)]
 struct AppState {
