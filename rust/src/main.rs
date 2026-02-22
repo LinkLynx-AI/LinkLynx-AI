@@ -9,6 +9,7 @@ use axum::{
     Router,
 };
 use channel_reads::{ChannelReadUpsertInput, ChannelReadsError, ChannelReadsRepository};
+use outbox::{NoopEventPublisher, OutboxWorker, OutboxWorkerConfig};
 use serde::{Deserialize, Serialize};
 use sqlx::postgres::PgPoolOptions;
 use std::net::SocketAddr;
@@ -17,6 +18,7 @@ use tower_http::cors::{Any, CorsLayer};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 mod channel_reads;
+mod outbox;
 
 #[derive(Clone)]
 struct AppState {
@@ -44,8 +46,18 @@ async fn main() {
         });
 
     let state = AppState {
-        channel_reads_repo: ChannelReadsRepository::new(db_pool),
+        channel_reads_repo: ChannelReadsRepository::new(db_pool.clone()),
     };
+
+    if should_enable_outbox_worker() {
+        if let Some(pool) = db_pool {
+            let worker = OutboxWorker::new(pool, NoopEventPublisher, OutboxWorkerConfig::default());
+            tokio::spawn(worker.run_loop());
+            tracing::info!("outbox worker started");
+        } else {
+            tracing::warn!("outbox worker requested, but DATABASE_URL is not configured");
+        }
+    }
 
     let app = app(state);
 
@@ -111,6 +123,12 @@ fn map_channel_reads_error(err: ChannelReadsError) -> (StatusCode, Json<ErrorBod
             }),
         ),
     }
+}
+
+fn should_enable_outbox_worker() -> bool {
+    std::env::var("OUTBOX_WORKER_ENABLED")
+        .map(|value| value.eq_ignore_ascii_case("true") || value == "1")
+        .unwrap_or(false)
 }
 
 async fn ws_handler(ws: WebSocketUpgrade) -> impl IntoResponse {
