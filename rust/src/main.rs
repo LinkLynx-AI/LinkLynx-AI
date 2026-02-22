@@ -20,6 +20,7 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 mod channel_reads;
 mod last_message_worker;
 mod outbox;
+mod rate_limit;
 mod search_indexer;
 
 #[derive(Clone)]
