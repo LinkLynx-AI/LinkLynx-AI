@@ -4,14 +4,8 @@ RUN apk add --no-cache musl-dev
 
 WORKDIR /app
 
-COPY Cargo.toml Cargo.lock* ./
-RUN mkdir src && echo "fn main() {}" > src/main.rs
-RUN cargo build --release
-RUN rm -rf src
-
-COPY src ./src
-RUN touch src/main.rs
-RUN cargo build --release
+COPY . .
+RUN cargo build --release -p linklynx_backend
 
 FROM alpine:3.19
 

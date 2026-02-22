@@ -1,0 +1,7 @@
+[package]
+name = "linklynx_infra"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+linklynx_domain = { path = "../domain" }

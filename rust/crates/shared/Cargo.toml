@@ -1,0 +1,8 @@
+[package]
+name = "linklynx_shared"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+thiserror.workspace = true
+uuid.workspace = true

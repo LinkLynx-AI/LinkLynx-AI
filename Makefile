@@ -1,4 +1,4 @@
-.PHONY: help setup setup-check dev build up down logs clean test
+.PHONY: help setup setup-check dev build up down logs clean test format lint ci validate
 .PHONY: ts-dev ts-build ts-lint ts-test ts-prisma-generate ts-prisma-migrate ts-prisma-check rust-dev rust-build rust-test rust-fmt rust-clippy rust-lint rust-ci py-dev py-test elixir-dev elixir-build
 .PHONY: db-up db-down db-reset db-migrate db-migrate-revert db-migrate-info db-schema db-schema-check worktree-sync-env
 
@@ -100,16 +100,16 @@ ts-install: ## 依存パッケージをインストール
 # ============================================
 
 rust-dev: ## Rust 開発サーバーを起動
-	cd rust && cargo run
+	cd rust && cargo run -p linklynx_backend
 
 rust-build: ## Rust を本番用にビルド
-	cd rust && cargo build --release
+	cd rust && cargo build -p linklynx_backend --release
 
 rust-test: ## Rust テストを実行
-	cd rust && cargo test
+	cd rust && cargo test --workspace
 
 rust-check: ## Rust コードをチェック
-	cd rust && cargo check
+	cd rust && cargo check --workspace
 
 rust-fmt: ## Rust フォーマットを実行（workspace準拠）
 	cd rust && cargo fmt --all
@@ -123,6 +123,18 @@ rust-lint: ## Rust 規約チェック（fmt + clippy + test）
 	cd rust && cargo test --workspace
 
 rust-ci: rust-lint ## CI相当のRust品質ゲートを実行
+
+# ============================================
+# 共通品質ゲート（Rust向け）
+# ============================================
+
+format: rust-fmt ## フォーマットを実行
+
+lint: rust-lint ## Lintを実行（fmt check + clippy + test）
+
+ci: rust-ci ## CI相当のチェックを実行
+
+validate: format lint ci ## format / lint / ci をすべて実行
 
 # ============================================
 # Python コマンド
