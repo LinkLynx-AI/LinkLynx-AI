@@ -18,6 +18,7 @@ use tower_http::cors::{Any, CorsLayer};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 mod channel_reads;
+mod last_message_worker;
 mod outbox;
 mod search_indexer;
 
