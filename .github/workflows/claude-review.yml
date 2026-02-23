@@ -35,12 +35,14 @@ jobs:
             - Security implications
             - Test coverage requirements
             - Documentation updates if needed
-            - Architecture compliance (Clean Architecture for Go, FSD for TypeScript-v2)
+            - Architecture compliance based on the target service conventions
 
             For multi-service projects, check these CLAUDE.md files as applicable:
             - /CLAUDE.md (root project guidelines)
-            - /go/CLAUDE.md (Go backend guidelines)
-            - /typescript-v2/CLAUDE.md (TypeScript-v2 frontend guidelines)
+            - /rust/CLAUDE.md (Rust service guidelines)
+            - /typescript/CLAUDE.md (TypeScript service guidelines)
+            - /python/CLAUDE.md (Python service guidelines)
+            - /elixir/CLAUDE.md (Elixir service guidelines)
 
             Additionally, review the QA items listed at the end of the pull request description (dev環境でのQA項目):
             - Verify that the QA checklist is comprehensive and covers all necessary testing scenarios
