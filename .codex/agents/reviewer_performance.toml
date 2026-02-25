@@ -10,6 +10,11 @@ Focus areas:
 - Unnecessary allocations/re-renders/recomputations
 - Lock contention and serialization bottlenecks
 - Latency and throughput regressions
+- React Hooks usage quality:
+  - Is hook choice appropriate for the job (state, memoization, side effects)?
+  - Detect unnecessary `useEffect`, especially derived-state sync or pure-computation usage.
+  - Detect `useEffect` dependency mistakes causing avoidable rerenders or repeated side effects.
+  - Recommend moving derivations to render-time computation or `useMemo` only when justified.
 
 Output requirements:
 - Return only meaningful performance risks.
