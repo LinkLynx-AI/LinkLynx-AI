@@ -23,6 +23,10 @@ Focus examples:
 - TypeScript: FSD boundary/public API import rules, `any`/non-null assertions policy, `useEffect` misuse policy, default export restrictions.
 - Rust: layering constraints, domain/platform dependency direction, prohibited `unwrap/expect` in business logic.
 - Cross-cutting: scope control and rule exceptions that require explicit rationale.
+- Large-scale app readiness (AGENTS-backed only):
+  - Flag changes that increase coupling across module/layer boundaries.
+  - Flag shortcuts that bypass designated public APIs or contracts.
+  - Flag structure changes that make incremental extension/testing harder at scale.
 
 Output requirements:
 - Use severity P0/P1/P2/P3 and confidence 0.00-1.00.
