@@ -1,6 +1,6 @@
 .PHONY: help setup setup-check dev build up down logs clean test
 .PHONY: ts-dev ts-build ts-lint ts-test ts-prisma-generate ts-prisma-migrate ts-prisma-check rust-dev rust-build rust-test rust-fmt rust-clippy rust-lint rust-ci py-dev py-test elixir-dev elixir-build
-.PHONY: db-up db-down db-reset db-migrate db-migrate-revert db-migrate-info db-schema db-schema-check worktree-sync-env
+.PHONY: db-up db-down db-reset db-migrate db-migrate-revert db-migrate-info db-schema db-schema-check worktree-sync-env codex-worktree
 
 # 色設定
 GREEN  := \033[0;32m
@@ -35,6 +35,13 @@ setup-check: ## 環境構築状況を確認
 
 worktree-sync-env: ## 現在のworktreeへ.envファイルを自動検出元からコピー
 	@./setup/create-worktree-with-env.sh
+
+codex-worktree: ## 新規worktreeを作成しCodex CLIを起動 (例: make codex-worktree NAME=lin-300 BASE=origin/main)
+	@if [ -z "$(NAME)" ]; then \
+		echo "$(RED)NAME を指定してください。例: make codex-worktree NAME=lin-300$(NC)"; \
+		exit 1; \
+	fi
+	@./setup/create-worktree-and-codex.sh "$(NAME)" $(if $(BASE),--base $(BASE),)
 
 # ============================================
 # Docker コマンド

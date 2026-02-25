@@ -90,6 +90,19 @@ make dev
 | Python (FastAPI) | http://localhost:8000 | Pythonサービス |
 | Elixir | http://localhost:4000 | Elixirサービス |
 
+## Codex CLI で新規 worktree を開始
+
+```bash
+# codex/lin-300 ブランチを作成し、worktreeで Codex CLI を起動
+make codex-worktree NAME=lin-300
+
+# ベースブランチを明示する場合
+make codex-worktree NAME=lin-300 BASE=origin/main
+```
+
+- 実体スクリプト: `setup/create-worktree-and-codex.sh`
+- 既存の `setup/create-worktree-with-env.sh` を利用して `.env*` も同期します。
+
 ## プロジェクト構成
 
 ```
@@ -224,6 +237,7 @@ make help           # ヘルプを表示
 # セットアップ
 make setup          # 全環境を自動セットアップ
 make setup-check    # 環境構築状況を確認
+make codex-worktree NAME=lin-300 # 新規worktree作成 + Codex CLI起動
 
 # Docker
 make up             # 全サービスを起動
