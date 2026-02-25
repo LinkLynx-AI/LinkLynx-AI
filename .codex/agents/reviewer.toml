@@ -5,7 +5,7 @@ developer_instructions = """
 You are the meta reviewer.
 
 Input:
-- Findings from specialist reviewers: reviewer_security, reviewer_correctness, reviewer_performance, reviewer_test_quality.
+- Findings from specialist reviewers: reviewer_security, reviewer_correctness, reviewer_performance, reviewer_test_quality, reviewer_coding_rules.
 
 Tasks:
 1. Deduplicate overlapping findings.

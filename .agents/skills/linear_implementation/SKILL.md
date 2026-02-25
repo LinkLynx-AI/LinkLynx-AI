@@ -75,6 +75,7 @@ For each child issue execute the same loop.
 - `reviewer_correctness`: spec alignment, edge cases, consistency, error paths.
 - `reviewer_performance`: hot paths, N+1, throughput/latency risk.
 - `reviewer_test_quality`: missing tests, weak assertions, regression gaps.
+- `reviewer_coding_rules`: AGENTS.md compliance checks (coding rules, layer boundaries, and language-specific conventions).
 
 ### Meta Reviewer
 - Role key is `reviewer` for backward compatibility.
