@@ -1,11 +1,11 @@
-# Rust コーディングルール（大規模バックエンド向け）
+# Rust Coding Rules (Large-Scale Backend)
 
-このドキュメントは、実装時の判断を揃えるための「コード規約」に限定します。  
-CI運用、レビュー体制、依存更新フローなどの運用ルールは別ドキュメントで管理します。
+This document defines implementation-level coding rules only.
+Operational rules (CI process, review process, dependency update workflow) are managed in separate documents.
 
-## 1. レイヤー境界と依存方向
+## 1. Layer Boundaries and Dependency Direction
 
-依存方向は一方向に固定します。
+Dependency flow must be unidirectional:
 
 ```text
 api -> domain <- infra
@@ -13,10 +13,10 @@ api -> domain <- infra
       shared
 ```
 
-規約:
-- `domain` は外部FW・I/O実装（`axum`, `sqlx`, HTTP client）に依存しない
-- I/O 境界はトレイトで抽象化し、`infra` が実装する
-- ユースケースは `domain` に置き、`api` は入出力変換のみに集中する
+Rules:
+- `domain` must not depend on external frameworks or I/O implementations (`axum`, `sqlx`, HTTP clients, etc.).
+- I/O boundaries must be abstracted via traits, implemented in `infra`.
+- Use cases belong in `domain`; `api` should focus on input/output mapping only.
 
 ```rust
 use async_trait::async_trait;
@@ -28,13 +28,13 @@ pub trait UserRepository: Send + Sync {
 }
 ```
 
-## 2. モジュール構成
+## 2. Module Structure
 
-規約:
-- `mod.rs` は使わず、`foo.rs` + `foo/` 構成を採用する
-- 1ファイルは 300〜500 行を超える前に分割する
-- クレート外公開APIは `lib.rs` の `pub use` 経由で公開する
-- `prelude` は「頻出かつ安定した型」のみを再エクスポートする
+Rules:
+- Do not use `mod.rs`; use `foo.rs` + `foo/` structure.
+- Split files before they exceed roughly 300-500 lines.
+- Expose crate public API through `pub use` in `lib.rs`.
+- Keep `prelude` limited to frequent and stable exports.
 
 ```text
 crates/domain/src/
@@ -48,20 +48,20 @@ crates/domain/src/
 └── error.rs
 ```
 
-## 3. 命名と可視性
+## 3. Naming and Visibility
 
-規約:
-- 型名は `PascalCase`、関数・モジュールは `snake_case`
-- bool を返す関数は `is_` / `has_` / `can_` で始める
-- 省略語を避け、ドメイン語彙を優先する（例: `usr` ではなく `user`）
-- デフォルトは非公開（`pub` を最小化）し、公開理由があるものだけ公開する
+Rules:
+- Type names use `PascalCase`; functions and modules use `snake_case`.
+- Boolean-returning functions should start with `is_`, `has_`, or `can_`.
+- Avoid unclear abbreviations; prioritize domain vocabulary.
+- Keep visibility private by default; use `pub` only when justified.
 
-## 4. 型設計
+## 4. Type Design
 
-規約:
-- ID・境界値・単位は NewType で表現する
-- 文字列ベースの状態値は `enum` で閉じる
-- 入力バリデーション済み値は専用型で保持する（生 `String` を流さない）
+Rules:
+- Represent IDs, boundary values, and units with NewType.
+- Represent string-based states as closed `enum`s.
+- Keep validated input in dedicated types (do not pass raw `String` through core logic).
 
 ```rust
 use serde::{Deserialize, Serialize};
@@ -74,14 +74,14 @@ pub struct UserId(pub Uuid);
 pub struct OrderId(pub Uuid);
 ```
 
-## 5. エラーハンドリング
+## 5. Error Handling
 
-規約:
-- ドメイン層の失敗は列挙型エラーで表現する
-- `thiserror` で型付きエラーを定義する
-- `anyhow` はアプリ境界（handler, main）に限定する
-- `unwrap()` / `expect()` はテストコードのみ許可する
-- エラーメッセージは「何が・なぜ失敗したか」を短く書く
+Rules:
+- Represent domain failures with typed enum errors.
+- Define typed errors using `thiserror`.
+- Restrict `anyhow` to application boundaries (handler/main).
+- Allow `unwrap()` and `expect()` only in tests.
+- Error messages should be concise and explain what failed and why.
 
 ```rust
 use thiserror::Error;
@@ -99,21 +99,21 @@ pub enum AppError {
 }
 ```
 
-## 6. 非同期・並行処理
+## 6. Async and Concurrency
 
-規約:
-- 共有状態は `Arc<T>` とし、可変共有は最小限にする
-- `Mutex` より先に「所有権分離でロック不要にできないか」を検討する
-- 非同期関数はキャンセル安全を意識し、途中失敗時の整合性を保つ
-- 長時間ブロッキング処理は `spawn_blocking` へ逃がす
+Rules:
+- Use `Arc<T>` for shared state, and minimize mutable shared state.
+- Before introducing `Mutex`, first check whether ownership separation can remove the lock.
+- Keep async functions cancellation-safe and preserve consistency on partial failure.
+- Move long blocking work to `spawn_blocking`.
 
-## 7. テスト実装
+## 7. Test Implementation
 
-規約:
-- ユニットテストは対象モジュールと同じファイル末尾に置く
-- 振る舞い名ベースでテスト名を付ける（`create_user_success` など）
-- 1テスト1責務に分割し、失敗原因を特定しやすくする
-- テストデータ生成はヘルパー関数化して重複を避ける
+Rules:
+- Place unit tests at the end of the target module file.
+- Use behavior-driven test names (`create_user_success`, etc.).
+- Keep one responsibility per test for easier failure diagnosis.
+- Extract test data setup into helpers to reduce duplication.
 
 ```rust
 #[cfg(test)]
@@ -127,14 +127,14 @@ mod tests {
 }
 ```
 
-## 8. フォーマットとLint
+## 8. Formatting and Lint
 
-規約:
-- フォーマットは `rustfmt` に完全準拠する（手動整形しない）
-- Clippy 警告は原則解消し、必要な場合のみ理由付きで `allow` する
-- `allow` はアイテム単位に限定し、モジュール全体への広域適用を避ける
+Rules:
+- Follow `rustfmt` fully (no manual formatting).
+- Resolve Clippy warnings by default; use `allow` only with explicit reason.
+- Scope `allow` narrowly to items; avoid wide module-level allowances.
 
-推奨設定例:
+Recommended settings:
 
 ```toml
 # rustfmt.toml
@@ -154,16 +154,17 @@ todo = "warn"
 pedantic = "warn"
 ```
 
-## 9. ドキュメントコメント
+## 9. Documentation Comments
 
-規約:
-- 公開 API には `///` を付与する
-- トレイト・主要型には `# Examples` を最低1つ書く
-- 不変条件（invariant）と前提条件（precondition）をコメントで明示する
-- 関数には「この関数が何をするか」を説明するコメントを書く
-- 関数コメントは JSDoc 記法を使い、`@param` `@returns` `@throws` を明示する
+Rules:
+- Add `///` comments for public APIs.
+- Include at least one `# Examples` section for traits and core types.
+- Document invariants and preconditions explicitly.
+- Every function should include a comment that explains its purpose.
+- Function comments must use JSDoc-style tags and include `@param`, `@returns`, and `@throws`.
+- The first summary line of each function doc comment must be written in Japanese.
 
-関数コメント例:
+Function comment example:
 
 ```rust
 /// ユーザーIDでユーザー情報を取得する。
@@ -175,9 +176,9 @@ pub async fn find_user(user_id: UserId) -> Result<Option<User>, AppError> {
 }
 ```
 
-## 10. LIN-143準拠ディレクトリ構造
+## 10. LIN-143 Directory Structure Standard
 
-`LIN-143` の改訂案に合わせ、Rustワークスペースの基準構造は以下とする。
+Based on the LIN-143 revised proposal, the Rust workspace standard structure is:
 
 ```text
 rust/
