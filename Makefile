@@ -1,5 +1,5 @@
-.PHONY: help setup setup-check dev build up down logs clean test format lint ci validate
-.PHONY: ts-dev ts-build ts-lint ts-test ts-prisma-generate ts-prisma-migrate ts-prisma-check rust-dev rust-build rust-test rust-fmt rust-clippy rust-lint rust-ci py-dev py-test elixir-dev elixir-build
+.PHONY: help setup setup-bootstrap setup-check dev build up down logs clean test format lint ci validate
+.PHONY: ts-dev ts-build ts-format ts-lint ts-test ts-validate rust-dev rust-build rust-test rust-fmt rust-clippy rust-lint rust-ci rust-validate py-dev py-install py-format py-lint py-test py-validate elixir-dev elixir-build
 .PHONY: db-up db-down db-reset db-migrate db-migrate-revert db-migrate-info db-schema db-schema-check worktree-sync-env codex-worktree
 
 # 色設定
@@ -27,7 +27,18 @@ help: ## ヘルプを表示
 # セットアップ・環境確認
 # ============================================
 
-setup: ## 全環境の自動セットアップを実行
+setup: ## 各言語のローカル依存関係をセットアップ
+	@echo "$(BLUE)TypeScript 依存関係をセットアップ中...$(NC)"
+	@$(MAKE) -C typescript setup
+	@echo "$(BLUE)Rust 依存関係をセットアップ中...$(NC)"
+	@$(MAKE) -C rust setup
+	@echo "$(BLUE)Python 依存関係をセットアップ中...$(NC)"
+	@$(MAKE) -C python setup
+	@echo "$(BLUE)Elixir 依存関係をセットアップ中...$(NC)"
+	@$(MAKE) -C elixir setup
+	@echo "$(GREEN)全言語の依存関係セットアップが完了しました$(NC)"
+
+setup-bootstrap: ## 既存の自動セットアップスクリプトを実行
 	@./setup/setup.sh
 
 setup-check: ## 環境構築状況を確認
@@ -85,19 +96,16 @@ ts-build: ## Next.js を本番用にビルド
 	cd typescript && npm run build
 
 ts-lint: ## ESLint でコードチェック
-	cd typescript && npm run lint
+	cd typescript && make lint
+
+ts-format: ## TypeScript をフォーマット
+	cd typescript && make format
 
 ts-test: ## TypeScript テストを実行
 	cd typescript && npm run test
 
-ts-prisma-generate: ## Prisma Client を生成
-	cd typescript && npm run prisma:generate
-
-ts-prisma-migrate: ## Prisma migration を作成・適用（開発用）
-	cd typescript && npm run prisma:migrate:dev
-
-ts-prisma-check: ## Prisma のDB接続を確認
-	cd typescript && npm run prisma:check
+ts-validate: ## TypeScript の format / lint / test を実行
+	cd typescript && make validate
 
 ts-install: ## 依存パッケージをインストール
 	cd typescript && npm install
@@ -132,16 +140,19 @@ rust-lint: ## Rust 規約チェック（fmt + clippy + test）
 rust-ci: rust-lint ## CI相当のRust品質ゲートを実行
 
 # ============================================
-# 共通品質ゲート（Rust向け）
+# 共通品質ゲート（TypeScript / Rust / Python）
 # ============================================
 
-format: rust-fmt ## フォーマットを実行
+rust-validate: ## Rust の format / lint / test を実行
+	cd rust && make validate
 
-lint: rust-lint ## Lintを実行（fmt check + clippy + test）
+format: ts-format rust-fmt py-format ## フォーマットを実行
 
-ci: rust-ci ## CI相当のチェックを実行
+lint: ts-lint rust-lint py-lint ## Lintを実行
 
-validate: format lint ci ## format / lint / ci をすべて実行
+ci: lint ## CI相当のチェックを実行
+
+validate: format lint test ## format / lint / test をすべて実行
 
 # ============================================
 # Python コマンド
@@ -151,10 +162,19 @@ py-dev: ## Python FastAPI サーバーを起動
 	cd python && uvicorn main:app --reload --host 0.0.0.0 --port 8000
 
 py-install: ## 依存パッケージをインストール
-	cd python && pip install -r requirements.txt
+	cd python && make install-dev
+
+py-format: ## Python をフォーマット
+	cd python && make format
+
+py-lint: ## Python Lint を実行
+	cd python && make lint
 
 py-test: ## Python テストを実行
-	cd python && pytest
+	cd python && make test
+
+py-validate: ## Python の format / lint / test を実行
+	cd python && make validate
 
 # ============================================
 # Elixir コマンド
@@ -253,10 +273,8 @@ dev: db-up ## 開発環境を起動（DB + ローカルサービス）
 
 test: ## 全テストを実行
 	@echo "$(BLUE)TypeScript テスト実行中...$(NC)"
-	cd typescript && npm run test
+	cd typescript && make test
 	@echo "$(BLUE)Rust テスト実行中...$(NC)"
-	cd rust && cargo test
+	cd rust && make test
 	@echo "$(BLUE)Python テスト実行中...$(NC)"
-	-cd python && pytest 2>/dev/null || echo "$(YELLOW)テスト未設定$(NC)"
-	@echo "$(BLUE)Elixir テスト実行中...$(NC)"
-	-cd elixir && mix test 2>/dev/null || echo "$(YELLOW)テスト未設定$(NC)"
+	cd python && make test

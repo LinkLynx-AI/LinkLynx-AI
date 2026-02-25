@@ -36,7 +36,7 @@
 
 - LIN-290 の Postgres スキーマ/インデックス要件は **既存定義で充足**。
 - 追加 migration（`0004_lin290_last_message_index_tuning`）は不要。
-- Prisma 側も同等モデル/索引定義が既に存在するため、本Issueでは変更なし（非対象方針に合致）。
+- 本Issueでは PostgreSQL（sqlx migration）側の検証のみを対象とした。
 
 ## 実施コマンド（証跡）
 
