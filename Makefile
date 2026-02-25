@@ -1,5 +1,5 @@
 .PHONY: help setup setup-bootstrap setup-check dev build up down logs clean test format lint ci validate
-.PHONY: ts-dev ts-build ts-format ts-lint ts-test ts-validate ts-prisma-generate ts-prisma-migrate ts-prisma-check rust-dev rust-build rust-test rust-fmt rust-clippy rust-lint rust-ci rust-validate py-dev py-install py-format py-lint py-test py-validate elixir-dev elixir-build
+.PHONY: ts-dev ts-build ts-format ts-lint ts-test ts-validate rust-dev rust-build rust-test rust-fmt rust-clippy rust-lint rust-ci rust-validate py-dev py-install py-format py-lint py-test py-validate elixir-dev elixir-build
 .PHONY: db-up db-down db-reset db-migrate db-migrate-revert db-migrate-info db-schema db-schema-check worktree-sync-env codex-worktree
 
 # 色設定
@@ -106,15 +106,6 @@ ts-test: ## TypeScript テストを実行
 
 ts-validate: ## TypeScript の format / lint / test を実行
 	cd typescript && make validate
-
-ts-prisma-generate: ## Prisma Client を生成
-	cd typescript && npm run prisma:generate
-
-ts-prisma-migrate: ## Prisma migration を作成・適用（開発用）
-	cd typescript && npm run prisma:migrate:dev
-
-ts-prisma-check: ## Prisma のDB接続を確認
-	cd typescript && npm run prisma:check
 
 ts-install: ## 依存パッケージをインストール
 	cd typescript && npm install
