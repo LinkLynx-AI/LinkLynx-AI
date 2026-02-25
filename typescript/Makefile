@@ -1,7 +1,13 @@
-.PHONY: install format lint test validate
+.PHONY: setup install format lint test validate
 
-install:
-	npm install
+setup:
+	@if [ -f package-lock.json ]; then \
+		npm ci; \
+	else \
+		npm install; \
+	fi
+
+install: setup
 
 format:
 	npm run format

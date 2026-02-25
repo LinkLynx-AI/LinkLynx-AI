@@ -1,4 +1,4 @@
-.PHONY: help setup setup-check dev build up down logs clean test format lint ci validate
+.PHONY: help setup setup-bootstrap setup-check dev build up down logs clean test format lint ci validate
 .PHONY: ts-dev ts-build ts-format ts-lint ts-test ts-validate ts-prisma-generate ts-prisma-migrate ts-prisma-check rust-dev rust-build rust-test rust-fmt rust-clippy rust-lint rust-ci rust-validate py-dev py-install py-format py-lint py-test py-validate elixir-dev elixir-build
 .PHONY: db-up db-down db-reset db-migrate db-migrate-revert db-migrate-info db-schema db-schema-check worktree-sync-env codex-worktree
 
@@ -27,7 +27,18 @@ help: ## ヘルプを表示
 # セットアップ・環境確認
 # ============================================
 
-setup: ## 全環境の自動セットアップを実行
+setup: ## 各言語のローカル依存関係をセットアップ
+	@echo "$(BLUE)TypeScript 依存関係をセットアップ中...$(NC)"
+	@$(MAKE) -C typescript setup
+	@echo "$(BLUE)Rust 依存関係をセットアップ中...$(NC)"
+	@$(MAKE) -C rust setup
+	@echo "$(BLUE)Python 依存関係をセットアップ中...$(NC)"
+	@$(MAKE) -C python setup
+	@echo "$(BLUE)Elixir 依存関係をセットアップ中...$(NC)"
+	@$(MAKE) -C elixir setup
+	@echo "$(GREEN)全言語の依存関係セットアップが完了しました$(NC)"
+
+setup-bootstrap: ## 既存の自動セットアップスクリプトを実行
 	@./setup/setup.sh
 
 setup-check: ## 環境構築状況を確認

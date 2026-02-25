@@ -1,6 +1,13 @@
-.PHONY: install install-dev ensure-dev-tools format lint test validate
+.PHONY: setup install install-dev ensure-dev-tools format lint test validate
 
-PYTHON ?= $(shell if [ -x .venv/bin/python ]; then echo .venv/bin/python; else echo python3; fi)
+VENV_DIR ?= .venv
+PYTHON_BIN ?= python3
+PYTHON ?= $(shell if [ -x $(VENV_DIR)/bin/python ]; then echo $(VENV_DIR)/bin/python; else echo $(PYTHON_BIN); fi)
+
+setup:
+	$(PYTHON_BIN) -m venv $(VENV_DIR)
+	$(VENV_DIR)/bin/python -m pip install --upgrade pip
+	$(VENV_DIR)/bin/python -m pip install -r requirements.txt -r requirements-dev.txt
 
 install:
 	$(PYTHON) -m pip install -r requirements.txt

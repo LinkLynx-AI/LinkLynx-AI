@@ -1,4 +1,7 @@
-.PHONY: format lint test validate
+.PHONY: setup format lint test validate
+
+setup:
+	cargo fetch --locked
 
 format:
 	cargo fmt --all
