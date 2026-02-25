@@ -1,7 +1,7 @@
 # Plan.md (Milestones + validations)
 
 ## Rules
-- Stop-and-fix: validationが失敗したら修復してから次へ進む。
+- Stop-and-fix: if validation fails, repair it before moving to the next step.
 
 ## Milestones
 ### M1: ...

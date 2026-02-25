@@ -1,8 +1,8 @@
 ## Working agreements (linklinx-AI)
-- 子Issueは原則 1 Issue = 1 PR。
-- main への自動マージは禁止。main向けPRは人間承認が必要。
-- 指定ブランチ（main以外）へのPRは、テスト成功とレビューOKなら自動マージしてよい。
-- スコープ外の改善を混ぜない（refactorは別Issue）。
+- Child issues should follow the rule: 1 issue = 1 PR.
+- Auto-merge into `main` is prohibited. PRs targeting `main` require human approval.
+- PRs targeting designated branches other than `main` may be auto-merged when tests pass and review is approved.
+- Do not mix out-of-scope improvements (separate refactors into different issues).
 
 ## Quality commands
 - Lint: pnpm lint
@@ -11,4 +11,4 @@
 - E2E: pnpm e2e
 
 ## Agent memory (required)
-- 長距離または連続タスクでは Prompt.md / Plan.md / Implement.md / Documentation.md を作成して更新する。
+- For long-running or continuous tasks, create and maintain Prompt.md / Plan.md / Implement.md / Documentation.md.
