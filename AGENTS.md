@@ -3,6 +3,7 @@
 - Auto-merge into `main` is prohibited. PRs targeting `main` require human approval.
 - PRs targeting designated branches other than `main` may be auto-merged when tests pass and review is approved.
 - Do not mix out-of-scope improvements (separate refactors into different issues).
+- PR title and description must be written in Japanese.
 
 ## Quality commands
 - Lint: pnpm lint
