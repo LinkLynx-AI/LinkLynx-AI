@@ -88,12 +88,7 @@ export default tseslint.config(
       "no-restricted-imports": [
         "error",
         {
-          patterns: [
-            "@/features/*/*",
-            "@/entities/*/*",
-            "@/widgets/*/*",
-            "@/pages/*/*",
-          ],
+          patterns: ["@/features/*/*", "@/entities/*/*", "@/widgets/*/*", "@/pages/*/*"],
         },
       ],
       "no-restricted-syntax": [
