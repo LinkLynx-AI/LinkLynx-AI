@@ -10,8 +10,24 @@ description = "Implementation agent. Keep diffs scoped and follow Plan.md."
 config_file = "agents/worker.toml"
 
 [agents.reviewer]
-description = "Review for security/correctness/testing risks. Provide concrete fixes and test suggestions."
+description = "Meta reviewer. Consolidate specialist reviewer outputs, deduplicate findings, and make final gate decisions."
 config_file = "agents/reviewer.toml"
+
+[agents.reviewer_security]
+description = "Security reviewer. Focus on authn/authz, input validation, injection risk, secret handling, and abuse vectors."
+config_file = "agents/reviewer_security.toml"
+
+[agents.reviewer_correctness]
+description = "Correctness reviewer. Focus on specification alignment, edge cases, state transitions, and error-path behavior."
+config_file = "agents/reviewer_correctness.toml"
+
+[agents.reviewer_performance]
+description = "Performance reviewer. Focus on hot paths, unnecessary allocations/work, query patterns, and scalability risks."
+config_file = "agents/reviewer_performance.toml"
+
+[agents.reviewer_test_quality]
+description = "Test-quality reviewer. Focus on test coverage gaps, brittle tests, missing regression cases, and validation quality."
+config_file = "agents/reviewer_test_quality.toml"
 
 [agents.monitor]
 description = "Run validations (lint/typecheck/tests/build) and summarize failures."

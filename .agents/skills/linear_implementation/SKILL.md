@@ -9,7 +9,7 @@ description: Implement linklinx-AI Linear issues with one issue equals one PR de
 - If PR base branch is `main`, do not auto-merge.
 - Mark PR ready for human review and stop.
 - Include a review checklist in PR body for human approval.
-- If PR base branch is not `main`, auto-merge is allowed only when required validations pass and reviewer has no critical findings.
+- If PR base branch is not `main`, auto-merge is allowed only when required validations pass and final meta review has no `P1` or higher findings.
 
 ## 1. Linear Connection
 Prefer Linear MCP for reading and updating issues.
@@ -22,6 +22,7 @@ If MCP is unavailable, continue implementation from provided issue content and r
 - Use separate agents for exploration, implementation, validation, and review to reduce context drift.
 - Run read-heavy and check-heavy work in parallel when safe.
 - Avoid parallel writes to the same code area; default to a single worker for edits.
+- Run specialist reviewers in parallel, then run one meta reviewer to consolidate and decide gate status.
 
 ## 3. Parent Issue Handling with Sequential Child Execution
 When given a parent issue:
@@ -48,10 +49,11 @@ For each child issue execute the same loop.
 1. Create branch
 2. Implement scoped changes
 3. Run validation commands
-4. Perform reviewer pass
-5. Open PR
-6. Merge according to merge policy
-7. Move to next issue
+4. Run specialist review pass in parallel
+5. Run meta review consolidation and gate decision
+6. Open PR
+7. Merge according to merge policy
+8. Move to next issue
 
 ## 6. Role Contracts
 ### Explorer
@@ -66,9 +68,16 @@ For each child issue execute the same loop.
 - Run lint, typecheck, test, build, and issue-specific checks.
 - Summarize failures with likely causes.
 
-### Reviewer
-- Review security, correctness, edge cases, and test coverage.
-- Return concrete fixes and retest points.
+### Specialist Reviewers
+- `reviewer_security`: auth, validation, injection, secrets, abuse vectors.
+- `reviewer_correctness`: spec alignment, edge cases, consistency, error paths.
+- `reviewer_performance`: hot paths, N+1, throughput/latency risk.
+- `reviewer_test_quality`: missing tests, weak assertions, regression gaps.
+
+### Meta Reviewer
+- Role key is `reviewer` for backward compatibility.
+- Consolidate specialist outputs, deduplicate overlaps, normalize severity, and make final gate decision.
+- Gate rule: block when at least one `P1` or higher finding has confidence `>= 0.65`.
 
 ## 7. PR Convention
 - Branch format: `linear/<ISSUE-KEY>-<slug>`
@@ -78,6 +87,9 @@ For each child issue execute the same loop.
 - how to test with results
 - migration or breaking changes if any
 - link to Linear issue
+- review outcome:
+- blocking findings (`P1+`) and required fixes
+- non-blocking suggestions (`P2/P3`)
 
 For sequential issue runs:
 - Open and merge one PR per issue.
