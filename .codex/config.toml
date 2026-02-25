@@ -29,6 +29,14 @@ config_file = "agents/reviewer_performance.toml"
 description = "Test-quality reviewer. Focus on test coverage gaps, brittle tests, missing regression cases, and validation quality."
 config_file = "agents/reviewer_test_quality.toml"
 
+[agents.reviewer_ui_guard]
+description = "UI change guard. Detect whether the current diff includes frontend UI changes and decide if UI checks should run."
+config_file = "agents/reviewer_ui_guard.toml"
+
+[agents.reviewer_ui]
+description = "UI reviewer. Run UI-focused checks only when reviewer_ui_guard says UI changes exist."
+config_file = "agents/reviewer_ui.toml"
+
 [agents.monitor]
 description = "Run validations (lint/typecheck/tests/build) and summarize failures."
 config_file = "agents/monitor.toml"

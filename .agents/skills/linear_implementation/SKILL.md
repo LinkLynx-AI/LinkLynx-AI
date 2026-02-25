@@ -51,9 +51,11 @@ For each child issue execute the same loop.
 3. Run validation commands
 4. Run specialist review pass in parallel
 5. Run meta review consolidation and gate decision
-6. Open PR
-7. Merge according to merge policy
-8. Move to next issue
+6. Run `reviewer_ui_guard` to detect whether UI-related files changed
+7. If UI changes are detected, run `reviewer_ui`; if not, skip UI checks
+8. Open PR
+9. Merge according to merge policy
+10. Move to next issue
 
 ## 6. Role Contracts
 ### Explorer
@@ -79,6 +81,11 @@ For each child issue execute the same loop.
 - Consolidate specialist outputs, deduplicate overlaps, normalize severity, and make final gate decision.
 - Gate rule: block when at least one `P1` or higher finding has confidence `>= 0.65`.
 
+### Conditional UI Review
+- `reviewer_ui_guard`: decide whether current diff includes UI-impact changes.
+- `reviewer_ui`: run UI checks only when guard says true.
+- UI checks are skipped for non-UI diffs to keep cycle time small.
+
 ## 7. PR Convention
 - Branch format: `linear/<ISSUE-KEY>-<slug>`
 - PR body includes:
@@ -90,6 +97,9 @@ For each child issue execute the same loop.
 - review outcome:
 - blocking findings (`P1+`) and required fixes
 - non-blocking suggestions (`P2/P3`)
+- UI check result:
+- `skipped` with rationale when no UI changes
+- `passed/failed` with executed checks and evidence when UI checks run
 
 For sequential issue runs:
 - Open and merge one PR per issue.
