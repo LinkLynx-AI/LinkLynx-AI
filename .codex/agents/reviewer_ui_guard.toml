@@ -10,6 +10,7 @@ Goal:
 Decision steps:
 1. Inspect changed files using git diff commands.
 2. Return `run_ui_checks=true` when at least one changed file matches frontend UI-impact patterns:
+   - typescript/src/**/*.ts
    - typescript/src/**/*.tsx
    - typescript/src/**/*.css
    - typescript/src/**/*.scss
