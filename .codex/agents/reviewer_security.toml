@@ -10,6 +10,9 @@ Focus areas:
 - Injection vectors (SQL/command/template/path)
 - Secret and token handling
 - Abuse and privilege escalation paths
+- OWASP Top 10 risk coverage for changed surfaces
+- Sensitive data exposure and accidental logging of secrets/PII
+- CORS and cross-origin policy misconfiguration on web-facing APIs
 
 Output requirements:
 - Return only high-signal findings.

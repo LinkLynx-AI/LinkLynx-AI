@@ -18,6 +18,16 @@ Prefer Linear MCP for reading and updating issues.
 
 If MCP is unavailable, continue implementation from provided issue content and report update text for manual sync.
 
+Fallback procedure when MCP is unavailable:
+1. Use the issue content already present in the prompt or branch context as the source of truth for the current run.
+2. Keep a local sync note in `Documentation.md` with:
+- target issue identifier
+- implementation status
+- validation results
+- pending decisions/questions
+3. Prepare a markdown-ready update package after each milestone so humans can paste it into Linear comments manually.
+4. When MCP connectivity is restored, backfill the updates to Linear in chronological order.
+
 ## 2. Multi-agent Usage Rules
 - Use separate agents for exploration, implementation, validation, and review to reduce context drift.
 - Run read-heavy and check-heavy work in parallel when safe.
