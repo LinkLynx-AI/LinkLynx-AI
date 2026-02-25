@@ -28,6 +28,11 @@ pub trait UserRepository: Send + Sync {
 }
 ```
 
+ワークスペース構成の規約:
+- エントリポイントは `apps/api` と `apps/worker` に置く
+- ビジネスロジックは `crates/*` に置き、`apps/*` には置かない
+- `apps/*` はルーティング、DTO変換、DI配線のみ担当する
+
 ## 2. モジュール構成
 
 規約:

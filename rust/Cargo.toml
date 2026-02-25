@@ -6,10 +6,10 @@ members = [
     "crates/infra",
     "crates/shared",
     "crates/worker",
-    "services/http-server",
-    "services/batch",
+    "apps/api",
+    "apps/worker",
 ]
-default-members = ["services/http-server"]
+default-members = ["apps/api"]
 
 [workspace.package]
 edition = "2021"
