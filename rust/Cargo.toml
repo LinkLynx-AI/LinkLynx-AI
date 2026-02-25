@@ -1,19 +1,26 @@
-[package]
-name = "linklynx_backend"
-version = "0.1.0"
-edition = "2021"
+[workspace]
+resolver = "2"
+members = [
+    "crates/api",
+    "crates/domain",
+    "crates/infra",
+    "crates/shared",
+    "crates/worker",
+    "services/http-server",
+    "services/batch",
+]
+default-members = ["services/http-server"]
 
-[dependencies]
+[workspace.package]
+edition = "2021"
+version = "0.1.0"
+
+[workspace.dependencies]
 axum = { version = "0.8", features = ["ws"] }
+thiserror = "2"
 tokio = { version = "1", features = ["full"] }
 tower = { version = "0.5", features = ["util"] }
 tower-http = { version = "0.6", features = ["cors", "trace"] }
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "uuid", "chrono"] }
 uuid = { version = "1", features = ["v4", "serde"] }
-chrono = { version = "0.4", features = ["serde"] }
-thiserror = "2"
-dotenvy = "0.15"

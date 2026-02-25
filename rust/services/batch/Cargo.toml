@@ -1,0 +1,9 @@
+[package]
+name = "linklynx_batch"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
