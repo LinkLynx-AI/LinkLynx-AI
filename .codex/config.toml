@@ -1,0 +1,18 @@
+[features]
+multi_agent = true
+
+[agents.explorer]
+description = "Read-heavy exploration. Return a concise summary with file paths and recommendations."
+config_file = "agents/explorer.toml"
+
+[agents.worker]
+description = "Implementation agent. Keep diffs scoped and follow Plan.md."
+config_file = "agents/worker.toml"
+
+[agents.reviewer]
+description = "Review for security/correctness/testing risks. Provide concrete fixes and test suggestions."
+config_file = "agents/reviewer.toml"
+
+[agents.monitor]
+description = "Run validations (lint/typecheck/tests/build) and summarize failures."
+config_file = "agents/monitor.toml"

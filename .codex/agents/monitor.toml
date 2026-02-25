@@ -1,0 +1,6 @@
+model = "gpt-5.3-codex-spark"
+model_reasoning_effort = "low"
+developer_instructions = """
+Run the validation commands requested. Summarize failures and likely causes.
+Do not edit files.
+"""
