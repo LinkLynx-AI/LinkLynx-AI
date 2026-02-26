@@ -1,6 +1,6 @@
 # DATABASE.md
 
-最終更新: 2026-02-25
+最終更新: 2026-02-26
 
 このドキュメントは、リポジトリ内の定義ファイルを基準にした「現在のDB状態」をまとめたものです。
 実行中のDBインスタンスを直接参照したスナップショットではありません。
@@ -89,6 +89,13 @@
 - `idx_outbox_pending`, `idx_outbox_failed`
 - `idx_email_verification_expires`, `idx_password_reset_expires`
 
+### 2.6 Postgres Operations Baseline (LIN-588)
+
+The source of truth for Postgres operations (forward-only migration, pool exhaustion controls, single-AZ outage policy, and PITR requirements) is:
+
+- `database/contracts/lin588_postgres_operations_baseline.md`
+- `docs/runbooks/postgres-pitr-runbook.md`
+
 ## 3. ScyllaDB の現在状態
 
 基準: `database/scylla/001_lin139_messages.cql`
@@ -125,3 +132,9 @@
   - `make db-schema`
   - `make db-schema-check`
 - Scylla の契約変更時は `database/scylla/*.cql` と `database/contracts/*.md` を合わせて更新
+
+## 5. Related Operational Documents
+
+- LIN-588 Postgres operations baseline:
+  - `database/contracts/lin588_postgres_operations_baseline.md`
+  - `docs/runbooks/postgres-pitr-runbook.md`
