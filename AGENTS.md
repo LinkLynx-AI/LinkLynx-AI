@@ -6,10 +6,9 @@
 - PR title and description must be written in Japanese.
 
 ## Quality commands
-- Lint: pnpm lint
-- Typecheck: pnpm typecheck
-- Test: pnpm test
-- E2E: pnpm e2e
+- Primary (all languages): `make validate`
+- Rust strict gate: `make rust-lint`
+- TypeScript typecheck: `cd typescript && npm run typecheck`
 
 ## Agent memory (required)
 - For long-running or continuous tasks, create and maintain Prompt.md / Plan.md / Implement.md / Documentation.md.
