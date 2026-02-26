@@ -1,4 +1,4 @@
-# ADR-001 イベントスキーマ互換性ルール（追加互換のみ）
+# ADR-001 Event Schema Compatibility Rules (Additive Changes Only)
 
 - Status: Accepted
 - Date: 2026-02-26
@@ -11,132 +11,132 @@
 
 ## Context
 
-v0基盤ではイベント契約を先に固定し、LIN-581/582/583/584のADRを同一前提で進める必要がある。
-イベントスキーマ変更時の判断が担当者依存になると、レビュー時間超過、契約不整合、運用手順の欠落が発生する。
-そのため、v0/v1共通で運用する互換性ルールをこのADRで固定する。
+In the v0 foundation, event contracts must be fixed first so LIN-581/582/583/584 can proceed with a shared baseline.
+If schema-change decisions depend on individual reviewers, we risk longer review time, contract inconsistencies, and missing runbook steps.
+This ADR fixes a single compatibility policy shared by both v0 and v1.
 
 ## Decision
 
-### 1. 中核ルール
+### 1. Core rules
 
-- 既存イベントへの破壊的変更は禁止する。
-- 許可する変更:
-  - optional項目の追加
-  - 後方互換な拡張
-  - 未知項目を無視できる拡張
-- 禁止する変更:
-  - 項目削除
-  - 既存項目の必須化
-  - 既存項目の型変更
-  - 既存項目の意味変更
-  - イベント名の変更・削除
-  - enum既存値の互換性破壊
+- Breaking changes to existing events are prohibited.
+- Allowed changes:
+  - Adding optional fields
+  - Backward-compatible extensions
+  - Extensions where unknown fields can be safely ignored
+- Prohibited changes:
+  - Field removal
+  - Making existing fields required
+  - Type changes to existing fields
+  - Semantic changes to existing fields
+  - Event name rename/removal
+  - Backward-incompatible changes to existing enum values
 
-### 2. optional項目追加ルール
+### 2. Rules for adding optional fields
 
-- 追加項目にはデフォルト意味を必ず明記する。
-- Producer送出前に、Consumerが新項目なしでも正しく動作することを確認する。
-- 導入時に「未対応Consumerでも安全」な確認項目をチェックリストで記録する。
+- Every new field must define its default meaning.
+- Before producer rollout, verify consumers still work without the new field.
+- Record checklist evidence that non-updated consumers remain safe.
 
-### 3. 非推奨化ルール
+### 3. Deprecation rules
 
-- 状態は `Proposed -> Deprecated -> Removal Candidate -> Removed (major only)` で管理する。
-- Deprecated期間は read互換を維持する。
-- 削除は major version でのみ許可する。
+- States are managed as `Proposed -> Deprecated -> Removal Candidate -> Removed (major only)`.
+- Read compatibility must be maintained during `Deprecated`.
+- Removal is allowed only in a major version.
 
-### 4. versioning運用
+### 4. Versioning policy
 
-- `major`: 破壊的変更。原則禁止。例外時は別ADRと明示承認を必須にする。
-- `minor`: 追加互換変更。
-- `patch`: 文言修正・挙動説明補足（契約意味は不変）。
-- v0/v1とも同一ルールで運用する。
+- `major`: Breaking change. Prohibited by default. Exceptions require a separate ADR and explicit approval.
+- `minor`: Additive backward-compatible change.
+- `patch`: Wording/behavior clarification only (contract meaning unchanged).
+- The same policy applies to both v0 and v1.
 
-## Class A/B 共通チェックリスト（レビュー30分以内）
+## Shared checklist for Class A/B (reviewable within 30 minutes)
 
-1. 互換性判定
-- 変更内容は追加互換のみか。
-- 禁止変更（削除・必須化・型変更・意味変更・改名）が含まれていないか。
+1. Compatibility check
+- Is the change additive-only?
+- Does it avoid prohibited changes (removal, requiredness change, type change, semantic change, rename)?
 
-2. Consumer影響確認
-- 新項目未対応Consumerでも正常動作するか。
-- 想定Consumer一覧と影響有無を記録したか。
+2. Consumer impact check
+- Do non-updated consumers continue to work?
+- Are expected consumers and impact assessment recorded?
 
-3. 監視・ロールバック準備
-- 不整合検知条件（後述）を監視に紐付けたか。
-- ロールバック手順の責任者と実施順を明記したか。
+3. Monitoring and rollback readiness
+- Are incompatibility detection conditions linked to monitoring?
+- Are rollback owner and execution steps explicitly documented?
 
-4. ドキュメント更新範囲
-- 関連ADR/契約文書/運用手順の更新対象を列挙したか。
-- 参照リンク切れがないか。
+4. Documentation update scope
+- Are affected ADR/contract/runbook documents listed?
+- Are all reference links valid?
 
-5. レビュー記録
-- 判定根拠、懸念事項、残課題を記録したか。
-- 30分以内に判定できる粒度で記述されているか。
+5. Review record
+- Are decision rationale, concerns, and open items recorded?
+- Is the write-up concise enough for a 30-minute decision?
 
-## 適用例（既存イベント3種）
+## Application examples (three existing events)
 
-### 1. `MessageCreated`（PASS例）
+### 1. `MessageCreated` (PASS example)
 
-- 変更案: optional項目 `metadata` を追加。
-- 判定: 追加互換であり既存項目の意味・型・必須性を変更しないためPASS。
-- 条件: Consumer未対応時は `metadata` を無視して既存処理を継続できること。
+- Proposed change: add optional field `metadata`.
+- Decision: PASS because existing field meaning/type/requiredness is unchanged.
+- Condition: when consumers are not updated, they must ignore `metadata` and continue existing behavior.
 
-### 2. `MessageUpdated`（PASS例）
+### 2. `MessageUpdated` (PASS example)
 
-- 変更案: optional項目 `edit_reason` を追加。
-- 判定: 後方互換を維持するためPASS。
-- 条件: `edit_reason` 欠損時は従来挙動と同一になること。
+- Proposed change: add optional field `edit_reason`.
+- Decision: PASS because backward compatibility is preserved.
+- Condition: behavior remains unchanged when `edit_reason` is missing.
 
-### 3. `MessageDeleted`（PASS例）
+### 3. `MessageDeleted` (PASS example)
 
-- 変更案: optional項目 `delete_reason_code` を追加。
-- 判定: 追加互換であるためPASS。
-- 条件: 欠損時デフォルト意味（「理由未設定」）を明記すること。
+- Proposed change: add optional field `delete_reason_code`.
+- Decision: PASS because this is additive-compatible.
+- Condition: default meaning for missing value must be documented (for example, "reason not set").
 
-## 破壊的変更サンプル（FAIL検知）
+## Breaking-change sample (FAIL detection)
 
-- サンプル: `MessageCreated.content` の型を `string` から `object` へ変更する。
-- 検知結果: 「既存項目の型変更」に該当しチェックリストでFAIL。
-- 対応: 変更を却下し、必要なら新規optional項目追加または別イベント追加で表現する。
+- Sample: change `MessageCreated.content` type from `string` to `object`.
+- Detection result: FAIL because it is a type change on an existing field.
+- Action: reject the change; if needed, represent it via a new optional field or a new event.
 
-## 契約不整合時の手順（障害時）
+## Incident handling for contract incompatibility
 
-### 1. 検知条件
+### 1. Detection conditions
 
-- Consumer側でデシリアライズ失敗率が閾値超過。
-- 互換性違反（禁止変更）をレビュー後に検知。
-- 監視でイベント処理失敗が連続発生。
+- Consumer deserialization failure rate exceeds threshold.
+- Compatibility violations (prohibited changes) found after review.
+- Monitoring shows sustained event-processing failures.
 
-### 2. 一時停止条件
+### 2. Temporary stop conditions
 
-- 互換性違反が本番系に影響する見込みがある場合、該当変更の配布を停止する。
-- 障害拡大を防ぐため、必要に応じて対象Producerの送出を一時停止する。
+- If a compatibility violation is likely to impact production, stop rollout of the relevant change.
+- To prevent blast radius, temporarily pause producer emission when necessary.
 
-### 3. ロールバック手順
+### 3. Rollback steps
 
-1. 直近変更を配布単位で停止または切り戻す。
-2. 既知の互換バージョンへ復帰する。
-3. 影響範囲（Consumer/トピック/期間）を特定し、再処理有無を判断する。
+1. Stop or rollback the latest change at deployment-unit granularity.
+2. Return to the last known compatible version.
+3. Identify impact scope (consumers/topics/time range) and decide whether replay is required.
 
-### 4. 周知手順
+### 4. Communication steps
 
-1. 影響範囲と暫定対応を関係チャンネルへ共有する。
-2. 復旧見込み時刻と次回更新時刻を明示する。
-3. 復旧完了後に再発防止策を記録する。
+1. Share impact scope and temporary mitigation with relevant channels.
+2. Communicate estimated recovery time and next update time.
+3. Record prevention actions after recovery completion.
 
-### 5. 復旧後の再開条件
+### 5. Resume conditions after recovery
 
-- チェックリスト再評価でPASS。
-- 監視指標が平常範囲へ復帰。
-- 変更責任者とレビュー担当が再開承認。
+- Checklist re-evaluation is PASS.
+- Monitoring metrics are back to normal range.
+- Change owner and reviewer both approve resume.
 
-## 関連Issue参照
+## Related issue references
 
-- LIN-581/582/583/584 は、本ADRを前提条件として参照する。
-- 後続ADRでは、本ADRのチェックリスト結果とversioning判断を明記して整合性を担保する。
+- LIN-581/582/583/584 must reference this ADR as a prerequisite.
+- Follow-up ADRs must include checklist results and versioning decision derived from this ADR.
 
 ## Consequences
 
-- イベント契約レビューの判断軸を統一できる。
-- 破壊的変更の混入をレビュー段階で防止できる。
-- v0/v1で同一運用できるため、将来移行時の手戻りを減らせる。
+- Event-contract reviews use one shared decision baseline.
+- Breaking changes are prevented during review.
+- Shared v0/v1 operation reduces migration rework in later phases.
