@@ -1,7 +1,6 @@
 import js from "@eslint/js";
 import tseslint from "typescript-eslint";
 import nextVitals from "eslint-config-next/core-web-vitals";
-import importPlugin from "eslint-plugin-import";
 import jsdocPlugin from "eslint-plugin-jsdoc";
 import eslintCommentsPlugin from "eslint-plugin-eslint-comments";
 
@@ -41,7 +40,6 @@ export default tseslint.config(
       },
     },
     plugins: {
-      import: importPlugin,
       jsdoc: jsdocPlugin,
       "eslint-comments": eslintCommentsPlugin,
     },
