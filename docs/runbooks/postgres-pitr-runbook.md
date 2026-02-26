@@ -1,117 +1,117 @@
-# PostgreSQL PITR Runbook（Draft）
+# PostgreSQL PITR Runbook (Draft)
 
 - Status: Draft
 - Last updated: 2026-02-26
-- Owner scope: Postgres運用（v0 baseline）
+- Owner scope: Postgres operations (v0 baseline)
 - References:
   - `database/contracts/lin588_postgres_operations_baseline.md`
   - `docs/DATABASE.md`
   - `LIN-588`
   - `LIN-597`
 
-## 1. 目的とスコープ
+## 1. Purpose and scope
 
-このrunbookは、Postgres障害時にPoint-In-Time Recovery（PITR）を開始し、検証してサービス再開するまでの判断基準と実行手順を定義する。
+This runbook defines decision gates and execution steps to start Point-In-Time Recovery (PITR), validate restored state, and resume service during Postgres incidents.
 
 In scope:
 
-- PITR開始判断
-- 復旧時刻の決定
-- 復元・検証・再開の標準手順
-- 演習（机上）チェックリストと記録テンプレート
+- PITR start decision
+- Target recovery timestamp decision
+- Standard restore, validation, and resume procedure
+- Tabletop drill checklist and record template
 
 Out of scope:
 
-- ベンダー固有のオペレーション詳細
-- 本番自動復旧システム実装
-- v1高度DR運用
+- Vendor-specific operation details
+- Production auto-recovery implementation
+- v1 advanced DR operations
 
-## 2. 目標値
+## 2. Targets
 
-- `RPO 15分`
-- `RTO 1時間`
+- `RPO 15 minutes`
+- `RTO 1 hour`
 
-定義:
+Definitions:
 
-- RPO: 許容データ損失の上限（復旧時点と障害時点の差）
-- RTO: 障害検知から業務再開までの許容時間
+- RPO: maximum acceptable data-loss window
+- RTO: maximum acceptable time from incident detection to service resumption
 
-## 3. PITR開始条件
+## 3. PITR start conditions
 
-次を満たす場合にPITR開始候補とする。
+Treat PITR as a candidate action when all of the following are true:
 
-1. Postgresが継続的に到達不能、または通常フェイルオーバで回復しない。
-2. 整合性を保証した通常書き込み再開の見込みがない。
-3. 影響範囲（対象環境・時刻・主要機能）を特定できる。
+1. Postgres remains unavailable, or normal failover does not restore service.
+2. Normal write-path recovery cannot restore consistency in time.
+3. Incident scope (environment, time range, affected critical features) is identified.
 
-開始しない条件:
+Do not start PITR when:
 
-- 障害が一時的で、通常復旧でRTO内に回復可能な場合
-- 復元元データ（backup/WAL等）の整合が未確認な場合
+- The outage is transient and normal recovery can meet RTO.
+- Restore-source integrity (backup/WAL and related artifacts) is not confirmed.
 
-## 4. 開始判断（Start decision）
+## 4. Start decision
 
-開始判定は次の両方を満たしたときに実施する。
+Start PITR only when both are true:
 
-1. セクション3の開始条件を満たす。
-2. 復旧責任者と判定責任者を明確化済み。
+1. Section 3 conditions are satisfied.
+2. Recovery owner and decision owner are explicitly assigned.
 
-判定後は、開始時刻・想定復旧時刻・対象復旧時点（target timestamp）をインシデント記録へ残す。
+After the decision, record start time, expected recovery time, and target timestamp in incident logs.
 
-## 5. 実行手順
+## 5. Execution procedure
 
-### 5.1 復旧時点（target timestamp）決定
+### 5.1 Decide target timestamp
 
-1. 障害発生時刻と異常書き込み区間を特定する。
-2. 最小損失で整合が保てる時点を選ぶ。
-3. 想定RPO（15分以内）に収まるかを確認する。
+1. Identify incident onset and abnormal-write interval.
+2. Select the point that preserves consistency with minimum loss.
+3. Confirm the selected point is within the RPO target (15 minutes).
 
-### 5.2 復元実行
+### 5.2 Execute restore
 
-1. 書き込み経路を停止またはメンテナンスモードにする。
-2. 復元先インスタンスを準備する。
-3. 取得済みバックアップとログを使ってtarget timestampへ復元する。
-4. 復元後インスタンスで基本健全性を確認する。
+1. Stop write paths or switch to maintenance mode.
+2. Prepare restore target instance.
+3. Restore to target timestamp from validated backups/logs.
+4. Run baseline health checks on restored instance.
 
-### 5.3 データ/契約整合確認
+### 5.3 Validate data and contract consistency
 
-1. migration適用状態を確認する（差分なし）。
-2. 主要テーブルの読取り確認を行う。
-3. 必須機能に関わるクエリの疎通を確認する。
+1. Verify migration applied-state consistency (no divergence).
+2. Validate core table reads.
+3. Validate connectivity for required critical queries.
 
-### 5.4 サービス再開
+### 5.4 Resume service
 
-1. 読み取り系を先に再開する。
-2. 問題がなければ書き込み系を段階的に再開する。
-3. 再開後は監視を強化し、RTO内の完全復帰可否を判定する。
+1. Resume read paths first.
+2. Resume write paths gradually after read-path stability.
+3. Keep enhanced monitoring and judge full recovery against RTO.
 
-## 6. 完了条件（Close decision）
+## 6. Close decision
 
-次をすべて満たした場合にPITR完了とする。
+Declare PITR complete only when all are true:
 
-1. Postgres主要機能が正常応答する。
-2. migration整合と基本データ整合が確認済み。
-3. 読み取り/書き込みの段階復帰が完了している。
-4. 影響範囲、損失範囲、RPO/RTO実績を記録済み。
+1. Core Postgres functions return healthy responses.
+2. Migration consistency and baseline data consistency are verified.
+3. Staged read/write recovery is complete.
+4. Incident impact, loss range, and measured RPO/RTO are recorded.
 
-## 7. エスカレーション条件
+## 7. Escalation conditions
 
-以下の場合は即時エスカレーションする。
+Escalate immediately when any of the following is true:
 
-- RPO 15分を超える損失が見込まれる。
-- RTO 1時間以内の復帰見込みが立たない。
-- 復元元データの欠損や破損が疑われる。
-- migration整合が復元後に一致しない。
+- Expected loss exceeds `RPO 15 minutes`.
+- Recovery within `RTO 1 hour` is unlikely.
+- Restore-source data loss/corruption is suspected.
+- Post-restore migration applied-state is inconsistent.
 
-## 8. 机上演習チェックリスト
+## 8. Tabletop drill checklist
 
-1. 障害シナリオ（単一AZ障害）を定義したか。
-2. 開始条件と開始判定を文書のみで実行できるか。
-3. target timestamp決定の根拠を示せるか。
-4. 完了条件を満たしたかを客観的に判定できるか。
-5. 改善項目をLIN-597へ連携できる形式で記録したか。
+1. Define outage scenario (single-AZ outage).
+2. Execute start conditions and start decision from docs only.
+3. Show objective rationale for target timestamp choice.
+4. Verify close conditions can be judged objectively.
+5. Record follow-up improvements in a format reusable by LIN-597.
 
-## 9. 演習記録テンプレート
+## 9. Drill record template
 
 ```markdown
 ### Postgres PITR Drill Record
@@ -130,4 +130,3 @@ Out of scope:
 - Open risks:
 - Follow-up issues:
 ```
-

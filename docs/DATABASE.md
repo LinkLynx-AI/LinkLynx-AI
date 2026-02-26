@@ -89,9 +89,9 @@
 - `idx_outbox_pending`, `idx_outbox_failed`
 - `idx_email_verification_expires`, `idx_password_reset_expires`
 
-### 2.6 Postgres運用基準（LIN-588）
+### 2.6 Postgres Operations Baseline (LIN-588)
 
-Postgresの運用基準（migration単方向、pool枯渇対策、単一AZ障害時方針、PITR要件）は次を正とする。
+The source of truth for Postgres operations (forward-only migration, pool exhaustion controls, single-AZ outage policy, and PITR requirements) is:
 
 - `database/contracts/lin588_postgres_operations_baseline.md`
 - `docs/runbooks/postgres-pitr-runbook.md`
@@ -133,8 +133,8 @@ Postgresの運用基準（migration単方向、pool枯渇対策、単一AZ障害
   - `make db-schema-check`
 - Scylla の契約変更時は `database/scylla/*.cql` と `database/contracts/*.md` を合わせて更新
 
-## 5. 関連運用ドキュメント
+## 5. Related Operational Documents
 
-- LIN-588 Postgres運用基準:
+- LIN-588 Postgres operations baseline:
   - `database/contracts/lin588_postgres_operations_baseline.md`
   - `docs/runbooks/postgres-pitr-runbook.md`

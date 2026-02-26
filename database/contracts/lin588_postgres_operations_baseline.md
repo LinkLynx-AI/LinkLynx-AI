@@ -1,138 +1,137 @@
-# LIN-588 Postgres運用基準（migration単方向 / pool枯渇対策 / PITR要件）
+# LIN-588 Postgres Operations Baseline (Forward-Only Migration / Pool Exhaustion Controls / PITR Requirements)
 
-## 目的
+## Purpose
 
-- 対象Issue: LIN-588
-- PostgresをメタSoRとして扱うための運用基準を固定する。
-- LIN-597（DR v0 runbook）へ接続できる前提を整備する。
+- Target issue: LIN-588
+- Fix a single operational baseline for Postgres as the metadata source of record.
+- Provide a stable prerequisite for LIN-597 (DR v0 runbook work).
 
-本契約の対象:
+In scope:
 
-- migrationの運用原則（forward-only）
-- connection pool枯渇の予防・検知・緩和・復旧判定
-- 単一AZ障害時の継続方針
-- PITR目標値とrunbook参照
+- Migration operation principles (forward-only)
+- Connection pool exhaustion prevention, detection, mitigation, and recovery criteria
+- Continuity policy during single-AZ outage
+- PITR target values and runbook linkage
 
-本契約の非対象:
+Out of scope:
 
-- アプリケーション機能実装
-- DBスキーマ変更
-- ベンダー固有の復元実装詳細（Cloud SQL/Auroraなど）
+- Application feature implementation
+- DB schema changes
+- Vendor-specific restore implementation details (for example Cloud SQL or Aurora)
 
-## 参照
+## References
 
 - `docs/DATABASE.md`
 - `docs/runbooks/postgres-pitr-runbook.md`
 - `docs/adr/ADR-002-class-ab-event-classification-and-delivery-boundary.md`
-- `LIN-597`（DR v0）
+- `LIN-597` (DR v0)
 
-## 1. Migration運用（forward-only）
+## 1. Migration Operation (Forward-Only)
 
-### 1.1 正の定義
+### 1.1 Source of truth
 
-- PostgreSQLスキーマ変更の正は `database/postgres/migrations` のみとする。
-- `database/postgres/schema.sql` は派生スナップショットとして扱う。
+- The only source of truth for PostgreSQL schema changes is `database/postgres/migrations`.
+- `database/postgres/schema.sql` is a derived snapshot.
 
-### 1.2 変更原則
+### 1.2 Change principles
 
-- migrationは追記のみ（新規番号追加）を原則とする。
-- 既存migrationファイルの編集は禁止する。
-- 本番障害復旧は「補正forward migration」で実施する。
+- Migrations must be append-only (new numbered files only).
+- Editing existing migration files is prohibited.
+- Production incident recovery must use corrective forward migrations.
 
-### 1.3 環境別ルール
+### 1.3 Environment rules
 
-| 環境 | `make db-migrate` | `make db-migrate-revert` | 復旧方針 |
+| Environment | `make db-migrate` | `make db-migrate-revert` | Recovery policy |
 | --- | --- | --- | --- |
-| prod | 許可 | 禁止 | アプリ切り戻し + 補正forward migration |
-| staging | 許可 | 検証用途のみ許可 | prod同等運用の検証を優先 |
-| dev | 許可 | 検証用途のみ許可 | 学習/検証目的での利用のみ |
+| prod | Allowed | Prohibited | App rollback + corrective forward migration |
+| staging | Allowed | Allowed for verification only | Prefer production-equivalent operation validation |
+| dev | Allowed | Allowed for verification only | Verification/learning use only |
 
-### 1.4 標準手順（事前確認 -> 適用 -> 事後確認）
+### 1.4 Standard procedure (Pre-check -> Apply -> Post-check)
 
-1. 事前確認:
-- 適用対象migrationを確認する。
-- 差分と影響範囲（DDL/データ変換有無）をレビューする。
-2. 適用:
+1. Pre-check:
+- Confirm target migrations.
+- Review delta and impact scope (DDL and data conversion).
+2. Apply:
 - `make db-migrate`
-3. 事後確認:
+3. Post-check:
 - `make db-migrate-info`
-- 必要時に `make db-schema-check`
+- Optionally `make db-schema-check` when needed
 
-## 2. Connection pool枯渇対策
+## 2. Connection Pool Exhaustion Controls
 
-### 2.1 容量予算式
+### 2.1 Capacity budgeting formula
 
 - `reserved_admin_connections = max(5, ceil(max_connections * 0.1))`
 - `usable_connections = max_connections - reserved_admin_connections`
 - `total_app_pool_max <= floor(usable_connections * 0.8)`
 
-丸め規則:
+Rounding rules:
 
-- `ceil`: 小数点切り上げ
-- `floor`: 小数点切り捨て
+- `ceil`: round up
+- `floor`: round down
 
-### 2.2 監視指標（必須）
+### 2.2 Required monitoring metrics
 
 - `pool_in_use_ratio`
 - `pool_acquire_p95_ms`
 - `pool_acquire_timeout_total`
 
-### 2.3 閾値
+### 2.3 Thresholds
 
 - Warning:
-  - `pool_in_use_ratio >= 0.80` が5分継続
-  - または `pool_acquire_p95_ms >= 100` が5分継続
+  - `pool_in_use_ratio >= 0.80` for 5 consecutive minutes
+  - or `pool_acquire_p95_ms >= 100` for 5 consecutive minutes
 - Critical:
-  - `pool_in_use_ratio >= 0.90` が2分継続
-  - または `pool_acquire_timeout_total > 0` を1分窓で検知
+  - `pool_in_use_ratio >= 0.90` for 2 consecutive minutes
+  - or detect `pool_acquire_timeout_total > 0` in a 1-minute window
 
-### 2.4 緩和フロー（優先順）
+### 2.4 Mitigation flow (priority order)
 
-1. 書き込み系バックプレッシャを有効化し、新規重い処理を抑制する。
-2. 接続消費が大きいバッチ/管理処理を停止する。
-3. アプリ側pool設定を見直し、同時実行数を引き下げる。
-4. 影響範囲と暫定対応をインシデント記録へ残す。
+1. Apply write-path backpressure and suppress new heavy work.
+2. Stop high-connection batch/admin jobs.
+3. Re-tune app pool settings and reduce parallelism.
+4. Record impact scope and temporary actions in incident logs.
 
-### 2.5 復旧判定
+### 2.5 Recovery criteria
 
-次を10分継続で満たした場合に復旧と判定する。
+Declare recovered only when all of the following hold for 10 consecutive minutes:
 
 - `pool_in_use_ratio < 0.70`
 - `pool_acquire_p95_ms < 50`
 - `pool_acquire_timeout_total = 0`
 
-## 3. 単一AZ障害時の継続方針
+## 3. Continuity Policy During Single-AZ Outage
 
-### 3.1 開始条件
+### 3.1 Start condition
 
-- Postgresへの到達不可または接続失敗が継続し、通常フェイルオーバで解消しない。
+- Postgres remains unreachable or connection failures continue, and normal failover does not resolve the condition.
 
-### 3.2 継続時ルール
+### 3.2 Continuity rules
 
-- Postgres依存で整合性が必須な処理は `unavailable` として扱う。
-- 継続可能な非依存経路は継続する。
-- 整合性を壊す推測書き込み（未確定成功扱い、補償なし更新）は禁止する。
+- Treat Postgres-dependent, consistency-critical operations as `unavailable`.
+- Continue only non-dependent paths that can safely proceed.
+- Prohibit speculative writes that can break consistency (for example unverified success assumptions without compensation).
 
-### 3.3 復旧時ルール
+### 3.3 Recovery rules
 
-1. migration整合を確認する（適用状態の差異がないこと）。
-2. 基本健全性（接続、主要クエリ応答）を確認する。
-3. 読み取り中心 -> 書き込みの順で段階復帰する。
+1. Verify migration consistency (no divergence in applied state).
+2. Verify baseline health (connectivity and core query response).
+3. Restore traffic in stages: read-first, then write paths.
 
-### 3.4 ADR整合
+### 3.4 ADR alignment
 
-- Class A/Bの障害時挙動判断は ADR-002 をSSOTとして参照する。
+- Use ADR-002 as the single source of truth for Class A/B outage behavior decisions.
 
-## 4. PITR要件
+## 4. PITR Requirements
 
-- 暫定目標: `RPO 15分 / RTO 1時間`
-- PITR手順の正は `docs/runbooks/postgres-pitr-runbook.md` とする。
-- runbookには開始条件、完了条件、演習チェックリスト、演習記録テンプレートを含める。
+- Temporary target: `RPO 15 minutes / RTO 1 hour`
+- Source of truth for PITR procedure: `docs/runbooks/postgres-pitr-runbook.md`
+- The runbook must include start conditions, close conditions, tabletop checklist, and drill record template.
 
-## 5. 検証観点（レビュー手順）
+## 5. Verification Points (Review Procedure)
 
-1. 文書のみでforward-only運用を再現できること。
-2. pool閾値到達時の検知・緩和・復旧判定を追跡できること。
-3. 単一AZ障害時の継続境界が曖昧語なしで判定できること。
-4. PITR runbookに開始条件/完了条件が明記されていること。
-
+1. Forward-only operation can be reproduced from documentation only.
+2. Detection, mitigation, and recovery decisions are traceable at pool threshold crossings.
+3. Single-AZ outage continuity boundaries are determinable without ambiguous wording.
+4. PITR runbook explicitly includes start and close conditions.
