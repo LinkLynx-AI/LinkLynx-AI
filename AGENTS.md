@@ -21,6 +21,7 @@
 - For database/schema/runtime contract changes, read `docs/DATABASE.md` and related files under `database/contracts/`.
 - For event schema/contract changes, read `docs/adr/ADR-001-event-schema-compatibility.md` before implementation.
 - For search consistency/SLO/reindex contract changes, read `docs/adr/ADR-003-search-consistency-slo-reindex.md` and `docs/runbooks/search-reindex-runbook.md` before implementation.
+- For edge routing/drain policy changes (Cloudflare/GCLB/GKE Ingress, REST/WS path, health check, WS drain), read `docs/runbooks/edge-rest-ws-routing-drain-runbook.md` before implementation.
 - For event delivery class/boundary/outage changes, read `docs/adr/ADR-002-class-ab-event-classification-and-delivery-boundary.md` before implementation.
 - For AuthZ fail-close policy, API/WS authorization error contracts, or authorization cache invalidation changes, read `docs/adr/ADR-004-authz-fail-close-and-cache-strategy.md` before implementation.
 - For Dragonfly/Redis rate-limit outage policy changes, degraded transition thresholds, or recovery resynchronization rules, read `docs/adr/ADR-005-dragonfly-ratelimit-failure-policy.md` and `database/contracts/lin139_runtime_contracts.md` before implementation.
@@ -46,4 +47,5 @@
     - `docs/adr/ADR-005-dragonfly-ratelimit-failure-policy.md`: Dragonfly outage rate-limit hybrid policy, degraded enter/exit thresholds, and recovery warm-up/resynchronization baseline.
   - `docs/runbooks/`
     - `docs/runbooks/search-reindex-runbook.md`: Search reindex operational flow (pre-check/start/execute/verify/close) for v0 baseline.
+    - `docs/runbooks/edge-rest-ws-routing-drain-runbook.md`: Edge REST/WS routing contract, health checks, rolling WS drain policy, and rollback procedure baseline.
     - `docs/runbooks/postgres-pitr-runbook.md`: PostgreSQL PITR start/execute/verify/close procedure and tabletop drill template for v0 baseline.
