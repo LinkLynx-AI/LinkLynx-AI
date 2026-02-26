@@ -58,6 +58,12 @@ LIN-139 のスコープに含め、スキーマ実装とセットで適用しま
 - 順序キー: `channel:{channel_id}`
 - イベント種別: `MessageCreated` / `MessageUpdated` / `MessageDeleted`
 
+### Class A/B 運用参照（LIN-581）
+
+- 配信イベントの Class A/B 分類、NATS障害時の期待挙動、再取得要否は
+  `docs/adr/ADR-002-class-ab-event-classification-and-delivery-boundary.md` を単一SSOTとして扱う。
+- Consumer実装・運用手順の追加時は、イベント定義ごとに Class と復旧経路をADR-002と整合させる。
+
 ### ペイロードスキーマ
 
 ```json
