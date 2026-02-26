@@ -54,6 +54,7 @@ rust/
 
 ## 5. 契約（Contracts）ルール
 - 配信イベント（WebSocket fanout対象）は `protocol-events` を単一の正とする。
+- 配信イベントの Class A/B 分類と障害時挙動は `docs/adr/ADR-002-class-ab-event-classification-and-delivery-boundary.md` を単一SSOTとして参照する。
 - `protocol-events` の破壊的変更は禁止。追加時は後方互換（optional field追加）を優先する。
 - `message-api` は「操作要求と問い合わせ」の境界契約。配信イベントを重複定義しない。
 - ID型（`UserId`/`GuildId`等）は `contracts/ids` で統一し、プリミティブ型の裸利用を避ける。

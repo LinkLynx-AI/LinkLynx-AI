@@ -8,6 +8,7 @@
   - [LIN-582](https://linear.app/linklynx-ai/issue/LIN-582)
   - [LIN-583](https://linear.app/linklynx-ai/issue/LIN-583)
   - [LIN-584](https://linear.app/linklynx-ai/issue/LIN-584)
+  - [ADR-002](./ADR-002-class-ab-event-classification-and-delivery-boundary.md)
 
 ## Context
 
@@ -134,6 +135,7 @@ This ADR fixes a single compatibility policy shared by both v0 and v1.
 
 - LIN-581/582/583/584 must reference this ADR as a prerequisite.
 - Follow-up ADRs must include checklist results and versioning decision derived from this ADR.
+- Delivery class and outage behavior for Class A/B are defined in ADR-002.
 
 ## Consequences
 
