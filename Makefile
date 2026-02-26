@@ -59,31 +59,31 @@ codex-worktree: ## 新規worktreeを作成しCodex CLIを起動 (例: make codex
 # ============================================
 
 up: ## 全サービスを起動
-	docker-compose up -d
+	docker compose up -d
 
 up-build: ## ビルドして全サービスを起動
-	docker-compose up -d --build
+	docker compose up -d --build
 
 down: ## 全サービスを停止
-	docker-compose down
+	docker compose down
 
 logs: ## 全サービスのログを表示
-	docker-compose logs -f
+	docker compose logs -f
 
 logs-ts: ## TypeScript/Next.js のログを表示
-	docker-compose logs -f typescript
+	docker compose logs -f typescript
 
 logs-rust: ## Rust のログを表示
-	docker-compose logs -f rust
+	docker compose logs -f rust
 
 logs-py: ## Python のログを表示
-	docker-compose logs -f python
+	docker compose logs -f python
 
 logs-elixir: ## Elixir のログを表示
-	docker-compose logs -f elixir
+	docker compose logs -f elixir
 
 clean: ## コンテナ・ボリューム・イメージを削除
-	docker-compose down -v --rmi local
+	docker compose down -v --rmi local
 
 # ============================================
 # TypeScript/Next.js コマンド
@@ -197,14 +197,14 @@ elixir-test: ## Elixir テストを実行
 # ============================================
 
 db-up: ## データベースのみ起動
-	docker-compose up -d postgres scylladb
+	docker compose up -d postgres scylladb
 
 db-down: ## データベースを停止
-	docker-compose stop postgres scylladb
+	docker compose stop postgres scylladb
 
 db-reset: ## データベースをリセット（※データ全削除）
-	docker-compose down -v postgres scylladb
-	docker-compose up -d postgres scylladb
+	docker compose down -v postgres scylladb
+	docker compose up -d postgres scylladb
 
 db-migrate: ## sqlx migration を適用
 	cd rust && DATABASE_URL=$(DATABASE_URL) sqlx migrate run --source $(SQLX_MIGRATIONS_DIR)
