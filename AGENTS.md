@@ -23,9 +23,11 @@
 - For search consistency/SLO/reindex contract changes, read `docs/adr/ADR-003-search-consistency-slo-reindex.md` and `docs/runbooks/search-reindex-runbook.md` before implementation.
 - For event delivery class/boundary/outage changes, read `docs/adr/ADR-002-class-ab-event-classification-and-delivery-boundary.md` before implementation.
 - For AuthZ fail-close policy, API/WS authorization error contracts, or authorization cache invalidation changes, read `docs/adr/ADR-004-authz-fail-close-and-cache-strategy.md` before implementation.
+- For Dragonfly/Redis rate-limit outage policy changes, degraded transition thresholds, or recovery resynchronization rules, read `docs/adr/ADR-005-dragonfly-ratelimit-failure-policy.md` and `database/contracts/lin139_runtime_contracts.md` before implementation.
 - Event schema changes must be additive and backward-compatible only. Breaking changes are prohibited unless approved via a separate ADR.
 - Event Class A/B classification and outage behavior decisions must follow ADR-002 as the single source of truth.
 - AuthZ decisions must follow ADR-004 fail-close baseline (no fail-open, no stale-if-error) unless explicitly superseded by a newer approved ADR.
+- Dragonfly outage behavior for rate limiting must follow ADR-005 hybrid baseline (high-risk fail-close, continuity paths degraded fail-open) unless explicitly superseded by a newer approved ADR.
 - PR description must include the ADR-001 checklist result and the compatibility decision rationale when event contracts are in scope.
 
 ## Docs map (summary)
@@ -39,5 +41,6 @@
     - `docs/adr/ADR-002-class-ab-event-classification-and-delivery-boundary.md`: Class A/B event classification, v0/v1 delivery boundary, and outage/recovery responsibility SSOT.
     - `docs/adr/ADR-003-search-consistency-slo-reindex.md`: Search consistency baseline, lag SLO/SLI, reindex trigger and completion criteria.
     - `docs/adr/ADR-004-authz-fail-close-and-cache-strategy.md`: AuthZ fail-close baseline, REST/WS deny vs unavailable mapping, authorization cache TTL/invalidation strategy, and propagation SLO.
+    - `docs/adr/ADR-005-dragonfly-ratelimit-failure-policy.md`: Dragonfly outage rate-limit hybrid policy, degraded enter/exit thresholds, and recovery warm-up/resynchronization baseline.
   - `docs/runbooks/`
     - `docs/runbooks/search-reindex-runbook.md`: Search reindex operational flow (pre-check/start/execute/verify/close) for v0 baseline.
