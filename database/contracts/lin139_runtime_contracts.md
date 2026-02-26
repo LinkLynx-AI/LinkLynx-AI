@@ -95,6 +95,19 @@ LIN-139 のスコープに含め、スキーマ実装とセットで適用しま
 
 - L1: 各ノードのローカルメモリ GCRA/TAT
 - L2: 必要時のみ Redis フォールバックを使う
+
+### Dragonfly障害時フェイル方針（ADR-005）
+
+- 参照: `docs/adr/ADR-005-dragonfly-ratelimit-failure-policy.md`
+- Dragonfly（Redis互換L2）障害時はハイブリッド方針を適用する。
+  - 高リスク操作（認証試行、招待悪用対策、アカウント保護系）は `fail-close`
+  - 継続性重視の主要書き込み/読み取り・セッション継続は `degraded fail-open`（L1判定のみ継続）
+- Degraded移行条件:
+  - healthcheck連続失敗（約30秒）または L2 エラー率 `>= 20%`（1分窓）
+- Degraded解除条件:
+  - 10分連続健全 かつ L2 エラー率 `< 1%`
+- 復旧後は全量再計算を行わず、既存の `SET ... NX EX` ベース再構築手順を継続しつつ10分ウォームアップ監視を実施する。
+
 - 必須キー:
   - `rl2:gcra:user:{user_id}:{action}`
   - `rl2:gcra:ip:{ip}:{action}`
