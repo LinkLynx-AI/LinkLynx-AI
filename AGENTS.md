@@ -37,12 +37,5 @@
   - `docs/RUST.md`: Rust implementation rules (layer boundaries, module structure, typing/error handling, testing, lint/format).
   - `docs/TYPESCRIPT.md`: TypeScript/FSD rules (dependency direction, boundaries, typing, React usage, testing, lint/format).
   - `docs/PYTHON.md`: Python/FastAPI rules (typing, naming, exception handling, function docs, lint/format/test).
-  - `docs/adr/`
-    - `docs/adr/ADR-001-event-schema-compatibility.md`: Event schema compatibility ADR (additive-only, deprecation/versioning, checklist, rollback communication).
-    - `docs/adr/ADR-002-class-ab-event-classification-and-delivery-boundary.md`: Class A/B event classification, v0/v1 delivery boundary, and outage/recovery responsibility SSOT.
-    - `docs/adr/ADR-003-search-consistency-slo-reindex.md`: Search consistency baseline, lag SLO/SLI, reindex trigger and completion criteria.
-    - `docs/adr/ADR-004-authz-fail-close-and-cache-strategy.md`: AuthZ fail-close baseline, REST/WS deny vs unavailable mapping, authorization cache TTL/invalidation strategy, and propagation SLO.
-    - `docs/adr/ADR-005-dragonfly-ratelimit-failure-policy.md`: Dragonfly outage rate-limit hybrid policy, degraded enter/exit thresholds, and recovery warm-up/resynchronization baseline.
-  - `docs/runbooks/`
-    - `docs/runbooks/search-reindex-runbook.md`: Search reindex operational flow (pre-check/start/execute/verify/close) for v0 baseline.
-    - `docs/runbooks/edge-rest-ws-routing-drain-runbook.md`: Edge REST/WS routing contract, health checks, rolling WS drain policy, and rollback procedure baseline.
+  - `docs/adr/`: ADR directory summary and per-file descriptions are documented in `docs/adr/README.md`.
+  - `docs/runbooks/`: Runbook directory summary and per-file descriptions are documented in `docs/runbooks/README.md`.
