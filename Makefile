@@ -90,10 +90,10 @@ clean: ## コンテナ・ボリューム・イメージを削除
 # ============================================
 
 ts-dev: ## Next.js 開発サーバーを起動
-	cd typescript && npm run dev
+	cd typescript && pnpm run dev
 
 ts-build: ## Next.js を本番用にビルド
-	cd typescript && npm run build
+	cd typescript && pnpm run build
 
 ts-lint: ## ESLint でコードチェック
 	cd typescript && make lint
@@ -102,13 +102,13 @@ ts-format: ## TypeScript をフォーマット
 	cd typescript && make format
 
 ts-test: ## TypeScript テストを実行
-	cd typescript && npm run test
+	cd typescript && pnpm run test
 
 ts-validate: ## TypeScript の format / lint / test を実行
 	cd typescript && make validate
 
 ts-install: ## 依存パッケージをインストール
-	cd typescript && npm install
+	cd typescript && CI=true pnpm install --frozen-lockfile
 
 # ============================================
 # Rust コマンド
@@ -264,12 +264,19 @@ db-schema-check: ## schema.sql と現在DBスキーマの差分を検証
 # 開発ワークフロー
 # ============================================
 
-dev: db-up ## 開発環境を起動（DB + ローカルサービス）
-	@echo "$(GREEN)データベースを起動しました。各サービスをローカルで起動:$(NC)"
-	@echo "  make ts-dev     - Next.js    http://localhost:3000"
-	@echo "  make rust-dev   - Rust       http://localhost:8080"
-	@echo "  make py-dev     - Python     http://localhost:8000"
-	@echo "  make elixir-dev - Elixir     http://localhost:4000"
+dev: db-up ## 開発環境を起動（DB + Frontend）
+	@if ! command -v node >/dev/null 2>&1; then \
+		echo "$(RED)Node.js が見つかりません。先に make setup か setup/setup.sh を実行してください$(NC)"; \
+		exit 1; \
+	fi
+	@if ! command -v pnpm >/dev/null 2>&1; then \
+		echo "$(RED)pnpm が見つかりません。先に make setup か setup/setup.sh を実行してください$(NC)"; \
+		exit 1; \
+	fi
+	@echo "$(GREEN)データベースを起動しました。Frontend を起動します:$(NC)"
+	@echo "  Next.js: http://localhost:3000"
+	@cd typescript && CI=true pnpm install --frozen-lockfile
+	@$(MAKE) ts-dev
 
 test: ## 全テストを実行
 	@echo "$(BLUE)TypeScript テスト実行中...$(NC)"
