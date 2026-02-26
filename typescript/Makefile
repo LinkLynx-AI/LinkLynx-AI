@@ -1,22 +1,22 @@
 .PHONY: setup install format lint test validate
 
 setup:
-	@if [ -f package-lock.json ]; then \
-		npm ci; \
+	@if [ -f pnpm-lock.yaml ]; then \
+		CI=true pnpm install --frozen-lockfile; \
 	else \
-		npm install; \
+		CI=true pnpm install; \
 	fi
 
 install: setup
 
 format:
-	npm run format
+	pnpm run format
 
 lint:
-	npm run lint
-	npm run format:check
+	pnpm run lint
+	pnpm run format:check
 
 test:
-	npm run test
+	pnpm run test
 
 validate: format lint test

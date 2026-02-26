@@ -139,6 +139,23 @@ install_nodejs() {
     esac
 }
 
+# pnpmの有効化
+install_pnpm() {
+    if command_exists pnpm; then
+        echo -e "${CHECK} pnpm インストール済み ($(pnpm --version))"
+        return
+    fi
+
+    if command_exists corepack; then
+        echo -e "${YELLOW}corepackでpnpmを有効化中...${NC}"
+        corepack enable
+        corepack prepare pnpm@latest --activate
+    else
+        echo -e "${YELLOW}corepackが見つからないためnpm経由でpnpmをインストールします...${NC}"
+        npm install -g pnpm
+    fi
+}
+
 # Rustのインストール
 install_rust() {
     if command_exists rustc; then
@@ -204,7 +221,7 @@ setup_typescript() {
     echo -e "\n${BLUE}TypeScript/Next.js をセットアップ中...${NC}"
     cd typescript
     if [[ -f package.json ]]; then
-        npm install
+        pnpm install
         echo -e "${CHECK} TypeScript 依存パッケージをインストールしました"
     fi
     cd ..
@@ -292,6 +309,7 @@ main() {
 
     install_docker
     install_nodejs
+    install_pnpm
     install_rust
     install_python
     install_elixir

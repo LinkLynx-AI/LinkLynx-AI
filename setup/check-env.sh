@@ -65,7 +65,7 @@ check_node_modules() {
         echo -e "  ${CHECK} 依存パッケージ インストール済み (${count} パッケージ)"
         return 0
     else
-        echo -e "  ${CROSS} 依存パッケージ: ${RED}未インストール${NC} (実行: npm install)"
+        echo -e "  ${CROSS} 依存パッケージ: ${RED}未インストール${NC} (実行: pnpm install)"
         return 1
     fi
 }
@@ -98,7 +98,7 @@ ts_ok=0
 ts_total=4
 
 check_command "node" "Node.js" "node --version" && ((ts_ok++))
-check_command "npm" "npm" "npm --version" && ((ts_ok++))
+check_command "pnpm" "pnpm" "pnpm --version" && ((ts_ok++))
 check_exists "typescript/package.json" "package.json" && ((ts_ok++))
 check_node_modules "typescript" && ((ts_ok++))
 
