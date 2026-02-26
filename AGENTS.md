@@ -20,7 +20,9 @@
 - For Python service changes, read `docs/PYTHON.md` first.
 - For database/schema/runtime contract changes, read `docs/DATABASE.md` and related files under `database/contracts/`.
 - For event schema/contract changes, read `docs/adr/ADR-001-event-schema-compatibility.md` before implementation.
+- For event delivery class/boundary/outage changes, read `docs/adr/ADR-002-class-ab-event-classification-and-delivery-boundary.md` before implementation.
 - Event schema changes must be additive and backward-compatible only. Breaking changes are prohibited unless approved via a separate ADR.
+- Event Class A/B classification and outage behavior decisions must follow ADR-002 as the single source of truth.
 - PR description must include the ADR-001 checklist result and the compatibility decision rationale when event contracts are in scope.
 
 ## Docs map (summary)
@@ -31,3 +33,4 @@
   - `docs/PYTHON.md`: Python/FastAPI rules (typing, naming, exception handling, function docs, lint/format/test).
   - `docs/adr/`
     - `docs/adr/ADR-001-event-schema-compatibility.md`: Event schema compatibility ADR (additive-only, deprecation/versioning, checklist, rollback communication).
+    - `docs/adr/ADR-002-class-ab-event-classification-and-delivery-boundary.md`: Class A/B event classification, v0/v1 delivery boundary, and outage/recovery responsibility SSOT.
