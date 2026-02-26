@@ -20,6 +20,7 @@
 - For Python service changes, read `docs/PYTHON.md` first.
 - For database/schema/runtime contract changes, read `docs/DATABASE.md` and related files under `database/contracts/`.
 - For event schema/contract changes, read `docs/adr/ADR-001-event-schema-compatibility.md` before implementation.
+- For search consistency/SLO/reindex contract changes, read `docs/adr/ADR-003-search-consistency-slo-reindex.md` and `docs/runbooks/search-reindex-runbook.md` before implementation.
 - For event delivery class/boundary/outage changes, read `docs/adr/ADR-002-class-ab-event-classification-and-delivery-boundary.md` before implementation.
 - Event schema changes must be additive and backward-compatible only. Breaking changes are prohibited unless approved via a separate ADR.
 - Event Class A/B classification and outage behavior decisions must follow ADR-002 as the single source of truth.
@@ -34,3 +35,6 @@
   - `docs/adr/`
     - `docs/adr/ADR-001-event-schema-compatibility.md`: Event schema compatibility ADR (additive-only, deprecation/versioning, checklist, rollback communication).
     - `docs/adr/ADR-002-class-ab-event-classification-and-delivery-boundary.md`: Class A/B event classification, v0/v1 delivery boundary, and outage/recovery responsibility SSOT.
+    - `docs/adr/ADR-003-search-consistency-slo-reindex.md`: Search consistency baseline, lag SLO/SLI, reindex trigger and completion criteria.
+  - `docs/runbooks/`
+    - `docs/runbooks/search-reindex-runbook.md`: Search reindex operational flow (pre-check/start/execute/verify/close) for v0 baseline.
