@@ -65,6 +65,7 @@ make setup-check
 
 ```bash
 # 全ての依存関係を自動インストール
+# (sqlx/tbls を含む)
 make setup
 
 # 環境構築状況を確認
@@ -277,6 +278,8 @@ make db-migrate-revert # sqlx migrationを1件ロールバック
 make db-migrate-info   # sqlx migrationの適用状態を確認
 make db-schema      # 現在DBから schema.sql を生成
 make db-schema-check # schema.sql と現在DBの差分を検証
+make db-seed        # PostgreSQLへ開発用仮データを投入（再実行可）
+make gen            # tbls で regex + DBドキュメント/ER図を生成（database/postgres/generated）
 ```
 
 ## DBスキーマ運用（LIN-135）
@@ -302,6 +305,12 @@ make db-schema
 
 # schema snapshot のドリフト検証
 make db-schema-check
+
+# 開発用の仮データを投入（seed.sql）
+make db-seed
+
+# DB生成物（regex + ドキュメント/ER図）を再生成
+make gen
 
 # rollback確認（逆順で1件戻す）
 make db-migrate-revert
