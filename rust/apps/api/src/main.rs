@@ -12,18 +12,29 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 async fn main() {
     tracing_subscriber::registry()
         .with(tracing_subscriber::fmt::layer())
-        .with(
-            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()),
-        )
+        .with(tracing_filter_from_env())
         .init();
 
     let app = app();
 
-    let addr = SocketAddr::from(([0, 0, 0, 0], 8080));
+    let addr = server_addr();
     tracing::info!("Server running on {}", addr);
 
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, app).await.unwrap();
+}
+
+fn default_log_filter() -> &'static str {
+    "info"
+}
+
+fn tracing_filter_from_env() -> tracing_subscriber::EnvFilter {
+    tracing_subscriber::EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| default_log_filter().into())
+}
+
+fn server_addr() -> SocketAddr {
+    SocketAddr::from(([0, 0, 0, 0], 8080))
 }
 
 async fn root() -> &'static str {
@@ -70,11 +81,14 @@ async fn handle_socket(mut socket: WebSocket) {
 
 #[cfg(test)]
 mod tests {
-    use super::app;
+    use super::{app, default_log_filter, server_addr};
     use axum::{
         body::{to_bytes, Body},
         http::{Request, StatusCode},
     };
+    use futures_util::{SinkExt, StreamExt};
+    use tokio::time::{timeout, Duration};
+    use tokio_tungstenite::{connect_async, tungstenite::Message as TungsteniteMessage};
     use tower::ServiceExt;
 
     const MAX_RESPONSE_BYTES: usize = 16 * 1024;
@@ -112,5 +126,47 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(body.as_ref(), b"OK");
+    }
+
+    #[test]
+    fn default_log_filter_is_info() {
+        assert_eq!(default_log_filter(), "info");
+    }
+
+    #[test]
+    fn server_addr_is_contract_value() {
+        assert_eq!(server_addr(), "0.0.0.0:8080".parse().unwrap());
+    }
+
+    #[tokio::test]
+    async fn websocket_echoes_text_message() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            axum::serve(listener, app()).await.unwrap();
+        });
+
+        let (mut socket, _response) = connect_async(format!("ws://{addr}/ws")).await.unwrap();
+
+        socket
+            .send(TungsteniteMessage::Binary(vec![1_u8, 2_u8, 3_u8]))
+            .await
+            .unwrap();
+        socket
+            .send(TungsteniteMessage::Text("hello".into()))
+            .await
+            .unwrap();
+
+        let echoed = timeout(Duration::from_secs(1), socket.next())
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
+        assert_eq!(echoed, TungsteniteMessage::Text("hello".into()));
+
+        socket.send(TungsteniteMessage::Close(None)).await.unwrap();
+
+        server.abort();
+        let _ = server.await;
     }
 }
