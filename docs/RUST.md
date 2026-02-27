@@ -33,6 +33,7 @@ pub trait UserRepository: Send + Sync {
 Rules:
 - Do not use `mod.rs`; use `foo.rs` + `foo/` structure.
 - Split files before they exceed roughly 300-500 lines.
+- Keep each file focused on a single cohesive responsibility; when concerns start mixing, split by domain role or use case.
 - Expose crate public API through `pub use` in `lib.rs`.
 - Keep `prelude` limited to frequent and stable exports.
 
