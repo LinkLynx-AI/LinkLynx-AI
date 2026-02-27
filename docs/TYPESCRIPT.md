@@ -115,6 +115,8 @@
 - `model/` (pure logic): prioritize unit tests.
 - `ui/` (rendering): keep component tests minimal but meaningful.
 - E2E: prioritize critical flows (auth, message send, permissions).
+- Before review, run `make coverage-check` (or `pnpm run test:coverage:check`) and ensure coverage thresholds are satisfied.
+- Coverage gate thresholds are `80%` for `lines/functions/statements/branches`.
 
 ## 11. Exception Process
 - Any rule exception must include reason, ticket ID, and expiry in comments.
@@ -130,6 +132,7 @@
 - React Hooks compliance: ESLint (`react-hooks`)
 - Type safety: TypeScript (`tsc --noEmit`)
 - Formatting: Prettier
+- Coverage thresholds: Vitest (`pnpm run test:coverage:check` / `make coverage-check`)
 
 ## 13. Review-Reject Anti-Patterns
 - Deep imports (bypassing Public API)
