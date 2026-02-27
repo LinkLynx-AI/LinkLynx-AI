@@ -68,6 +68,7 @@
 
 ## 5.1 Implementation and Testing Policy
 - Split functions by responsibility to keep them testable.
+- Keep one primary responsibility per file; split before a file starts mixing multiple concerns (UI/state/API/helpers).
 - Implement tests whenever practical, prioritizing regression prevention.
 - Separate pure functions from external interactions (I/O, HTTP, browser APIs, state mutation).
 
@@ -115,6 +116,11 @@
 - `model/` (pure logic): prioritize unit tests.
 - `ui/` (rendering): keep component tests minimal but meaningful.
 - E2E: prioritize critical flows (auth, message send, permissions).
+- Before review, run `make coverage-check` (or `pnpm run test:coverage:check`) and ensure coverage thresholds are satisfied.
+- Coverage excludes static/non-executable artifacts (test files, `d.ts`, `src/shared/styles/**`) and UI shell entries (`src/app/**`).
+- Coverage gate is separated by layer:
+  - Global: `lines/functions/statements >= 80%`, `branches >= 70%`
+  - `src/shared/**`, `src/{entities,features,widgets}/**`: `lines/functions/statements >= 80%`, `branches >= 70%`
 
 ## 11. Exception Process
 - Any rule exception must include reason, ticket ID, and expiry in comments.
@@ -130,6 +136,7 @@
 - React Hooks compliance: ESLint (`react-hooks`)
 - Type safety: TypeScript (`tsc --noEmit`)
 - Formatting: Prettier
+- Coverage thresholds (layered): Vitest (`pnpm run test:coverage:check` / `make coverage-check`)
 
 ## 13. Review-Reject Anti-Patterns
 - Deep imports (bypassing Public API)

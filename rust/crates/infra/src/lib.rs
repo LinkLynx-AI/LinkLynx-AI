@@ -11,3 +11,29 @@ impl UserRepository for NoopUserRepository {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::NoopUserRepository;
+    use linklynx_domain::{User, UserId, UserRepository};
+    use uuid::Uuid;
+
+    #[test]
+    fn noop_repository_find_returns_none() {
+        let repository = NoopUserRepository;
+        let result = repository.find_by_id(UserId(Uuid::new_v4())).unwrap();
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn noop_repository_save_returns_ok() {
+        let repository = NoopUserRepository;
+        let user = User {
+            id: UserId(Uuid::new_v4()),
+            name: "tester".to_string(),
+        };
+
+        let result = repository.save(&user);
+        assert!(result.is_ok());
+    }
+}

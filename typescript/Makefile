@@ -1,4 +1,4 @@
-.PHONY: setup install format lint test validate
+.PHONY: setup install format lint test validate coverage coverage-check
 
 setup:
 	@if [ -f pnpm-lock.yaml ]; then \
@@ -18,5 +18,11 @@ lint:
 
 test:
 	pnpm run test
+
+coverage:
+	pnpm run test:coverage
+
+coverage-check:
+	pnpm run test:coverage:check
 
 validate: format lint test

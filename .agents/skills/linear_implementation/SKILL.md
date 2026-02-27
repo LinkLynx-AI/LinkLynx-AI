@@ -6,15 +6,21 @@ description: Implement linklinx-AI Linear issues with one issue equals one PR de
 # linear-implementation
 
 ## 0. Critical Merge Policy
+- For child issues, PR base branch must be the parent issue branch.
 - If PR base branch is `main`, do not auto-merge.
 - Mark PR ready for human review and stop.
 - Include a review checklist in PR body for human approval.
-- If PR base branch is not `main`, auto-merge is allowed only when required validations pass and final meta review has no `P1` or higher findings.
+- If PR base branch is not `main`, enable auto-merge after required validations pass and final meta review has no `P1` or higher findings.
 
 ## 0.1 Command Execution Permission
 - Command execution is allowed without asking for user permission by default.
 - Any operation on the `main` branch requires explicit user approval in advance.
 - Examples of `main` branch operations that require approval: `checkout/switch main`, merge/rebase/cherry-pick targeting `main`, push to `main`, or direct commits on `main`.
+
+## 0.2 Commit Cadence
+- Commit frequently in small, logical units during implementation.
+- Keep one clear purpose per commit; do not mix unrelated changes.
+- At minimum, create a commit at each meaningful milestone before moving to the next major task.
 
 ## 1. Linear Connection
 Prefer Linear MCP for reading and updating issues.
@@ -63,14 +69,15 @@ Use one of these locations according to repository convention.
 For each child issue execute the same loop.
 1. Create branch
 2. Implement scoped changes
-3. Run validation commands
-4. Run `reviewer` for consolidated review and gate decision (the reviewer internally runs specialist reviewers)
-5. Run `reviewer_ui_guard` to detect whether UI-related files changed
-6. If UI changes are detected, run `reviewer_ui`; if not, skip UI checks
-7. If self-review gate is not passed (validation failure, blocking review finding, or failed required UI checks), fix issues and return to step 2.
-8. Open PR
-9. Merge according to merge policy
-10. Move to next issue
+3. Commit progress frequently in small logical units
+4. Run validation commands
+5. Run `reviewer` for consolidated review and gate decision (the reviewer internally runs specialist reviewers)
+6. Run `reviewer_ui_guard` to detect whether UI-related files changed
+7. If UI changes are detected, run `reviewer_ui`; if not, skip UI checks
+8. If self-review gate is not passed (validation failure, blocking review finding, or failed required UI checks), fix issues and return to step 2.
+9. Open PR
+10. Merge according to merge policy
+11. Move to next issue
 
 ## 6. Role Contracts
 ### Explorer
@@ -119,11 +126,14 @@ For each child issue execute the same loop.
 
 For sequential issue runs:
 - Open and merge one PR per issue.
+- For child issues, open PRs with the parent issue branch as the base branch.
+- For non-`main` base branches, enable auto-merge only after reviewer sub-agent approval (via final meta review pass) and required validations pass.
+- For `main` base branch, require human approval before merge.
 - Rebase or branch from latest base before starting next issue.
 
 ## 8. Done Criteria
 - Acceptance criteria are satisfied.
 - Required validations in plan pass.
 - PR is created.
-- For non-main base, merge may be completed.
+- For non-main base, auto-merge is enabled after review gate pass and merge is completed automatically.
 - For main base, stop at human review required state.

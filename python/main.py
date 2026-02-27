@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 app = FastAPI(
     title="LinkLynx Python Service",
     description="Python microservice for LinkLynx",
-    version="1.0.0"
+    version="1.0.0",
 )
 
 app.add_middleware(
@@ -28,4 +28,5 @@ async def health_check():
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=8000)

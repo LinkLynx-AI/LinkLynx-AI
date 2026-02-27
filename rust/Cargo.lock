@@ -728,6 +728,7 @@ name = "linklynx_infra"
 version = "0.1.0"
 dependencies = [
  "linklynx_domain",
+ "uuid",
 ]
 
 [[package]]
@@ -744,6 +745,7 @@ version = "0.1.0"
 dependencies = [
  "linklynx_domain",
  "linklynx_infra",
+ "tokio",
 ]
 
 [[package]]

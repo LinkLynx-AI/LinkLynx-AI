@@ -33,6 +33,7 @@ pub trait UserRepository: Send + Sync {
 Rules:
 - Do not use `mod.rs`; use `foo.rs` + `foo/` structure.
 - Split files before they exceed roughly 300-500 lines.
+- Keep one primary responsibility per file; when concerns start to mix, split by module/type before the file becomes hard to reason about.
 - Expose crate public API through `pub use` in `lib.rs`.
 - Keep `prelude` limited to frequent and stable exports.
 
@@ -114,6 +115,9 @@ Rules:
 - Use behavior-driven test names (`create_user_success`, etc.).
 - Keep one responsibility per test for easier failure diagnosis.
 - Extract test data setup into helpers to reduce duplication.
+- Verify coverage before review by running `make coverage-check` and ensure line coverage is at least `COVERAGE_MIN_LINES` (default: `80`).
+- Use `make coverage` when you need a coverage summary without threshold enforcement.
+- If `cargo llvm-cov` is unavailable, install it with `cargo install cargo-llvm-cov --locked`.
 
 ```rust
 #[cfg(test)]

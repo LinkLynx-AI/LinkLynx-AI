@@ -2,6 +2,7 @@ mod auth;
 
 use std::{
     env,
+    net::SocketAddr,
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -37,19 +38,30 @@ pub(crate) struct AppState {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::registry()
         .with(tracing_subscriber::fmt::layer())
-        .with(
-            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()),
-        )
+        .with(tracing_filter_from_env())
         .init();
 
     let app = app();
 
-    let addr = std::net::SocketAddr::from(([0, 0, 0, 0], 8080));
+    let addr = server_addr();
     tracing::info!(address = %addr, "server starting");
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
     axum::serve(listener, app).await?;
     Ok(())
+}
+
+fn default_log_filter() -> &'static str {
+    "info"
+}
+
+fn tracing_filter_from_env() -> tracing_subscriber::EnvFilter {
+    tracing_subscriber::EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| default_log_filter().into())
+}
+
+fn server_addr() -> SocketAddr {
+    SocketAddr::from(([0, 0, 0, 0], 8080))
 }
 
 /// 実行時ルータを構築する。

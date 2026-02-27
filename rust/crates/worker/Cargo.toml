@@ -6,3 +6,6 @@ edition.workspace = true
 [dependencies]
 linklynx_domain = { path = "../domain" }
 linklynx_infra = { path = "../infra" }
+
+[dev-dependencies]
+tokio.workspace = true
