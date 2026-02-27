@@ -125,5 +125,5 @@
   - `make db-schema`
   - `make db-schema-check`
   - `make db-seed`（開発用の仮データを再投入）
-  - `make gen`（`tbls` で現在DBから `database/postgres/table_names.regex` を再生成）
+  - `make gen`（`tbls` で `database/postgres/generated` に regex + ドキュメント/ER図を再生成）
 - Scylla の契約変更時は `database/scylla/*.cql` と `database/contracts/*.md` を合わせて更新

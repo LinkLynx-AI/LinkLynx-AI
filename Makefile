@@ -1,6 +1,6 @@
 .PHONY: help setup setup-db-tools setup-bootstrap setup-check dev build up down logs clean test format lint ci validate gen
 .PHONY: ts-dev ts-build ts-format ts-lint ts-test ts-validate rust-dev rust-build rust-test rust-fmt rust-clippy rust-lint rust-ci rust-validate py-dev py-install py-format py-lint py-test py-validate elixir-dev elixir-build
-.PHONY: db-up db-down db-reset db-migrate db-migrate-revert db-migrate-info db-schema db-schema-check db-seed db-table-regex worktree-sync-env codex-worktree
+.PHONY: db-up db-down db-reset db-migrate db-migrate-revert db-migrate-info db-schema db-schema-check db-seed db-table-regex db-doc worktree-sync-env codex-worktree
 
 # 色設定
 GREEN  := \033[0;32m
@@ -14,10 +14,13 @@ POSTGRES_DB_NAME ?= linklynx
 SQLX_MIGRATIONS_DIR ?= ../database/postgres/migrations
 SCHEMA_SNAPSHOT_PATH ?= database/postgres/schema.sql
 DB_SEED_PATH ?= database/postgres/seed.sql
-DB_TABLE_REGEX_PATH ?= database/postgres/table_names.regex
+DB_GENERATED_DIR ?= database/postgres/generated
+DB_TABLE_REGEX_PATH ?= $(DB_GENERATED_DIR)/table_names.regex
 TBLS_DSN ?= postgres://postgres:password@localhost:5432/linklynx?sslmode=disable
 TBLS_DOCKER_DSN ?= postgres://postgres:password@postgres:5432/linklynx?sslmode=disable
 TBLS_DOCKER_IMAGE ?= ghcr.io/k1low/tbls:latest
+TBLS_DOC_PATH ?= $(DB_GENERATED_DIR)
+TBLS_ER_FORMAT ?= svg
 POSTGRES_DUMP_CMD ?= docker compose exec -T postgres pg_dump -U postgres -d $(POSTGRES_DB_NAME) --schema-only --no-owner --no-privileges --exclude-table=_sqlx_migrations
 
 help: ## ヘルプを表示
@@ -305,7 +308,11 @@ db-table-regex: ## tbls で現在DBからテーブル名正規表現を生成
 	@python3 database/postgres/scripts/gen_table_regex.py --dsn "$(TBLS_DSN)" --docker-dsn "$(TBLS_DOCKER_DSN)" --docker-image "$(TBLS_DOCKER_IMAGE)" --schema "$(SCHEMA_SNAPSHOT_PATH)" --output "$(DB_TABLE_REGEX_PATH)"
 	@echo "$(GREEN)$(DB_TABLE_REGEX_PATH) を更新しました$(NC)"
 
-gen: db-table-regex ## 生成タスクを実行
+db-doc: ## tbls でDBドキュメント/ER図を生成
+	@python3 database/postgres/scripts/gen_table_regex.py --dsn "$(TBLS_DSN)" --docker-dsn "$(TBLS_DOCKER_DSN)" --docker-image "$(TBLS_DOCKER_IMAGE)" --schema "$(SCHEMA_SNAPSHOT_PATH)" --output "$(DB_TABLE_REGEX_PATH)" --doc-path "$(TBLS_DOC_PATH)" --er-format "$(TBLS_ER_FORMAT)"
+	@echo "$(GREEN)$(TBLS_DOC_PATH) にDB生成物を出力しました$(NC)"
+
+gen: db-doc ## 生成タスクを実行（regex + tbls doc/ER）
 
 # ============================================
 # 開発ワークフロー

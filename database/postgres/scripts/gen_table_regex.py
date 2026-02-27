@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate regex patterns from current PostgreSQL tables via tbls."""
+"""Generate PostgreSQL artifacts (regex + tbls docs) via tbls."""
 
 from __future__ import annotations
 
@@ -15,6 +15,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import ParseResult, urlparse, urlunparse
 
+EXCLUDED_TABLES = {"_sqlx_migrations"}
+
 
 @dataclass(frozen=True)
 class TblsOutput:
@@ -22,9 +24,18 @@ class TblsOutput:
     mode: str
 
 
+@dataclass(frozen=True)
+class SourceConfig:
+    mode: str
+    dsn: str
+    source_label: str
+    table_names: list[str]
+    temp_db_name: str | None = None
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Generate table-name regex by inspecting DB schema with tbls."
+        description="Generate DB artifacts by inspecting schema with tbls."
     )
     parser.add_argument(
         "--dsn",
@@ -43,8 +54,18 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--output",
-        default="database/postgres/table_names.regex",
+        default="database/postgres/generated/table_names.regex",
         help="Output path for generated regex file (default: %(default)s)",
+    )
+    parser.add_argument(
+        "--doc-path",
+        default=None,
+        help="Output directory for tbls docs/ER (optional)",
+    )
+    parser.add_argument(
+        "--er-format",
+        default="svg",
+        help="tbls ER format (png, jpg, svg, mermaid) (default: %(default)s)",
     )
     parser.add_argument(
         "--schema",
@@ -162,9 +183,11 @@ def extract_table_names(tbls_json: dict[str, object]) -> list[str]:
         if isinstance(name, str) and name:
             if "." in name:
                 _, unqualified_name = name.split(".", 1)
-                names.add(unqualified_name)
+                if unqualified_name not in EXCLUDED_TABLES:
+                    names.add(unqualified_name)
             else:
-                names.add(name)
+                if name not in EXCLUDED_TABLES:
+                    names.add(name)
     return sorted(names)
 
 
@@ -274,64 +297,165 @@ def bootstrap_tables_from_schema(
     schema_path: Path,
     docker_dsn: str,
     docker_image: str,
-) -> list[str]:
-    if shutil.which("docker") is None:
-        return []
-
+) -> SourceConfig:
     temp_db_name = load_schema_to_temp_db(schema_path)
-    try:
-        temp_docker_dsn = replace_database_name_in_dsn(docker_dsn, temp_db_name)
-        temp_tbls = run_tbls_out_json_with_docker(
-            docker_dsn=temp_docker_dsn,
-            docker_image=docker_image,
+    temp_docker_dsn = replace_database_name_in_dsn(docker_dsn, temp_db_name)
+    temp_tbls = run_tbls_out_json_with_docker(
+        docker_dsn=temp_docker_dsn,
+        docker_image=docker_image,
+    )
+    return SourceConfig(
+        mode="docker",
+        dsn=temp_docker_dsn,
+        source_label=f"tbls (docker bootstrap from {schema_path})",
+        table_names=extract_table_names(temp_tbls.payload),
+        temp_db_name=temp_db_name,
+    )
+
+
+def resolve_source(
+    schema_path: Path,
+    dsn: str,
+    docker_dsn: str,
+    docker_image: str,
+) -> SourceConfig:
+    tbls_output = run_tbls_out_json(
+        dsn=dsn,
+        docker_dsn=docker_dsn,
+        docker_image=docker_image,
+    )
+    table_names = extract_table_names(tbls_output.payload)
+    if table_names:
+        effective_dsn = dsn if tbls_output.mode == "local" else docker_dsn
+        return SourceConfig(
+            mode=tbls_output.mode,
+            dsn=effective_dsn,
+            source_label=f"tbls ({tbls_output.mode})",
+            table_names=table_names,
         )
-        return extract_table_names(temp_tbls.payload)
-    finally:
-        drop_temp_db(temp_db_name)
+
+    if shutil.which("docker") is None:
+        print(
+            "[ERROR] no tables found in current DB and docker is unavailable for bootstrap",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+
+    return bootstrap_tables_from_schema(
+        schema_path=schema_path,
+        docker_dsn=docker_dsn,
+        docker_image=docker_image,
+    )
+
+
+def generate_tbls_doc(
+    source: SourceConfig,
+    docker_image: str,
+    doc_path: Path,
+    er_format: str,
+) -> None:
+    doc_path_abs = doc_path.resolve()
+    doc_path_abs.mkdir(parents=True, exist_ok=True)
+    if source.mode == "local":
+        local_tbls = shutil.which("tbls")
+        if local_tbls is None:
+            print("[ERROR] local tbls command not found", file=sys.stderr)
+            raise SystemExit(1)
+        run_cmd(
+            [
+                local_tbls,
+                "doc",
+                source.dsn,
+                str(doc_path_abs),
+                "--force",
+                "--er-format",
+                er_format,
+                "--exclude",
+                ",".join(sorted(EXCLUDED_TABLES)),
+            ],
+            "tbls doc failed",
+        )
+        return
+
+    network = detect_compose_network()
+    workspace_root = Path.cwd().resolve()
+    run_cmd(
+        [
+            "docker",
+            "run",
+            "--rm",
+            "--network",
+            network,
+            "-v",
+            f"{workspace_root}:{workspace_root}",
+            "-w",
+            str(workspace_root),
+            docker_image,
+            "doc",
+            source.dsn,
+            str(doc_path_abs),
+            "--force",
+            "--er-format",
+            er_format,
+            "--exclude",
+            ",".join(sorted(EXCLUDED_TABLES)),
+        ],
+        "dockerized tbls doc failed",
+    )
 
 
 def main() -> int:
     args = parse_args()
     output_path = Path(args.output)
     schema_path = Path(args.schema)
+    doc_path = Path(args.doc_path) if args.doc_path else None
 
-    tbls_output = run_tbls_out_json(
-        dsn=args.dsn,
-        docker_dsn=args.docker_dsn,
-        docker_image=args.docker_image,
-    )
-    source = f"tbls ({tbls_output.mode})"
-    table_names = extract_table_names(tbls_output.payload)
-
-    if not table_names:
-        bootstrapped_names = bootstrap_tables_from_schema(
+    source: SourceConfig | None = None
+    try:
+        source = resolve_source(
             schema_path=schema_path,
+            dsn=args.dsn,
             docker_dsn=args.docker_dsn,
             docker_image=args.docker_image,
         )
-        if not bootstrapped_names:
+        if not source.table_names:
             print(
-                "[ERROR] no tables found in current DB. run migrations, or keep schema.sql and docker available for bootstrap",
+                "[ERROR] no tables found from tbls source",
                 file=sys.stderr,
             )
             return 1
-        table_names = bootstrapped_names
-        source = f"tbls (docker bootstrap from {schema_path})"
 
-    table_names_regex, qualified_table_names_regex = build_regex(table_names)
+        table_names_regex, qualified_table_names_regex = build_regex(source.table_names)
 
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_lines = [
-        "# Generated by database/postgres/scripts/gen_table_regex.py",
-        f"# Source: {source}",
-        f"TABLE_NAMES_REGEX='{table_names_regex}'",
-        f"QUALIFIED_TABLE_NAMES_REGEX='{qualified_table_names_regex}'",
-        f"TABLE_NAMES='{' '.join(table_names)}'",
-        "",
-    ]
-    output_path.write_text("\n".join(output_lines), encoding="utf-8")
-    print(f"[OK] generated {output_path} ({len(table_names)} tables) using {source}")
-    return 0
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_lines = [
+            "# Generated by database/postgres/scripts/gen_table_regex.py",
+            f"# Source: {source.source_label}",
+            f"TABLE_NAMES_REGEX='{table_names_regex}'",
+            f"QUALIFIED_TABLE_NAMES_REGEX='{qualified_table_names_regex}'",
+            f"TABLE_NAMES='{' '.join(source.table_names)}'",
+            "",
+        ]
+        output_path.write_text("\n".join(output_lines), encoding="utf-8")
+        print(
+            f"[OK] generated {output_path} ({len(source.table_names)} tables) using {source.source_label}"
+        )
+
+        if doc_path is not None:
+            generate_tbls_doc(
+                source=source,
+                docker_image=args.docker_image,
+                doc_path=doc_path,
+                er_format=args.er_format,
+            )
+            print(
+                f"[OK] generated tbls docs at {doc_path.resolve()} using {source.source_label}"
+            )
+
+        return 0
+    finally:
+        if source is not None and source.temp_db_name is not None:
+            drop_temp_db(source.temp_db_name)
 
 
 if __name__ == "__main__":

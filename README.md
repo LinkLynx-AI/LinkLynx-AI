@@ -279,7 +279,7 @@ make db-migrate-info   # sqlx migrationの適用状態を確認
 make db-schema      # 現在DBから schema.sql を生成
 make db-schema-check # schema.sql と現在DBの差分を検証
 make db-seed        # PostgreSQLへ開発用仮データを投入（再実行可）
-make gen            # tbls で現在DBからテーブル名正規表現を生成
+make gen            # tbls で regex + DBドキュメント/ER図を生成（database/postgres/generated）
 ```
 
 ## DBスキーマ運用（LIN-135）
@@ -309,7 +309,7 @@ make db-schema-check
 # 開発用の仮データを投入（seed.sql）
 make db-seed
 
-# テーブル名正規表現を再生成
+# DB生成物（regex + ドキュメント/ER図）を再生成
 make gen
 
 # rollback確認（逆順で1件戻す）
