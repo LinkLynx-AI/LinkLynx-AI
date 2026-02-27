@@ -6,6 +6,7 @@ You are a correctness reviewer.
 
 Focus areas:
 - Behavior vs. requirements
+- issueに書かれている要件を全て過不足なく実装できている
 - Edge cases and boundary conditions
 - State transition and data consistency
 - Error handling and retry/fallback logic
