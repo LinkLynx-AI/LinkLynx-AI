@@ -174,6 +174,18 @@ SET default_tablespace = '';
 SET default_table_access_method = heap;
 
 
+CREATE TABLE public.auth_identities (
+    provider text NOT NULL,
+    provider_subject text NOT NULL,
+    principal_id bigint NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chk_auth_identities_provider_non_empty CHECK ((length(provider) > 0)),
+    CONSTRAINT chk_auth_identities_provider_subject_non_empty CHECK ((length(provider_subject) > 0))
+);
+
+
+
 CREATE TABLE public.audit_logs (
     id bigint NOT NULL,
     guild_id bigint,
@@ -368,6 +380,16 @@ COMMENT ON COLUMN public.users.password_hash IS 'Argon2id の PHC 文字列（�
 
 
 
+ALTER TABLE ONLY public.auth_identities
+    ADD CONSTRAINT auth_identities_pkey PRIMARY KEY (provider, provider_subject);
+
+
+
+ALTER TABLE ONLY public.auth_identities
+    ADD CONSTRAINT uq_auth_identities_provider_principal UNIQUE (provider, principal_id);
+
+
+
 ALTER TABLE ONLY public.audit_logs
     ADD CONSTRAINT audit_logs_pkey PRIMARY KEY (id);
 
@@ -473,6 +495,10 @@ ALTER TABLE ONLY public.users
 
 
 
+CREATE INDEX idx_auth_identities_principal_id ON public.auth_identities USING btree (principal_id);
+
+
+
 CREATE INDEX idx_audit_guild_time ON public.audit_logs USING btree (guild_id, created_at DESC) WHERE (guild_id IS NOT NULL);
 
 
@@ -535,6 +561,11 @@ CREATE TRIGGER trg_users_set_updated_at BEFORE UPDATE ON public.users FOR EACH R
 
 ALTER TABLE ONLY public.audit_logs
     ADD CONSTRAINT audit_logs_actor_id_fkey FOREIGN KEY (actor_id) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+
+ALTER TABLE ONLY public.auth_identities
+    ADD CONSTRAINT auth_identities_principal_id_fkey FOREIGN KEY (principal_id) REFERENCES public.users(id) ON DELETE CASCADE;
 
 
 
@@ -655,6 +686,5 @@ ALTER TABLE ONLY public.invites
 
 ALTER TABLE ONLY public.password_reset_tokens
     ADD CONSTRAINT password_reset_tokens_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
-
 
 
