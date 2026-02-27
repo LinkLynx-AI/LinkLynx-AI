@@ -1,6 +1,6 @@
-.PHONY: help setup setup-bootstrap setup-check dev build up down logs clean test format lint ci validate
+.PHONY: help setup setup-db-tools setup-bootstrap setup-check dev build up down logs clean test format lint ci validate gen
 .PHONY: ts-dev ts-build ts-format ts-lint ts-test ts-validate rust-dev rust-build rust-test rust-fmt rust-clippy rust-lint rust-ci rust-validate py-dev py-install py-format py-lint py-test py-validate elixir-dev elixir-build
-.PHONY: db-up db-down db-reset db-migrate db-migrate-revert db-migrate-info db-schema db-schema-check worktree-sync-env codex-worktree
+.PHONY: db-up db-down db-reset db-migrate db-migrate-revert db-migrate-info db-schema db-schema-check db-seed db-table-regex worktree-sync-env codex-worktree
 
 # 色設定
 GREEN  := \033[0;32m
@@ -10,9 +10,15 @@ BLUE   := \033[0;34m
 NC     := \033[0m
 
 DATABASE_URL ?= postgres://postgres:password@localhost:5432/linklynx
+POSTGRES_DB_NAME ?= linklynx
 SQLX_MIGRATIONS_DIR ?= ../database/postgres/migrations
 SCHEMA_SNAPSHOT_PATH ?= database/postgres/schema.sql
-POSTGRES_DUMP_CMD ?= docker compose exec -T postgres pg_dump -U postgres -d linklynx --schema-only --no-owner --no-privileges --exclude-table=_sqlx_migrations
+DB_SEED_PATH ?= database/postgres/seed.sql
+DB_TABLE_REGEX_PATH ?= database/postgres/table_names.regex
+TBLS_DSN ?= postgres://postgres:password@localhost:5432/linklynx?sslmode=disable
+TBLS_DOCKER_DSN ?= postgres://postgres:password@postgres:5432/linklynx?sslmode=disable
+TBLS_DOCKER_IMAGE ?= ghcr.io/k1low/tbls:latest
+POSTGRES_DUMP_CMD ?= docker compose exec -T postgres pg_dump -U postgres -d $(POSTGRES_DB_NAME) --schema-only --no-owner --no-privileges --exclude-table=_sqlx_migrations
 
 help: ## ヘルプを表示
 	@echo "$(BLUE)LinkLynx-AI$(NC) - Discord Clone 開発コマンド"
@@ -27,7 +33,7 @@ help: ## ヘルプを表示
 # セットアップ・環境確認
 # ============================================
 
-setup: ## 各言語のローカル依存関係をセットアップ
+setup: setup-db-tools ## 各言語のローカル依存関係をセットアップ
 	@echo "$(BLUE)TypeScript 依存関係をセットアップ中...$(NC)"
 	@$(MAKE) -C typescript setup
 	@echo "$(BLUE)Rust 依存関係をセットアップ中...$(NC)"
@@ -37,6 +43,29 @@ setup: ## 各言語のローカル依存関係をセットアップ
 	@echo "$(BLUE)Elixir 依存関係をセットアップ中...$(NC)"
 	@$(MAKE) -C elixir setup
 	@echo "$(GREEN)全言語の依存関係セットアップが完了しました$(NC)"
+
+setup-db-tools: ## DB開発ツール(sqlx/tbls)をセットアップ
+	@echo "$(BLUE)DB開発ツールを確認中...$(NC)"
+	@if command -v sqlx >/dev/null 2>&1; then \
+		echo "$(GREEN)sqlx はインストール済みです: $$(sqlx --version)$(NC)"; \
+	else \
+		if ! command -v cargo >/dev/null 2>&1; then \
+			echo "$(RED)cargo が見つかりません。先に Rust をセットアップしてください$(NC)"; \
+			exit 1; \
+		fi; \
+		echo "$(BLUE)sqlx-cli をインストール中...$(NC)"; \
+		cargo install sqlx-cli --no-default-features --features rustls,postgres; \
+	fi
+	@if command -v tbls >/dev/null 2>&1; then \
+		echo "$(GREEN)tbls はインストール済みです: $$(tbls version)$(NC)"; \
+	else \
+		if command -v brew >/dev/null 2>&1; then \
+			echo "$(BLUE)tbls を Homebrew でインストール中...$(NC)"; \
+			brew install tbls; \
+		else \
+			echo "$(YELLOW)tbls が未インストールです。brew がない環境では make gen が docker フォールバックで動作します$(NC)"; \
+		fi; \
+	fi
 
 setup-bootstrap: ## 既存の自動セットアップスクリプトを実行
 	@./setup/setup.sh
@@ -259,6 +288,24 @@ db-schema-check: ## schema.sql と現在DBスキーマの差分を検証
 	fi; \
 	rm -f "$$raw_file" "$$tmp_file"; \
 	echo "$(GREEN)schema snapshot は最新です$(NC)"
+
+db-seed: ## PostgreSQL へ開発用の仮データを注入（再実行可）
+	@if [ ! -f "$(DB_SEED_PATH)" ]; then \
+		echo "$(RED)$(DB_SEED_PATH) がありません$(NC)"; \
+		exit 1; \
+	fi
+	@if ! docker compose exec -T postgres psql -U postgres -d "$(POSTGRES_DB_NAME)" -tAc "SELECT to_regclass('public.users') IS NOT NULL;" | grep -q t; then \
+		echo "$(RED)スキーマが未適用です。先に make db-migrate を実行してください$(NC)"; \
+		exit 1; \
+	fi
+	@cat "$(DB_SEED_PATH)" | docker compose exec -T postgres psql -v ON_ERROR_STOP=1 -U postgres -d "$(POSTGRES_DB_NAME)"
+	@echo "$(GREEN)$(DB_SEED_PATH) の投入が完了しました$(NC)"
+
+db-table-regex: ## tbls で現在DBからテーブル名正規表現を生成
+	@python3 database/postgres/scripts/gen_table_regex.py --dsn "$(TBLS_DSN)" --docker-dsn "$(TBLS_DOCKER_DSN)" --docker-image "$(TBLS_DOCKER_IMAGE)" --schema "$(SCHEMA_SNAPSHOT_PATH)" --output "$(DB_TABLE_REGEX_PATH)"
+	@echo "$(GREEN)$(DB_TABLE_REGEX_PATH) を更新しました$(NC)"
+
+gen: db-table-regex ## 生成タスクを実行
 
 # ============================================
 # 開発ワークフロー
