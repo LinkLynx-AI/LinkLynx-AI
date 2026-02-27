@@ -1,6 +1,10 @@
 [features]
 multi_agent = true
 
+[agents]
+max_depth = 2
+max_threads = 10
+
 [agents.explorer]
 description = "Read-heavy exploration. Return a concise summary with file paths and recommendations."
 config_file = "agents/explorer.toml"
