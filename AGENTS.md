@@ -20,12 +20,13 @@
 - For Python service changes, read `docs/PYTHON.md` first.
 - For database/schema/runtime contract changes, read `docs/DATABASE.md` and related files under `database/contracts/`.
 - For ADR-governed changes (event schema compatibility, delivery class boundary, search consistency, AuthZ fail-close, Dragonfly rate-limit failure policy), read relevant files under `docs/adr/` before implementation. Use `docs/adr/README.md` to identify the target ADR.
-- For runbook-governed operational changes (for example search reindex and edge REST/WS routing/drain), read relevant files under `docs/runbooks/` before implementation. Use `docs/runbooks/README.md` to identify the target runbook.
-- For Dragonfly/Redis rate-limit outage policy, degraded transition thresholds, or recovery resynchronization rules, also read related runtime contract files under `database/contracts/` before implementation.
+- For runbook-governed operational changes (for example search reindex, edge REST/WS routing/drain, and Postgres PITR operations), read relevant files under `docs/runbooks/` before implementation. Use `docs/runbooks/README.md` to identify the target runbook.
+- For Dragonfly/Redis rate-limit outage policy, degraded transition thresholds, recovery resynchronization rules, and Postgres migration/pooling contracts, also read related runtime contract files under `database/contracts/` before implementation.
 - Event schema changes must be additive and backward-compatible only. Breaking changes are prohibited unless approved via a separate ADR.
 - Event Class A/B classification and outage behavior decisions must follow ADR-002 as the single source of truth.
 - AuthZ decisions must follow ADR-004 fail-close baseline (no fail-open, no stale-if-error) unless explicitly superseded by a newer approved ADR.
 - Dragonfly outage behavior for rate limiting must follow ADR-005 hybrid baseline (high-risk fail-close, continuity paths degraded fail-open) unless explicitly superseded by a newer approved ADR.
+- Postgres migration/pooling/PITR operation decisions must follow the LIN-588 baseline contract and runbook unless explicitly superseded by a newer approved ADR/contract.
 - PR description must include the ADR-001 checklist result and the compatibility decision rationale when event contracts are in scope.
 
 ## Docs map (summary)
