@@ -1,0 +1,396 @@
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::OnceLock;
+
+    fn env_lock() -> &'static tokio::sync::Mutex<()> {
+        static ENV_LOCK: OnceLock<tokio::sync::Mutex<()>> = OnceLock::new();
+        ENV_LOCK.get_or_init(|| tokio::sync::Mutex::new(()))
+    }
+
+    struct ScopedEnv {
+        backups: Vec<(String, Option<String>)>,
+    }
+
+    impl ScopedEnv {
+        fn new() -> Self {
+            Self {
+                backups: Vec::new(),
+            }
+        }
+
+        fn set(&mut self, name: &str, value: &str) {
+            if !self.backups.iter().any(|(saved, _)| saved == name) {
+                self.backups.push((name.to_owned(), env::var(name).ok()));
+            }
+            env::set_var(name, value);
+        }
+
+        fn remove(&mut self, name: &str) {
+            if !self.backups.iter().any(|(saved, _)| saved == name) {
+                self.backups.push((name.to_owned(), env::var(name).ok()));
+            }
+            env::remove_var(name);
+        }
+    }
+
+    impl Drop for ScopedEnv {
+        fn drop(&mut self) {
+            for (name, value) in self.backups.iter().rev() {
+                if let Some(value) = value {
+                    env::set_var(name, value);
+                } else {
+                    env::remove_var(name);
+                }
+            }
+        }
+    }
+
+    struct StaticTokenVerifier;
+
+    #[async_trait]
+    impl TokenVerifier for StaticTokenVerifier {
+        async fn verify(&self, token: &str) -> Result<VerifiedToken, TokenVerifyError> {
+            let Some((uid, exp)) = token.split_once(':') else {
+                return Err(TokenVerifyError::Invalid("token_format_invalid"));
+            };
+
+            let expires_at_epoch = exp
+                .parse::<u64>()
+                .map_err(|_| TokenVerifyError::Invalid("token_exp_invalid"))?;
+
+            if expires_at_epoch <= unix_timestamp_seconds() {
+                return Err(TokenVerifyError::Expired);
+            }
+
+            Ok(VerifiedToken {
+                uid: uid.to_owned(),
+                expires_at_epoch,
+            })
+        }
+    }
+
+    #[tokio::test]
+    async fn auth_service_resolves_principal() {
+        let metrics = Arc::new(AuthMetrics::default());
+        let verifier: Arc<dyn TokenVerifier> = Arc::new(StaticTokenVerifier);
+        let store = InMemoryPrincipalStore::default();
+        store
+            .insert(FIREBASE_PROVIDER, "u-1", PrincipalId(42))
+            .await;
+
+        let resolver: Arc<dyn PrincipalResolver> = Arc::new(CachingPrincipalResolver::new(
+            FIREBASE_PROVIDER.to_owned(),
+            Arc::new(InMemoryPrincipalCache::default()),
+            Arc::new(store),
+            Duration::from_secs(30),
+            Arc::clone(&metrics),
+        ));
+
+        let service = AuthService::new(verifier, resolver, metrics);
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 60);
+
+        let authenticated = service.authenticate_token(&token).await.unwrap();
+        assert_eq!(authenticated.principal_id.0, 42);
+        assert_eq!(authenticated.firebase_uid, "u-1");
+    }
+
+    #[test]
+    fn bearer_header_parser_requires_bearer_scheme() {
+        let mut headers = HeaderMap::new();
+        headers.insert(AUTHORIZATION, "Basic x".parse().unwrap());
+
+        let error = bearer_token_from_headers(&headers).unwrap_err();
+        assert_eq!(error.kind, AuthErrorKind::InvalidToken);
+    }
+
+    #[test]
+    fn request_id_prefers_header_value() {
+        let mut headers = HeaderMap::new();
+        headers.insert("x-request-id", "req-1".parse().unwrap());
+
+        assert_eq!(request_id_from_headers(&headers), "req-1");
+    }
+
+    #[test]
+    fn auth_error_decision_maps_unavailable_separately() {
+        assert_eq!(AuthError::invalid_token("bad").decision(), "deny");
+        assert_eq!(
+            AuthError::dependency_unavailable("downstream_down").decision(),
+            "unavailable"
+        );
+    }
+
+    #[tokio::test]
+    async fn jwks_cache_respects_missing_kid_refresh_backoff() {
+        let client = Client::builder()
+            .timeout(Duration::from_millis(50))
+            .build()
+            .unwrap();
+        let cache = JwksCache::new(
+            client,
+            "http://127.0.0.1:9/jwks".to_owned(),
+            Duration::from_secs(300),
+        );
+
+        {
+            let mut state = cache.state.write().await;
+            state.fetched_at = Some(Instant::now());
+            state
+                .missing_kid_refresh_at
+                .insert("unknown".to_owned(), Instant::now());
+            state.keys.insert(
+                "known".to_owned(),
+                JwkRsaKey {
+                    kid: "known".to_owned(),
+                    kty: "RSA".to_owned(),
+                    n: "AQAB".to_owned(),
+                    e: "AQAB".to_owned(),
+                },
+            );
+        }
+
+        let result = cache.key_for("unknown").await;
+        assert!(matches!(
+            result,
+            Err(TokenVerifyError::Invalid("jwks_kid_not_found"))
+        ));
+    }
+
+    #[tokio::test]
+    async fn jwks_cache_backoff_is_tracked_per_kid() {
+        let client = Client::builder()
+            .timeout(Duration::from_millis(50))
+            .build()
+            .unwrap();
+        let cache = JwksCache::new(
+            client,
+            "http://127.0.0.1:9/jwks".to_owned(),
+            Duration::from_secs(300),
+        );
+
+        {
+            let mut state = cache.state.write().await;
+            state.fetched_at = Some(Instant::now());
+            state
+                .missing_kid_refresh_at
+                .insert("unknown-a".to_owned(), Instant::now());
+            state.keys.insert(
+                "known".to_owned(),
+                JwkRsaKey {
+                    kid: "known".to_owned(),
+                    kty: "RSA".to_owned(),
+                    n: "AQAB".to_owned(),
+                    e: "AQAB".to_owned(),
+                },
+            );
+        }
+
+        let result_a = cache.key_for("unknown-a").await;
+        assert!(matches!(
+            result_a,
+            Err(TokenVerifyError::Invalid("jwks_kid_not_found"))
+        ));
+
+        let result_b = cache.key_for("unknown-b").await;
+        assert!(matches!(
+            result_b,
+            Err(TokenVerifyError::DependencyUnavailable(_))
+        ));
+    }
+
+    #[tokio::test]
+    async fn jwks_cache_global_backoff_limits_distinct_kid_refresh_bursts() {
+        let client = Client::builder()
+            .timeout(Duration::from_millis(50))
+            .build()
+            .unwrap();
+        let cache = JwksCache::new(
+            client,
+            "http://127.0.0.1:9/jwks".to_owned(),
+            Duration::from_secs(300),
+        );
+
+        {
+            let mut state = cache.state.write().await;
+            state.fetched_at = Some(Instant::now());
+            state.missing_kid_refresh_at.clear();
+            state.keys.insert(
+                "known".to_owned(),
+                JwkRsaKey {
+                    kid: "known".to_owned(),
+                    kty: "RSA".to_owned(),
+                    n: "AQAB".to_owned(),
+                    e: "AQAB".to_owned(),
+                },
+            );
+        }
+
+        let first = cache.key_for("unknown-a").await;
+        assert!(matches!(
+            first,
+            Err(TokenVerifyError::DependencyUnavailable(_))
+        ));
+
+        let second = cache.key_for("unknown-b").await;
+        assert!(matches!(
+            second,
+            Err(TokenVerifyError::DependencyUnavailable(_))
+        ));
+    }
+
+    #[tokio::test]
+    async fn jwks_cache_triggers_refresh_on_fresh_kid_miss_when_backoff_allows() {
+        let client = Client::builder()
+            .timeout(Duration::from_millis(50))
+            .build()
+            .unwrap();
+        let cache = JwksCache::new(
+            client,
+            "http://127.0.0.1:9/jwks".to_owned(),
+            Duration::from_secs(300),
+        );
+
+        {
+            let mut state = cache.state.write().await;
+            state.fetched_at = Some(Instant::now());
+            state.missing_kid_refresh_at.clear();
+            state.keys.insert(
+                "known".to_owned(),
+                JwkRsaKey {
+                    kid: "known".to_owned(),
+                    kty: "RSA".to_owned(),
+                    n: "AQAB".to_owned(),
+                    e: "AQAB".to_owned(),
+                },
+            );
+        }
+
+        let result = cache.key_for("unknown").await;
+        assert!(matches!(
+            result,
+            Err(TokenVerifyError::DependencyUnavailable(_))
+        ));
+    }
+
+    #[tokio::test]
+    async fn jwks_cache_keeps_unavailable_class_during_backoff() {
+        let client = Client::builder()
+            .timeout(Duration::from_millis(50))
+            .build()
+            .unwrap();
+        let cache = JwksCache::new(
+            client,
+            "http://127.0.0.1:9/jwks".to_owned(),
+            Duration::from_secs(300),
+        );
+
+        {
+            let mut state = cache.state.write().await;
+            state.fetched_at = Some(Instant::now());
+            state.missing_kid_refresh_at.clear();
+            state.keys.insert(
+                "known".to_owned(),
+                JwkRsaKey {
+                    kid: "known".to_owned(),
+                    kty: "RSA".to_owned(),
+                    n: "AQAB".to_owned(),
+                    e: "AQAB".to_owned(),
+                },
+            );
+        }
+
+        let first = cache.key_for("unknown").await;
+        assert!(matches!(
+            first,
+            Err(TokenVerifyError::DependencyUnavailable(_))
+        ));
+
+        let second = cache.key_for("unknown").await;
+        assert!(matches!(
+            second,
+            Err(TokenVerifyError::DependencyUnavailable(_))
+        ));
+    }
+
+    #[tokio::test]
+    async fn jwks_cache_stale_path_fails_fast_after_recent_unavailable() {
+        let client = Client::builder()
+            .timeout(Duration::from_millis(50))
+            .build()
+            .unwrap();
+        let cache = JwksCache::new(
+            client,
+            "http://127.0.0.1:9/jwks".to_owned(),
+            Duration::from_millis(10),
+        );
+
+        {
+            let mut state = cache.state.write().await;
+            state.fetched_at = Some(Instant::now() - Duration::from_secs(1));
+            state.last_refresh_unavailable_at = Some(Instant::now());
+        }
+
+        let result = cache.key_for("unknown").await;
+        assert!(matches!(
+            result,
+            Err(TokenVerifyError::DependencyUnavailable(_))
+        ));
+    }
+
+    #[tokio::test]
+    async fn in_memory_principal_cache_removes_expired_entries() {
+        let cache = InMemoryPrincipalCache::default();
+        cache
+            .set(
+                FIREBASE_PROVIDER,
+                "u-expired",
+                PrincipalId(99),
+                Duration::from_millis(5),
+            )
+            .await
+            .unwrap();
+
+        tokio::time::sleep(Duration::from_millis(10)).await;
+
+        let result = cache.get(FIREBASE_PROVIDER, "u-expired").await.unwrap();
+        assert_eq!(result, None);
+
+        let entries = cache.entries.read().await;
+        assert!(entries.is_empty());
+    }
+
+    #[tokio::test]
+    async fn runtime_principal_store_fail_closes_without_database_url() {
+        let _lock = env_lock().lock().await;
+        let mut scoped = ScopedEnv::new();
+        scoped.remove("DATABASE_URL");
+        scoped.remove("AUTH_ALLOW_IN_MEMORY_PRINCIPAL_STORE");
+        scoped.remove("AUTH_UID_PRINCIPAL_SEEDS");
+
+        let store = build_runtime_principal_store();
+        let error = store
+            .find_principal_id(FIREBASE_PROVIDER, "u-1")
+            .await
+            .unwrap_err();
+
+        assert_eq!(error, "principal_store_unconfigured");
+    }
+
+    #[tokio::test]
+    async fn runtime_principal_store_uses_seeded_mappings_when_opted_in() {
+        let _lock = env_lock().lock().await;
+        let mut scoped = ScopedEnv::new();
+        scoped.remove("DATABASE_URL");
+        scoped.set("AUTH_ALLOW_IN_MEMORY_PRINCIPAL_STORE", "true");
+        scoped.set("AUTH_UID_PRINCIPAL_SEEDS", "u-1=7001");
+
+        let store = build_runtime_principal_store();
+        let resolved = store
+            .find_principal_id(FIREBASE_PROVIDER, "u-1")
+            .await
+            .unwrap();
+
+        assert_eq!(resolved, Some(PrincipalId(7001)));
+    }
+}
