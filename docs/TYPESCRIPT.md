@@ -68,6 +68,7 @@
 
 ## 5.1 Implementation and Testing Policy
 - Split functions by responsibility to keep them testable.
+- Keep one primary responsibility per file; split before a file starts mixing multiple concerns (UI/state/API/helpers).
 - Implement tests whenever practical, prioritizing regression prevention.
 - Separate pure functions from external interactions (I/O, HTTP, browser APIs, state mutation).
 
