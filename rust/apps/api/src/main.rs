@@ -149,7 +149,7 @@ mod tests {
         let (mut socket, _response) = connect_async(format!("ws://{addr}/ws")).await.unwrap();
 
         socket
-            .send(TungsteniteMessage::Binary(vec![1_u8, 2_u8, 3_u8].into()))
+            .send(TungsteniteMessage::Binary(vec![1_u8, 2_u8, 3_u8]))
             .await
             .unwrap();
         socket
