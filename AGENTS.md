@@ -19,12 +19,9 @@
 - For frontend TypeScript changes, read `docs/TYPESCRIPT.md` first.
 - For Python service changes, read `docs/PYTHON.md` first.
 - For database/schema/runtime contract changes, read `docs/DATABASE.md` and related files under `database/contracts/`.
-- For event schema/contract changes, read `docs/adr/ADR-001-event-schema-compatibility.md` before implementation.
-- For search consistency/SLO/reindex contract changes, read `docs/adr/ADR-003-search-consistency-slo-reindex.md` and `docs/runbooks/search-reindex-runbook.md` before implementation.
-- For edge routing/drain policy changes (Cloudflare/GCLB/GKE Ingress, REST/WS path, health check, WS drain), read `docs/runbooks/edge-rest-ws-routing-drain-runbook.md` before implementation.
-- For event delivery class/boundary/outage changes, read `docs/adr/ADR-002-class-ab-event-classification-and-delivery-boundary.md` before implementation.
-- For AuthZ fail-close policy, API/WS authorization error contracts, or authorization cache invalidation changes, read `docs/adr/ADR-004-authz-fail-close-and-cache-strategy.md` before implementation.
-- For Dragonfly/Redis rate-limit outage policy changes, degraded transition thresholds, or recovery resynchronization rules, read `docs/adr/ADR-005-dragonfly-ratelimit-failure-policy.md` and `database/contracts/lin139_runtime_contracts.md` before implementation.
+- For ADR-governed changes (event schema compatibility, delivery class boundary, search consistency, AuthZ fail-close, Dragonfly rate-limit failure policy), read relevant files under `docs/adr/` before implementation. Use `docs/adr/README.md` to identify the target ADR.
+- For runbook-governed operational changes (for example search reindex and edge REST/WS routing/drain), read relevant files under `docs/runbooks/` before implementation. Use `docs/runbooks/README.md` to identify the target runbook.
+- For Dragonfly/Redis rate-limit outage policy, degraded transition thresholds, or recovery resynchronization rules, also read related runtime contract files under `database/contracts/` before implementation.
 - Event schema changes must be additive and backward-compatible only. Breaking changes are prohibited unless approved via a separate ADR.
 - Event Class A/B classification and outage behavior decisions must follow ADR-002 as the single source of truth.
 - AuthZ decisions must follow ADR-004 fail-close baseline (no fail-open, no stale-if-error) unless explicitly superseded by a newer approved ADR.
