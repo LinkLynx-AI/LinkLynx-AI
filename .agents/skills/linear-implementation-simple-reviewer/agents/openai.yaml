@@ -1,0 +1,4 @@
+interface:
+  display_name: "Linear Single Reviewer"
+  short_description: "Linear issue delivery with one integrated reviewer flow"
+  default_prompt: "Use $linear-implementation-simple-reviewer to implement Linear issues sequentially with a simple reviewer pass."
