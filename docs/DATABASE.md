@@ -1,6 +1,6 @@
 # DATABASE.md
 
-最終更新: 2026-02-26
+最終更新: 2026-02-27
 
 このドキュメントは、リポジトリ内の定義ファイルを基準にした「現在のDB状態」をまとめたものです。
 実行中のDBインスタンスを直接参照したスナップショットではありません。
@@ -22,6 +22,7 @@
 2. `0002_lin138_guild_channel_invite`
 3. `0003_lin139_permissions_reads_outbox`
 4. `0004_lin131_db_runtime_helpers`
+5. `0005_lin614_auth_identities`
 
 ### 2.1 型（ENUM）
 
@@ -33,6 +34,7 @@
 ### 2.2 テーブル一覧
 
 - `users`
+- `auth_identities`
 - `email_verification_tokens`
 - `password_reset_tokens`
 - `guilds`
@@ -53,6 +55,7 @@
 ### 2.3 関係モデル（要点）
 
 - `guilds.owner_id -> users.id`
+- `auth_identities(provider, provider_subject)` は外部認証主体（例: Firebase UID）を一意化し、`principal_id -> users.id` へ正規化
 - `guild_members(guild_id, user_id)` は `guilds/users` への多対多
 - `channels` は `channel_type` でギルドチャネル/DM を表現
 - `dm_pairs` は `user_low < user_high` 制約と `channel_id` 一意制約で DM 1対1 を保証
@@ -79,6 +82,8 @@
 ### 2.5 主要インデックス（抜粋）
 
 - `uq_users_email_lower`（`lower(email)` 一意）
+- `uq_auth_identities_provider_principal`（`provider + principal_id` 一意）
+- `idx_auth_identities_principal_id`
 - `idx_guild_members_user`
 - `idx_channels_guild`（`type='guild_text'` 条件付き）
 - `idx_dm_participants_user`

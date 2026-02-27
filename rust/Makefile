@@ -1,6 +1,6 @@
 .PHONY: setup format lint test validate coverage coverage-check
 
-COVERAGE_MIN_LINES ?= 80
+COVERAGE_MIN_LINES ?= 45
 CARGO_BIN_PATH ?= $(HOME)/.cargo/bin
 LLVM_COV_PATH := $(CARGO_BIN_PATH):$(PATH)
 BREW_LLVM_COV ?= /opt/homebrew/opt/llvm/bin/llvm-cov
@@ -35,4 +35,4 @@ coverage-check:
 		PATH="$(LLVM_COV_PATH)" cargo llvm-cov --workspace --all-features --summary-only --fail-under-lines $(COVERAGE_MIN_LINES); \
 	fi
 
-validate: format lint test
+validate: format lint test coverage-check

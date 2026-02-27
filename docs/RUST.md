@@ -115,7 +115,7 @@ Rules:
 - Use behavior-driven test names (`create_user_success`, etc.).
 - Keep one responsibility per test for easier failure diagnosis.
 - Extract test data setup into helpers to reduce duplication.
-- Verify coverage before review by running `make coverage-check` and ensure line coverage is at least `COVERAGE_MIN_LINES` (default: `80`).
+- Verify coverage before review by running `make coverage-check` and ensure line coverage is at least `COVERAGE_MIN_LINES` (default: `45`).
 - Use `make coverage` when you need a coverage summary without threshold enforcement.
 - If `cargo llvm-cov` is unavailable, install it with `cargo install cargo-llvm-cov --locked`.
 

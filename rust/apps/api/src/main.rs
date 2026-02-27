@@ -1,15 +1,41 @@
-use axum::{
-    extract::ws::{Message, WebSocket, WebSocketUpgrade},
-    response::IntoResponse,
-    routing::get,
-    Router,
+mod auth;
+
+use std::{
+    env,
+    net::SocketAddr,
+    sync::Arc,
+    time::{Duration, Instant},
 };
-use std::net::SocketAddr;
+
+use auth::{
+    auth_error_response, bearer_token_from_headers, build_runtime_auth_service,
+    request_id_from_headers, unix_timestamp_seconds, AuthContext, AuthMetrics, AuthMetricsSnapshot,
+    AuthService, AuthenticatedPrincipal,
+};
+use axum::{
+    body::Body,
+    extract::{
+        ws::{CloseFrame, Message, WebSocket, WebSocketUpgrade},
+        Extension, State,
+    },
+    http::{HeaderMap, Request},
+    middleware::{self, Next},
+    response::{IntoResponse, Response},
+    routing::get,
+    Json, Router,
+};
+use serde::{Deserialize, Serialize};
 use tower_http::cors::{Any, CorsLayer};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
+#[derive(Clone)]
+pub(crate) struct AppState {
+    auth_service: Arc<AuthService>,
+    ws_reauth_grace: Duration,
+}
+
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::registry()
         .with(tracing_subscriber::fmt::layer())
         .with(tracing_filter_from_env())
@@ -18,10 +44,11 @@ async fn main() {
     let app = app();
 
     let addr = server_addr();
-    tracing::info!("Server running on {}", addr);
+    tracing::info!(address = %addr, "server starting");
 
-    let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
-    axum::serve(listener, app).await.unwrap();
+    let listener = tokio::net::TcpListener::bind(addr).await?;
+    axum::serve(listener, app).await?;
+    Ok(())
 }
 
 fn default_log_filter() -> &'static str {
@@ -37,136 +64,34 @@ fn server_addr() -> SocketAddr {
     SocketAddr::from(([0, 0, 0, 0], 8080))
 }
 
-async fn root() -> &'static str {
-    "LinkLynx API Server"
+/// 実行時状態を構築する。
+/// @param なし
+/// @returns アプリケーション状態
+/// @throws なし
+fn build_runtime_state() -> AppState {
+    let metrics = Arc::new(AuthMetrics::default());
+    let auth_service = Arc::new(build_runtime_auth_service(Arc::clone(&metrics)));
+    let ws_reauth_grace = Duration::from_secs(
+        env::var("WS_REAUTH_GRACE_SECONDS")
+            .ok()
+            .and_then(|value| value.parse::<u64>().ok())
+            .unwrap_or(30),
+    );
+
+    AppState {
+        auth_service,
+        ws_reauth_grace,
+    }
 }
 
-async fn health_check() -> &'static str {
-    "OK"
-}
-
+/// 実行時ルータを構築する。
+/// @param なし
+/// @returns APIルータ
+/// @throws なし
 fn app() -> Router {
-    let cors = CorsLayer::new()
-        .allow_origin(Any)
-        .allow_methods(Any)
-        .allow_headers(Any);
-
-    Router::new()
-        .route("/", get(root))
-        .route("/health", get(health_check))
-        .route("/ws", get(ws_handler))
-        .layer(cors)
+    app_with_state(build_runtime_state())
 }
 
-async fn ws_handler(ws: WebSocketUpgrade) -> impl IntoResponse {
-    ws.on_upgrade(handle_socket)
-}
-
-async fn handle_socket(mut socket: WebSocket) {
-    while let Some(msg) = socket.recv().await {
-        if let Ok(msg) = msg {
-            match msg {
-                Message::Text(text) => {
-                    tracing::info!("Received: {}", text);
-                    if socket.send(Message::Text(text)).await.is_err() {
-                        break;
-                    }
-                }
-                Message::Close(_) => break,
-                _ => {}
-            }
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{app, default_log_filter, server_addr};
-    use axum::{
-        body::{to_bytes, Body},
-        http::{Request, StatusCode},
-    };
-    use futures_util::{SinkExt, StreamExt};
-    use tokio::time::{timeout, Duration};
-    use tokio_tungstenite::{connect_async, tungstenite::Message as TungsteniteMessage};
-    use tower::ServiceExt;
-
-    const MAX_RESPONSE_BYTES: usize = 16 * 1024;
-
-    #[tokio::test]
-    async fn root_returns_server_name() {
-        let app = app();
-        let response = app
-            .oneshot(Request::builder().uri("/").body(Body::empty()).unwrap())
-            .await
-            .unwrap();
-
-        assert_eq!(response.status(), StatusCode::OK);
-        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
-            .await
-            .unwrap();
-        assert_eq!(body.as_ref(), b"LinkLynx API Server");
-    }
-
-    #[tokio::test]
-    async fn health_returns_ok() {
-        let app = app();
-        let response = app
-            .oneshot(
-                Request::builder()
-                    .uri("/health")
-                    .body(Body::empty())
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-
-        assert_eq!(response.status(), StatusCode::OK);
-        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
-            .await
-            .unwrap();
-        assert_eq!(body.as_ref(), b"OK");
-    }
-
-    #[test]
-    fn default_log_filter_is_info() {
-        assert_eq!(default_log_filter(), "info");
-    }
-
-    #[test]
-    fn server_addr_is_contract_value() {
-        assert_eq!(server_addr(), "0.0.0.0:8080".parse().unwrap());
-    }
-
-    #[tokio::test]
-    async fn websocket_echoes_text_message() {
-        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let addr = listener.local_addr().unwrap();
-        let server = tokio::spawn(async move {
-            axum::serve(listener, app()).await.unwrap();
-        });
-
-        let (mut socket, _response) = connect_async(format!("ws://{addr}/ws")).await.unwrap();
-
-        socket
-            .send(TungsteniteMessage::Binary(vec![1_u8, 2_u8, 3_u8]))
-            .await
-            .unwrap();
-        socket
-            .send(TungsteniteMessage::Text("hello".into()))
-            .await
-            .unwrap();
-
-        let echoed = timeout(Duration::from_secs(1), socket.next())
-            .await
-            .unwrap()
-            .unwrap()
-            .unwrap();
-        assert_eq!(echoed, TungsteniteMessage::Text("hello".into()));
-
-        socket.send(TungsteniteMessage::Close(None)).await.unwrap();
-
-        server.abort();
-        let _ = server.await;
-    }
-}
+include!("main/http_routes.rs");
+include!("main/ws_routes.rs");
+include!("main/tests.rs");
