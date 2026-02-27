@@ -6,6 +6,7 @@ pub struct FirebaseAuthConfig {
     pub jwks_url: String,
     pub jwks_ttl: Duration,
     pub http_timeout: Duration,
+    pub iat_skew_seconds: u64,
 }
 
 impl FirebaseAuthConfig {
@@ -23,6 +24,7 @@ impl FirebaseAuthConfig {
             env::var("FIREBASE_JWKS_URL").unwrap_or_else(|_| DEFAULT_JWKS_URL.to_owned());
         let jwks_ttl = Duration::from_secs(parse_env_u64("FIREBASE_JWKS_TTL_SECONDS", 300));
         let http_timeout = Duration::from_secs(parse_env_u64("FIREBASE_HTTP_TIMEOUT_SECONDS", 5));
+        let iat_skew_seconds = parse_env_u64("FIREBASE_IAT_SKEW_SECONDS", 60);
 
         Ok(Self {
             audience,
@@ -30,6 +32,7 @@ impl FirebaseAuthConfig {
             jwks_url,
             jwks_ttl,
             http_timeout,
+            iat_skew_seconds,
         })
     }
 }
@@ -89,7 +92,7 @@ impl TokenVerifier for FirebaseTokenVerifier {
         }
 
         let now = unix_timestamp_seconds();
-        if token_data.claims.iat > now.saturating_add(60) {
+        if token_data.claims.iat > now.saturating_add(self.config.iat_skew_seconds) {
             return Err(TokenVerifyError::Invalid("jwt_iat_in_future"));
         }
 
@@ -192,9 +195,11 @@ impl JwksCache {
         kid: &str,
         from_fresh_miss: bool,
     ) -> Result<DecodingKey, TokenVerifyError> {
+        // Keep this lock for the whole method so refresh and post-refresh lookup stay serialized.
         let _guard = self.refresh_lock.lock().await;
 
         match self.try_get_cached_key(kid).await? {
+            // Another request may have refreshed while we were waiting; no extra refresh is needed.
             CachedKeyLookup::Hit(key) => return Ok(key),
             CachedKeyLookup::MissingFresh => {
                 if !from_fresh_miss {

@@ -61,17 +61,41 @@ pub fn unix_timestamp_seconds() -> u64 {
 }
 
 fn parse_env_u64(name: &str, default: u64) -> u64 {
-    env::var(name)
-        .ok()
-        .and_then(|value| value.parse::<u64>().ok())
-        .unwrap_or(default)
+    match env::var(name) {
+        Ok(value) => match value.parse::<u64>() {
+            Ok(parsed) => parsed,
+            Err(error) => {
+                warn!(
+                    env_var = %name,
+                    value = %value,
+                    reason = %error,
+                    default = default,
+                    "invalid u64 env value; fallback to default"
+                );
+                default
+            }
+        },
+        Err(_) => default,
+    }
 }
 
 fn parse_env_bool(name: &str, default: bool) -> bool {
     match env::var(name) {
         Ok(value) => {
             let normalized = value.trim().to_ascii_lowercase();
-            matches!(normalized.as_str(), "1" | "true" | "yes" | "on")
+            match normalized.as_str() {
+                "1" | "true" | "yes" | "on" => true,
+                "0" | "false" | "no" | "off" => false,
+                _ => {
+                    warn!(
+                        env_var = %name,
+                        value = %value,
+                        default = default,
+                        "invalid bool env value; fallback to default"
+                    );
+                    default
+                }
+            }
         }
         Err(_) => default,
     }

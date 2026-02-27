@@ -58,6 +58,15 @@ Out of scope:
 - Local/dev-only fallback to seeded in-memory mappings is opt-in via:
   - `AUTH_ALLOW_IN_MEMORY_PRINCIPAL_STORE=true`
   - `AUTH_UID_PRINCIPAL_SEEDS=uidA=1001,uidB=1002`
+- Firebase issued-at skew tolerance is configurable via:
+  - `FIREBASE_IAT_SKEW_SECONDS` (default: `60`)
+- Principal store retry behavior is configurable via:
+  - `AUTH_PRINCIPAL_STORE_MAX_RETRIES` (default: `2`)
+  - `AUTH_PRINCIPAL_STORE_RETRY_BASE_BACKOFF_MS` (default: `25`)
+- Postgres transport is TLS-required by default.
+  - Current implementation is fail-close when TLS is required and no TLS connector is configured.
+  - Temporary plaintext opt-out is possible only with explicit:
+    - `AUTH_ALLOW_POSTGRES_NOTLS=true` (local/development only)
 
 ## 3. Required logs and audit fields
 

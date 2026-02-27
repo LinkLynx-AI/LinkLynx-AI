@@ -33,7 +33,7 @@ impl AuthMetrics {
     /// @returns なし
     /// @throws なし
     pub fn record_token_verify(&self, result: TokenVerifyResult, elapsed: Duration) {
-        let elapsed_ms = elapsed.as_millis().min(u64::MAX as u128) as u64;
+        let elapsed_ms = duration_millis_u64(elapsed);
         self.token_verify_latency_ms_total
             .fetch_add(elapsed_ms, Ordering::Relaxed);
         self.token_verify_latency_samples
@@ -114,6 +114,14 @@ impl AuthMetrics {
             ws_reauth_failure_total: self.ws_reauth_failure_total.load(Ordering::Relaxed),
         }
     }
+}
+
+/// Durationのミリ秒値をu64で返す。
+/// @param duration 変換対象のDuration
+/// @returns ミリ秒値（u64上限で飽和）
+/// @throws なし
+fn duration_millis_u64(duration: Duration) -> u64 {
+    duration.as_millis().min(u64::MAX as u128) as u64
 }
 
 /// トークン検証メトリクス分類を表現する。

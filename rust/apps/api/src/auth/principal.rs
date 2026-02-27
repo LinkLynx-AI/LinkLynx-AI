@@ -288,6 +288,15 @@ pub struct PostgresPrincipalStore {
     clients: Arc<RwLock<Vec<Arc<tokio_postgres::Client>>>>,
     next_index: Arc<AtomicU64>,
     pool_size: usize,
+    max_retries: u32,
+    retry_base_backoff: Duration,
+    transport_security: PostgresTransportSecurity,
+}
+
+#[derive(Clone, Copy)]
+enum PostgresTransportSecurity {
+    TlsRequiredFailClose,
+    NoTlsAllowed,
 }
 
 impl PostgresPrincipalStore {
@@ -297,11 +306,27 @@ impl PostgresPrincipalStore {
     /// @throws なし
     pub fn new(database_url: String) -> Self {
         let pool_size = parse_env_u64("AUTH_PRINCIPAL_STORE_POOL_SIZE", 4).max(1) as usize;
+        let max_retries = parse_env_u64("AUTH_PRINCIPAL_STORE_MAX_RETRIES", 2).min(8) as u32;
+        let retry_base_backoff = Duration::from_millis(
+            parse_env_u64("AUTH_PRINCIPAL_STORE_RETRY_BASE_BACKOFF_MS", 25),
+        );
+        let transport_security = if parse_env_bool("AUTH_ALLOW_POSTGRES_NOTLS", false) {
+            warn!(
+                "AUTH_ALLOW_POSTGRES_NOTLS=true is enabled; Postgres principal store will use plaintext connection"
+            );
+            PostgresTransportSecurity::NoTlsAllowed
+        } else {
+            PostgresTransportSecurity::TlsRequiredFailClose
+        };
+
         Self {
             database_url: Arc::from(database_url),
             clients: Arc::new(RwLock::new(Vec::new())),
             next_index: Arc::new(AtomicU64::new(0)),
             pool_size,
+            max_retries,
+            retry_base_backoff,
+            transport_security,
         }
     }
 
@@ -310,9 +335,16 @@ impl PostgresPrincipalStore {
     /// @returns Postgresクライアント
     /// @throws String 接続失敗時
     async fn connect_client(&self) -> Result<Arc<tokio_postgres::Client>, String> {
-        let (client, connection) = tokio_postgres::connect(self.database_url.as_ref(), NoTls)
-            .await
-            .map_err(|error| format!("postgres_connect_failed:{error}"))?;
+        let (client, connection) = match self.transport_security {
+            PostgresTransportSecurity::TlsRequiredFailClose => {
+                return Err("postgres_tls_required: set AUTH_ALLOW_POSTGRES_NOTLS=true only for local development until TLS connector is configured".to_owned());
+            }
+            PostgresTransportSecurity::NoTlsAllowed => {
+                tokio_postgres::connect(self.database_url.as_ref(), NoTls)
+                    .await
+                    .map_err(|error| format!("postgres_connect_notls_failed:{error}"))?
+            }
+        };
 
         tokio::spawn(async move {
             if let Err(error) = connection.await {
@@ -363,6 +395,15 @@ impl PostgresPrincipalStore {
         Ok(Arc::clone(&guard[index]))
     }
 
+    /// リトライ待機時間を返す。
+    /// @param attempt リトライ試行回数(0始まり)
+    /// @returns 次回待機時間
+    /// @throws なし
+    fn retry_delay(&self, attempt: u32) -> Duration {
+        let factor = 1u32.checked_shl(attempt.min(16)).unwrap_or(u32::MAX);
+        self.retry_base_backoff.saturating_mul(factor)
+    }
+
     /// 接続プールを破棄して再接続を促す。
     /// @param なし
     /// @returns なし
@@ -408,21 +449,30 @@ impl PrincipalStore for PostgresPrincipalStore {
         provider: &str,
         subject: &str,
     ) -> Result<Option<PrincipalId>, String> {
-        let client = self.select_client().await?;
-        match self.query_principal_id(&client, provider, subject).await {
-            Ok(result) => Ok(result),
-            Err(first_error) => {
-                self.invalidate_pool().await;
-                warn!(
-                    reason = %first_error,
-                    provider = %provider,
-                    subject = %subject,
-                    "postgres principal query failed; retrying with refreshed connection"
-                );
+        let mut attempt = 0_u32;
+        loop {
+            let client = self.select_client().await?;
+            match self.query_principal_id(&client, provider, subject).await {
+                Ok(result) => return Ok(result),
+                Err(error) => {
+                    self.invalidate_pool().await;
+                    if attempt >= self.max_retries {
+                        return Err(error);
+                    }
 
-                let retry_client = self.select_client().await?;
-                self.query_principal_id(&retry_client, provider, subject)
-                    .await
+                    let delay = self.retry_delay(attempt);
+                    warn!(
+                        reason = %error,
+                        provider = %provider,
+                        subject = %subject,
+                        attempt = attempt + 1,
+                        max_retries = self.max_retries,
+                        backoff_ms = delay.as_millis() as u64,
+                        "postgres principal query failed; retrying with backoff"
+                    );
+                    tokio::time::sleep(delay).await;
+                    attempt = attempt.saturating_add(1);
+                }
             }
         }
     }

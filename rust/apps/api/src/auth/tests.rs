@@ -393,4 +393,60 @@ mod tests {
 
         assert_eq!(resolved, Some(PrincipalId(7001)));
     }
+
+    #[tokio::test]
+    async fn firebase_config_reads_iat_skew_from_env() {
+        let _lock = env_lock().lock().await;
+        let mut scoped = ScopedEnv::new();
+        scoped.set("FIREBASE_PROJECT_ID", "test-project");
+        scoped.set("FIREBASE_IAT_SKEW_SECONDS", "120");
+
+        let config = FirebaseAuthConfig::from_env().unwrap();
+        assert_eq!(config.iat_skew_seconds, 120);
+    }
+
+    #[tokio::test]
+    async fn parse_env_helpers_fallback_on_invalid_values() {
+        let _lock = env_lock().lock().await;
+        let mut scoped = ScopedEnv::new();
+        scoped.set("AUTH_PRINCIPAL_STORE_POOL_SIZE", "invalid");
+        scoped.set("AUTH_ALLOW_POSTGRES_NOTLS", "invalid");
+
+        assert_eq!(parse_env_u64("AUTH_PRINCIPAL_STORE_POOL_SIZE", 4), 4);
+        assert!(!parse_env_bool("AUTH_ALLOW_POSTGRES_NOTLS", false));
+    }
+
+    #[tokio::test]
+    async fn postgres_principal_store_requires_tls_by_default() {
+        let _lock = env_lock().lock().await;
+        let mut scoped = ScopedEnv::new();
+        scoped.remove("AUTH_ALLOW_POSTGRES_NOTLS");
+
+        let store = PostgresPrincipalStore::new("postgres://localhost/test".to_owned());
+        let error = store.connect_client().await.unwrap_err();
+        assert!(error.starts_with("postgres_tls_required"));
+    }
+
+    #[tokio::test]
+    async fn postgres_principal_store_uses_notls_when_opted_in() {
+        let _lock = env_lock().lock().await;
+        let mut scoped = ScopedEnv::new();
+        scoped.set("AUTH_ALLOW_POSTGRES_NOTLS", "true");
+
+        let store = PostgresPrincipalStore::new("postgres://127.0.0.1:9/test".to_owned());
+        let error = store.connect_client().await.unwrap_err();
+        assert!(error.starts_with("postgres_connect_notls_failed:"));
+    }
+
+    #[tokio::test]
+    async fn postgres_principal_store_retry_delay_uses_exponential_backoff() {
+        let _lock = env_lock().lock().await;
+        let mut scoped = ScopedEnv::new();
+        scoped.set("AUTH_PRINCIPAL_STORE_RETRY_BASE_BACKOFF_MS", "10");
+
+        let store = PostgresPrincipalStore::new("postgres://localhost/test".to_owned());
+        assert_eq!(store.retry_delay(0), Duration::from_millis(10));
+        assert_eq!(store.retry_delay(1), Duration::from_millis(20));
+        assert_eq!(store.retry_delay(2), Duration::from_millis(40));
+    }
 }
