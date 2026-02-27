@@ -10,7 +10,7 @@ description = "Implementation agent. Keep diffs scoped and follow Plan.md."
 config_file = "agents/worker.toml"
 
 [agents.reviewer]
-description = "Meta reviewer. Consolidate specialist reviewer outputs, deduplicate findings, and make final gate decisions."
+description = "Meta reviewer orchestrator. Spawn specialist reviewers, consolidate outputs, deduplicate findings, and make final gate decisions."
 config_file = "agents/reviewer.toml"
 
 [agents.reviewer_security]
