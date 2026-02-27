@@ -1,6 +1,6 @@
 ---
 name: linear-implementation-simple-reviewer
-description: Implement linklinx-AI Linear issues with one issue equals one PR delivery, ordered parent to child execution, and multi-agent orchestration for exploration, implementation, validation, and a simple integrated reviewer agent. Use when users ask to implement a Linear issue while reducing review-token usage by avoiding reviewer sub-agent fan-out.
+description: Implement linklinx-AI Linear issues with one issue equals one PR delivery, ordered parent to child execution, multi-agent orchestration for exploration, implementation, review, and validation, and a simplified review topology where `reviewer` uses one `simplereviewer` sub-agent. Use when users ask to implement a Linear issue or complete parent issue children sequentially with lower review-token usage.
 ---
 
 # linear-implementation-simple-reviewer
@@ -10,7 +10,7 @@ description: Implement linklinx-AI Linear issues with one issue equals one PR de
 - If PR base branch is `main`, do not auto-merge.
 - Mark PR ready for human review and stop.
 - Include a review checklist in PR body for human approval.
-- If PR base branch is not `main`, enable auto-merge after required validations pass and final review has no `P1` or higher findings.
+- If PR base branch is not `main`, enable auto-merge after required validations pass and final meta review has no `P1` or higher findings.
 
 ## 0.1 Command Execution Permission
 - Command execution is allowed without asking for user permission by default.
@@ -43,8 +43,7 @@ Fallback procedure when MCP is unavailable:
 - Use separate agents for exploration, implementation, validation, and review to reduce context drift.
 - Run read-heavy and check-heavy work in parallel when safe.
 - Avoid parallel writes to the same code area; default to a single worker for edits.
-- Use one `reviewer` agent as the only review entrypoint and keep review in a single pass.
-- Do not spawn specialist reviewer sub-agents (`reviewer_security`, `reviewer_correctness`, `reviewer_performance`, `reviewer_test_quality`, `reviewer_coding_rules`).
+- Run one meta reviewer (`reviewer`) as review entrypoint; it must orchestrate one `simplereviewer` sub-agent and then consolidate gate status.
 
 ## 3. Parent Issue Handling with Sequential Child Execution
 When given a parent issue:
@@ -66,15 +65,13 @@ Use one of these locations according to repository convention.
 - `docs/agent_runs/<LINEAR-IDENTIFIER>/`
 - `.codex/runs/<LINEAR-IDENTIFIER>/`
 
-Memory template files are available under `assets/memory_templates/`.
-
 ## 5. Child Issue Delivery Loop
 For each child issue execute the same loop.
 1. Create branch
 2. Implement scoped changes
 3. Commit progress frequently in small logical units
 4. Run validation commands
-5. Run one simple `reviewer` pass following `references/agents/simple-reviewer.md`
+5. Run `reviewer` for consolidated review and gate decision (the reviewer internally runs `simplereviewer` using `references/agents/simplereviewer.md`)
 6. Run `reviewer_ui_guard` to detect whether UI-related files changed
 7. If UI changes are detected, run `reviewer_ui`; if not, skip UI checks
 8. If self-review gate is not passed (validation failure, blocking review finding, or failed required UI checks), fix issues and return to step 2.
@@ -95,11 +92,13 @@ For each child issue execute the same loop.
 - Run lint, typecheck, test, build, and issue-specific checks.
 - Summarize failures with likely causes.
 
-### Simple Reviewer
-- Role key is `reviewer`.
-- Review in one pass across security, correctness, performance, test quality, and coding-rules compliance.
-- Do not delegate review to other reviewer sub-agents.
-- Produce one consolidated finding list with deduplication and normalized severity.
+### Specialist Reviewer
+- `simplereviewer`: one consolidated reviewer that covers security, correctness, performance, test quality, and coding-rules checks in a single sub-agent pass.
+- Contract is defined in `references/agents/simplereviewer.md`.
+
+### Meta Reviewer
+- Role key is `reviewer` for backward compatibility.
+- Spawn and collect `simplereviewer` output, deduplicate overlaps, normalize severity, and make final gate decision.
 - Gate rule: block when at least one `P1` or higher finding has confidence `>= 0.65`.
 
 ### Conditional UI Review
@@ -125,7 +124,7 @@ For each child issue execute the same loop.
 For sequential issue runs:
 - Open and merge one PR per issue.
 - For child issues, open PRs with the parent issue branch as the base branch.
-- For non-`main` base branches, enable auto-merge only after simple reviewer approval and required validations pass.
+- For non-`main` base branches, enable auto-merge only after reviewer sub-agent approval (via final meta review pass with `simplereviewer`) and required validations pass.
 - For `main` base branch, require human approval before merge.
 - Rebase or branch from latest base before starting next issue.
 

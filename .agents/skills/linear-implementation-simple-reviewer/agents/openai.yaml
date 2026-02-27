@@ -1,4 +1,4 @@
 interface:
-  display_name: "Linear Single Reviewer"
-  short_description: "Linear issue delivery with one integrated reviewer flow"
-  default_prompt: "Use $linear-implementation-simple-reviewer to implement Linear issues sequentially with a simple reviewer pass."
+  display_name: "Linear Simple Subreviewer"
+  short_description: "Linear issue delivery with simplereviewer sub-review flow"
+  default_prompt: "Use $linear-implementation-simple-reviewer to implement Linear issues sequentially with reviewer plus one simplereviewer sub-agent."

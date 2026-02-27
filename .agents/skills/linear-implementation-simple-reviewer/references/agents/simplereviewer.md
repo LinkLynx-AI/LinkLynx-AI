@@ -1,9 +1,10 @@
-# Simple Reviewer Agent Contract
+# simplereviewer Agent Contract
 
-Use this contract when spawning `agent_type: reviewer` in this skill.
+Use this contract when `reviewer` spawns the `simplereviewer` sub-agent.
+Use `agent_type: default` for the spawned sub-agent and pass this contract as its prompt.
 
 ## Mission
-Review the current implementation in a single pass and return one consolidated gate decision.
+Review the current implementation in a single pass and return findings to the parent `reviewer`.
 
 ## Required Review Dimensions
 - Security: authn/authz, input validation, injection risk, secret handling, abuse paths.
@@ -13,7 +14,7 @@ Review the current implementation in a single pass and return one consolidated g
 - Coding rules: repository `AGENTS.md` rules and language-specific project conventions.
 
 ## Operational Rules
-- Do not spawn or delegate to reviewer sub-agents.
+- Do not spawn additional reviewer sub-agents.
 - Read diffs, changed files, and relevant docs directly.
 - Deduplicate overlapping findings across dimensions.
 - Keep findings scoped to user intent and issue acceptance criteria.
