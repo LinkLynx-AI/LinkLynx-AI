@@ -37,7 +37,7 @@ Fallback procedure when MCP is unavailable:
 - Use separate agents for exploration, implementation, validation, and review to reduce context drift.
 - Run read-heavy and check-heavy work in parallel when safe.
 - Avoid parallel writes to the same code area; default to a single worker for edits.
-- Run specialist reviewers in parallel, then run one meta reviewer to consolidate and decide gate status.
+- Run one meta reviewer (`reviewer`) as review entrypoint; it must orchestrate specialist reviewers in parallel and then consolidate gate status.
 
 ## 3. Parent Issue Handling with Sequential Child Execution
 When given a parent issue:
@@ -64,14 +64,13 @@ For each child issue execute the same loop.
 1. Create branch
 2. Implement scoped changes
 3. Run validation commands
-4. Run specialist review pass in parallel
-5. Run meta review consolidation and gate decision
-6. Run `reviewer_ui_guard` to detect whether UI-related files changed
-7. If UI changes are detected, run `reviewer_ui`; if not, skip UI checks
-8. If self-review gate is not passed (validation failure, blocking review finding, or failed required UI checks), fix issues and return to step 2.
-9. Open PR
-10. Merge according to merge policy
-11. Move to next issue
+4. Run `reviewer` for consolidated review and gate decision (the reviewer internally runs specialist reviewers)
+5. Run `reviewer_ui_guard` to detect whether UI-related files changed
+6. If UI changes are detected, run `reviewer_ui`; if not, skip UI checks
+7. If self-review gate is not passed (validation failure, blocking review finding, or failed required UI checks), fix issues and return to step 2.
+8. Open PR
+9. Merge according to merge policy
+10. Move to next issue
 
 ## 6. Role Contracts
 ### Explorer
@@ -95,7 +94,7 @@ For each child issue execute the same loop.
 
 ### Meta Reviewer
 - Role key is `reviewer` for backward compatibility.
-- Consolidate specialist outputs, deduplicate overlaps, normalize severity, and make final gate decision.
+- Spawn and collect specialist reviewer outputs, deduplicate overlaps, normalize severity, and make final gate decision.
 - Gate rule: block when at least one `P1` or higher finding has confidence `>= 0.65`.
 
 ### Conditional UI Review
