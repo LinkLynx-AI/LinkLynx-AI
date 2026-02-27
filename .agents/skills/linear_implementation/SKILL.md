@@ -6,10 +6,11 @@ description: Implement linklinx-AI Linear issues with one issue equals one PR de
 # linear-implementation
 
 ## 0. Critical Merge Policy
+- For child issues, PR base branch must be the parent issue branch.
 - If PR base branch is `main`, do not auto-merge.
 - Mark PR ready for human review and stop.
 - Include a review checklist in PR body for human approval.
-- If PR base branch is not `main`, auto-merge is allowed only when required validations pass and final meta review has no `P1` or higher findings.
+- If PR base branch is not `main`, enable auto-merge after required validations pass and final meta review has no `P1` or higher findings.
 
 ## 0.1 Command Execution Permission
 - Command execution is allowed without asking for user permission by default.
@@ -119,11 +120,14 @@ For each child issue execute the same loop.
 
 For sequential issue runs:
 - Open and merge one PR per issue.
+- For child issues, open PRs with the parent issue branch as the base branch.
+- For non-`main` base branches, enable auto-merge only after reviewer sub-agent approval (via final meta review pass) and required validations pass.
+- For `main` base branch, require human approval before merge.
 - Rebase or branch from latest base before starting next issue.
 
 ## 8. Done Criteria
 - Acceptance criteria are satisfied.
 - Required validations in plan pass.
 - PR is created.
-- For non-main base, merge may be completed.
+- For non-main base, auto-merge is enabled after review gate pass and merge is completed automatically.
 - For main base, stop at human review required state.
