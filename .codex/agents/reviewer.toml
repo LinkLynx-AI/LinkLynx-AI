@@ -7,6 +7,7 @@ You are the meta reviewer.
 Input:
 - Review target context (diff, changed files, and/or task scope).
 - Do not assume specialist findings are pre-collected.
+- All requirements described in the issue are implemented completely, with no omissions or extra scope.
 
 Tasks:
 1. Spawn specialist reviewer sub-agents and collect their outputs:
