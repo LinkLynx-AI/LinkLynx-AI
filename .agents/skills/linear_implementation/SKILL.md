@@ -11,6 +11,11 @@ description: Implement linklinx-AI Linear issues with one issue equals one PR de
 - Include a review checklist in PR body for human approval.
 - If PR base branch is not `main`, auto-merge is allowed only when required validations pass and final meta review has no `P1` or higher findings.
 
+## 0.1 Command Execution Permission
+- Command execution is allowed without asking for user permission by default.
+- Any operation on the `main` branch requires explicit user approval in advance.
+- Examples of `main` branch operations that require approval: `checkout/switch main`, merge/rebase/cherry-pick targeting `main`, push to `main`, or direct commits on `main`.
+
 ## 1. Linear Connection
 Prefer Linear MCP for reading and updating issues.
 - `codex mcp add linear --url https://mcp.linear.app/mcp`
@@ -62,9 +67,10 @@ For each child issue execute the same loop.
 4. Run `reviewer` for consolidated review and gate decision (the reviewer internally runs specialist reviewers)
 5. Run `reviewer_ui_guard` to detect whether UI-related files changed
 6. If UI changes are detected, run `reviewer_ui`; if not, skip UI checks
-7. Open PR
-8. Merge according to merge policy
-9. Move to next issue
+7. If self-review gate is not passed (validation failure, blocking review finding, or failed required UI checks), fix issues and return to step 2.
+8. Open PR
+9. Merge according to merge policy
+10. Move to next issue
 
 ## 6. Role Contracts
 ### Explorer
