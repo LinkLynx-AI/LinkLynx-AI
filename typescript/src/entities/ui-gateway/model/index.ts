@@ -3,6 +3,8 @@ export type UiGatewayLink = {
   href: string;
 };
 
+export type UiGatewayProvider = "mock" | "api";
+
 export type AuthRouteKind = "login" | "register" | "verify-email" | "password-reset";
 
 export type AuthRouteContent = {

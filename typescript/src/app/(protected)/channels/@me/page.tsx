@@ -1,5 +1,5 @@
 import { ProtectedPreviewGate } from "@/features";
-import { APP_ROUTES } from "@/shared/config";
+import { createUiGateway } from "@/entities";
 import { ChannelShellLayout, ShellStatePlaceholder } from "@/widgets";
 import {
   ChannelShellMemberList,
@@ -15,31 +15,39 @@ type ChannelsMePageProps = {
 };
 
 export default async function ChannelsMePage({ searchParams }: ChannelsMePageProps) {
-  const previewState = await resolveProtectedPreviewState(searchParams);
+  const uiGateway = createUiGateway();
+  const [previewState, shellNavigation, content] = await Promise.all([
+    resolveProtectedPreviewState(searchParams),
+    uiGateway.guild.getChannelShellNavigation(),
+    uiGateway.message.getChannelsMeContent(),
+  ]);
+  const shellNavigationForMe = {
+    ...shellNavigation,
+    serverRailItems: shellNavigation.serverRailItems.map((item) => ({
+      ...item,
+      selected: item.id === "home",
+    })),
+    channelItems: shellNavigation.channelItems.map((item) => ({
+      ...item,
+      selected: item.id === "me",
+    })),
+  };
 
   const mainContent =
     previewState.state === null ? (
       <section className="space-y-4">
-        <h1 className="text-2xl font-semibold text-[var(--llx-text-primary)]">
-          @me ダッシュボード
-        </h1>
-        <p className="text-sm text-[var(--llx-text-muted)]">
-          保護ルートの表示プレビューです。`?state=loading|empty|error|readonly|disabled` または
-          `?guard=unauthenticated|forbidden|not-found` を付与して状態を確認できます。
-        </p>
+        <h1 className="text-2xl font-semibold text-[var(--llx-text-primary)]">{content.title}</h1>
+        <p className="text-sm text-[var(--llx-text-muted)]">{content.description}</p>
         <div className="flex flex-wrap gap-3">
-          <a
-            href={`${APP_ROUTES.channels.me}?state=loading`}
-            className="rounded-md border border-[var(--llx-divider)] px-3 py-2 text-xs text-[var(--llx-text-secondary)] transition hover:bg-[var(--llx-bg-selected)]"
-          >
-            loading
-          </a>
-          <a
-            href={`${APP_ROUTES.channels.me}?guard=unauthenticated`}
-            className="rounded-md border border-[var(--llx-divider)] px-3 py-2 text-xs text-[var(--llx-text-secondary)] transition hover:bg-[var(--llx-bg-selected)]"
-          >
-            unauthenticated
-          </a>
+          {content.quickActions.map((action) => (
+            <a
+              key={`${action.href}-${action.label}`}
+              href={action.href}
+              className="rounded-md border border-[var(--llx-divider)] px-3 py-2 text-xs text-[var(--llx-text-secondary)] transition hover:bg-[var(--llx-bg-selected)]"
+            >
+              {action.label}
+            </a>
+          ))}
         </div>
       </section>
     ) : (
@@ -49,9 +57,14 @@ export default async function ChannelsMePage({ searchParams }: ChannelsMePagePro
   return (
     <ProtectedPreviewGate guard={previewState.guard}>
       <ChannelShellLayout
-        serverRail={<ChannelShellServerRail />}
-        channelSidebar={<ChannelShellSidebar />}
-        memberList={<ChannelShellMemberList />}
+        serverRail={<ChannelShellServerRail items={shellNavigationForMe.serverRailItems} />}
+        channelSidebar={
+          <ChannelShellSidebar
+            sectionLabel={shellNavigationForMe.sectionLabel}
+            items={shellNavigationForMe.channelItems}
+          />
+        }
+        memberList={<ChannelShellMemberList items={shellNavigationForMe.memberItems} />}
         mainContent={mainContent}
       />
     </ProtectedPreviewGate>
