@@ -20,4 +20,6 @@ export type {
   SettingsShellNavigation,
   UiGateway,
   UiGatewayLink,
+  UiGatewayProvider,
 } from "./model";
+export { createUiGateway } from "./api";

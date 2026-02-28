@@ -1,15 +1,8 @@
-import { APP_ROUTES } from "@/shared/config";
+import type { AuthRouteContent } from "@/entities";
 
-type AuthRoutePreviewProps = {
-  title: string;
-  description: string;
-  links: Array<{
-    label: string;
-    href: string;
-  }>;
-};
+type AuthRoutePreviewProps = AuthRouteContent;
 
-export function AuthRoutePreview({ title, description, links }: AuthRoutePreviewProps) {
+export function AuthRoutePreview({ title, description, links, footerLink }: AuthRoutePreviewProps) {
   return (
     <main className="flex min-h-screen items-center justify-center bg-[var(--llx-bg-tertiary)] px-4 py-10 text-[var(--llx-text-primary)]">
       <section className="w-full max-w-md rounded-xl border border-[var(--llx-divider)] bg-[var(--llx-bg-primary)] p-8">
@@ -22,7 +15,7 @@ export function AuthRoutePreview({ title, description, links }: AuthRoutePreview
         <div className="mt-8 space-y-3">
           {links.map((link) => (
             <a
-              key={link.href}
+              key={`${link.href}-${link.label}`}
               href={link.href}
               className="flex items-center justify-between rounded-md border border-[var(--llx-divider)] px-4 py-3 text-sm text-[var(--llx-text-secondary)] transition hover:bg-[var(--llx-bg-selected)]"
             >
@@ -33,10 +26,10 @@ export function AuthRoutePreview({ title, description, links }: AuthRoutePreview
         </div>
 
         <a
-          href={APP_ROUTES.home}
+          href={footerLink.href}
           className="mt-6 inline-flex text-sm text-[var(--llx-brand-blurple)] transition hover:opacity-90"
         >
-          ホームへ戻る
+          {footerLink.label}
         </a>
       </section>
     </main>

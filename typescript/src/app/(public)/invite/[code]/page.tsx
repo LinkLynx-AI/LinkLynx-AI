@@ -1,4 +1,4 @@
-import { APP_ROUTES } from "@/shared/config";
+import { createUiGateway } from "@/entities";
 
 type InvitePageParams = Promise<{ code: string }> | { code: string };
 
@@ -7,7 +7,9 @@ type InvitePageProps = {
 };
 
 export default async function InvitePage({ params }: InvitePageProps) {
+  const uiGateway = createUiGateway();
   const resolvedParams = await Promise.resolve(params);
+  const content = await uiGateway.guild.getInvitePageContent(resolvedParams.code);
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-[var(--llx-bg-tertiary)] px-4 py-10 text-[var(--llx-text-primary)]">
@@ -15,25 +17,21 @@ export default async function InvitePage({ params }: InvitePageProps) {
         <p className="text-xs uppercase tracking-[0.2em] text-[var(--llx-header-secondary)]">
           Invite
         </p>
-        <h1 className="mt-3 text-2xl font-semibold">招待コードを確認</h1>
-        <p className="mt-2 text-sm text-[var(--llx-text-muted)]">
-          招待コード{" "}
-          <span className="font-medium text-[var(--llx-text-primary)]">{resolvedParams.code}</span>
-          の表示プレビューです。
-        </p>
+        <h1 className="mt-3 text-2xl font-semibold">{content.title}</h1>
+        <p className="mt-2 text-sm text-[var(--llx-text-muted)]">{content.description}</p>
 
         <div className="mt-8 grid gap-3">
           <a
-            href={APP_ROUTES.login}
+            href={content.primaryAction.href}
             className="rounded-md bg-[var(--llx-brand-blurple)] px-4 py-3 text-center text-sm font-medium text-white transition hover:brightness-110"
           >
-            ログインして参加
+            {content.primaryAction.label}
           </a>
           <a
-            href={APP_ROUTES.home}
+            href={content.secondaryAction.href}
             className="rounded-md border border-[var(--llx-divider)] px-4 py-3 text-center text-sm text-[var(--llx-text-secondary)] transition hover:bg-[var(--llx-bg-selected)]"
           >
-            ホームへ戻る
+            {content.secondaryAction.label}
           </a>
         </div>
       </section>
