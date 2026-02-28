@@ -22,6 +22,14 @@ description: Implement linklinx-AI Linear issues with one issue equals one PR de
 - Keep one clear purpose per commit; do not mix unrelated changes.
 - At minimum, create a commit at each meaningful milestone before moving to the next major task.
 
+## 0.3 Execution Guardrails (Hard Stop)
+- This skill is an execution contract, not optional guidance. Follow steps in order.
+- Never implement multiple child issues in one branch or one PR.
+- Never start the next child issue until the current child issue reaches step 10 in the delivery loop.
+- If required evidence for the current child issue is missing, stop and complete evidence first.
+- If conversation is interrupted, resume from the current child issue state before any new implementation.
+- If branch naming/policy conflicts are found, follow repository/developer policy first and record the decision in `Documentation.md`.
+
 ## 1. Linear Connection
 Prefer Linear MCP for reading and updating issues.
 - `codex mcp add linear --url https://mcp.linear.app/mcp`
@@ -44,6 +52,7 @@ Fallback procedure when MCP is unavailable:
 - Run read-heavy and check-heavy work in parallel when safe.
 - Avoid parallel writes to the same code area; default to a single worker for edits.
 - Run one meta reviewer (`reviewer`) as review entrypoint; it must orchestrate specialist reviewers in parallel and then consolidate gate status.
+- `awaiter`-style agents are allowed for command execution only and are not substitutes for required review agents.
 
 ## 3. Parent Issue Handling with Sequential Child Execution
 When given a parent issue:
@@ -53,6 +62,7 @@ When given a parent issue:
 - dependency relations
 - fallback layer order: database then API then realtime then UI then end to end
 3. Execute child issues sequentially in that order.
+4. Child issue is considered complete only when loop steps 1-10 are finished with recorded evidence.
 
 ## 4. Persistent Memory Files Required
 Create and maintain the following files during long runs.
@@ -66,8 +76,17 @@ Use one of these locations according to repository convention.
 - `.codex/runs/<LINEAR-IDENTIFIER>/`
 
 ## 5. Child Issue Delivery Loop
+### 5.0 Explicit Required Flow (No Omission)
+The following flow is mandatory per child issue and must be executed in this order.
+1. Create a branch dedicated to the child issue.
+2. Run sub-agents for exploration, implementation, and validation.
+3. Run review agents (`reviewer`, `reviewer_ui_guard`, and `reviewer_ui` when required).
+4. If review/validation gate is not passed, run sub-agents again and repeat from implementation.
+5. Open PR from child-issue branch to the parent branch and merge according to policy.
+6. Start the next child issue only after the current child issue is merged and evidence is recorded.
+
 For each child issue execute the same loop.
-1. Create branch
+1. Create branch dedicated to this child issue
 2. Implement scoped changes
 3. Commit progress frequently in small logical units
 4. Run validation commands
@@ -78,6 +97,20 @@ For each child issue execute the same loop.
 9. Open PR
 10. Merge according to merge policy
 11. Move to next issue
+
+### 5.1 Required Per-child Evidence Before Moving On
+Record all items below in `Documentation.md` per child issue. Do not proceed if any item is missing.
+- child issue key and branch name
+- validation commands and pass/fail results
+- reviewer gate result (`reviewer`) and blocking findings disposition
+- UI gate result (`reviewer_ui_guard`) and `reviewer_ui` result when applicable
+- PR URL, base branch, and merge/auto-merge status
+
+### 5.2 Interruption Recovery Rule
+When a run is resumed after interruption:
+1. Detect the in-progress child issue from branch/commits/Documentation.
+2. Complete missing loop steps for that child issue first.
+3. Only then start the next child issue.
 
 ## 6. Role Contracts
 ### Explorer
@@ -110,7 +143,7 @@ For each child issue execute the same loop.
 - UI checks are skipped for non-UI diffs to keep cycle time small.
 
 ## 7. PR Convention
-- Branch format: `linear/<ISSUE-KEY>-<slug>`
+- Branch format: `codex/<ISSUE-KEY>-<slug>`
 - PR body includes:
 - what and why
 - acceptance criteria mapping
@@ -130,6 +163,7 @@ For sequential issue runs:
 - For non-`main` base branches, enable auto-merge only after reviewer sub-agent approval (via final meta review pass) and required validations pass.
 - For `main` base branch, require human approval before merge.
 - Rebase or branch from latest base before starting next issue.
+- Keep at most one active child-issue PR at a time in this flow.
 
 ## 8. Done Criteria
 - Acceptance criteria are satisfied.
