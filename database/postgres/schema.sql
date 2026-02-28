@@ -359,6 +359,23 @@ CREATE TABLE public.users (
 
 
 
+CREATE SEQUENCE public.users_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+
+ALTER SEQUENCE public.users_id_seq OWNED BY public.users.id;
+
+
+
+ALTER TABLE ONLY public.users ALTER COLUMN id SET DEFAULT nextval('public.users_id_seq'::regclass);
+
+
+
 ALTER TABLE ONLY public.audit_logs
     ADD CONSTRAINT audit_logs_pkey PRIMARY KEY (id);
 

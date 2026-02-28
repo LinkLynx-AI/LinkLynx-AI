@@ -11,17 +11,23 @@ pub trait TokenVerifier: Send + Sync {
 /// principal解決責務の境界を表現する。
 #[async_trait]
 pub trait PrincipalResolver: Send + Sync {
-    /// UIDからprincipal_idを解決する。
-    /// @param uid Firebase UID
+    /// 検証済みトークンからprincipal_idを解決する。
+    /// @param verified 検証済みトークン
     /// @returns principal_id
-    /// @throws PrincipalResolveError 未紐付け/依存障害時
-    async fn resolve_principal_id(&self, uid: &str) -> Result<PrincipalId, PrincipalResolveError>;
+    /// @throws PrincipalResolveError 未紐付け/入力不正/競合/依存障害時
+    async fn resolve_principal_id(
+        &self,
+        verified: &VerifiedToken,
+    ) -> Result<PrincipalId, PrincipalResolveError>;
 }
 
 /// トークン検証済み情報を保持する。
 #[derive(Debug, Clone)]
 pub struct VerifiedToken {
     pub uid: String,
+    pub email: Option<String>,
+    pub email_verified: bool,
+    pub display_name: Option<String>,
     pub expires_at_epoch: u64,
 }
 
@@ -36,7 +42,8 @@ pub enum TokenVerifyError {
 /// principal解決失敗を表現する。
 #[derive(Debug, Clone)]
 pub enum PrincipalResolveError {
-    NotFound,
+    InvalidInput(String),
+    Conflict(String),
     DependencyUnavailable(String),
 }
 
@@ -102,14 +109,24 @@ impl AuthService {
             }
         };
 
+        if !verified.email_verified {
+            warn!(
+                decision = "deny",
+                firebase_uid = %verified.uid,
+                email_verified = verified.email_verified,
+                reason = "firebase_email_not_verified",
+                "auth rejected by email verification policy"
+            );
+            return Err(AuthError::email_not_verified("firebase_email_not_verified"));
+        }
+
         let principal_id = self
             .resolver
-            .resolve_principal_id(&verified.uid)
+            .resolve_principal_id(&verified)
             .await
             .map_err(|error| match error {
-                PrincipalResolveError::NotFound => {
-                    AuthError::principal_not_mapped("principal_mapping_missing")
-                }
+                PrincipalResolveError::InvalidInput(reason) => AuthError::invalid_token(reason),
+                PrincipalResolveError::Conflict(reason) => AuthError::principal_not_mapped(reason),
                 PrincipalResolveError::DependencyUnavailable(reason) => {
                     AuthError::dependency_unavailable(reason)
                 }

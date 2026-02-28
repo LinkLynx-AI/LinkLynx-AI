@@ -25,6 +25,7 @@
 4. `0004_lin131_db_runtime_helpers`
 5. `0005_lin614_auth_identities`
 6. `0006_lin621_remove_local_auth_assets`
+7. `0007_lin622_users_id_sequence_for_provisioning`
 
 ### 2.1 型（ENUM）
 
@@ -55,6 +56,7 @@
 ### 2.3 関係モデル（要点）
 
 - `guilds.owner_id -> users.id`
+- `users.id` は `users_id_seq` デフォルト採番により初回認証時プロビジョニングを許容
 - `auth_identities(provider, provider_subject)` は外部認証主体（例: Firebase UID）を一意化し、`principal_id -> users.id` へ正規化
 - `guild_members(guild_id, user_id)` は `guilds/users` への多対多
 - `channels` は `channel_type` でギルドチャネル/DM を表現
