@@ -15,27 +15,31 @@ type ConversationTimelineComposerProps = {
  */
 export function ConversationHeaderBar({ content }: ConversationHeaderBarProps) {
   return (
-    <div className="flex items-center justify-between gap-3">
+    <div className="flex h-full items-center justify-between gap-3">
       <div className="min-w-0">
-        <p className="text-sm font-semibold text-[var(--llx-text-primary)]">
+        <p className="truncate text-base font-semibold text-[var(--llx-header-primary)]">
           <span className="mr-1 text-[var(--llx-channels-default)]">{content.headerIcon}</span>
           {content.title}
         </p>
-        <p className="mt-1 truncate text-xs text-[var(--llx-text-muted)]">{content.subtitle}</p>
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 text-[var(--llx-channels-default)]">
         {content.headerActions.map((action) => (
           <button
             key={action.id}
             type="button"
-            className="flex h-8 w-8 items-center justify-center rounded-md border border-[var(--llx-divider)] text-xs text-[var(--llx-text-secondary)] transition hover:bg-[var(--llx-bg-selected)]"
+            className="inline-flex h-7 w-7 items-center justify-center rounded text-[13px] transition hover:bg-black/20 hover:text-[var(--llx-header-primary)]"
             aria-label={action.label}
             title={action.label}
           >
             {action.icon}
           </button>
         ))}
+
+        <label className="ml-1 hidden h-6 items-center rounded bg-[#1e1f22] px-2 text-xs text-[var(--llx-text-muted)] md:flex">
+          <span className="mr-1">AI_discordを検索</span>
+          <span>⌕</span>
+        </label>
       </div>
     </div>
   );
@@ -46,36 +50,80 @@ export function ConversationHeaderBar({ content }: ConversationHeaderBarProps) {
  */
 export function ConversationTimelineComposer({ content }: ConversationTimelineComposerProps) {
   return (
-    <section className="flex min-h-full flex-col gap-4">
-      <div className="grid gap-2 rounded-md border border-[var(--llx-divider)] bg-black/10 p-2 sm:grid-cols-2 lg:grid-cols-3">
-        {content.quickActions.map((action) => (
-          <a
-            key={`${action.href}-${action.label}`}
-            href={action.href}
-            className="rounded border border-[var(--llx-divider)] px-2 py-1 text-xs text-[var(--llx-text-secondary)] transition hover:bg-[var(--llx-bg-selected)]"
-          >
-            {action.label}
-          </a>
-        ))}
+    <section className="flex h-full min-h-0 flex-col">
+      <div className="border-b border-black/20 px-4 py-1">
+        <div className="flex flex-wrap gap-1">
+          {content.quickActions.map((action) => (
+            <a
+              key={`${action.href}-${action.label}`}
+              href={action.href}
+              className="rounded bg-black/20 px-1.5 py-0.5 text-[10px] text-[var(--llx-text-muted)] hover:bg-black/30"
+            >
+              {action.label}
+            </a>
+          ))}
+        </div>
       </div>
 
-      <div className="flex-1 space-y-1 overflow-auto rounded-md border border-[var(--llx-divider)] bg-black/5 p-2">
-        {content.messages.map((message) => (
-          <ConversationMessageRow key={message.id} message={message} />
-        ))}
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="space-y-0.5 px-4 py-4">
+          <div className="pb-4">
+            <p className="text-[30px] font-extrabold text-[var(--llx-header-primary)]">
+              {content.title}
+            </p>
+            <p className="mt-1 text-sm text-[var(--llx-text-muted)]">{content.subtitle}</p>
+          </div>
+
+          {content.messages.map((message) => (
+            <ConversationMessageRow key={message.id} message={message} />
+          ))}
+        </div>
       </div>
 
-      <div className="space-y-2 rounded-md border border-[var(--llx-divider)] bg-[var(--llx-bg-secondary)] p-3">
-        <p className="text-xs text-[var(--llx-text-muted)]">{content.composer.placeholder}</p>
+      <div className="px-4 pb-6 pt-3">
         <div
           className={cn(
-            "min-h-16 rounded-md border border-[var(--llx-divider)] bg-[var(--llx-bg-primary)] px-3 py-2 text-sm text-[var(--llx-text-secondary)]",
-            content.composer.state === "typing" && "ring-1 ring-[var(--llx-brand-blurple)]",
+            "rounded-lg bg-[#383a40] px-4 py-3",
+            content.composer.state === "typing" && "ring-1 ring-[var(--llx-brand-blurple)]/80",
           )}
         >
-          {content.composer.draftText ?? ""}
+          <div className="flex items-start gap-3">
+            <button
+              type="button"
+              className="mt-0.5 inline-flex h-6 w-6 items-center justify-center rounded-full bg-[#4e5058] text-sm text-[var(--llx-header-primary)]"
+              aria-label="Attach"
+            >
+              +
+            </button>
+
+            <div className="min-w-0 flex-1">
+              <p className="text-[15px] text-[var(--llx-text-muted)]">
+                {content.composer.placeholder}
+              </p>
+              {content.composer.draftText !== undefined ? (
+                <p className="mt-1 text-sm text-[var(--llx-text-secondary)]">
+                  {content.composer.draftText}
+                </p>
+              ) : null}
+            </div>
+
+            <div className="flex items-center gap-2 text-[var(--llx-channels-default)]">
+              <button type="button" className="text-sm" aria-label="Gift">
+                🎁
+              </button>
+              <button type="button" className="text-sm" aria-label="Sticker">
+                ◷
+              </button>
+              <button type="button" className="text-sm" aria-label="Emoji">
+                ☺
+              </button>
+            </div>
+          </div>
         </div>
-        <p className="text-xs text-[var(--llx-text-muted)]">{content.composer.hint}</p>
+
+        <p className="mt-2 px-1 text-[10px] text-[var(--llx-text-muted)]">
+          {content.composer.hint}
+        </p>
       </div>
     </section>
   );

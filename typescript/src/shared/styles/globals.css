@@ -33,11 +33,11 @@
   --space-8: 2rem;
 
   --font-sans:
-    "Noto Sans JP", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", "YuGothic", "Meiryo",
-    "Segoe UI", sans-serif;
+    "gg sans", "Noto Sans JP", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic",
+    "YuGothic", "Meiryo", "Segoe UI", sans-serif;
   --font-display:
-    "Space Grotesk", "Noto Sans JP", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic",
-    "YuGothic", "Meiryo", sans-serif;
+    "gg sans", "Space Grotesk", "Noto Sans JP", "Hiragino Sans", "Hiragino Kaku Gothic ProN",
+    "Yu Gothic", "YuGothic", "Meiryo", sans-serif;
   --radius: 0.625rem;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
@@ -75,6 +75,7 @@
   --llx-brand-blurple: #5865f2;
   --llx-brand-red: #ed4245;
   --llx-brand-yellow: #fee75c;
+  --llx-brand-green: #23a55a;
 }
 
 .dark {
@@ -120,6 +121,20 @@
   body {
     @apply bg-background text-foreground antialiased;
     font-family: var(--font-sans);
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: #1a1b1e;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
   }
 }
 
