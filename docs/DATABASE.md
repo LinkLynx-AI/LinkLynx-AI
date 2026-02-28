@@ -14,6 +14,7 @@
 
 - PostgreSQL: ユーザー、ギルド、権限、招待、監査、既読、Outbox などの正データ
 - ScyllaDB: メッセージ SoR（本文、編集状態、履歴ページング、read_state_hotpath）
+- GCS: 添付バイナリオブジェクトの SoR（署名URL運用 + 保持/復旧基準）
 
 ## 2. PostgreSQL の現在状態
 
@@ -108,6 +109,13 @@ The source of truth for Dragonfly-backed session continuity (`session TTL`, `res
 - `database/contracts/lin587_session_resume_runtime_contract.md`
 - `docs/runbooks/session-resume-dragonfly-operations-runbook.md`
 
+### 2.8 GCS Attachment Operations Baseline (LIN-590)
+
+The source of truth for attachment binary operations on GCS (signed URL policy, object key naming, versioning/retention, and accidental deletion recovery baseline) is:
+
+- `database/contracts/lin590_gcs_signed_url_and_retention_baseline.md`
+- `docs/runbooks/gcs-signed-url-retention-operations-runbook.md`
+
 ## 3. ScyllaDB の現在状態
 
 基準: `database/scylla/001_lin139_messages.cql`
@@ -165,3 +173,6 @@ The source of truth for Scylla operations (SoR boundary, partition review criter
 - LIN-589 Scylla operations baseline:
   - `database/contracts/lin589_scylla_sor_partition_baseline.md`
   - `docs/runbooks/scylla-node-loss-backup-runbook.md`
+- LIN-590 GCS attachment operations baseline:
+  - `database/contracts/lin590_gcs_signed_url_and_retention_baseline.md`
+  - `docs/runbooks/gcs-signed-url-retention-operations-runbook.md`
