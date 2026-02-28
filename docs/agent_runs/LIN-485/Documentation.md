@@ -25,7 +25,7 @@
   - `make rust-lint`: passed
 - Reviewer gate: `reviewer unavailable` -> manual review passed (`P1+` none)
 - UI gate: manual (`true`, UI変更あり)
-- PR: not created in this run
+- PR: https://github.com/LinkLynx-AI/LinkLynx-AI/pull/733
 
 ### LIN-518
 - Branch: `codex/lin-485-feat-ui_main` (local implementation)
@@ -40,7 +40,7 @@
   - `make rust-lint`: passed
 - Reviewer gate: `reviewer unavailable` -> manual review passed (`P1+` none)
 - UI gate: manual (`true`, UI変更あり)
-- PR: not created in this run
+- PR: https://github.com/LinkLynx-AI/LinkLynx-AI/pull/733
 
 ### LIN-516
 - Branch: `codex/lin-485-feat-ui_main` (local implementation)
@@ -55,7 +55,7 @@
   - `make rust-lint`: passed
 - Reviewer gate: `reviewer unavailable` -> manual review passed (`P1+` none)
 - UI gate: manual (`true`, UI変更あり)
-- PR: not created in this run
+- PR: https://github.com/LinkLynx-AI/LinkLynx-AI/pull/733
 
 ### LIN-523
 - Branch: `codex/lin-485-feat-ui_main` (local implementation)
@@ -70,7 +70,8 @@
   - `make rust-lint`: passed
 - Reviewer gate: `reviewer unavailable` -> manual review passed (`P1+` none)
 - UI gate: manual (`true`, UI変更あり)
-- PR: not created in this run
+- PR: https://github.com/LinkLynx-AI/LinkLynx-AI/pull/733
 
 ## Notes
 - ローカル環境の Node は `v22.4.0` で、一部依存の `engines` 警告（`v22.12.0` 以上推奨）が出るが、lint/typecheck/test は通過している。
+- PR #733 は `main` 向けのため、運用ルールどおり auto-merge は有効化せず人手レビュー待ち。
