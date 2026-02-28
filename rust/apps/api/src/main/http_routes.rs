@@ -84,6 +84,8 @@ async fn rest_auth_middleware(
     next: Next,
 ) -> Response {
     let request_id = request_id_from_headers(request.headers());
+    let request_method = request.method().clone();
+    let request_path = request.uri().path().to_owned();
 
     let token = match bearer_token_from_headers(request.headers()) {
         Ok(token) => token,
@@ -121,6 +123,39 @@ async fn rest_auth_middleware(
         email_verified = true,
         "REST auth accepted"
     );
+
+    let action = match request_method {
+        axum::http::Method::GET | axum::http::Method::HEAD => AuthzAction::View,
+        axum::http::Method::POST => AuthzAction::Post,
+        _ => AuthzAction::Manage,
+    };
+    let action_label = match action {
+        AuthzAction::Connect => "connect",
+        AuthzAction::View => "view",
+        AuthzAction::Post => "post",
+        AuthzAction::Manage => "manage",
+    };
+    let authz_input = AuthzCheckInput {
+        principal_id: authenticated.principal_id,
+        resource: AuthzResource::RestPath {
+            path: request_path.clone(),
+        },
+        action,
+    };
+    if let Err(error) = state.authorizer.check(&authz_input).await {
+        tracing::warn!(
+            decision = %error.decision(),
+            request_id = %request_id,
+            principal_id = authenticated.principal_id.0,
+            error_class = %error.log_class(),
+            reason = %error.reason,
+            resource = %request_path,
+            action = action_label,
+            decision_source = "authorizer",
+            "REST authz rejected"
+        );
+        return authz_error_response(&error, request_id);
+    }
 
     request.extensions_mut().insert(AuthContext {
         request_id,
