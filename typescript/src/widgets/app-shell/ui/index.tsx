@@ -4,6 +4,8 @@ type AppShellPlaceholderProps = {
   children?: React.ReactNode;
 };
 
+export { CorePrimitivesPreview } from "./core-primitives-preview";
+
 /**
  * UI基盤のApp Shellプレースホルダを描画する。
  */
