@@ -7,6 +7,7 @@ mod tests {
         PrincipalProvisioner, PrincipalResolver, PrincipalStore, TokenVerifier, TokenVerifyError,
         VerifiedToken,
     };
+    use authz::{Authorizer, AuthzCheckInput, AuthzError};
     use axum::{body::to_bytes, http::StatusCode};
     use linklynx_shared::PrincipalId;
     use tower::ServiceExt;
@@ -14,6 +15,9 @@ mod tests {
     const MAX_RESPONSE_BYTES: usize = 16 * 1024;
 
     struct StaticTokenVerifier;
+    struct StaticAllowAllAuthorizer;
+    struct StaticDenyAuthorizer;
+    struct StaticUnavailableAuthorizer;
 
     #[async_trait]
     impl TokenVerifier for StaticTokenVerifier {
@@ -40,7 +44,32 @@ mod tests {
         }
     }
 
+    #[async_trait]
+    impl Authorizer for StaticAllowAllAuthorizer {
+        async fn check(&self, _input: &AuthzCheckInput) -> Result<(), AuthzError> {
+            Ok(())
+        }
+    }
+
+    #[async_trait]
+    impl Authorizer for StaticDenyAuthorizer {
+        async fn check(&self, _input: &AuthzCheckInput) -> Result<(), AuthzError> {
+            Err(AuthzError::denied("test_authz_denied"))
+        }
+    }
+
+    #[async_trait]
+    impl Authorizer for StaticUnavailableAuthorizer {
+        async fn check(&self, _input: &AuthzCheckInput) -> Result<(), AuthzError> {
+            Err(AuthzError::unavailable("test_authz_unavailable"))
+        }
+    }
+
     async fn app_for_test() -> Router {
+        app_for_test_with_authorizer(Arc::new(StaticAllowAllAuthorizer)).await
+    }
+
+    async fn app_for_test_with_authorizer(authorizer: Arc<dyn Authorizer>) -> Router {
         let metrics = Arc::new(AuthMetrics::default());
         let verifier: Arc<dyn TokenVerifier> = Arc::new(StaticTokenVerifier);
 
@@ -61,6 +90,7 @@ mod tests {
         let auth_service = Arc::new(AuthService::new(verifier, resolver, metrics));
         let state = AppState {
             auth_service,
+            authorizer,
             ws_reauth_grace: Duration::from_secs(30),
         };
 
@@ -162,6 +192,56 @@ mod tests {
             .unwrap();
 
         assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn protected_endpoint_returns_forbidden_when_authz_denied() {
+        let app = app_for_test_with_authorizer(Arc::new(StaticDenyAuthorizer)).await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/v1/protected/ping")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("x-request-id", "authz-denied-test")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "AUTHZ_DENIED");
+        assert_eq!(json["request_id"], "authz-denied-test");
+    }
+
+    #[tokio::test]
+    async fn protected_endpoint_returns_unavailable_when_authz_unavailable() {
+        let app = app_for_test_with_authorizer(Arc::new(StaticUnavailableAuthorizer)).await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/v1/protected/ping")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("x-request-id", "authz-unavailable-test")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "AUTHZ_UNAVAILABLE");
+        assert_eq!(json["request_id"], "authz-unavailable-test");
     }
 
     #[test]
