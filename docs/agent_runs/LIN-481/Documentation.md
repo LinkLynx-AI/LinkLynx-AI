@@ -2,7 +2,7 @@
 
 ## Status
 - Started: 2026-02-28
-- Current: LIN-490 completed, LIN-492 in progress
+- Current: LIN-490/LIN-492 completed, LIN-495 in progress
 
 ## Decisions
 - 子Issue順: LIN-490 -> LIN-492 -> LIN-495
@@ -10,6 +10,9 @@
 
 ## Validation Log
 - LIN-490
+  - `cd typescript && npm run typecheck`: pass
+  - `cd typescript && npm run lint`: pass
+- LIN-492
   - `cd typescript && npm run typecheck`: pass
   - `cd typescript && npm run lint`: pass
 

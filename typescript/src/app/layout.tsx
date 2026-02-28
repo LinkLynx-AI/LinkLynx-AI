@@ -13,8 +13,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ja">
-      <body className="bg-discord-darkest text-white">
+    <html lang="ja" className="dark">
+      <body>
         <Providers>{children}</Providers>
       </body>
     </html>

@@ -3,13 +3,66 @@
 @tailwind utilities;
 
 :root {
-  --foreground-rgb: 255, 255, 255;
-  --background-start-rgb: 30, 30, 30;
-  --background-end-rgb: 30, 30, 30;
+  --background: 0 0% 100%;
+  --foreground: 222 47% 11%;
+  --card: 210 40% 98%;
+  --card-foreground: 222 47% 11%;
+  --muted: 210 40% 94%;
+  --muted-foreground: 215 16% 45%;
+  --border: 214 32% 87%;
+  --input: 214 32% 87%;
+  --primary: 235 86% 65%;
+  --primary-foreground: 0 0% 100%;
+  --accent: 223 47% 91%;
+  --accent-foreground: 222 47% 11%;
+  --ring: 235 86% 65%;
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+
+  --font-sans:
+    "Noto Sans JP", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic",
+    "YuGothic", "Meiryo", "Segoe UI", sans-serif;
+  --font-display:
+    "Space Grotesk", "Noto Sans JP", "Hiragino Sans", "Hiragino Kaku Gothic ProN",
+    "Yu Gothic", "YuGothic", "Meiryo", sans-serif;
 }
 
-body {
-  color: rgb(var(--foreground-rgb));
-  background: linear-gradient(to bottom, transparent, rgb(var(--background-end-rgb)))
-    rgb(var(--background-start-rgb));
+.dark {
+  --background: 222 47% 11%;
+  --foreground: 210 40% 98%;
+  --card: 222 39% 14%;
+  --card-foreground: 210 40% 98%;
+  --muted: 222 30% 19%;
+  --muted-foreground: 216 15% 65%;
+  --border: 223 24% 25%;
+  --input: 223 24% 25%;
+  --primary: 235 86% 65%;
+  --primary-foreground: 0 0% 100%;
+  --accent: 223 24% 23%;
+  --accent-foreground: 210 40% 98%;
+  --ring: 235 86% 65%;
+  --destructive: 0 63% 46%;
+  --destructive-foreground: 210 40% 98%;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: var(--font-sans);
+  }
 }
