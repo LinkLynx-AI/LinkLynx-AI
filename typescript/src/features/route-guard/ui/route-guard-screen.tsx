@@ -75,12 +75,14 @@ export function RouteGuardScreen({ kind }: RouteGuardScreenProps) {
         <div className="mt-8 flex flex-wrap gap-3">
           <a
             href={content.primaryAction.href}
+            aria-label={`${content.primaryAction.label}: ${content.description}`}
             className="inline-flex items-center justify-center rounded-md bg-[var(--llx-brand-blurple)] px-4 py-2 text-sm font-medium text-white transition hover:brightness-110"
           >
             {content.primaryAction.label}
           </a>
           <a
             href={content.secondaryAction.href}
+            aria-label={`${content.secondaryAction.label}: ${content.description}`}
             className="inline-flex items-center justify-center rounded-md border border-[var(--llx-divider)] px-4 py-2 text-sm text-[var(--llx-text-secondary)] transition hover:bg-[var(--llx-bg-selected)]"
           >
             {content.secondaryAction.label}
