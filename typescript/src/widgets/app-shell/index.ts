@@ -1,0 +1,1 @@
+export { AppShellPlaceholder } from "./ui";
