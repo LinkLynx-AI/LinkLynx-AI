@@ -682,7 +682,7 @@ dependencies = [
 name = "linklynx_api"
 version = "0.1.0"
 dependencies = [
- "linklynx_domain",
+ "linklynx_domains",
 ]
 
 [[package]]
@@ -716,7 +716,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "linklynx_domain"
+name = "linklynx_domains"
 version = "0.1.0"
 dependencies = [
  "linklynx_shared",
@@ -727,7 +727,7 @@ dependencies = [
 name = "linklynx_infra"
 version = "0.1.0"
 dependencies = [
- "linklynx_domain",
+ "linklynx_domains",
  "uuid",
 ]
 
@@ -743,7 +743,7 @@ dependencies = [
 name = "linklynx_worker"
 version = "0.1.0"
 dependencies = [
- "linklynx_domain",
+ "linklynx_domains",
  "linklynx_infra",
  "tokio",
 ]

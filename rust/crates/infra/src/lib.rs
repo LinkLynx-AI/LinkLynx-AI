@@ -1,4 +1,4 @@
-use linklynx_domain::{DomainError, User, UserId, UserRepository};
+use linklynx_domains::{DomainError, User, UserId, UserRepository};
 
 pub struct NoopUserRepository;
 
@@ -15,7 +15,7 @@ impl UserRepository for NoopUserRepository {
 #[cfg(test)]
 mod tests {
     use super::NoopUserRepository;
-    use linklynx_domain::{User, UserId, UserRepository};
+    use linklynx_domains::{User, UserId, UserRepository};
     use uuid::Uuid;
 
     #[test]

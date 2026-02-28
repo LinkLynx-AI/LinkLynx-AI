@@ -1,5 +1,5 @@
 [package]
-name = "linklynx_domain"
+name = "linklynx_domains"
 version.workspace = true
 edition.workspace = true
 
