@@ -56,6 +56,7 @@
 ### 2.3 関係モデル（要点）
 
 - `guilds.owner_id -> users.id`
+- `users.id` は `users_id_seq` によるDB採番を既定とする（既存ID互換のため明示ID insert も許容）
 - `auth_identities(provider, provider_subject)` は外部認証主体（例: Firebase UID）を一意化し、`principal_id -> users.id` へ正規化
 - `guild_members(guild_id, user_id)` は `guilds/users` への多対多
 - `channels` は `channel_type` でギルドチャネル/DM を表現

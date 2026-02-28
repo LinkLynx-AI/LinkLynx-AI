@@ -24,6 +24,41 @@ pub trait PrincipalCache: Send + Sync {
     ) -> Result<(), String>;
 }
 
+/// principal自動プロビジョニング要求を保持する。
+#[derive(Debug, Clone)]
+pub struct PrincipalProvisionRequest {
+    pub email: String,
+    pub display_name: String,
+}
+
+impl PrincipalProvisionRequest {
+    /// 検証済みトークンからプロビジョニング要求を組み立てる。
+    /// @param verified Firebase検証済みトークン情報
+    /// @returns プロビジョニング要求
+    /// @throws なし
+    fn from_verified_token(verified: &VerifiedToken) -> Self {
+        Self {
+            email: normalized_email(&verified.uid, verified.email.as_deref()),
+            display_name: normalized_display_name(&verified.uid, verified.display_name.as_deref()),
+        }
+    }
+}
+
+/// principal自動プロビジョニング結果を保持する。
+#[derive(Debug, Clone, Copy)]
+pub struct PrincipalProvisionResult {
+    pub principal_id: PrincipalId,
+    pub retried: bool,
+}
+
+/// principal自動プロビジョニング失敗を表現する。
+#[derive(Debug, Clone)]
+pub enum PrincipalProvisionError {
+    InvalidInput(String),
+    Conflict(String),
+    DependencyUnavailable(String),
+}
+
 /// 永続ストア層を表現する。
 #[async_trait]
 pub trait PrincipalStore: Send + Sync {
@@ -37,6 +72,19 @@ pub trait PrincipalStore: Send + Sync {
         provider: &str,
         subject: &str,
     ) -> Result<Option<PrincipalId>, String>;
+
+    /// 永続ストアでprincipalを冪等生成する。
+    /// @param provider 認証プロバイダ
+    /// @param subject 外部主体値
+    /// @param request プロビジョニング要求
+    /// @returns principal_id
+    /// @throws PrincipalProvisionError 入力不正/競合/依存障害時
+    async fn find_or_provision_principal_id(
+        &self,
+        provider: &str,
+        subject: &str,
+        request: &PrincipalProvisionRequest,
+    ) -> Result<PrincipalProvisionResult, PrincipalProvisionError>;
 }
 
 /// uid->principal解決のキャッシュ付き実装を表現する。
@@ -76,11 +124,21 @@ impl CachingPrincipalResolver {
 
 #[async_trait]
 impl PrincipalResolver for CachingPrincipalResolver {
-    /// UIDからprincipal_idを解決する。
-    /// @param uid Firebase UID
+    /// UIDからprincipal_idを解決し、未解決時は自動プロビジョニングする。
+    /// @param verified Firebase検証済みトークン情報
     /// @returns principal_id
-    /// @throws PrincipalResolveError 未紐付け/依存障害時
-    async fn resolve_principal_id(&self, uid: &str) -> Result<PrincipalId, PrincipalResolveError> {
+    /// @throws PrincipalResolveError 入力不正/競合/依存障害時
+    async fn resolve_principal_id(
+        &self,
+        verified: &VerifiedToken,
+    ) -> Result<PrincipalId, PrincipalResolveError> {
+        let uid = verified.uid.trim();
+        if uid.is_empty() {
+            return Err(PrincipalResolveError::InvalidInput(
+                "firebase_uid_missing".to_owned(),
+            ));
+        }
+
         match self.cache.get(&self.provider, uid).await {
             Ok(Some(principal_id)) => {
                 self.metrics.record_principal_cache(true);
@@ -95,22 +153,67 @@ impl PrincipalResolver for CachingPrincipalResolver {
             }
         }
 
-        let principal_id = self
+        if let Some(principal_id) = self
             .store
             .find_principal_id(&self.provider, uid)
             .await
             .map_err(PrincipalResolveError::DependencyUnavailable)?
-            .ok_or(PrincipalResolveError::NotFound)?;
+        {
+            if let Err(error) = self
+                .cache
+                .set(&self.provider, uid, principal_id, self.cache_ttl)
+                .await
+            {
+                warn!(reason = %error, provider = %self.provider, uid = %uid, "failed to refresh principal cache");
+            }
+            return Ok(principal_id);
+        }
+
+        let provision_request = PrincipalProvisionRequest::from_verified_token(verified);
+        let provision_result = self
+            .store
+            .find_or_provision_principal_id(&self.provider, uid, &provision_request)
+            .await
+            .map_err(|error| {
+                self.metrics.record_principal_provision(false);
+                match error {
+                    PrincipalProvisionError::InvalidInput(reason) => {
+                        warn!(provider = %self.provider, uid = %uid, reason = %reason, "principal provisioning rejected by invalid input");
+                        PrincipalResolveError::InvalidInput(reason)
+                    }
+                    PrincipalProvisionError::Conflict(reason) => {
+                        warn!(provider = %self.provider, uid = %uid, reason = %reason, "principal provisioning conflict");
+                        PrincipalResolveError::Conflict(reason)
+                    }
+                    PrincipalProvisionError::DependencyUnavailable(reason) => {
+                        warn!(provider = %self.provider, uid = %uid, reason = %reason, "principal provisioning unavailable");
+                        PrincipalResolveError::DependencyUnavailable(reason)
+                    }
+                }
+            })?;
+
+        self.metrics.record_principal_provision(true);
+        if provision_result.retried {
+            self.metrics.record_principal_provision_retry();
+        }
 
         if let Err(error) = self
             .cache
-            .set(&self.provider, uid, principal_id, self.cache_ttl)
+            .set(&self.provider, uid, provision_result.principal_id, self.cache_ttl)
             .await
         {
-            warn!(reason = %error, provider = %self.provider, uid = %uid, "failed to refresh principal cache");
+            warn!(reason = %error, provider = %self.provider, uid = %uid, "failed to refresh principal cache after provisioning");
         }
 
-        Ok(principal_id)
+        info!(
+            provider = %self.provider,
+            uid = %uid,
+            principal_id = provision_result.principal_id.0,
+            retried = provision_result.retried,
+            "principal mapping provisioned"
+        );
+
+        Ok(provision_result.principal_id)
     }
 }
 
@@ -206,6 +309,7 @@ impl PrincipalCache for InMemoryPrincipalCache {
 pub struct InMemoryPrincipalStore {
     entries: Arc<RwLock<HashMap<String, PrincipalId>>>,
     available: Arc<AtomicBool>,
+    next_principal_id: Arc<AtomicI64>,
 }
 
 impl Default for InMemoryPrincipalStore {
@@ -213,6 +317,7 @@ impl Default for InMemoryPrincipalStore {
         Self {
             entries: Arc::new(RwLock::new(HashMap::new())),
             available: Arc::new(AtomicBool::new(true)),
+            next_principal_id: Arc::new(AtomicI64::new(10_000)),
         }
     }
 }
@@ -224,6 +329,7 @@ impl InMemoryPrincipalStore {
     /// @throws なし
     pub fn from_env() -> Self {
         let mut entries = HashMap::new();
+        let mut max_principal_id = 9_999_i64;
 
         if let Ok(seed) = env::var("AUTH_UID_PRINCIPAL_SEEDS") {
             for pair in seed.split(',').filter(|value| !value.trim().is_empty()) {
@@ -237,12 +343,14 @@ impl InMemoryPrincipalStore {
 
                 let key = format!("{}:{}", FIREBASE_PROVIDER, uid.trim());
                 entries.insert(key, PrincipalId(principal_id));
+                max_principal_id = max_principal_id.max(principal_id);
             }
         }
 
         Self {
             entries: Arc::new(RwLock::new(entries)),
             available: Arc::new(AtomicBool::new(true)),
+            next_principal_id: Arc::new(AtomicI64::new(max_principal_id + 1)),
         }
     }
 
@@ -256,6 +364,8 @@ impl InMemoryPrincipalStore {
     pub async fn insert(&self, provider: &str, subject: &str, principal_id: PrincipalId) {
         let key = format!("{provider}:{subject}");
         self.entries.write().await.insert(key, principal_id);
+        let next = principal_id.0.saturating_add(1);
+        self.next_principal_id.fetch_max(next, Ordering::Relaxed);
     }
 }
 
@@ -279,6 +389,51 @@ impl PrincipalStore for InMemoryPrincipalStore {
         let entries = self.entries.read().await;
         Ok(entries.get(&key).copied())
     }
+
+    /// 永続ストアでprincipalを冪等生成する。
+    /// @param provider 認証プロバイダ
+    /// @param subject 外部主体値
+    /// @param _request プロビジョニング要求
+    /// @returns principal_id
+    /// @throws PrincipalProvisionError 入力不正/依存障害時
+    async fn find_or_provision_principal_id(
+        &self,
+        provider: &str,
+        subject: &str,
+        _request: &PrincipalProvisionRequest,
+    ) -> Result<PrincipalProvisionResult, PrincipalProvisionError> {
+        if !self.available.load(Ordering::Relaxed) {
+            return Err(PrincipalProvisionError::DependencyUnavailable(
+                "principal_store_unavailable".to_owned(),
+            ));
+        }
+
+        if provider.trim().is_empty() || subject.trim().is_empty() {
+            return Err(PrincipalProvisionError::InvalidInput(
+                "principal_mapping_input_invalid".to_owned(),
+            ));
+        }
+
+        let key = format!("{provider}:{subject}");
+        {
+            let entries = self.entries.read().await;
+            if let Some(principal_id) = entries.get(&key).copied() {
+                return Ok(PrincipalProvisionResult {
+                    principal_id,
+                    retried: true,
+                });
+            }
+        }
+
+        let next = self.next_principal_id.fetch_add(1, Ordering::Relaxed);
+        let principal_id = PrincipalId(next.max(1));
+        let mut entries = self.entries.write().await;
+        let resolved = entries.entry(key).or_insert(principal_id);
+        Ok(PrincipalProvisionResult {
+            principal_id: *resolved,
+            retried: *resolved != principal_id,
+        })
+    }
 }
 
 /// Postgresのauth_identities参照を行う永続ストアを表現する。
@@ -298,6 +453,15 @@ enum PostgresTransportSecurity {
     TlsRequiredFailClose,
     NoTlsAllowed,
 }
+
+enum ProvisionAttemptError {
+    Conflict(String),
+    InvalidInput(String),
+    Retryable(String),
+}
+
+const LEGACY_PROVISION_PASSWORD_HASH: &str =
+    "$argon2id$v=19$m=65536,t=3,p=1$firebase$provisioned";
 
 impl PostgresPrincipalStore {
     /// Postgresストアを生成する。
@@ -435,6 +599,230 @@ impl PostgresPrincipalStore {
 
         Ok(row.map(|row| PrincipalId(row.get::<usize, i64>(0))))
     }
+
+    /// 新規ユーザー行を挿入してprincipal_idを払い出す。
+    /// @param client Postgresクライアント
+    /// @param request プロビジョニング要求
+    /// @returns principal_id
+    /// @throws ProvisionAttemptError 競合/入力不正/依存障害時
+    async fn insert_user_for_provision(
+        &self,
+        client: &Arc<tokio_postgres::Client>,
+        request: &PrincipalProvisionRequest,
+    ) -> Result<PrincipalId, ProvisionAttemptError> {
+        if request.email.trim().is_empty() || request.display_name.trim().is_empty() {
+            return Err(ProvisionAttemptError::InvalidInput(
+                "principal_profile_invalid".to_owned(),
+            ));
+        }
+
+        let modern_query =
+            "INSERT INTO users (email, display_name, theme, status_text) VALUES ($1, $2, 'dark', NULL) RETURNING id";
+        match client
+            .query_one(modern_query, &[&request.email, &request.display_name])
+            .await
+        {
+            Ok(row) => return Ok(PrincipalId(row.get::<usize, i64>(0))),
+            Err(error) => {
+                if is_email_unique_violation(&error) {
+                    return Err(ProvisionAttemptError::Conflict(
+                        "principal_provision_email_conflict".to_owned(),
+                    ));
+                }
+
+                if error.code() != Some(&SqlState::NOT_NULL_VIOLATION) {
+                    return Err(ProvisionAttemptError::Retryable(format!(
+                        "postgres_insert_user_failed:{error}"
+                    )));
+                }
+            }
+        }
+
+        let legacy_query = "INSERT INTO users (email, email_verified, password_hash, display_name, theme, status_text) VALUES ($1, TRUE, $3, $2, 'dark', NULL) RETURNING id";
+        client
+            .query_one(
+                legacy_query,
+                &[
+                    &request.email,
+                    &request.display_name,
+                    &LEGACY_PROVISION_PASSWORD_HASH,
+                ],
+            )
+            .await
+            .map(|row| PrincipalId(row.get::<usize, i64>(0)))
+            .map_err(|error| {
+                if is_email_unique_violation(&error) {
+                    return ProvisionAttemptError::Conflict(
+                        "principal_provision_email_conflict".to_owned(),
+                    );
+                }
+
+                ProvisionAttemptError::Retryable(format!("postgres_insert_user_failed:{error}"))
+            })
+    }
+
+    /// principal mappingを挿入する。
+    /// @param client Postgresクライアント
+    /// @param provider 認証プロバイダ
+    /// @param subject 外部主体値
+    /// @param principal_id principal_id
+    /// @returns 挿入成否
+    /// @throws ProvisionAttemptError 競合/依存障害時
+    async fn insert_identity_mapping(
+        &self,
+        client: &Arc<tokio_postgres::Client>,
+        provider: &str,
+        subject: &str,
+        principal_id: PrincipalId,
+    ) -> Result<bool, ProvisionAttemptError> {
+        let inserted = client
+            .query_opt(
+                "INSERT INTO auth_identities (provider, provider_subject, principal_id) VALUES ($1, $2, $3) ON CONFLICT (provider, provider_subject) DO NOTHING RETURNING principal_id",
+                &[&provider, &subject, &principal_id.0],
+            )
+            .await
+            .map_err(|error| {
+                if error.code() == Some(&SqlState::UNIQUE_VIOLATION) {
+                    return ProvisionAttemptError::Conflict(
+                        "principal_mapping_conflict".to_owned(),
+                    );
+                }
+                ProvisionAttemptError::Retryable(format!("postgres_insert_identity_failed:{error}"))
+            })?;
+
+        Ok(inserted.is_some())
+    }
+
+    /// プロビジョニングで不要化したユーザーを掃除する。
+    /// @param client Postgresクライアント
+    /// @param principal_id 掃除対象principal_id
+    /// @returns なし
+    /// @throws なし
+    async fn cleanup_orphan_user(
+        &self,
+        client: &Arc<tokio_postgres::Client>,
+        principal_id: PrincipalId,
+    ) {
+        if let Err(error) = client
+            .execute("DELETE FROM users WHERE id = $1", &[&principal_id.0])
+            .await
+        {
+            warn!(
+                principal_id = principal_id.0,
+                reason = %error,
+                "failed to cleanup orphan provisioned user"
+            );
+        }
+    }
+
+    /// 1回分のプロビジョニング試行を実行する。
+    /// @param client Postgresクライアント
+    /// @param provider 認証プロバイダ
+    /// @param subject 外部主体値
+    /// @param request プロビジョニング要求
+    /// @returns principal_id
+    /// @throws ProvisionAttemptError 競合/入力不正/依存障害時
+    async fn provision_once(
+        &self,
+        client: &Arc<tokio_postgres::Client>,
+        provider: &str,
+        subject: &str,
+        request: &PrincipalProvisionRequest,
+    ) -> Result<PrincipalProvisionResult, ProvisionAttemptError> {
+        if provider.trim().is_empty() || subject.trim().is_empty() {
+            return Err(ProvisionAttemptError::InvalidInput(
+                "principal_mapping_input_invalid".to_owned(),
+            ));
+        }
+
+        if let Some(existing) = self
+            .query_principal_id(client, provider, subject)
+            .await
+            .map_err(ProvisionAttemptError::Retryable)?
+        {
+            return Ok(PrincipalProvisionResult {
+                principal_id: existing,
+                retried: true,
+            });
+        }
+
+        let inserted_user = match self.insert_user_for_provision(client, request).await {
+            Ok(principal_id) => principal_id,
+            Err(ProvisionAttemptError::Conflict(reason)) => {
+                let resolved = self
+                    .query_principal_id(client, provider, subject)
+                    .await
+                    .map_err(ProvisionAttemptError::Retryable)?;
+                if let Some(principal_id) = resolved {
+                    return Ok(PrincipalProvisionResult {
+                        principal_id,
+                        retried: true,
+                    });
+                }
+
+                return Err(ProvisionAttemptError::Conflict(reason));
+            }
+            Err(error) => return Err(error),
+        };
+        let inserted_mapping =
+            match self
+                .insert_identity_mapping(client, provider, subject, inserted_user)
+                .await
+            {
+                Ok(inserted) => inserted,
+                Err(ProvisionAttemptError::Retryable(reason)) => {
+                    self.cleanup_orphan_user(client, inserted_user).await;
+                    return Err(ProvisionAttemptError::Retryable(reason));
+                }
+                Err(ProvisionAttemptError::Conflict(reason)) => {
+                    let resolved = self
+                        .query_principal_id(client, provider, subject)
+                        .await
+                        .map_err(ProvisionAttemptError::Retryable)?;
+                    if let Some(principal_id) = resolved {
+                        if principal_id != inserted_user {
+                            self.cleanup_orphan_user(client, inserted_user).await;
+                        }
+                        return Ok(PrincipalProvisionResult {
+                            principal_id,
+                            retried: true,
+                        });
+                    }
+
+                    self.cleanup_orphan_user(client, inserted_user).await;
+                    return Err(ProvisionAttemptError::Conflict(reason));
+                }
+                Err(error) => return Err(error),
+            };
+
+        if inserted_mapping {
+            return Ok(PrincipalProvisionResult {
+                principal_id: inserted_user,
+                retried: false,
+            });
+        }
+
+        let resolved = self
+            .query_principal_id(client, provider, subject)
+            .await
+            .map_err(ProvisionAttemptError::Retryable)?;
+
+        if let Some(principal_id) = resolved {
+            if principal_id != inserted_user {
+                self.cleanup_orphan_user(client, inserted_user).await;
+            }
+
+            return Ok(PrincipalProvisionResult {
+                principal_id,
+                retried: true,
+            });
+        }
+
+        self.cleanup_orphan_user(client, inserted_user).await;
+        Err(ProvisionAttemptError::Conflict(
+            "principal_mapping_conflict_unresolved".to_owned(),
+        ))
+    }
 }
 
 #[async_trait]
@@ -476,6 +864,61 @@ impl PrincipalStore for PostgresPrincipalStore {
             }
         }
     }
+
+    /// 永続ストアでprincipalを冪等生成する。
+    /// @param provider 認証プロバイダ
+    /// @param subject 外部主体値
+    /// @param request プロビジョニング要求
+    /// @returns principal_id
+    /// @throws PrincipalProvisionError 入力不正/競合/依存障害時
+    async fn find_or_provision_principal_id(
+        &self,
+        provider: &str,
+        subject: &str,
+        request: &PrincipalProvisionRequest,
+    ) -> Result<PrincipalProvisionResult, PrincipalProvisionError> {
+        let mut attempt = 0_u32;
+        loop {
+            let client = self
+                .select_client()
+                .await
+                .map_err(PrincipalProvisionError::DependencyUnavailable)?;
+
+            match self.provision_once(&client, provider, subject, request).await {
+                Ok(mut result) => {
+                    if attempt > 0 {
+                        result.retried = true;
+                    }
+                    return Ok(result);
+                }
+                Err(ProvisionAttemptError::InvalidInput(reason)) => {
+                    return Err(PrincipalProvisionError::InvalidInput(reason));
+                }
+                Err(ProvisionAttemptError::Conflict(reason)) => {
+                    return Err(PrincipalProvisionError::Conflict(reason));
+                }
+                Err(ProvisionAttemptError::Retryable(reason)) => {
+                    self.invalidate_pool().await;
+                    if attempt >= self.max_retries {
+                        return Err(PrincipalProvisionError::DependencyUnavailable(reason));
+                    }
+
+                    let delay = self.retry_delay(attempt);
+                    warn!(
+                        reason = %reason,
+                        provider = %provider,
+                        subject = %subject,
+                        attempt = attempt + 1,
+                        max_retries = self.max_retries,
+                        backoff_ms = delay.as_millis() as u64,
+                        "postgres principal provision failed; retrying with backoff"
+                    );
+                    tokio::time::sleep(delay).await;
+                    attempt = attempt.saturating_add(1);
+                }
+            }
+        }
+    }
 }
 
 /// 依存未構成時にfail-closeさせるprincipalストアを表現する。
@@ -510,6 +953,23 @@ impl PrincipalStore for UnavailablePrincipalStore {
     ) -> Result<Option<PrincipalId>, String> {
         Err(self.reason.clone())
     }
+
+    /// 常に依存障害として扱う。
+    /// @param _provider 認証プロバイダ
+    /// @param _subject 外部主体値
+    /// @param _request プロビジョニング要求
+    /// @returns なし
+    /// @throws PrincipalProvisionError 常に依存障害
+    async fn find_or_provision_principal_id(
+        &self,
+        _provider: &str,
+        _subject: &str,
+        _request: &PrincipalProvisionRequest,
+    ) -> Result<PrincipalProvisionResult, PrincipalProvisionError> {
+        Err(PrincipalProvisionError::DependencyUnavailable(
+            self.reason.clone(),
+        ))
+    }
 }
 
 /// 依存未構成時にfail-closeさせる検証器を表現する。
@@ -539,4 +999,60 @@ impl TokenVerifier for UnavailableTokenVerifier {
     async fn verify(&self, _token: &str) -> Result<VerifiedToken, TokenVerifyError> {
         Err(TokenVerifyError::DependencyUnavailable(self.reason.clone()))
     }
+}
+
+fn normalized_email(uid: &str, raw_email: Option<&str>) -> String {
+    if let Some(email) = raw_email.map(str::trim).filter(|value| !value.is_empty()) {
+        return email.to_ascii_lowercase();
+    }
+
+    let suffix = normalized_uid_fragment(uid);
+    format!("firebase+{suffix}@provision.local.invalid")
+}
+
+fn normalized_display_name(uid: &str, raw_display_name: Option<&str>) -> String {
+    if let Some(display_name) = raw_display_name
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        return display_name.to_owned();
+    }
+
+    let suffix = normalized_uid_fragment(uid)
+        .chars()
+        .take(12)
+        .collect::<String>();
+    format!("user-{suffix}")
+}
+
+fn normalized_uid_fragment(uid: &str) -> String {
+    let mut fragment = String::with_capacity(uid.len());
+    for ch in uid.chars() {
+        if ch.is_ascii_alphanumeric() {
+            fragment.push(ch.to_ascii_lowercase());
+        } else if ch == '-' || ch == '_' {
+            fragment.push(ch);
+        } else {
+            fragment.push('-');
+        }
+    }
+
+    let compact = fragment.trim_matches('-');
+    if compact.is_empty() {
+        return "unknown".to_owned();
+    }
+
+    compact.to_owned()
+}
+
+fn is_email_unique_violation(error: &tokio_postgres::Error) -> bool {
+    if error.code() != Some(&SqlState::UNIQUE_VIOLATION) {
+        return false;
+    }
+
+    error
+        .as_db_error()
+        .and_then(|db_error| db_error.constraint())
+        .map(|constraint| constraint == "uq_users_email_lower")
+        .unwrap_or(false)
 }

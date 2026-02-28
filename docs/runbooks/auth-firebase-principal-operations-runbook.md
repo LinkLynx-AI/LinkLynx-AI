@@ -33,13 +33,15 @@ Out of scope:
 - External identity source of truth: Firebase ID token (`sub` = UID)
 - Internal principal contract: `uid -> principal_id`
 - Mapping source: `auth_identities(provider, provider_subject) -> users.id`
+- Mapping generation trigger: first successful authentication performs idempotent auto-provisioning.
+- Provisioning conflict policy: do not auto-link by email; unresolved conflicts are fail-close.
 
 ### 2.2 Error mapping policy
 
 | failure class | REST | WS close code | app-level code |
 | --- | --- | --- | --- |
 | missing/invalid/expired token | `401` | `1008` | `AUTH_MISSING_TOKEN` / `AUTH_INVALID_TOKEN` / `AUTH_TOKEN_EXPIRED` |
-| principal mapping missing/invalid | `403` | `1008` | `AUTH_PRINCIPAL_NOT_MAPPED` |
+| principal provisioning conflict / unresolved mapping | `403` | `1008` | `AUTH_PRINCIPAL_NOT_MAPPED` |
 | auth dependency unavailable (JWKS/cache/store) | `503` | `1011` | `AUTH_UNAVAILABLE` |
 
 ### 2.3 WS token expiry and reauthentication
@@ -95,6 +97,9 @@ Required counters/gauges:
 - `auth_principal_cache_hit_total`
 - `auth_principal_cache_miss_total`
 - `auth_principal_cache_hit_ratio`
+- `auth_principal_provision_success_total`
+- `auth_principal_provision_failure_total`
+- `auth_principal_provision_retry_total`
 - `auth_ws_reauth_success_total`
 - `auth_ws_reauth_failure_total`
 
@@ -156,15 +161,19 @@ Primary response:
 - REST returns `401`.
 - WS denies or closes with `1008`.
 
-3. Missing principal mapping:
+3. First auth with unmapped UID:
+- REST protected endpoint returns `200` and mapping is auto-provisioned.
+- Repeated auth with same UID returns the same `principal_id` (idempotent).
+
+4. Provisioning conflict simulation (for example email unique conflict):
 - REST returns `403`.
 - WS closes with `1008`.
 
-4. Dependency unavailable simulation (JWKS/store):
+5. Dependency unavailable simulation (JWKS/store):
 - REST returns `503`.
 - WS closes with `1011`.
 
-5. Log and metrics checks:
+6. Log and metrics checks:
 - confirm `request_id` presence
 - confirm `principal_id` appears on allow logs
 - confirm metrics counters move for each scenario

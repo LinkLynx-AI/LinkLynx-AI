@@ -98,6 +98,8 @@ impl TokenVerifier for FirebaseTokenVerifier {
 
         Ok(VerifiedToken {
             uid: token_data.claims.sub,
+            email: token_data.claims.email,
+            display_name: token_data.claims.name,
             expires_at_epoch: token_data.claims.exp,
         })
     }
@@ -106,6 +108,8 @@ impl TokenVerifier for FirebaseTokenVerifier {
 #[derive(Debug, Deserialize)]
 struct FirebaseClaims {
     sub: String,
+    email: Option<String>,
+    name: Option<String>,
     exp: u64,
     iat: u64,
 }

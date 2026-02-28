@@ -2,7 +2,7 @@ use std::{
     collections::HashMap,
     env,
     sync::{
-        atomic::{AtomicBool, AtomicU64, Ordering},
+        atomic::{AtomicBool, AtomicI64, AtomicU64, Ordering},
         Arc,
     },
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
@@ -19,8 +19,8 @@ use linklynx_shared::PrincipalId;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use tokio::sync::{Mutex, RwLock};
-use tokio_postgres::NoTls;
-use tracing::warn;
+use tokio_postgres::{error::SqlState, NoTls};
+use tracing::{info, warn};
 use uuid::Uuid;
 
 const FIREBASE_PROVIDER: &str = "firebase";

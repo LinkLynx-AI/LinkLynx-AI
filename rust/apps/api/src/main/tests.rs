@@ -31,6 +31,8 @@ mod tests {
 
             Ok(VerifiedToken {
                 uid: uid.to_owned(),
+                email: None,
+                display_name: None,
                 expires_at_epoch: exp,
             })
         }
@@ -140,7 +142,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn protected_endpoint_returns_forbidden_when_mapping_missing() {
+    async fn protected_endpoint_provisions_principal_when_mapping_missing() {
         let app = app_for_test().await;
         let token = format!("u-unknown:{}", unix_timestamp_seconds() + 300);
         let response = app
@@ -154,7 +156,12 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["firebase_uid"], "u-unknown");
     }
 
     #[test]

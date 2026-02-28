@@ -380,6 +380,24 @@ COMMENT ON COLUMN public.users.password_hash IS 'Argon2id の PHC 文字列（�
 
 
 
+CREATE SEQUENCE public.users_id_seq
+    AS bigint
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+
+ALTER SEQUENCE public.users_id_seq OWNED BY public.users.id;
+
+
+
+ALTER TABLE ONLY public.users ALTER COLUMN id SET DEFAULT nextval('public.users_id_seq'::regclass);
+
+
+
 ALTER TABLE ONLY public.auth_identities
     ADD CONSTRAINT auth_identities_pkey PRIMARY KEY (provider, provider_subject);
 
@@ -686,5 +704,4 @@ ALTER TABLE ONLY public.invites
 
 ALTER TABLE ONLY public.password_reset_tokens
     ADD CONSTRAINT password_reset_tokens_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
-
 

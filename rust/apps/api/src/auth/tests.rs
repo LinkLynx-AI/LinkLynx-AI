@@ -65,8 +65,60 @@ mod tests {
 
             Ok(VerifiedToken {
                 uid: uid.to_owned(),
+                email: None,
+                display_name: None,
                 expires_at_epoch,
             })
+        }
+    }
+
+    #[derive(Clone)]
+    struct ConflictProvisionStore;
+
+    #[async_trait]
+    impl PrincipalStore for ConflictProvisionStore {
+        async fn find_principal_id(
+            &self,
+            _provider: &str,
+            _subject: &str,
+        ) -> Result<Option<PrincipalId>, String> {
+            Ok(None)
+        }
+
+        async fn find_or_provision_principal_id(
+            &self,
+            _provider: &str,
+            _subject: &str,
+            _request: &PrincipalProvisionRequest,
+        ) -> Result<PrincipalProvisionResult, PrincipalProvisionError> {
+            Err(PrincipalProvisionError::Conflict(
+                "principal_provision_email_conflict".to_owned(),
+            ))
+        }
+    }
+
+    #[derive(Clone)]
+    struct UnavailableProvisionStore;
+
+    #[async_trait]
+    impl PrincipalStore for UnavailableProvisionStore {
+        async fn find_principal_id(
+            &self,
+            _provider: &str,
+            _subject: &str,
+        ) -> Result<Option<PrincipalId>, String> {
+            Ok(None)
+        }
+
+        async fn find_or_provision_principal_id(
+            &self,
+            _provider: &str,
+            _subject: &str,
+            _request: &PrincipalProvisionRequest,
+        ) -> Result<PrincipalProvisionResult, PrincipalProvisionError> {
+            Err(PrincipalProvisionError::DependencyUnavailable(
+                "principal_store_unavailable".to_owned(),
+            ))
         }
     }
 
@@ -93,6 +145,109 @@ mod tests {
         let authenticated = service.authenticate_token(&token).await.unwrap();
         assert_eq!(authenticated.principal_id.0, 42);
         assert_eq!(authenticated.firebase_uid, "u-1");
+    }
+
+    #[tokio::test]
+    async fn auth_service_provisions_principal_on_first_authentication() {
+        let metrics = Arc::new(AuthMetrics::default());
+        let verifier: Arc<dyn TokenVerifier> = Arc::new(StaticTokenVerifier);
+        let resolver: Arc<dyn PrincipalResolver> = Arc::new(CachingPrincipalResolver::new(
+            FIREBASE_PROVIDER.to_owned(),
+            Arc::new(InMemoryPrincipalCache::default()),
+            Arc::new(InMemoryPrincipalStore::default()),
+            Duration::from_secs(30),
+            Arc::clone(&metrics),
+        ));
+
+        let service = AuthService::new(verifier, resolver, Arc::clone(&metrics));
+        let token = format!("u-first:{}", unix_timestamp_seconds() + 60);
+
+        let first = service.authenticate_token(&token).await.unwrap();
+        let second = service.authenticate_token(&token).await.unwrap();
+
+        assert_eq!(first.firebase_uid, "u-first");
+        assert_eq!(first.principal_id, second.principal_id);
+
+        let snapshot = metrics.snapshot();
+        assert_eq!(snapshot.principal_provision_success_total, 1);
+        assert_eq!(snapshot.principal_provision_failure_total, 0);
+    }
+
+    #[tokio::test]
+    async fn auth_service_maps_provision_conflict_to_forbidden() {
+        let metrics = Arc::new(AuthMetrics::default());
+        let verifier: Arc<dyn TokenVerifier> = Arc::new(StaticTokenVerifier);
+        let resolver: Arc<dyn PrincipalResolver> = Arc::new(CachingPrincipalResolver::new(
+            FIREBASE_PROVIDER.to_owned(),
+            Arc::new(InMemoryPrincipalCache::default()),
+            Arc::new(ConflictProvisionStore),
+            Duration::from_secs(30),
+            Arc::clone(&metrics),
+        ));
+        let service = AuthService::new(verifier, resolver, metrics);
+        let token = format!("u-conflict:{}", unix_timestamp_seconds() + 60);
+
+        let error = service.authenticate_token(&token).await.unwrap_err();
+        assert_eq!(error.kind, AuthErrorKind::PrincipalNotMapped);
+        assert_eq!(error.status_code(), StatusCode::FORBIDDEN);
+    }
+
+    #[tokio::test]
+    async fn auth_service_maps_provision_unavailable_to_service_unavailable() {
+        let metrics = Arc::new(AuthMetrics::default());
+        let verifier: Arc<dyn TokenVerifier> = Arc::new(StaticTokenVerifier);
+        let resolver: Arc<dyn PrincipalResolver> = Arc::new(CachingPrincipalResolver::new(
+            FIREBASE_PROVIDER.to_owned(),
+            Arc::new(InMemoryPrincipalCache::default()),
+            Arc::new(UnavailableProvisionStore),
+            Duration::from_secs(30),
+            Arc::clone(&metrics),
+        ));
+        let service = AuthService::new(verifier, resolver, metrics);
+        let token = format!("u-unavailable:{}", unix_timestamp_seconds() + 60);
+
+        let error = service.authenticate_token(&token).await.unwrap_err();
+        assert_eq!(error.kind, AuthErrorKind::DependencyUnavailable);
+        assert_eq!(error.status_code(), StatusCode::SERVICE_UNAVAILABLE);
+    }
+
+    #[tokio::test]
+    async fn auth_service_maps_invalid_uid_to_unauthorized() {
+        let metrics = Arc::new(AuthMetrics::default());
+        let verifier: Arc<dyn TokenVerifier> = Arc::new(StaticTokenVerifier);
+        let resolver: Arc<dyn PrincipalResolver> = Arc::new(CachingPrincipalResolver::new(
+            FIREBASE_PROVIDER.to_owned(),
+            Arc::new(InMemoryPrincipalCache::default()),
+            Arc::new(InMemoryPrincipalStore::default()),
+            Duration::from_secs(30),
+            Arc::clone(&metrics),
+        ));
+        let service = AuthService::new(verifier, resolver, metrics);
+        let token = format!(":{}", unix_timestamp_seconds() + 60);
+
+        let error = service.authenticate_token(&token).await.unwrap_err();
+        assert_eq!(error.kind, AuthErrorKind::InvalidToken);
+        assert_eq!(error.status_code(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn in_memory_store_provisions_idempotently() {
+        let store = InMemoryPrincipalStore::default();
+        let request = PrincipalProvisionRequest {
+            email: "first@example.com".to_owned(),
+            display_name: "First".to_owned(),
+        };
+
+        let first = store
+            .find_or_provision_principal_id(FIREBASE_PROVIDER, "u-idem", &request)
+            .await
+            .unwrap();
+        let second = store
+            .find_or_provision_principal_id(FIREBASE_PROVIDER, "u-idem", &request)
+            .await
+            .unwrap();
+
+        assert_eq!(first.principal_id, second.principal_id);
     }
 
     #[test]
