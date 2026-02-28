@@ -131,6 +131,14 @@ mod tests {
         assert_eq!(response.headers().get(RETRY_AFTER).unwrap(), "1");
     }
 
+    #[test]
+    fn auth_error_email_not_verified_maps_to_forbidden() {
+        let error = AuthError::email_not_verified("firebase_email_not_verified");
+        assert_eq!(error.status_code(), axum::http::StatusCode::FORBIDDEN);
+        assert_eq!(error.app_code(), "AUTH_EMAIL_NOT_VERIFIED");
+        assert_eq!(error.ws_close_code(), 1008);
+    }
+
     #[tokio::test]
     async fn jwks_cache_respects_missing_kid_refresh_backoff() {
         let client = Client::builder()
