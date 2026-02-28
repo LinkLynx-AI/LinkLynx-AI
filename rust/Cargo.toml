@@ -2,7 +2,7 @@
 resolver = "2"
 members = [
     "crates/api",
-    "crates/domain",
+    "crates/domains",
     "crates/infra",
     "crates/shared",
     "crates/worker",

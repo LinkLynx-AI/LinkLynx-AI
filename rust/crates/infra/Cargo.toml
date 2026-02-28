@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-linklynx_domain = { path = "../domain" }
+linklynx_domains = { path = "../domains" }
 
 [dev-dependencies]
 uuid.workspace = true
