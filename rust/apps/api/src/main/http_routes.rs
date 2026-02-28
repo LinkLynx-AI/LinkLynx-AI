@@ -118,6 +118,7 @@ async fn rest_auth_middleware(
         request_id = %request_id,
         principal_id = authenticated.principal_id.0,
         firebase_uid = %authenticated.firebase_uid,
+        email_verified = true,
         "REST auth accepted"
     );
 

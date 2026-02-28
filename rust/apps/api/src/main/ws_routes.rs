@@ -43,6 +43,7 @@ async fn ws_handler(
         request_id = %request_id,
         principal_id = authenticated.principal_id.0,
         firebase_uid = %authenticated.firebase_uid,
+        email_verified = true,
         "WS auth accepted at handshake"
     );
 
@@ -231,6 +232,7 @@ async fn handle_socket_message(
                             request_id = %request_id,
                             principal_id = authenticated.principal_id.0,
                             firebase_uid = %authenticated.firebase_uid,
+                            email_verified = true,
                             "WS reauth accepted"
                         );
 

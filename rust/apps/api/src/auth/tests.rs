@@ -65,6 +65,9 @@ mod tests {
 
             Ok(VerifiedToken {
                 uid: uid.to_owned(),
+                email: Some(format!("{uid}@example.com")),
+                email_verified: true,
+                display_name: Some(uid.to_owned()),
                 expires_at_epoch,
             })
         }
@@ -74,15 +77,18 @@ mod tests {
     async fn auth_service_resolves_principal() {
         let metrics = Arc::new(AuthMetrics::default());
         let verifier: Arc<dyn TokenVerifier> = Arc::new(StaticTokenVerifier);
-        let store = InMemoryPrincipalStore::default();
+        let store = Arc::new(InMemoryPrincipalStore::default());
         store
             .insert(FIREBASE_PROVIDER, "u-1", PrincipalId(42))
             .await;
+        let store_resolver: Arc<dyn PrincipalStore> = store.clone();
+        let provisioner: Arc<dyn PrincipalProvisioner> = store.clone();
 
         let resolver: Arc<dyn PrincipalResolver> = Arc::new(CachingPrincipalResolver::new(
             FIREBASE_PROVIDER.to_owned(),
             Arc::new(InMemoryPrincipalCache::default()),
-            Arc::new(store),
+            store_resolver,
+            provisioner,
             Duration::from_secs(30),
             Arc::clone(&metrics),
         ));
@@ -119,6 +125,14 @@ mod tests {
             AuthError::dependency_unavailable("downstream_down").decision(),
             "unavailable"
         );
+    }
+
+    #[test]
+    fn auth_error_email_not_verified_maps_to_forbidden() {
+        let error = AuthError::email_not_verified("firebase_email_not_verified");
+        assert_eq!(error.status_code(), axum::http::StatusCode::FORBIDDEN);
+        assert_eq!(error.app_code(), "AUTH_EMAIL_NOT_VERIFIED");
+        assert_eq!(error.ws_close_code(), 1008);
     }
 
     #[tokio::test]
@@ -365,33 +379,55 @@ mod tests {
         let _lock = env_lock().lock().await;
         let mut scoped = ScopedEnv::new();
         scoped.remove("DATABASE_URL");
-        scoped.remove("AUTH_ALLOW_IN_MEMORY_PRINCIPAL_STORE");
-        scoped.remove("AUTH_UID_PRINCIPAL_SEEDS");
 
-        let store = build_runtime_principal_store();
+        let metrics = Arc::new(AuthMetrics::default());
+        let (store, provisioner) = build_runtime_principal_dependencies(metrics);
         let error = store
             .find_principal_id(FIREBASE_PROVIDER, "u-1")
             .await
             .unwrap_err();
+        let provision_error = provisioner
+            .provision_principal_id(
+                FIREBASE_PROVIDER,
+                &VerifiedToken {
+                    uid: "u-1".to_owned(),
+                    email: Some("u-1@example.com".to_owned()),
+                    email_verified: true,
+                    display_name: None,
+                    expires_at_epoch: unix_timestamp_seconds() + 60,
+                },
+            )
+            .await
+            .unwrap_err();
 
         assert_eq!(error, "principal_store_unconfigured");
+        assert!(matches!(
+            provision_error,
+            PrincipalProvisionError::DependencyUnavailable(_)
+        ));
     }
 
     #[tokio::test]
-    async fn runtime_principal_store_uses_seeded_mappings_when_opted_in() {
-        let _lock = env_lock().lock().await;
-        let mut scoped = ScopedEnv::new();
-        scoped.remove("DATABASE_URL");
-        scoped.set("AUTH_ALLOW_IN_MEMORY_PRINCIPAL_STORE", "true");
-        scoped.set("AUTH_UID_PRINCIPAL_SEEDS", "u-1=7001");
+    async fn in_memory_provisioner_creates_mapping_idempotently() {
+        let store = InMemoryPrincipalStore::default();
+        let verified = VerifiedToken {
+            uid: "u-new".to_owned(),
+            email: Some("new@example.com".to_owned()),
+            email_verified: true,
+            display_name: Some("New User".to_owned()),
+            expires_at_epoch: unix_timestamp_seconds() + 60,
+        };
 
-        let store = build_runtime_principal_store();
-        let resolved = store
-            .find_principal_id(FIREBASE_PROVIDER, "u-1")
+        let first = store
+            .provision_principal_id(FIREBASE_PROVIDER, &verified)
+            .await
+            .unwrap();
+        let second = store
+            .provision_principal_id(FIREBASE_PROVIDER, &verified)
             .await
             .unwrap();
 
-        assert_eq!(resolved, Some(PrincipalId(7001)));
+        assert_eq!(first, second);
     }
 
     #[tokio::test]
@@ -422,7 +458,10 @@ mod tests {
         let mut scoped = ScopedEnv::new();
         scoped.remove("AUTH_ALLOW_POSTGRES_NOTLS");
 
-        let store = PostgresPrincipalStore::new("postgres://localhost/test".to_owned());
+        let store = PostgresPrincipalStore::new(
+            "postgres://localhost/test".to_owned(),
+            Arc::new(AuthMetrics::default()),
+        );
         let error = store.connect_client().await.unwrap_err();
         assert!(error.starts_with("postgres_tls_required"));
     }
@@ -433,7 +472,10 @@ mod tests {
         let mut scoped = ScopedEnv::new();
         scoped.set("AUTH_ALLOW_POSTGRES_NOTLS", "true");
 
-        let store = PostgresPrincipalStore::new("postgres://127.0.0.1:9/test".to_owned());
+        let store = PostgresPrincipalStore::new(
+            "postgres://127.0.0.1:9/test".to_owned(),
+            Arc::new(AuthMetrics::default()),
+        );
         let error = store.connect_client().await.unwrap_err();
         assert!(error.starts_with("postgres_connect_notls_failed:"));
     }
@@ -444,7 +486,10 @@ mod tests {
         let mut scoped = ScopedEnv::new();
         scoped.set("AUTH_PRINCIPAL_STORE_RETRY_BASE_BACKOFF_MS", "10");
 
-        let store = PostgresPrincipalStore::new("postgres://localhost/test".to_owned());
+        let store = PostgresPrincipalStore::new(
+            "postgres://localhost/test".to_owned(),
+            Arc::new(AuthMetrics::default()),
+        );
         assert_eq!(store.retry_delay(0), Duration::from_millis(10));
         assert_eq!(store.retry_delay(1), Duration::from_millis(20));
         assert_eq!(store.retry_delay(2), Duration::from_millis(40));
