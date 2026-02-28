@@ -15,8 +15,8 @@
 
 | Name | Type | Definition |
 | ---- | ---- | ---------- |
-| channel_permission_overrides_pkey | PRIMARY KEY | PRIMARY KEY (channel_id, level) |
 | channel_permission_overrides_channel_id_fkey | FOREIGN KEY | FOREIGN KEY (channel_id) REFERENCES channels(id) ON DELETE CASCADE |
+| channel_permission_overrides_pkey | PRIMARY KEY | PRIMARY KEY (channel_id, level) |
 
 ## Indexes
 

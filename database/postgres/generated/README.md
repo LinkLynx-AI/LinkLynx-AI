@@ -1,33 +1,32 @@
-# tbls_gen_1772196483_8061
+# linklynx
 
 ## Tables
 
 | Name | Columns | Comment | Type |
 | ---- | ------- | ------- | ---- |
-| [public.audit_logs](public.audit_logs.md) | 8 |  | BASE TABLE |
-| [public.channel_last_message](public.channel_last_message.md) | 4 |  | BASE TABLE |
+| [public.users](public.users.md) | 8 |  | BASE TABLE |
+| [public.guilds](public.guilds.md) | 6 |  | BASE TABLE |
+| [public.guild_members](public.guild_members.md) | 4 |  | BASE TABLE |
+| [public.invites](public.invites.md) | 9 |  | BASE TABLE |
+| [public.invite_uses](public.invite_uses.md) | 3 |  | BASE TABLE |
+| [public.channels](public.channels.md) | 7 |  | BASE TABLE |
+| [public.dm_participants](public.dm_participants.md) | 2 |  | BASE TABLE |
+| [public.dm_pairs](public.dm_pairs.md) | 3 |  | BASE TABLE |
+| [public.guild_roles](public.guild_roles.md) | 3 |  | BASE TABLE |
+| [public.guild_member_roles](public.guild_member_roles.md) | 3 |  | BASE TABLE |
 | [public.channel_permission_overrides](public.channel_permission_overrides.md) | 4 |  | BASE TABLE |
 | [public.channel_reads](public.channel_reads.md) | 5 |  | BASE TABLE |
-| [public.channels](public.channels.md) | 7 |  | BASE TABLE |
-| [public.dm_pairs](public.dm_pairs.md) | 3 |  | BASE TABLE |
-| [public.dm_participants](public.dm_participants.md) | 2 |  | BASE TABLE |
-| [public.email_verification_tokens](public.email_verification_tokens.md) | 4 |  | BASE TABLE |
-| [public.guild_member_roles](public.guild_member_roles.md) | 3 |  | BASE TABLE |
-| [public.guild_members](public.guild_members.md) | 4 |  | BASE TABLE |
-| [public.guild_roles](public.guild_roles.md) | 3 |  | BASE TABLE |
-| [public.guilds](public.guilds.md) | 6 |  | BASE TABLE |
-| [public.invite_uses](public.invite_uses.md) | 3 |  | BASE TABLE |
-| [public.invites](public.invites.md) | 9 |  | BASE TABLE |
+| [public.channel_last_message](public.channel_last_message.md) | 4 |  | BASE TABLE |
+| [public.audit_logs](public.audit_logs.md) | 8 |  | BASE TABLE |
 | [public.outbox_events](public.outbox_events.md) | 9 |  | BASE TABLE |
-| [public.password_reset_tokens](public.password_reset_tokens.md) | 4 |  | BASE TABLE |
-| [public.users](public.users.md) | 10 |  | BASE TABLE |
+| [public.auth_identities](public.auth_identities.md) | 5 |  | BASE TABLE |
 
 ## Stored procedures and functions
 
 | Name | ReturnType | Arguments | Type |
 | ---- | ------- | ------- | ---- |
-| public.enforce_dm_pairs_channel_type | trigger |  | FUNCTION |
 | public.set_users_updated_at | trigger |  | FUNCTION |
+| public.enforce_dm_pairs_channel_type | trigger |  | FUNCTION |
 | public.upsert_channel_reads_monotonic | void | p_channel_id bigint, p_user_id bigint, p_last_read_message_id bigint, p_last_client_seq bigint | FUNCTION |
 | public.claim_outbox_events | record | p_limit integer DEFAULT 50, p_lease_seconds integer DEFAULT 30 | FUNCTION |
 | public.mark_outbox_event_sent | void | p_id bigint | FUNCTION |

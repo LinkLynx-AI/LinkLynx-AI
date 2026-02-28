@@ -28,8 +28,8 @@
 | Name | Definition |
 | ---- | ---------- |
 | outbox_events_pkey | CREATE UNIQUE INDEX outbox_events_pkey ON public.outbox_events USING btree (id) |
-| idx_outbox_failed | CREATE INDEX idx_outbox_failed ON public.outbox_events USING btree (status, created_at DESC) WHERE (status = 'FAILED'::outbox_status) |
 | idx_outbox_pending | CREATE INDEX idx_outbox_pending ON public.outbox_events USING btree (status, next_retry_at, created_at) |
+| idx_outbox_failed | CREATE INDEX idx_outbox_failed ON public.outbox_events USING btree (status, created_at DESC) WHERE (status = 'FAILED'::outbox_status) |
 
 ## Relations
 

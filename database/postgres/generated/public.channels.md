@@ -6,7 +6,7 @@
 
 | Name | Type | Default | Nullable | Children | Parents | Comment |
 | ---- | ---- | ------- | -------- | -------- | ------- | ------- |
-| id | bigint |  | false | [public.channel_last_message](public.channel_last_message.md) [public.channel_permission_overrides](public.channel_permission_overrides.md) [public.channel_reads](public.channel_reads.md) [public.dm_pairs](public.dm_pairs.md) [public.dm_participants](public.dm_participants.md) |  |  |
+| id | bigint |  | false | [public.dm_participants](public.dm_participants.md) [public.dm_pairs](public.dm_pairs.md) [public.channel_permission_overrides](public.channel_permission_overrides.md) [public.channel_reads](public.channel_reads.md) [public.channel_last_message](public.channel_last_message.md) |  |  |
 | type | channel_type |  | false |  |  |  |
 | guild_id | bigint |  | true |  | [public.guilds](public.guilds.md) |  |
 | name | text |  | true |  |  |  |
@@ -20,9 +20,9 @@
 | ---- | ---- | ---------- |
 | chk_channels_shape_dm | CHECK | CHECK (((type <> 'dm'::channel_type) OR (guild_id IS NULL))) |
 | chk_channels_shape_guild_text | CHECK | CHECK (((type <> 'guild_text'::channel_type) OR ((guild_id IS NOT NULL) AND (name IS NOT NULL)))) |
-| channels_pkey | PRIMARY KEY | PRIMARY KEY (id) |
-| channels_guild_id_fkey | FOREIGN KEY | FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE |
 | channels_created_by_fkey | FOREIGN KEY | FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL |
+| channels_guild_id_fkey | FOREIGN KEY | FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE |
+| channels_pkey | PRIMARY KEY | PRIMARY KEY (id) |
 
 ## Indexes
 
