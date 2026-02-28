@@ -8,3 +8,4 @@
 - `session-resume-dragonfly-operations-runbook.md`: Session/resume/TTL continuity baseline on Dragonfly, including degraded behavior and TTL rollout/rollback procedure.
 - `scylla-node-loss-backup-runbook.md`: Scylla node-loss continuity decisions and minimum backup/restore execution baseline for v0.
 - `gcs-signed-url-retention-operations-runbook.md`: GCS attachment signed URL issuance/reissue flow, accidental deletion recovery, and retention policy change baseline.
+- `redpanda-topic-retention-replay-runbook.md`: Redpanda topic naming/retention change controls, replay execution, outage recovery, and rollback baseline for v1 event stream operations.

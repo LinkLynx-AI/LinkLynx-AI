@@ -115,6 +115,12 @@ The source of truth for attachment binary operations on GCS (signed URL policy, 
 
 - `database/contracts/lin590_gcs_signed_url_and_retention_baseline.md`
 - `docs/runbooks/gcs-signed-url-retention-operations-runbook.md`
+### 2.9 Event Stream Operations Baseline (LIN-601)
+
+The source of truth for v1 Redpanda event stream operations (topic naming, retention, replay/reprocess, and outage recovery baseline) is:
+
+- `database/contracts/lin601_redpanda_event_stream_baseline.md`
+- `docs/runbooks/redpanda-topic-retention-replay-runbook.md`
 
 ## 3. ScyllaDB の現在状態
 
@@ -176,3 +182,6 @@ The source of truth for Scylla operations (SoR boundary, partition review criter
 - LIN-590 GCS attachment operations baseline:
   - `database/contracts/lin590_gcs_signed_url_and_retention_baseline.md`
   - `docs/runbooks/gcs-signed-url-retention-operations-runbook.md`
+- LIN-601 Event stream operations baseline:
+  - `database/contracts/lin601_redpanda_event_stream_baseline.md`
+  - `docs/runbooks/redpanda-topic-retention-replay-runbook.md`
