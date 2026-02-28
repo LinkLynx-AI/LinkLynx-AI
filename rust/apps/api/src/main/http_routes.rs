@@ -90,6 +90,7 @@ async fn rest_auth_middleware(
         Err(error) => {
             tracing::warn!(
                 decision = %error.decision(),
+                email_verification = %error.email_verification_result(),
                 request_id = %request_id,
                 error_class = %error.log_class(),
                 reason = %error.reason,
@@ -104,6 +105,7 @@ async fn rest_auth_middleware(
         Err(error) => {
             tracing::warn!(
                 decision = %error.decision(),
+                email_verification = %error.email_verification_result(),
                 request_id = %request_id,
                 error_class = %error.log_class(),
                 reason = %error.reason,
@@ -115,6 +117,7 @@ async fn rest_auth_middleware(
 
     tracing::info!(
         decision = "allow",
+        email_verification = "passed",
         request_id = %request_id,
         principal_id = authenticated.principal_id.0,
         firebase_uid = %authenticated.firebase_uid,

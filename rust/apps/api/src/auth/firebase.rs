@@ -98,6 +98,7 @@ impl TokenVerifier for FirebaseTokenVerifier {
 
         Ok(VerifiedToken {
             uid: token_data.claims.sub,
+            email_verified: token_data.claims.email_verified,
             expires_at_epoch: token_data.claims.exp,
         })
     }
@@ -106,6 +107,8 @@ impl TokenVerifier for FirebaseTokenVerifier {
 #[derive(Debug, Deserialize)]
 struct FirebaseClaims {
     sub: String,
+    #[serde(default)]
+    email_verified: bool,
     exp: u64,
     iat: u64,
 }

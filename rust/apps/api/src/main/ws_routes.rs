@@ -15,6 +15,7 @@ async fn ws_handler(
         Err(error) => {
             tracing::warn!(
                 decision = %error.decision(),
+                email_verification = %error.email_verification_result(),
                 request_id = %request_id,
                 error_class = %error.log_class(),
                 reason = %error.reason,
@@ -29,6 +30,7 @@ async fn ws_handler(
         Err(error) => {
             tracing::warn!(
                 decision = %error.decision(),
+                email_verification = %error.email_verification_result(),
                 request_id = %request_id,
                 error_class = %error.log_class(),
                 reason = %error.reason,
@@ -40,6 +42,7 @@ async fn ws_handler(
 
     tracing::info!(
         decision = "allow",
+        email_verification = "passed",
         request_id = %request_id,
         principal_id = authenticated.principal_id.0,
         firebase_uid = %authenticated.firebase_uid,
@@ -214,6 +217,7 @@ async fn handle_socket_message(
                             state.auth_service.metrics().record_ws_reauth(false);
                             tracing::warn!(
                                 decision = "deny",
+                                email_verification = "passed",
                                 request_id = %request_id,
                                 error_class = "principal_changed",
                                 reason = "principal_changed",
@@ -228,6 +232,7 @@ async fn handle_socket_message(
                         state.auth_service.metrics().record_ws_reauth(true);
                         tracing::info!(
                             decision = "allow",
+                            email_verification = "passed",
                             request_id = %request_id,
                             principal_id = authenticated.principal_id.0,
                             firebase_uid = %authenticated.firebase_uid,
@@ -246,6 +251,7 @@ async fn handle_socket_message(
                         state.auth_service.metrics().record_ws_reauth(false);
                         tracing::warn!(
                             decision = %error.decision(),
+                            email_verification = %error.email_verification_result(),
                             request_id = %request_id,
                             error_class = %error.log_class(),
                             reason = %error.reason,

@@ -22,6 +22,7 @@ pub trait PrincipalResolver: Send + Sync {
 #[derive(Debug, Clone)]
 pub struct VerifiedToken {
     pub uid: String,
+    pub email_verified: bool,
     pub expires_at_epoch: u64,
 }
 
@@ -101,6 +102,10 @@ impl AuthService {
                 return Err(AuthError::dependency_unavailable(reason));
             }
         };
+
+        if !verified.email_verified {
+            return Err(AuthError::email_not_verified("email_not_verified"));
+        }
 
         let principal_id = self
             .resolver

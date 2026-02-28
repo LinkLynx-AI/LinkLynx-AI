@@ -51,9 +51,22 @@ mod tests {
     #[async_trait]
     impl TokenVerifier for StaticTokenVerifier {
         async fn verify(&self, token: &str) -> Result<VerifiedToken, TokenVerifyError> {
-            let Some((uid, exp)) = token.split_once(':') else {
+            let mut segments = token.split(':');
+            let Some(uid) = segments.next() else {
                 return Err(TokenVerifyError::Invalid("token_format_invalid"));
             };
+            let Some(exp) = segments.next() else {
+                return Err(TokenVerifyError::Invalid("token_format_invalid"));
+            };
+            let email_verified = match segments.next() {
+                None => false,
+                Some("true" | "1") => true,
+                Some("false" | "0") => false,
+                Some(_) => return Err(TokenVerifyError::Invalid("token_verified_invalid")),
+            };
+            if segments.next().is_some() {
+                return Err(TokenVerifyError::Invalid("token_format_invalid"));
+            }
 
             let expires_at_epoch = exp
                 .parse::<u64>()
@@ -65,6 +78,7 @@ mod tests {
 
             Ok(VerifiedToken {
                 uid: uid.to_owned(),
+                email_verified,
                 expires_at_epoch,
             })
         }
@@ -88,11 +102,50 @@ mod tests {
         ));
 
         let service = AuthService::new(verifier, resolver, metrics);
-        let token = format!("u-1:{}", unix_timestamp_seconds() + 60);
+        let token = format!("u-1:{}:true", unix_timestamp_seconds() + 60);
 
         let authenticated = service.authenticate_token(&token).await.unwrap();
         assert_eq!(authenticated.principal_id.0, 42);
         assert_eq!(authenticated.firebase_uid, "u-1");
+    }
+
+    #[tokio::test]
+    async fn auth_service_rejects_unverified_email_before_principal_resolution() {
+        let metrics = Arc::new(AuthMetrics::default());
+        let verifier: Arc<dyn TokenVerifier> = Arc::new(StaticTokenVerifier);
+        let resolver: Arc<dyn PrincipalResolver> = Arc::new(CachingPrincipalResolver::new(
+            FIREBASE_PROVIDER.to_owned(),
+            Arc::new(InMemoryPrincipalCache::default()),
+            Arc::new(InMemoryPrincipalStore::default()),
+            Duration::from_secs(30),
+            Arc::clone(&metrics),
+        ));
+
+        let service = AuthService::new(verifier, resolver, metrics);
+        let token = format!("u-unknown:{}:false", unix_timestamp_seconds() + 60);
+        let error = service.authenticate_token(&token).await.unwrap_err();
+
+        assert_eq!(error.kind, AuthErrorKind::EmailNotVerified);
+        assert_eq!(error.app_code(), "AUTH_EMAIL_NOT_VERIFIED");
+    }
+
+    #[tokio::test]
+    async fn auth_service_treats_missing_email_verified_claim_as_unverified() {
+        let metrics = Arc::new(AuthMetrics::default());
+        let verifier: Arc<dyn TokenVerifier> = Arc::new(StaticTokenVerifier);
+        let resolver: Arc<dyn PrincipalResolver> = Arc::new(CachingPrincipalResolver::new(
+            FIREBASE_PROVIDER.to_owned(),
+            Arc::new(InMemoryPrincipalCache::default()),
+            Arc::new(InMemoryPrincipalStore::default()),
+            Duration::from_secs(30),
+            Arc::clone(&metrics),
+        ));
+
+        let service = AuthService::new(verifier, resolver, metrics);
+        let token = format!("u-any:{}", unix_timestamp_seconds() + 60);
+        let error = service.authenticate_token(&token).await.unwrap_err();
+
+        assert_eq!(error.kind, AuthErrorKind::EmailNotVerified);
     }
 
     #[test]
@@ -119,6 +172,15 @@ mod tests {
             AuthError::dependency_unavailable("downstream_down").decision(),
             "unavailable"
         );
+    }
+
+    #[test]
+    fn auth_error_email_not_verified_maps_to_forbidden() {
+        let error = AuthError::email_not_verified("email_not_verified");
+        assert_eq!(error.status_code(), StatusCode::FORBIDDEN);
+        assert_eq!(error.app_code(), "AUTH_EMAIL_NOT_VERIFIED");
+        assert_eq!(error.ws_close_code(), 1008);
+        assert_eq!(error.email_verification_result(), "failed");
     }
 
     #[tokio::test]

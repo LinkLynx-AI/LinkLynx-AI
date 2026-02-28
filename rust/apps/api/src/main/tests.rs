@@ -17,9 +17,22 @@ mod tests {
     #[async_trait]
     impl TokenVerifier for StaticTokenVerifier {
         async fn verify(&self, token: &str) -> Result<VerifiedToken, TokenVerifyError> {
-            let Some((uid, exp)) = token.split_once(':') else {
+            let mut segments = token.split(':');
+            let Some(uid) = segments.next() else {
                 return Err(TokenVerifyError::Invalid("token_format_invalid"));
             };
+            let Some(exp) = segments.next() else {
+                return Err(TokenVerifyError::Invalid("token_format_invalid"));
+            };
+            let email_verified = match segments.next() {
+                None => false,
+                Some("true" | "1") => true,
+                Some("false" | "0") => false,
+                Some(_) => return Err(TokenVerifyError::Invalid("token_verified_invalid")),
+            };
+            if segments.next().is_some() {
+                return Err(TokenVerifyError::Invalid("token_format_invalid"));
+            }
 
             let exp = exp
                 .parse::<u64>()
@@ -31,6 +44,7 @@ mod tests {
 
             Ok(VerifiedToken {
                 uid: uid.to_owned(),
+                email_verified,
                 expires_at_epoch: exp,
             })
         }
@@ -114,7 +128,7 @@ mod tests {
     #[tokio::test]
     async fn protected_endpoint_accepts_valid_token() {
         let app = app_for_test().await;
-        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let token = format!("u-1:{}:true", unix_timestamp_seconds() + 300);
         let response = app
             .oneshot(
                 Request::builder()
@@ -142,7 +156,7 @@ mod tests {
     #[tokio::test]
     async fn protected_endpoint_returns_forbidden_when_mapping_missing() {
         let app = app_for_test().await;
-        let token = format!("u-unknown:{}", unix_timestamp_seconds() + 300);
+        let token = format!("u-unknown:{}:true", unix_timestamp_seconds() + 300);
         let response = app
             .oneshot(
                 Request::builder()
@@ -155,6 +169,29 @@ mod tests {
             .unwrap();
 
         assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    }
+
+    #[tokio::test]
+    async fn protected_endpoint_rejects_unverified_email_with_expected_code() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}:false", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/v1/protected/ping")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "AUTH_EMAIL_NOT_VERIFIED");
     }
 
     #[test]

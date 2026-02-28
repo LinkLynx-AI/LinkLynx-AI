@@ -30,6 +30,7 @@ pub enum AuthErrorKind {
     MissingToken,
     InvalidToken,
     ExpiredToken,
+    EmailNotVerified,
     PrincipalNotMapped,
     DependencyUnavailable,
 }
@@ -75,6 +76,17 @@ impl AuthError {
         }
     }
 
+    /// メール未確認エラーを生成する。
+    /// @param reason 失敗理由
+    /// @returns メール未確認エラー
+    /// @throws なし
+    pub fn email_not_verified(reason: impl Into<String>) -> Self {
+        Self {
+            kind: AuthErrorKind::EmailNotVerified,
+            reason: reason.into(),
+        }
+    }
+
     /// 主体未解決エラーを生成する。
     /// @param reason 失敗理由
     /// @returns 主体未解決エラー
@@ -106,7 +118,9 @@ impl AuthError {
             AuthErrorKind::MissingToken
             | AuthErrorKind::InvalidToken
             | AuthErrorKind::ExpiredToken => StatusCode::UNAUTHORIZED,
-            AuthErrorKind::PrincipalNotMapped => StatusCode::FORBIDDEN,
+            AuthErrorKind::EmailNotVerified | AuthErrorKind::PrincipalNotMapped => {
+                StatusCode::FORBIDDEN
+            }
             AuthErrorKind::DependencyUnavailable => StatusCode::SERVICE_UNAVAILABLE,
         }
     }
@@ -120,6 +134,7 @@ impl AuthError {
             AuthErrorKind::MissingToken => "AUTH_MISSING_TOKEN",
             AuthErrorKind::InvalidToken => "AUTH_INVALID_TOKEN",
             AuthErrorKind::ExpiredToken => "AUTH_TOKEN_EXPIRED",
+            AuthErrorKind::EmailNotVerified => "AUTH_EMAIL_NOT_VERIFIED",
             AuthErrorKind::PrincipalNotMapped => "AUTH_PRINCIPAL_NOT_MAPPED",
             AuthErrorKind::DependencyUnavailable => "AUTH_UNAVAILABLE",
         }
@@ -134,6 +149,7 @@ impl AuthError {
             AuthErrorKind::MissingToken => "authentication token is required",
             AuthErrorKind::InvalidToken => "authentication token is invalid",
             AuthErrorKind::ExpiredToken => "authentication token is expired",
+            AuthErrorKind::EmailNotVerified => "email verification is required",
             AuthErrorKind::PrincipalNotMapped => "principal mapping is not found",
             AuthErrorKind::DependencyUnavailable => "authentication dependency is unavailable",
         }
@@ -159,6 +175,7 @@ impl AuthError {
             AuthErrorKind::MissingToken => "missing_token",
             AuthErrorKind::InvalidToken => "invalid_token",
             AuthErrorKind::ExpiredToken => "expired_token",
+            AuthErrorKind::EmailNotVerified => "email_not_verified",
             AuthErrorKind::PrincipalNotMapped => "principal_not_mapped",
             AuthErrorKind::DependencyUnavailable => "dependency_unavailable",
         }
@@ -172,6 +189,17 @@ impl AuthError {
         match self.kind {
             AuthErrorKind::DependencyUnavailable => "unavailable",
             _ => "deny",
+        }
+    }
+
+    /// メール検証判定結果を返す。
+    /// @param なし
+    /// @returns メール検証結果
+    /// @throws なし
+    pub fn email_verification_result(&self) -> &'static str {
+        match self.kind {
+            AuthErrorKind::EmailNotVerified => "failed",
+            _ => "unknown",
         }
     }
 }

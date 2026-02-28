@@ -1,7 +1,7 @@
 # Firebase Auth / principal_id Operations Runbook (Draft)
 
 - Status: Draft
-- Last updated: 2026-02-27
+- Last updated: 2026-02-28
 - Owner scope: v0 auth operations baseline for REST/WS shared authentication
 - References:
   - [ADR-005 Dragonfly Outage RateLimit Failure Policy (Hybrid)](../adr/ADR-005-dragonfly-ratelimit-failure-policy.md)
@@ -39,6 +39,7 @@ Out of scope:
 | failure class | REST | WS close code | app-level code |
 | --- | --- | --- | --- |
 | missing/invalid/expired token | `401` | `1008` | `AUTH_MISSING_TOKEN` / `AUTH_INVALID_TOKEN` / `AUTH_TOKEN_EXPIRED` |
+| email not verified | `403` | `1008` | `AUTH_EMAIL_NOT_VERIFIED` |
 | principal mapping missing/invalid | `403` | `1008` | `AUTH_PRINCIPAL_NOT_MAPPED` |
 | auth dependency unavailable (JWKS/cache/store) | `503` | `1011` | `AUTH_UNAVAILABLE` |
 
@@ -75,6 +76,7 @@ Minimum required log fields on authentication decision paths:
 - `request_id`
 - `principal_id` (when resolved)
 - `firebase_uid` (when available)
+- `email_verification` (`passed` / `failed` / `unknown`)
 - `decision` (`allow` / `deny` / `unavailable`)
 - `error_class` (for non-allow decisions)
 - `reason`
@@ -160,12 +162,17 @@ Primary response:
 - REST returns `403`.
 - WS closes with `1008`.
 
-4. Dependency unavailable simulation (JWKS/store):
+4. Email not verified:
+- REST returns `403` with `AUTH_EMAIL_NOT_VERIFIED`.
+- WS closes with `1008`.
+
+5. Dependency unavailable simulation (JWKS/store):
 - REST returns `503`.
 - WS closes with `1011`.
 
-5. Log and metrics checks:
+6. Log and metrics checks:
 - confirm `request_id` presence
+- confirm `email_verification` field is recorded on auth decision logs
 - confirm `principal_id` appears on allow logs
 - confirm metrics counters move for each scenario
 
