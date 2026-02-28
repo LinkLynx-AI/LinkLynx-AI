@@ -11,7 +11,8 @@ pub fn build_runtime_auth_service(metrics: Arc<AuthMetrics>) -> AuthService {
         }
     };
 
-    let principal_store = build_runtime_principal_store();
+    let (principal_store, principal_provisioner) =
+        build_runtime_principal_dependencies(Arc::clone(&metrics));
     let principal_cache = InMemoryPrincipalCache::default();
     let cache_ttl_seconds = parse_env_u64("AUTH_PRINCIPAL_CACHE_TTL_SECONDS", 300);
 
@@ -19,6 +20,7 @@ pub fn build_runtime_auth_service(metrics: Arc<AuthMetrics>) -> AuthService {
         FIREBASE_PROVIDER.to_owned(),
         Arc::new(principal_cache),
         principal_store,
+        principal_provisioner,
         Duration::from_secs(cache_ttl_seconds),
         Arc::clone(&metrics),
     ));
@@ -26,25 +28,29 @@ pub fn build_runtime_auth_service(metrics: Arc<AuthMetrics>) -> AuthService {
     AuthService::new(verifier, resolver, metrics)
 }
 
-/// 実行時向けのprincipalストアを生成する。
-/// @param なし
-/// @returns principalストア実装
+/// 実行時向けのprincipalストア/生成器を生成する。
+/// @param metrics メトリクス集計器
+/// @returns principalストア実装と生成器実装
 /// @throws なし
-fn build_runtime_principal_store() -> Arc<dyn PrincipalStore> {
+fn build_runtime_principal_dependencies(
+    metrics: Arc<AuthMetrics>,
+) -> (Arc<dyn PrincipalStore>, Arc<dyn PrincipalProvisioner>) {
     match env::var("DATABASE_URL") {
         Ok(database_url) if !database_url.trim().is_empty() => {
-            Arc::new(PostgresPrincipalStore::new(database_url))
+            let postgres = Arc::new(PostgresPrincipalStore::new(database_url, metrics));
+            (
+                Arc::clone(&postgres) as Arc<dyn PrincipalStore>,
+                postgres as Arc<dyn PrincipalProvisioner>,
+            )
         }
         _ => {
-            if parse_env_bool("AUTH_ALLOW_IN_MEMORY_PRINCIPAL_STORE", false) {
-                warn!("using in-memory principal store due to AUTH_ALLOW_IN_MEMORY_PRINCIPAL_STORE=true");
-                Arc::new(InMemoryPrincipalStore::from_env())
-            } else {
-                warn!("DATABASE_URL missing; principal store will fail-close");
-                Arc::new(UnavailablePrincipalStore::new(
+            warn!("DATABASE_URL missing; principal store/provisioner will fail-close");
+            (
+                Arc::new(UnavailablePrincipalStore::new("principal_store_unconfigured")),
+                Arc::new(UnavailablePrincipalProvisioner::new(
                     "principal_store_unconfigured",
-                ))
-            }
+                )),
+            )
         }
     }
 }

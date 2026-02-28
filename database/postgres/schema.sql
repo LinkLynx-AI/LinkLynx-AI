@@ -53,6 +53,35 @@ CREATE TYPE public.role_level AS ENUM (
 
 
 
+CREATE FUNCTION public.claim_outbox_events(p_limit integer DEFAULT 50, p_lease_seconds integer DEFAULT 30) RETURNS TABLE(id bigint, event_type text, aggregate_id text, payload jsonb)
+    LANGUAGE sql
+    AS $$
+WITH pending AS (
+  SELECT outbox_events.id
+  FROM outbox_events
+  WHERE (
+    status = 'PENDING'
+    AND (next_retry_at IS NULL OR next_retry_at <= now())
+  ) OR (
+    status = 'FAILED'
+    AND next_retry_at IS NOT NULL
+    AND next_retry_at <= now()
+  )
+  ORDER BY created_at
+  LIMIT p_limit
+  FOR UPDATE SKIP LOCKED
+)
+UPDATE outbox_events o
+SET
+  next_retry_at = now() + make_interval(secs => p_lease_seconds),
+  updated_at = now()
+FROM pending
+WHERE o.id = pending.id
+RETURNING o.id, o.event_type, o.aggregate_id, o.payload;
+$$;
+
+
+
 CREATE FUNCTION public.enforce_dm_pairs_channel_type() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -72,6 +101,33 @@ $$;
 
 
 
+CREATE FUNCTION public.mark_outbox_event_failed(p_id bigint, p_retry_seconds integer DEFAULT 15) RETURNS void
+    LANGUAGE sql
+    AS $$
+UPDATE outbox_events
+SET
+  status = 'FAILED',
+  attempts = attempts + 1,
+  next_retry_at = now() + make_interval(secs => p_retry_seconds),
+  updated_at = now()
+WHERE id = p_id;
+$$;
+
+
+
+CREATE FUNCTION public.mark_outbox_event_sent(p_id bigint) RETURNS void
+    LANGUAGE sql
+    AS $$
+UPDATE outbox_events
+SET
+  status = 'SENT',
+  next_retry_at = NULL,
+  updated_at = now()
+WHERE id = p_id;
+$$;
+
+
+
 CREATE FUNCTION public.set_users_updated_at() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -80,6 +136,7 @@ BEGIN
   RETURN NEW;
 END;
 $$;
+
 
 
 CREATE FUNCTION public.upsert_channel_reads_monotonic(p_channel_id bigint, p_user_id bigint, p_last_read_message_id bigint, p_last_client_seq bigint) RETURNS void
@@ -116,74 +173,9 @@ SET
 $$;
 
 
-CREATE FUNCTION public.claim_outbox_events(p_limit integer DEFAULT 50, p_lease_seconds integer DEFAULT 30) RETURNS TABLE(id bigint, event_type text, aggregate_id text, payload jsonb)
-    LANGUAGE sql
-    AS $$
-WITH pending AS (
-  SELECT outbox_events.id
-  FROM outbox_events
-  WHERE (
-    status = 'PENDING'
-    AND (next_retry_at IS NULL OR next_retry_at <= now())
-  ) OR (
-    status = 'FAILED'
-    AND next_retry_at IS NOT NULL
-    AND next_retry_at <= now()
-  )
-  ORDER BY created_at
-  LIMIT p_limit
-  FOR UPDATE SKIP LOCKED
-)
-UPDATE outbox_events o
-SET
-  next_retry_at = now() + make_interval(secs => p_lease_seconds),
-  updated_at = now()
-FROM pending
-WHERE o.id = pending.id
-RETURNING o.id, o.event_type, o.aggregate_id, o.payload;
-$$;
-
-
-CREATE FUNCTION public.mark_outbox_event_sent(p_id bigint) RETURNS void
-    LANGUAGE sql
-    AS $$
-UPDATE outbox_events
-SET
-  status = 'SENT',
-  next_retry_at = NULL,
-  updated_at = now()
-WHERE id = p_id;
-$$;
-
-
-CREATE FUNCTION public.mark_outbox_event_failed(p_id bigint, p_retry_seconds integer DEFAULT 15) RETURNS void
-    LANGUAGE sql
-    AS $$
-UPDATE outbox_events
-SET
-  status = 'FAILED',
-  attempts = attempts + 1,
-  next_retry_at = now() + make_interval(secs => p_retry_seconds),
-  updated_at = now()
-WHERE id = p_id;
-$$;
-
-
 SET default_tablespace = '';
 
 SET default_table_access_method = heap;
-
-
-CREATE TABLE public.auth_identities (
-    provider text NOT NULL,
-    provider_subject text NOT NULL,
-    principal_id bigint NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT chk_auth_identities_provider_non_empty CHECK ((length(provider) > 0)),
-    CONSTRAINT chk_auth_identities_provider_subject_non_empty CHECK ((length(provider_subject) > 0))
-);
-
 
 
 CREATE TABLE public.audit_logs (
@@ -195,6 +187,18 @@ CREATE TABLE public.audit_logs (
     target_id bigint,
     metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+
+CREATE TABLE public.auth_identities (
+    provider text NOT NULL,
+    provider_subject text NOT NULL,
+    principal_id bigint NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chk_auth_identities_provider_non_empty CHECK ((length(provider) > 0)),
+    CONSTRAINT chk_auth_identities_provider_subject_non_empty CHECK ((length(provider_subject) > 0))
 );
 
 
@@ -261,15 +265,6 @@ CREATE TABLE public.dm_pairs (
 CREATE TABLE public.dm_participants (
     channel_id bigint NOT NULL,
     user_id bigint NOT NULL
-);
-
-
-
-CREATE TABLE public.email_verification_tokens (
-    user_id bigint NOT NULL,
-    token_hash text NOT NULL,
-    expires_at timestamp with time zone NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
 
@@ -350,48 +345,44 @@ CREATE TABLE public.outbox_events (
 
 
 
-CREATE TABLE public.password_reset_tokens (
-    user_id bigint NOT NULL,
-    token_hash text NOT NULL,
-    expires_at timestamp with time zone NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-
-
 CREATE TABLE public.users (
     id bigint NOT NULL,
     email text NOT NULL,
-    email_verified boolean DEFAULT false NOT NULL,
-    password_hash text NOT NULL,
     display_name text NOT NULL,
     avatar_key text,
     status_text text,
     theme text DEFAULT 'dark'::text NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT chk_users_password_hash_argon2id CHECK ((password_hash ~~ '$argon2id$%'::text)),
     CONSTRAINT chk_users_theme CHECK ((theme = ANY (ARRAY['dark'::text, 'light'::text])))
 );
 
 
 
-COMMENT ON COLUMN public.users.password_hash IS 'Argon2id の PHC 文字列（例: $argon2id$v=19$...）を保存する。';
+CREATE SEQUENCE public.users_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
 
 
 
-ALTER TABLE ONLY public.auth_identities
-    ADD CONSTRAINT auth_identities_pkey PRIMARY KEY (provider, provider_subject);
+ALTER SEQUENCE public.users_id_seq OWNED BY public.users.id;
 
 
 
-ALTER TABLE ONLY public.auth_identities
-    ADD CONSTRAINT uq_auth_identities_provider_principal UNIQUE (provider, principal_id);
+ALTER TABLE ONLY public.users ALTER COLUMN id SET DEFAULT nextval('public.users_id_seq'::regclass);
 
 
 
 ALTER TABLE ONLY public.audit_logs
     ADD CONSTRAINT audit_logs_pkey PRIMARY KEY (id);
+
+
+
+ALTER TABLE ONLY public.auth_identities
+    ADD CONSTRAINT auth_identities_pkey PRIMARY KEY (provider, provider_subject);
 
 
 
@@ -422,16 +413,6 @@ ALTER TABLE ONLY public.dm_pairs
 
 ALTER TABLE ONLY public.dm_participants
     ADD CONSTRAINT dm_participants_pkey PRIMARY KEY (channel_id, user_id);
-
-
-
-ALTER TABLE ONLY public.email_verification_tokens
-    ADD CONSTRAINT email_verification_tokens_pkey PRIMARY KEY (user_id);
-
-
-
-ALTER TABLE ONLY public.email_verification_tokens
-    ADD CONSTRAINT email_verification_tokens_token_hash_key UNIQUE (token_hash);
 
 
 
@@ -475,13 +456,8 @@ ALTER TABLE ONLY public.outbox_events
 
 
 
-ALTER TABLE ONLY public.password_reset_tokens
-    ADD CONSTRAINT password_reset_tokens_pkey PRIMARY KEY (user_id);
-
-
-
-ALTER TABLE ONLY public.password_reset_tokens
-    ADD CONSTRAINT password_reset_tokens_token_hash_key UNIQUE (token_hash);
+ALTER TABLE ONLY public.auth_identities
+    ADD CONSTRAINT uq_auth_identities_provider_principal UNIQUE (provider, principal_id);
 
 
 
@@ -495,11 +471,11 @@ ALTER TABLE ONLY public.users
 
 
 
-CREATE INDEX idx_auth_identities_principal_id ON public.auth_identities USING btree (principal_id);
-
-
-
 CREATE INDEX idx_audit_guild_time ON public.audit_logs USING btree (guild_id, created_at DESC) WHERE (guild_id IS NOT NULL);
+
+
+
+CREATE INDEX idx_auth_identities_principal_id ON public.auth_identities USING btree (principal_id);
 
 
 
@@ -516,10 +492,6 @@ CREATE INDEX idx_channels_guild ON public.channels USING btree (guild_id) WHERE 
 
 
 CREATE INDEX idx_dm_participants_user ON public.dm_participants USING btree (user_id);
-
-
-
-CREATE INDEX idx_email_verification_expires ON public.email_verification_tokens USING btree (expires_at);
 
 
 
@@ -543,10 +515,6 @@ CREATE INDEX idx_outbox_pending ON public.outbox_events USING btree (status, nex
 
 
 
-CREATE INDEX idx_password_reset_expires ON public.password_reset_tokens USING btree (expires_at);
-
-
-
 CREATE UNIQUE INDEX uq_users_email_lower ON public.users USING btree (lower(email));
 
 
@@ -564,13 +532,13 @@ ALTER TABLE ONLY public.audit_logs
 
 
 
-ALTER TABLE ONLY public.auth_identities
-    ADD CONSTRAINT auth_identities_principal_id_fkey FOREIGN KEY (principal_id) REFERENCES public.users(id) ON DELETE CASCADE;
-
-
-
 ALTER TABLE ONLY public.audit_logs
     ADD CONSTRAINT audit_logs_guild_id_fkey FOREIGN KEY (guild_id) REFERENCES public.guilds(id) ON DELETE SET NULL;
+
+
+
+ALTER TABLE ONLY public.auth_identities
+    ADD CONSTRAINT auth_identities_principal_id_fkey FOREIGN KEY (principal_id) REFERENCES public.users(id) ON DELETE CASCADE;
 
 
 
@@ -629,11 +597,6 @@ ALTER TABLE ONLY public.dm_participants
 
 
 
-ALTER TABLE ONLY public.email_verification_tokens
-    ADD CONSTRAINT email_verification_tokens_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
-
-
-
 ALTER TABLE ONLY public.guild_member_roles
     ADD CONSTRAINT guild_member_roles_guild_id_level_fkey FOREIGN KEY (guild_id, level) REFERENCES public.guild_roles(guild_id, level) ON DELETE RESTRICT;
 
@@ -683,8 +646,5 @@ ALTER TABLE ONLY public.invites
     ADD CONSTRAINT invites_guild_id_fkey FOREIGN KEY (guild_id) REFERENCES public.guilds(id) ON DELETE CASCADE;
 
 
-
-ALTER TABLE ONLY public.password_reset_tokens
-    ADD CONSTRAINT password_reset_tokens_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
 
 

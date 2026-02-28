@@ -8,6 +8,9 @@ pub struct AuthMetrics {
     token_verify_latency_samples: AtomicU64,
     principal_cache_hit_total: AtomicU64,
     principal_cache_miss_total: AtomicU64,
+    principal_provision_success_total: AtomicU64,
+    principal_provision_failure_total: AtomicU64,
+    principal_provision_retry_total: AtomicU64,
     ws_reauth_success_total: AtomicU64,
     ws_reauth_failure_total: AtomicU64,
 }
@@ -22,6 +25,9 @@ pub struct AuthMetricsSnapshot {
     pub principal_cache_hit_total: u64,
     pub principal_cache_miss_total: u64,
     pub principal_cache_hit_ratio: f64,
+    pub principal_provision_success_total: u64,
+    pub principal_provision_failure_total: u64,
+    pub principal_provision_retry_total: u64,
     pub ws_reauth_success_total: u64,
     pub ws_reauth_failure_total: u64,
 }
@@ -69,6 +75,33 @@ impl AuthMetrics {
         }
     }
 
+    /// principalプロビジョニング成功を記録する。
+    /// @param なし
+    /// @returns なし
+    /// @throws なし
+    pub fn record_principal_provision_success(&self) {
+        self.principal_provision_success_total
+            .fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// principalプロビジョニング失敗を記録する。
+    /// @param なし
+    /// @returns なし
+    /// @throws なし
+    pub fn record_principal_provision_failure(&self) {
+        self.principal_provision_failure_total
+            .fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// principalプロビジョニング再試行を記録する。
+    /// @param なし
+    /// @returns なし
+    /// @throws なし
+    pub fn record_principal_provision_retry(&self) {
+        self.principal_provision_retry_total
+            .fetch_add(1, Ordering::Relaxed);
+    }
+
     /// WS再認証結果を記録する。
     /// @param success 成功可否
     /// @returns なし
@@ -110,6 +143,15 @@ impl AuthMetrics {
             } else {
                 0.0
             },
+            principal_provision_success_total: self
+                .principal_provision_success_total
+                .load(Ordering::Relaxed),
+            principal_provision_failure_total: self
+                .principal_provision_failure_total
+                .load(Ordering::Relaxed),
+            principal_provision_retry_total: self
+                .principal_provision_retry_total
+                .load(Ordering::Relaxed),
             ws_reauth_success_total: self.ws_reauth_success_total.load(Ordering::Relaxed),
             ws_reauth_failure_total: self.ws_reauth_failure_total.load(Ordering::Relaxed),
         }

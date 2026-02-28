@@ -1,8 +1,262 @@
 {
-  "name": "tbls_gen_1772196483_8061",
+  "name": "linklynx",
   "tables": [
     {
-      "name": "public.audit_logs",
+      "name": "public.users",
+      "type": "BASE TABLE",
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint",
+          "nullable": false,
+          "default": "nextval('users_id_seq'::regclass)"
+        },
+        {
+          "name": "email",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "display_name",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "avatar_key",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "status_text",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "theme",
+          "type": "text",
+          "nullable": false,
+          "default": "'dark'::text"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default": "now()"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default": "now()"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "users_pkey",
+          "def": "CREATE UNIQUE INDEX users_pkey ON public.users USING btree (id)",
+          "table": "public.users",
+          "columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "uq_users_email_lower",
+          "def": "CREATE UNIQUE INDEX uq_users_email_lower ON public.users USING btree (lower(email))",
+          "table": "public.users",
+          "columns": [
+            "lower"
+          ]
+        }
+      ],
+      "constraints": [
+        {
+          "name": "chk_users_theme",
+          "type": "CHECK",
+          "def": "CHECK ((theme = ANY (ARRAY['dark'::text, 'light'::text])))",
+          "table": "public.users",
+          "referenced_table": "",
+          "columns": [
+            "theme"
+          ]
+        },
+        {
+          "name": "users_pkey",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (id)",
+          "table": "public.users",
+          "referenced_table": "",
+          "columns": [
+            "id"
+          ]
+        }
+      ],
+      "triggers": [
+        {
+          "name": "trg_users_set_updated_at",
+          "def": "CREATE TRIGGER trg_users_set_updated_at BEFORE UPDATE ON public.users FOR EACH ROW EXECUTE FUNCTION set_users_updated_at()"
+        }
+      ]
+    },
+    {
+      "name": "public.guilds",
+      "type": "BASE TABLE",
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint",
+          "nullable": false
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "owner_id",
+          "type": "bigint",
+          "nullable": false
+        },
+        {
+          "name": "icon_key",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default": "now()"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default": "now()"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "guilds_pkey",
+          "def": "CREATE UNIQUE INDEX guilds_pkey ON public.guilds USING btree (id)",
+          "table": "public.guilds",
+          "columns": [
+            "id"
+          ]
+        }
+      ],
+      "constraints": [
+        {
+          "name": "guilds_owner_id_fkey",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE RESTRICT",
+          "table": "public.guilds",
+          "referenced_table": "users",
+          "columns": [
+            "owner_id"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "guilds_pkey",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (id)",
+          "table": "public.guilds",
+          "referenced_table": "",
+          "columns": [
+            "id"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "public.guild_members",
+      "type": "BASE TABLE",
+      "columns": [
+        {
+          "name": "guild_id",
+          "type": "bigint",
+          "nullable": false
+        },
+        {
+          "name": "user_id",
+          "type": "bigint",
+          "nullable": false
+        },
+        {
+          "name": "joined_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default": "now()"
+        },
+        {
+          "name": "nickname",
+          "type": "text",
+          "nullable": true
+        }
+      ],
+      "indexes": [
+        {
+          "name": "guild_members_pkey",
+          "def": "CREATE UNIQUE INDEX guild_members_pkey ON public.guild_members USING btree (guild_id, user_id)",
+          "table": "public.guild_members",
+          "columns": [
+            "guild_id",
+            "user_id"
+          ]
+        },
+        {
+          "name": "idx_guild_members_user",
+          "def": "CREATE INDEX idx_guild_members_user ON public.guild_members USING btree (user_id)",
+          "table": "public.guild_members",
+          "columns": [
+            "user_id"
+          ]
+        }
+      ],
+      "constraints": [
+        {
+          "name": "guild_members_user_id_fkey",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE",
+          "table": "public.guild_members",
+          "referenced_table": "users",
+          "columns": [
+            "user_id"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "guild_members_guild_id_fkey",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE",
+          "table": "public.guild_members",
+          "referenced_table": "guilds",
+          "columns": [
+            "guild_id"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "guild_members_pkey",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (guild_id, user_id)",
+          "table": "public.guild_members",
+          "referenced_table": "",
+          "columns": [
+            "guild_id",
+            "user_id"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "public.invites",
       "type": "BASE TABLE",
       "columns": [
         {
@@ -13,33 +267,39 @@
         {
           "name": "guild_id",
           "type": "bigint",
-          "nullable": true
-        },
-        {
-          "name": "actor_id",
-          "type": "bigint",
-          "nullable": true
-        },
-        {
-          "name": "action",
-          "type": "audit_action",
           "nullable": false
         },
         {
-          "name": "target_type",
-          "type": "text",
-          "nullable": true
-        },
-        {
-          "name": "target_id",
+          "name": "created_by",
           "type": "bigint",
           "nullable": true
         },
         {
-          "name": "metadata",
-          "type": "jsonb",
+          "name": "code",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "nullable": true
+        },
+        {
+          "name": "max_uses",
+          "type": "integer",
+          "nullable": true
+        },
+        {
+          "name": "uses",
+          "type": "integer",
           "nullable": false,
-          "default": "'{}'::jsonb"
+          "default": "0"
+        },
+        {
+          "name": "is_disabled",
+          "type": "boolean",
+          "nullable": false,
+          "default": "false"
         },
         {
           "name": "created_at",
@@ -50,39 +310,88 @@
       ],
       "indexes": [
         {
-          "name": "audit_logs_pkey",
-          "def": "CREATE UNIQUE INDEX audit_logs_pkey ON public.audit_logs USING btree (id)",
-          "table": "public.audit_logs",
+          "name": "invites_pkey",
+          "def": "CREATE UNIQUE INDEX invites_pkey ON public.invites USING btree (id)",
+          "table": "public.invites",
           "columns": [
             "id"
           ]
         },
         {
-          "name": "idx_audit_guild_time",
-          "def": "CREATE INDEX idx_audit_guild_time ON public.audit_logs USING btree (guild_id, created_at DESC) WHERE (guild_id IS NOT NULL)",
-          "table": "public.audit_logs",
+          "name": "invites_code_key",
+          "def": "CREATE UNIQUE INDEX invites_code_key ON public.invites USING btree (code)",
+          "table": "public.invites",
           "columns": [
-            "guild_id",
-            "created_at"
+            "code"
+          ]
+        },
+        {
+          "name": "idx_invites_guild",
+          "def": "CREATE INDEX idx_invites_guild ON public.invites USING btree (guild_id)",
+          "table": "public.invites",
+          "columns": [
+            "guild_id"
+          ]
+        },
+        {
+          "name": "idx_invites_expires",
+          "def": "CREATE INDEX idx_invites_expires ON public.invites USING btree (expires_at) WHERE (expires_at IS NOT NULL)",
+          "table": "public.invites",
+          "columns": [
+            "expires_at"
           ]
         }
       ],
       "constraints": [
         {
-          "name": "audit_logs_pkey",
-          "type": "PRIMARY KEY",
-          "def": "PRIMARY KEY (id)",
-          "table": "public.audit_logs",
+          "name": "chk_invites_max_uses_positive",
+          "type": "CHECK",
+          "def": "CHECK (((max_uses IS NULL) OR (max_uses \u003e 0)))",
+          "table": "public.invites",
           "referenced_table": "",
           "columns": [
+            "max_uses"
+          ]
+        },
+        {
+          "name": "chk_invites_uses_lte_max",
+          "type": "CHECK",
+          "def": "CHECK (((max_uses IS NULL) OR (uses \u003c= max_uses)))",
+          "table": "public.invites",
+          "referenced_table": "",
+          "columns": [
+            "max_uses",
+            "uses"
+          ]
+        },
+        {
+          "name": "chk_invites_uses_non_negative",
+          "type": "CHECK",
+          "def": "CHECK ((uses \u003e= 0))",
+          "table": "public.invites",
+          "referenced_table": "",
+          "columns": [
+            "uses"
+          ]
+        },
+        {
+          "name": "invites_created_by_fkey",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL",
+          "table": "public.invites",
+          "referenced_table": "users",
+          "columns": [
+            "created_by"
+          ],
+          "referenced_columns": [
             "id"
           ]
         },
         {
-          "name": "audit_logs_guild_id_fkey",
+          "name": "invites_guild_id_fkey",
           "type": "FOREIGN KEY",
-          "def": "FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE SET NULL",
-          "table": "public.audit_logs",
+          "def": "FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE",
+          "table": "public.invites",
           "referenced_table": "guilds",
           "columns": [
             "guild_id"
@@ -92,181 +401,43 @@
           ]
         },
         {
-          "name": "audit_logs_actor_id_fkey",
-          "type": "FOREIGN KEY",
-          "def": "FOREIGN KEY (actor_id) REFERENCES users(id) ON DELETE SET NULL",
-          "table": "public.audit_logs",
-          "referenced_table": "users",
-          "columns": [
-            "actor_id"
-          ],
-          "referenced_columns": [
-            "id"
-          ]
-        }
-      ]
-    },
-    {
-      "name": "public.channel_last_message",
-      "type": "BASE TABLE",
-      "columns": [
-        {
-          "name": "channel_id",
-          "type": "bigint",
-          "nullable": false
-        },
-        {
-          "name": "last_message_id",
-          "type": "bigint",
-          "nullable": false
-        },
-        {
-          "name": "last_message_at",
-          "type": "timestamp with time zone",
-          "nullable": false
-        },
-        {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "nullable": false,
-          "default": "now()"
-        }
-      ],
-      "indexes": [
-        {
-          "name": "channel_last_message_pkey",
-          "def": "CREATE UNIQUE INDEX channel_last_message_pkey ON public.channel_last_message USING btree (channel_id)",
-          "table": "public.channel_last_message",
-          "columns": [
-            "channel_id"
-          ]
-        },
-        {
-          "name": "idx_channel_last_message_time",
-          "def": "CREATE INDEX idx_channel_last_message_time ON public.channel_last_message USING btree (last_message_at DESC)",
-          "table": "public.channel_last_message",
-          "columns": [
-            "last_message_at"
-          ]
-        }
-      ],
-      "constraints": [
-        {
-          "name": "channel_last_message_pkey",
+          "name": "invites_pkey",
           "type": "PRIMARY KEY",
-          "def": "PRIMARY KEY (channel_id)",
-          "table": "public.channel_last_message",
+          "def": "PRIMARY KEY (id)",
+          "table": "public.invites",
           "referenced_table": "",
           "columns": [
-            "channel_id"
-          ]
-        },
-        {
-          "name": "channel_last_message_channel_id_fkey",
-          "type": "FOREIGN KEY",
-          "def": "FOREIGN KEY (channel_id) REFERENCES channels(id) ON DELETE CASCADE",
-          "table": "public.channel_last_message",
-          "referenced_table": "channels",
-          "columns": [
-            "channel_id"
-          ],
-          "referenced_columns": [
             "id"
           ]
-        }
-      ]
-    },
-    {
-      "name": "public.channel_permission_overrides",
-      "type": "BASE TABLE",
-      "columns": [
-        {
-          "name": "channel_id",
-          "type": "bigint",
-          "nullable": false
         },
         {
-          "name": "level",
-          "type": "role_level",
-          "nullable": false
-        },
-        {
-          "name": "can_view",
-          "type": "boolean",
-          "nullable": true,
-          "comment": "NULL はロール既定値を継承、TRUE/FALSE は明示上書き。"
-        },
-        {
-          "name": "can_post",
-          "type": "boolean",
-          "nullable": true,
-          "comment": "NULL はロール既定値を継承、TRUE/FALSE は明示上書き。"
-        }
-      ],
-      "indexes": [
-        {
-          "name": "channel_permission_overrides_pkey",
-          "def": "CREATE UNIQUE INDEX channel_permission_overrides_pkey ON public.channel_permission_overrides USING btree (channel_id, level)",
-          "table": "public.channel_permission_overrides",
-          "columns": [
-            "channel_id",
-            "level"
-          ]
-        }
-      ],
-      "constraints": [
-        {
-          "name": "channel_permission_overrides_pkey",
-          "type": "PRIMARY KEY",
-          "def": "PRIMARY KEY (channel_id, level)",
-          "table": "public.channel_permission_overrides",
+          "name": "invites_code_key",
+          "type": "UNIQUE",
+          "def": "UNIQUE (code)",
+          "table": "public.invites",
           "referenced_table": "",
           "columns": [
-            "channel_id",
-            "level"
-          ]
-        },
-        {
-          "name": "channel_permission_overrides_channel_id_fkey",
-          "type": "FOREIGN KEY",
-          "def": "FOREIGN KEY (channel_id) REFERENCES channels(id) ON DELETE CASCADE",
-          "table": "public.channel_permission_overrides",
-          "referenced_table": "channels",
-          "columns": [
-            "channel_id"
-          ],
-          "referenced_columns": [
-            "id"
+            "code"
           ]
         }
       ]
     },
     {
-      "name": "public.channel_reads",
+      "name": "public.invite_uses",
       "type": "BASE TABLE",
       "columns": [
         {
-          "name": "channel_id",
+          "name": "invite_id",
           "type": "bigint",
           "nullable": false
         },
         {
-          "name": "user_id",
+          "name": "used_by",
           "type": "bigint",
           "nullable": false
         },
         {
-          "name": "last_read_message_id",
-          "type": "bigint",
-          "nullable": true
-        },
-        {
-          "name": "last_client_seq",
-          "type": "bigint",
-          "nullable": true
-        },
-        {
-          "name": "updated_at",
+          "name": "used_at",
           "type": "timestamp with time zone",
           "nullable": false,
           "default": "now()"
@@ -274,59 +445,51 @@
       ],
       "indexes": [
         {
-          "name": "channel_reads_pkey",
-          "def": "CREATE UNIQUE INDEX channel_reads_pkey ON public.channel_reads USING btree (channel_id, user_id)",
-          "table": "public.channel_reads",
+          "name": "invite_uses_pkey",
+          "def": "CREATE UNIQUE INDEX invite_uses_pkey ON public.invite_uses USING btree (invite_id, used_by)",
+          "table": "public.invite_uses",
           "columns": [
-            "channel_id",
-            "user_id"
-          ]
-        },
-        {
-          "name": "idx_channel_reads_user",
-          "def": "CREATE INDEX idx_channel_reads_user ON public.channel_reads USING btree (user_id)",
-          "table": "public.channel_reads",
-          "columns": [
-            "user_id"
+            "invite_id",
+            "used_by"
           ]
         }
       ],
       "constraints": [
         {
-          "name": "channel_reads_pkey",
-          "type": "PRIMARY KEY",
-          "def": "PRIMARY KEY (channel_id, user_id)",
-          "table": "public.channel_reads",
-          "referenced_table": "",
-          "columns": [
-            "channel_id",
-            "user_id"
-          ]
-        },
-        {
-          "name": "channel_reads_channel_id_fkey",
+          "name": "invite_uses_used_by_fkey",
           "type": "FOREIGN KEY",
-          "def": "FOREIGN KEY (channel_id) REFERENCES channels(id) ON DELETE CASCADE",
-          "table": "public.channel_reads",
-          "referenced_table": "channels",
-          "columns": [
-            "channel_id"
-          ],
-          "referenced_columns": [
-            "id"
-          ]
-        },
-        {
-          "name": "channel_reads_user_id_fkey",
-          "type": "FOREIGN KEY",
-          "def": "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE",
-          "table": "public.channel_reads",
+          "def": "FOREIGN KEY (used_by) REFERENCES users(id) ON DELETE CASCADE",
+          "table": "public.invite_uses",
           "referenced_table": "users",
           "columns": [
-            "user_id"
+            "used_by"
           ],
           "referenced_columns": [
             "id"
+          ]
+        },
+        {
+          "name": "invite_uses_invite_id_fkey",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (invite_id) REFERENCES invites(id) ON DELETE CASCADE",
+          "table": "public.invite_uses",
+          "referenced_table": "invites",
+          "columns": [
+            "invite_id"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "invite_uses_pkey",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (invite_id, used_by)",
+          "table": "public.invite_uses",
+          "referenced_table": "",
+          "columns": [
+            "invite_id",
+            "used_by"
           ]
         }
       ]
@@ -416,12 +579,15 @@
           ]
         },
         {
-          "name": "channels_pkey",
-          "type": "PRIMARY KEY",
-          "def": "PRIMARY KEY (id)",
+          "name": "channels_created_by_fkey",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL",
           "table": "public.channels",
-          "referenced_table": "",
+          "referenced_table": "users",
           "columns": [
+            "created_by"
+          ],
+          "referenced_columns": [
             "id"
           ]
         },
@@ -439,16 +605,87 @@
           ]
         },
         {
-          "name": "channels_created_by_fkey",
-          "type": "FOREIGN KEY",
-          "def": "FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL",
+          "name": "channels_pkey",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (id)",
           "table": "public.channels",
+          "referenced_table": "",
+          "columns": [
+            "id"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "public.dm_participants",
+      "type": "BASE TABLE",
+      "columns": [
+        {
+          "name": "channel_id",
+          "type": "bigint",
+          "nullable": false
+        },
+        {
+          "name": "user_id",
+          "type": "bigint",
+          "nullable": false
+        }
+      ],
+      "indexes": [
+        {
+          "name": "dm_participants_pkey",
+          "def": "CREATE UNIQUE INDEX dm_participants_pkey ON public.dm_participants USING btree (channel_id, user_id)",
+          "table": "public.dm_participants",
+          "columns": [
+            "channel_id",
+            "user_id"
+          ]
+        },
+        {
+          "name": "idx_dm_participants_user",
+          "def": "CREATE INDEX idx_dm_participants_user ON public.dm_participants USING btree (user_id)",
+          "table": "public.dm_participants",
+          "columns": [
+            "user_id"
+          ]
+        }
+      ],
+      "constraints": [
+        {
+          "name": "dm_participants_user_id_fkey",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE",
+          "table": "public.dm_participants",
           "referenced_table": "users",
           "columns": [
-            "created_by"
+            "user_id"
           ],
           "referenced_columns": [
             "id"
+          ]
+        },
+        {
+          "name": "dm_participants_channel_id_fkey",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (channel_id) REFERENCES channels(id) ON DELETE CASCADE",
+          "table": "public.dm_participants",
+          "referenced_table": "channels",
+          "columns": [
+            "channel_id"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "dm_participants_pkey",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (channel_id, user_id)",
+          "table": "public.dm_participants",
+          "referenced_table": "",
+          "columns": [
+            "channel_id",
+            "user_id"
           ]
         }
       ]
@@ -505,6 +742,32 @@
           ]
         },
         {
+          "name": "dm_pairs_user_high_fkey",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (user_high) REFERENCES users(id) ON DELETE CASCADE",
+          "table": "public.dm_pairs",
+          "referenced_table": "users",
+          "columns": [
+            "user_high"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "dm_pairs_user_low_fkey",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (user_low) REFERENCES users(id) ON DELETE CASCADE",
+          "table": "public.dm_pairs",
+          "referenced_table": "users",
+          "columns": [
+            "user_low"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
           "name": "dm_pairs_channel_id_fkey",
           "type": "FOREIGN KEY",
           "def": "FOREIGN KEY (channel_id) REFERENCES channels(id) ON DELETE CASCADE",
@@ -537,32 +800,6 @@
           "columns": [
             "channel_id"
           ]
-        },
-        {
-          "name": "dm_pairs_user_high_fkey",
-          "type": "FOREIGN KEY",
-          "def": "FOREIGN KEY (user_high) REFERENCES users(id) ON DELETE CASCADE",
-          "table": "public.dm_pairs",
-          "referenced_table": "users",
-          "columns": [
-            "user_high"
-          ],
-          "referenced_columns": [
-            "id"
-          ]
-        },
-        {
-          "name": "dm_pairs_user_low_fkey",
-          "type": "FOREIGN KEY",
-          "def": "FOREIGN KEY (user_low) REFERENCES users(id) ON DELETE CASCADE",
-          "table": "public.dm_pairs",
-          "referenced_table": "users",
-          "columns": [
-            "user_low"
-          ],
-          "referenced_columns": [
-            "id"
-          ]
         }
       ],
       "triggers": [
@@ -573,163 +810,59 @@
       ]
     },
     {
-      "name": "public.dm_participants",
+      "name": "public.guild_roles",
       "type": "BASE TABLE",
       "columns": [
         {
-          "name": "channel_id",
+          "name": "guild_id",
           "type": "bigint",
           "nullable": false
         },
         {
-          "name": "user_id",
-          "type": "bigint",
-          "nullable": false
-        }
-      ],
-      "indexes": [
-        {
-          "name": "dm_participants_pkey",
-          "def": "CREATE UNIQUE INDEX dm_participants_pkey ON public.dm_participants USING btree (channel_id, user_id)",
-          "table": "public.dm_participants",
-          "columns": [
-            "channel_id",
-            "user_id"
-          ]
-        },
-        {
-          "name": "idx_dm_participants_user",
-          "def": "CREATE INDEX idx_dm_participants_user ON public.dm_participants USING btree (user_id)",
-          "table": "public.dm_participants",
-          "columns": [
-            "user_id"
-          ]
-        }
-      ],
-      "constraints": [
-        {
-          "name": "dm_participants_channel_id_fkey",
-          "type": "FOREIGN KEY",
-          "def": "FOREIGN KEY (channel_id) REFERENCES channels(id) ON DELETE CASCADE",
-          "table": "public.dm_participants",
-          "referenced_table": "channels",
-          "columns": [
-            "channel_id"
-          ],
-          "referenced_columns": [
-            "id"
-          ]
-        },
-        {
-          "name": "dm_participants_pkey",
-          "type": "PRIMARY KEY",
-          "def": "PRIMARY KEY (channel_id, user_id)",
-          "table": "public.dm_participants",
-          "referenced_table": "",
-          "columns": [
-            "channel_id",
-            "user_id"
-          ]
-        },
-        {
-          "name": "dm_participants_user_id_fkey",
-          "type": "FOREIGN KEY",
-          "def": "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE",
-          "table": "public.dm_participants",
-          "referenced_table": "users",
-          "columns": [
-            "user_id"
-          ],
-          "referenced_columns": [
-            "id"
-          ]
-        }
-      ]
-    },
-    {
-      "name": "public.email_verification_tokens",
-      "type": "BASE TABLE",
-      "columns": [
-        {
-          "name": "user_id",
-          "type": "bigint",
+          "name": "level",
+          "type": "role_level",
           "nullable": false
         },
         {
-          "name": "token_hash",
+          "name": "name",
           "type": "text",
           "nullable": false
-        },
-        {
-          "name": "expires_at",
-          "type": "timestamp with time zone",
-          "nullable": false
-        },
-        {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "nullable": false,
-          "default": "now()"
         }
       ],
       "indexes": [
         {
-          "name": "email_verification_tokens_pkey",
-          "def": "CREATE UNIQUE INDEX email_verification_tokens_pkey ON public.email_verification_tokens USING btree (user_id)",
-          "table": "public.email_verification_tokens",
+          "name": "guild_roles_pkey",
+          "def": "CREATE UNIQUE INDEX guild_roles_pkey ON public.guild_roles USING btree (guild_id, level)",
+          "table": "public.guild_roles",
           "columns": [
-            "user_id"
-          ]
-        },
-        {
-          "name": "email_verification_tokens_token_hash_key",
-          "def": "CREATE UNIQUE INDEX email_verification_tokens_token_hash_key ON public.email_verification_tokens USING btree (token_hash)",
-          "table": "public.email_verification_tokens",
-          "columns": [
-            "token_hash"
-          ]
-        },
-        {
-          "name": "idx_email_verification_expires",
-          "def": "CREATE INDEX idx_email_verification_expires ON public.email_verification_tokens USING btree (expires_at)",
-          "table": "public.email_verification_tokens",
-          "columns": [
-            "expires_at"
+            "guild_id",
+            "level"
           ]
         }
       ],
       "constraints": [
         {
-          "name": "email_verification_tokens_pkey",
-          "type": "PRIMARY KEY",
-          "def": "PRIMARY KEY (user_id)",
-          "table": "public.email_verification_tokens",
-          "referenced_table": "",
-          "columns": [
-            "user_id"
-          ]
-        },
-        {
-          "name": "email_verification_tokens_token_hash_key",
-          "type": "UNIQUE",
-          "def": "UNIQUE (token_hash)",
-          "table": "public.email_verification_tokens",
-          "referenced_table": "",
-          "columns": [
-            "token_hash"
-          ]
-        },
-        {
-          "name": "email_verification_tokens_user_id_fkey",
+          "name": "guild_roles_guild_id_fkey",
           "type": "FOREIGN KEY",
-          "def": "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE",
-          "table": "public.email_verification_tokens",
-          "referenced_table": "users",
+          "def": "FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE",
+          "table": "public.guild_roles",
+          "referenced_table": "guilds",
           "columns": [
-            "user_id"
+            "guild_id"
           ],
           "referenced_columns": [
             "id"
+          ]
+        },
+        {
+          "name": "guild_roles_pkey",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (guild_id, level)",
+          "table": "public.guild_roles",
+          "referenced_table": "",
+          "columns": [
+            "guild_id",
+            "level"
           ]
         }
       ]
@@ -767,17 +900,6 @@
       ],
       "constraints": [
         {
-          "name": "guild_member_roles_pkey",
-          "type": "PRIMARY KEY",
-          "def": "PRIMARY KEY (guild_id, user_id)",
-          "table": "public.guild_member_roles",
-          "referenced_table": "",
-          "columns": [
-            "guild_id",
-            "user_id"
-          ]
-        },
-        {
           "name": "guild_member_roles_guild_id_user_id_fkey",
           "type": "FOREIGN KEY",
           "def": "FOREIGN KEY (guild_id, user_id) REFERENCES guild_members(guild_id, user_id) ON DELETE CASCADE",
@@ -806,100 +928,26 @@
             "guild_id",
             "level"
           ]
-        }
-      ]
-    },
-    {
-      "name": "public.guild_members",
-      "type": "BASE TABLE",
-      "columns": [
-        {
-          "name": "guild_id",
-          "type": "bigint",
-          "nullable": false
         },
         {
-          "name": "user_id",
-          "type": "bigint",
-          "nullable": false
-        },
-        {
-          "name": "joined_at",
-          "type": "timestamp with time zone",
-          "nullable": false,
-          "default": "now()"
-        },
-        {
-          "name": "nickname",
-          "type": "text",
-          "nullable": true
-        }
-      ],
-      "indexes": [
-        {
-          "name": "guild_members_pkey",
-          "def": "CREATE UNIQUE INDEX guild_members_pkey ON public.guild_members USING btree (guild_id, user_id)",
-          "table": "public.guild_members",
-          "columns": [
-            "guild_id",
-            "user_id"
-          ]
-        },
-        {
-          "name": "idx_guild_members_user",
-          "def": "CREATE INDEX idx_guild_members_user ON public.guild_members USING btree (user_id)",
-          "table": "public.guild_members",
-          "columns": [
-            "user_id"
-          ]
-        }
-      ],
-      "constraints": [
-        {
-          "name": "guild_members_pkey",
+          "name": "guild_member_roles_pkey",
           "type": "PRIMARY KEY",
           "def": "PRIMARY KEY (guild_id, user_id)",
-          "table": "public.guild_members",
+          "table": "public.guild_member_roles",
           "referenced_table": "",
           "columns": [
             "guild_id",
             "user_id"
           ]
-        },
-        {
-          "name": "guild_members_guild_id_fkey",
-          "type": "FOREIGN KEY",
-          "def": "FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE",
-          "table": "public.guild_members",
-          "referenced_table": "guilds",
-          "columns": [
-            "guild_id"
-          ],
-          "referenced_columns": [
-            "id"
-          ]
-        },
-        {
-          "name": "guild_members_user_id_fkey",
-          "type": "FOREIGN KEY",
-          "def": "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE",
-          "table": "public.guild_members",
-          "referenced_table": "users",
-          "columns": [
-            "user_id"
-          ],
-          "referenced_columns": [
-            "id"
-          ]
         }
       ]
     },
     {
-      "name": "public.guild_roles",
+      "name": "public.channel_permission_overrides",
       "type": "BASE TABLE",
       "columns": [
         {
-          "name": "guild_id",
+          "name": "channel_id",
           "type": "bigint",
           "nullable": false
         },
@@ -909,78 +957,79 @@
           "nullable": false
         },
         {
-          "name": "name",
-          "type": "text",
-          "nullable": false
+          "name": "can_view",
+          "type": "boolean",
+          "nullable": true,
+          "comment": "NULL はロール既定値を継承、TRUE/FALSE は明示上書き。"
+        },
+        {
+          "name": "can_post",
+          "type": "boolean",
+          "nullable": true,
+          "comment": "NULL はロール既定値を継承、TRUE/FALSE は明示上書き。"
         }
       ],
       "indexes": [
         {
-          "name": "guild_roles_pkey",
-          "def": "CREATE UNIQUE INDEX guild_roles_pkey ON public.guild_roles USING btree (guild_id, level)",
-          "table": "public.guild_roles",
+          "name": "channel_permission_overrides_pkey",
+          "def": "CREATE UNIQUE INDEX channel_permission_overrides_pkey ON public.channel_permission_overrides USING btree (channel_id, level)",
+          "table": "public.channel_permission_overrides",
           "columns": [
-            "guild_id",
+            "channel_id",
             "level"
           ]
         }
       ],
       "constraints": [
         {
-          "name": "guild_roles_pkey",
-          "type": "PRIMARY KEY",
-          "def": "PRIMARY KEY (guild_id, level)",
-          "table": "public.guild_roles",
-          "referenced_table": "",
-          "columns": [
-            "guild_id",
-            "level"
-          ]
-        },
-        {
-          "name": "guild_roles_guild_id_fkey",
+          "name": "channel_permission_overrides_channel_id_fkey",
           "type": "FOREIGN KEY",
-          "def": "FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE",
-          "table": "public.guild_roles",
-          "referenced_table": "guilds",
+          "def": "FOREIGN KEY (channel_id) REFERENCES channels(id) ON DELETE CASCADE",
+          "table": "public.channel_permission_overrides",
+          "referenced_table": "channels",
           "columns": [
-            "guild_id"
+            "channel_id"
           ],
           "referenced_columns": [
             "id"
+          ]
+        },
+        {
+          "name": "channel_permission_overrides_pkey",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (channel_id, level)",
+          "table": "public.channel_permission_overrides",
+          "referenced_table": "",
+          "columns": [
+            "channel_id",
+            "level"
           ]
         }
       ]
     },
     {
-      "name": "public.guilds",
+      "name": "public.channel_reads",
       "type": "BASE TABLE",
       "columns": [
         {
-          "name": "id",
+          "name": "channel_id",
           "type": "bigint",
           "nullable": false
         },
         {
-          "name": "name",
-          "type": "text",
-          "nullable": false
-        },
-        {
-          "name": "owner_id",
+          "name": "user_id",
           "type": "bigint",
           "nullable": false
         },
         {
-          "name": "icon_key",
-          "type": "text",
+          "name": "last_read_message_id",
+          "type": "bigint",
           "nullable": true
         },
         {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "nullable": false,
-          "default": "now()"
+          "name": "last_client_seq",
+          "type": "bigint",
+          "nullable": true
         },
         {
           "name": "updated_at",
@@ -991,56 +1040,84 @@
       ],
       "indexes": [
         {
-          "name": "guilds_pkey",
-          "def": "CREATE UNIQUE INDEX guilds_pkey ON public.guilds USING btree (id)",
-          "table": "public.guilds",
+          "name": "channel_reads_pkey",
+          "def": "CREATE UNIQUE INDEX channel_reads_pkey ON public.channel_reads USING btree (channel_id, user_id)",
+          "table": "public.channel_reads",
           "columns": [
-            "id"
+            "channel_id",
+            "user_id"
+          ]
+        },
+        {
+          "name": "idx_channel_reads_user",
+          "def": "CREATE INDEX idx_channel_reads_user ON public.channel_reads USING btree (user_id)",
+          "table": "public.channel_reads",
+          "columns": [
+            "user_id"
           ]
         }
       ],
       "constraints": [
         {
-          "name": "guilds_pkey",
-          "type": "PRIMARY KEY",
-          "def": "PRIMARY KEY (id)",
-          "table": "public.guilds",
-          "referenced_table": "",
+          "name": "channel_reads_user_id_fkey",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE",
+          "table": "public.channel_reads",
+          "referenced_table": "users",
           "columns": [
+            "user_id"
+          ],
+          "referenced_columns": [
             "id"
           ]
         },
         {
-          "name": "guilds_owner_id_fkey",
+          "name": "channel_reads_channel_id_fkey",
           "type": "FOREIGN KEY",
-          "def": "FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE RESTRICT",
-          "table": "public.guilds",
-          "referenced_table": "users",
+          "def": "FOREIGN KEY (channel_id) REFERENCES channels(id) ON DELETE CASCADE",
+          "table": "public.channel_reads",
+          "referenced_table": "channels",
           "columns": [
-            "owner_id"
+            "channel_id"
           ],
           "referenced_columns": [
             "id"
+          ]
+        },
+        {
+          "name": "channel_reads_pkey",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (channel_id, user_id)",
+          "table": "public.channel_reads",
+          "referenced_table": "",
+          "columns": [
+            "channel_id",
+            "user_id"
           ]
         }
       ]
     },
     {
-      "name": "public.invite_uses",
+      "name": "public.channel_last_message",
       "type": "BASE TABLE",
       "columns": [
         {
-          "name": "invite_id",
+          "name": "channel_id",
           "type": "bigint",
           "nullable": false
         },
         {
-          "name": "used_by",
+          "name": "last_message_id",
           "type": "bigint",
           "nullable": false
         },
         {
-          "name": "used_at",
+          "name": "last_message_at",
+          "type": "timestamp with time zone",
+          "nullable": false
+        },
+        {
+          "name": "updated_at",
           "type": "timestamp with time zone",
           "nullable": false,
           "default": "now()"
@@ -1048,57 +1125,50 @@
       ],
       "indexes": [
         {
-          "name": "invite_uses_pkey",
-          "def": "CREATE UNIQUE INDEX invite_uses_pkey ON public.invite_uses USING btree (invite_id, used_by)",
-          "table": "public.invite_uses",
+          "name": "channel_last_message_pkey",
+          "def": "CREATE UNIQUE INDEX channel_last_message_pkey ON public.channel_last_message USING btree (channel_id)",
+          "table": "public.channel_last_message",
           "columns": [
-            "invite_id",
-            "used_by"
+            "channel_id"
+          ]
+        },
+        {
+          "name": "idx_channel_last_message_time",
+          "def": "CREATE INDEX idx_channel_last_message_time ON public.channel_last_message USING btree (last_message_at DESC)",
+          "table": "public.channel_last_message",
+          "columns": [
+            "last_message_at"
           ]
         }
       ],
       "constraints": [
         {
-          "name": "invite_uses_pkey",
+          "name": "channel_last_message_channel_id_fkey",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (channel_id) REFERENCES channels(id) ON DELETE CASCADE",
+          "table": "public.channel_last_message",
+          "referenced_table": "channels",
+          "columns": [
+            "channel_id"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "channel_last_message_pkey",
           "type": "PRIMARY KEY",
-          "def": "PRIMARY KEY (invite_id, used_by)",
-          "table": "public.invite_uses",
+          "def": "PRIMARY KEY (channel_id)",
+          "table": "public.channel_last_message",
           "referenced_table": "",
           "columns": [
-            "invite_id",
-            "used_by"
-          ]
-        },
-        {
-          "name": "invite_uses_invite_id_fkey",
-          "type": "FOREIGN KEY",
-          "def": "FOREIGN KEY (invite_id) REFERENCES invites(id) ON DELETE CASCADE",
-          "table": "public.invite_uses",
-          "referenced_table": "invites",
-          "columns": [
-            "invite_id"
-          ],
-          "referenced_columns": [
-            "id"
-          ]
-        },
-        {
-          "name": "invite_uses_used_by_fkey",
-          "type": "FOREIGN KEY",
-          "def": "FOREIGN KEY (used_by) REFERENCES users(id) ON DELETE CASCADE",
-          "table": "public.invite_uses",
-          "referenced_table": "users",
-          "columns": [
-            "used_by"
-          ],
-          "referenced_columns": [
-            "id"
+            "channel_id"
           ]
         }
       ]
     },
     {
-      "name": "public.invites",
+      "name": "public.audit_logs",
       "type": "BASE TABLE",
       "columns": [
         {
@@ -1109,39 +1179,33 @@
         {
           "name": "guild_id",
           "type": "bigint",
-          "nullable": false
+          "nullable": true
         },
         {
-          "name": "created_by",
+          "name": "actor_id",
           "type": "bigint",
           "nullable": true
         },
         {
-          "name": "code",
-          "type": "text",
+          "name": "action",
+          "type": "audit_action",
           "nullable": false
         },
         {
-          "name": "expires_at",
-          "type": "timestamp with time zone",
+          "name": "target_type",
+          "type": "text",
           "nullable": true
         },
         {
-          "name": "max_uses",
-          "type": "integer",
+          "name": "target_id",
+          "type": "bigint",
           "nullable": true
         },
         {
-          "name": "uses",
-          "type": "integer",
+          "name": "metadata",
+          "type": "jsonb",
           "nullable": false,
-          "default": "0"
-        },
-        {
-          "name": "is_disabled",
-          "type": "boolean",
-          "nullable": false,
-          "default": "false"
+          "default": "'{}'::jsonb"
         },
         {
           "name": "created_at",
@@ -1152,75 +1216,42 @@
       ],
       "indexes": [
         {
-          "name": "invites_code_key",
-          "def": "CREATE UNIQUE INDEX invites_code_key ON public.invites USING btree (code)",
-          "table": "public.invites",
-          "columns": [
-            "code"
-          ]
-        },
-        {
-          "name": "invites_pkey",
-          "def": "CREATE UNIQUE INDEX invites_pkey ON public.invites USING btree (id)",
-          "table": "public.invites",
+          "name": "audit_logs_pkey",
+          "def": "CREATE UNIQUE INDEX audit_logs_pkey ON public.audit_logs USING btree (id)",
+          "table": "public.audit_logs",
           "columns": [
             "id"
           ]
         },
         {
-          "name": "idx_invites_expires",
-          "def": "CREATE INDEX idx_invites_expires ON public.invites USING btree (expires_at) WHERE (expires_at IS NOT NULL)",
-          "table": "public.invites",
+          "name": "idx_audit_guild_time",
+          "def": "CREATE INDEX idx_audit_guild_time ON public.audit_logs USING btree (guild_id, created_at DESC) WHERE (guild_id IS NOT NULL)",
+          "table": "public.audit_logs",
           "columns": [
-            "expires_at"
-          ]
-        },
-        {
-          "name": "idx_invites_guild",
-          "def": "CREATE INDEX idx_invites_guild ON public.invites USING btree (guild_id)",
-          "table": "public.invites",
-          "columns": [
-            "guild_id"
+            "guild_id",
+            "created_at"
           ]
         }
       ],
       "constraints": [
         {
-          "name": "chk_invites_max_uses_positive",
-          "type": "CHECK",
-          "def": "CHECK (((max_uses IS NULL) OR (max_uses \u003e 0)))",
-          "table": "public.invites",
-          "referenced_table": "",
-          "columns": [
-            "max_uses"
-          ]
-        },
-        {
-          "name": "chk_invites_uses_lte_max",
-          "type": "CHECK",
-          "def": "CHECK (((max_uses IS NULL) OR (uses \u003c= max_uses)))",
-          "table": "public.invites",
-          "referenced_table": "",
-          "columns": [
-            "max_uses",
-            "uses"
-          ]
-        },
-        {
-          "name": "chk_invites_uses_non_negative",
-          "type": "CHECK",
-          "def": "CHECK ((uses \u003e= 0))",
-          "table": "public.invites",
-          "referenced_table": "",
-          "columns": [
-            "uses"
-          ]
-        },
-        {
-          "name": "invites_guild_id_fkey",
+          "name": "audit_logs_actor_id_fkey",
           "type": "FOREIGN KEY",
-          "def": "FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE",
-          "table": "public.invites",
+          "def": "FOREIGN KEY (actor_id) REFERENCES users(id) ON DELETE SET NULL",
+          "table": "public.audit_logs",
+          "referenced_table": "users",
+          "columns": [
+            "actor_id"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "audit_logs_guild_id_fkey",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE SET NULL",
+          "table": "public.audit_logs",
           "referenced_table": "guilds",
           "columns": [
             "guild_id"
@@ -1230,35 +1261,12 @@
           ]
         },
         {
-          "name": "invites_code_key",
-          "type": "UNIQUE",
-          "def": "UNIQUE (code)",
-          "table": "public.invites",
-          "referenced_table": "",
-          "columns": [
-            "code"
-          ]
-        },
-        {
-          "name": "invites_pkey",
+          "name": "audit_logs_pkey",
           "type": "PRIMARY KEY",
           "def": "PRIMARY KEY (id)",
-          "table": "public.invites",
+          "table": "public.audit_logs",
           "referenced_table": "",
           "columns": [
-            "id"
-          ]
-        },
-        {
-          "name": "invites_created_by_fkey",
-          "type": "FOREIGN KEY",
-          "def": "FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL",
-          "table": "public.invites",
-          "referenced_table": "users",
-          "columns": [
-            "created_by"
-          ],
-          "referenced_columns": [
             "id"
           ]
         }
@@ -1328,21 +1336,21 @@
           ]
         },
         {
-          "name": "idx_outbox_failed",
-          "def": "CREATE INDEX idx_outbox_failed ON public.outbox_events USING btree (status, created_at DESC) WHERE (status = 'FAILED'::outbox_status)",
-          "table": "public.outbox_events",
-          "columns": [
-            "status",
-            "created_at"
-          ]
-        },
-        {
           "name": "idx_outbox_pending",
           "def": "CREATE INDEX idx_outbox_pending ON public.outbox_events USING btree (status, next_retry_at, created_at)",
           "table": "public.outbox_events",
           "columns": [
             "status",
             "next_retry_at",
+            "created_at"
+          ]
+        },
+        {
+          "name": "idx_outbox_failed",
+          "def": "CREATE INDEX idx_outbox_failed ON public.outbox_events USING btree (status, created_at DESC) WHERE (status = 'FAILED'::outbox_status)",
+          "table": "public.outbox_events",
+          "columns": [
+            "status",
             "created_at"
           ]
         }
@@ -1371,139 +1379,23 @@
       ]
     },
     {
-      "name": "public.password_reset_tokens",
+      "name": "public.auth_identities",
       "type": "BASE TABLE",
       "columns": [
         {
-          "name": "user_id",
+          "name": "provider",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "provider_subject",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "principal_id",
           "type": "bigint",
           "nullable": false
-        },
-        {
-          "name": "token_hash",
-          "type": "text",
-          "nullable": false
-        },
-        {
-          "name": "expires_at",
-          "type": "timestamp with time zone",
-          "nullable": false
-        },
-        {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "nullable": false,
-          "default": "now()"
-        }
-      ],
-      "indexes": [
-        {
-          "name": "password_reset_tokens_pkey",
-          "def": "CREATE UNIQUE INDEX password_reset_tokens_pkey ON public.password_reset_tokens USING btree (user_id)",
-          "table": "public.password_reset_tokens",
-          "columns": [
-            "user_id"
-          ]
-        },
-        {
-          "name": "password_reset_tokens_token_hash_key",
-          "def": "CREATE UNIQUE INDEX password_reset_tokens_token_hash_key ON public.password_reset_tokens USING btree (token_hash)",
-          "table": "public.password_reset_tokens",
-          "columns": [
-            "token_hash"
-          ]
-        },
-        {
-          "name": "idx_password_reset_expires",
-          "def": "CREATE INDEX idx_password_reset_expires ON public.password_reset_tokens USING btree (expires_at)",
-          "table": "public.password_reset_tokens",
-          "columns": [
-            "expires_at"
-          ]
-        }
-      ],
-      "constraints": [
-        {
-          "name": "password_reset_tokens_pkey",
-          "type": "PRIMARY KEY",
-          "def": "PRIMARY KEY (user_id)",
-          "table": "public.password_reset_tokens",
-          "referenced_table": "",
-          "columns": [
-            "user_id"
-          ]
-        },
-        {
-          "name": "password_reset_tokens_token_hash_key",
-          "type": "UNIQUE",
-          "def": "UNIQUE (token_hash)",
-          "table": "public.password_reset_tokens",
-          "referenced_table": "",
-          "columns": [
-            "token_hash"
-          ]
-        },
-        {
-          "name": "password_reset_tokens_user_id_fkey",
-          "type": "FOREIGN KEY",
-          "def": "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE",
-          "table": "public.password_reset_tokens",
-          "referenced_table": "users",
-          "columns": [
-            "user_id"
-          ],
-          "referenced_columns": [
-            "id"
-          ]
-        }
-      ]
-    },
-    {
-      "name": "public.users",
-      "type": "BASE TABLE",
-      "columns": [
-        {
-          "name": "id",
-          "type": "bigint",
-          "nullable": false
-        },
-        {
-          "name": "email",
-          "type": "text",
-          "nullable": false
-        },
-        {
-          "name": "email_verified",
-          "type": "boolean",
-          "nullable": false,
-          "default": "false"
-        },
-        {
-          "name": "password_hash",
-          "type": "text",
-          "nullable": false,
-          "comment": "Argon2id の PHC 文字列（例: $argon2id$v=19$...）を保存する。"
-        },
-        {
-          "name": "display_name",
-          "type": "text",
-          "nullable": false
-        },
-        {
-          "name": "avatar_key",
-          "type": "text",
-          "nullable": true
-        },
-        {
-          "name": "status_text",
-          "type": "text",
-          "nullable": true
-        },
-        {
-          "name": "theme",
-          "type": "text",
-          "nullable": false,
-          "default": "'dark'::text"
         },
         {
           "name": "created_at",
@@ -1520,130 +1412,107 @@
       ],
       "indexes": [
         {
-          "name": "users_pkey",
-          "def": "CREATE UNIQUE INDEX users_pkey ON public.users USING btree (id)",
-          "table": "public.users",
+          "name": "auth_identities_pkey",
+          "def": "CREATE UNIQUE INDEX auth_identities_pkey ON public.auth_identities USING btree (provider, provider_subject)",
+          "table": "public.auth_identities",
           "columns": [
-            "id"
+            "provider",
+            "provider_subject"
           ]
         },
         {
-          "name": "uq_users_email_lower",
-          "def": "CREATE UNIQUE INDEX uq_users_email_lower ON public.users USING btree (lower(email))",
-          "table": "public.users",
+          "name": "uq_auth_identities_provider_principal",
+          "def": "CREATE UNIQUE INDEX uq_auth_identities_provider_principal ON public.auth_identities USING btree (provider, principal_id)",
+          "table": "public.auth_identities",
           "columns": [
-            "lower"
+            "provider",
+            "principal_id"
+          ]
+        },
+        {
+          "name": "idx_auth_identities_principal_id",
+          "def": "CREATE INDEX idx_auth_identities_principal_id ON public.auth_identities USING btree (principal_id)",
+          "table": "public.auth_identities",
+          "columns": [
+            "principal_id"
           ]
         }
       ],
       "constraints": [
         {
-          "name": "chk_users_password_hash_argon2id",
+          "name": "chk_auth_identities_provider_non_empty",
           "type": "CHECK",
-          "def": "CHECK ((password_hash ~~ '$argon2id$%'::text))",
-          "table": "public.users",
+          "def": "CHECK ((length(provider) \u003e 0))",
+          "table": "public.auth_identities",
           "referenced_table": "",
           "columns": [
-            "password_hash"
+            "provider"
           ]
         },
         {
-          "name": "chk_users_theme",
+          "name": "chk_auth_identities_provider_subject_non_empty",
           "type": "CHECK",
-          "def": "CHECK ((theme = ANY (ARRAY['dark'::text, 'light'::text])))",
-          "table": "public.users",
+          "def": "CHECK ((length(provider_subject) \u003e 0))",
+          "table": "public.auth_identities",
           "referenced_table": "",
           "columns": [
-            "theme"
+            "provider_subject"
           ]
         },
         {
-          "name": "users_pkey",
-          "type": "PRIMARY KEY",
-          "def": "PRIMARY KEY (id)",
-          "table": "public.users",
-          "referenced_table": "",
+          "name": "auth_identities_principal_id_fkey",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (principal_id) REFERENCES users(id) ON DELETE CASCADE",
+          "table": "public.auth_identities",
+          "referenced_table": "users",
           "columns": [
+            "principal_id"
+          ],
+          "referenced_columns": [
             "id"
           ]
-        }
-      ],
-      "triggers": [
+        },
         {
-          "name": "trg_users_set_updated_at",
-          "def": "CREATE TRIGGER trg_users_set_updated_at BEFORE UPDATE ON public.users FOR EACH ROW EXECUTE FUNCTION set_users_updated_at()"
+          "name": "auth_identities_pkey",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (provider, provider_subject)",
+          "table": "public.auth_identities",
+          "referenced_table": "",
+          "columns": [
+            "provider",
+            "provider_subject"
+          ]
+        },
+        {
+          "name": "uq_auth_identities_provider_principal",
+          "type": "UNIQUE",
+          "def": "UNIQUE (provider, principal_id)",
+          "table": "public.auth_identities",
+          "referenced_table": "",
+          "columns": [
+            "provider",
+            "principal_id"
+          ]
         }
       ]
     }
   ],
   "relations": [
     {
-      "table": "public.audit_logs",
+      "table": "public.guilds",
       "columns": [
-        "guild_id"
-      ],
-      "cardinality": "zero_or_more",
-      "parent_table": "public.guilds",
-      "parent_columns": [
-        "id"
-      ],
-      "parent_cardinality": "zero_or_one",
-      "def": "FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE SET NULL"
-    },
-    {
-      "table": "public.audit_logs",
-      "columns": [
-        "actor_id"
+        "owner_id"
       ],
       "cardinality": "zero_or_more",
       "parent_table": "public.users",
       "parent_columns": [
         "id"
       ],
-      "parent_cardinality": "zero_or_one",
-      "def": "FOREIGN KEY (actor_id) REFERENCES users(id) ON DELETE SET NULL"
-    },
-    {
-      "table": "public.channel_last_message",
-      "columns": [
-        "channel_id"
-      ],
-      "cardinality": "zero_or_one",
-      "parent_table": "public.channels",
-      "parent_columns": [
-        "id"
-      ],
       "parent_cardinality": "exactly_one",
-      "def": "FOREIGN KEY (channel_id) REFERENCES channels(id) ON DELETE CASCADE"
+      "def": "FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE RESTRICT"
     },
     {
-      "table": "public.channel_permission_overrides",
-      "columns": [
-        "channel_id"
-      ],
-      "cardinality": "zero_or_more",
-      "parent_table": "public.channels",
-      "parent_columns": [
-        "id"
-      ],
-      "parent_cardinality": "exactly_one",
-      "def": "FOREIGN KEY (channel_id) REFERENCES channels(id) ON DELETE CASCADE"
-    },
-    {
-      "table": "public.channel_reads",
-      "columns": [
-        "channel_id"
-      ],
-      "cardinality": "zero_or_more",
-      "parent_table": "public.channels",
-      "parent_columns": [
-        "id"
-      ],
-      "parent_cardinality": "exactly_one",
-      "def": "FOREIGN KEY (channel_id) REFERENCES channels(id) ON DELETE CASCADE"
-    },
-    {
-      "table": "public.channel_reads",
+      "table": "public.guild_members",
       "columns": [
         "user_id"
       ],
@@ -1656,7 +1525,7 @@
       "def": "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE"
     },
     {
-      "table": "public.channels",
+      "table": "public.guild_members",
       "columns": [
         "guild_id"
       ],
@@ -1665,8 +1534,60 @@
       "parent_columns": [
         "id"
       ],
-      "parent_cardinality": "zero_or_one",
+      "parent_cardinality": "exactly_one",
       "def": "FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE"
+    },
+    {
+      "table": "public.invites",
+      "columns": [
+        "created_by"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "public.users",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "zero_or_one",
+      "def": "FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL"
+    },
+    {
+      "table": "public.invites",
+      "columns": [
+        "guild_id"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "public.guilds",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "exactly_one",
+      "def": "FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE"
+    },
+    {
+      "table": "public.invite_uses",
+      "columns": [
+        "used_by"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "public.users",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "exactly_one",
+      "def": "FOREIGN KEY (used_by) REFERENCES users(id) ON DELETE CASCADE"
+    },
+    {
+      "table": "public.invite_uses",
+      "columns": [
+        "invite_id"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "public.invites",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "exactly_one",
+      "def": "FOREIGN KEY (invite_id) REFERENCES invites(id) ON DELETE CASCADE"
     },
     {
       "table": "public.channels",
@@ -1682,11 +1603,37 @@
       "def": "FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL"
     },
     {
-      "table": "public.dm_pairs",
+      "table": "public.channels",
+      "columns": [
+        "guild_id"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "public.guilds",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "zero_or_one",
+      "def": "FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE"
+    },
+    {
+      "table": "public.dm_participants",
+      "columns": [
+        "user_id"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "public.users",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "exactly_one",
+      "def": "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE"
+    },
+    {
+      "table": "public.dm_participants",
       "columns": [
         "channel_id"
       ],
-      "cardinality": "zero_or_one",
+      "cardinality": "zero_or_more",
       "parent_table": "public.channels",
       "parent_columns": [
         "id"
@@ -1721,11 +1668,11 @@
       "def": "FOREIGN KEY (user_low) REFERENCES users(id) ON DELETE CASCADE"
     },
     {
-      "table": "public.dm_participants",
+      "table": "public.dm_pairs",
       "columns": [
         "channel_id"
       ],
-      "cardinality": "zero_or_more",
+      "cardinality": "zero_or_one",
       "parent_table": "public.channels",
       "parent_columns": [
         "id"
@@ -1734,30 +1681,17 @@
       "def": "FOREIGN KEY (channel_id) REFERENCES channels(id) ON DELETE CASCADE"
     },
     {
-      "table": "public.dm_participants",
+      "table": "public.guild_roles",
       "columns": [
-        "user_id"
+        "guild_id"
       ],
       "cardinality": "zero_or_more",
-      "parent_table": "public.users",
+      "parent_table": "public.guilds",
       "parent_columns": [
         "id"
       ],
       "parent_cardinality": "exactly_one",
-      "def": "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE"
-    },
-    {
-      "table": "public.email_verification_tokens",
-      "columns": [
-        "user_id"
-      ],
-      "cardinality": "zero_or_one",
-      "parent_table": "public.users",
-      "parent_columns": [
-        "id"
-      ],
-      "parent_cardinality": "exactly_one",
-      "def": "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE"
+      "def": "FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE"
     },
     {
       "table": "public.guild_member_roles",
@@ -1790,20 +1724,20 @@
       "def": "FOREIGN KEY (guild_id, level) REFERENCES guild_roles(guild_id, level) ON DELETE RESTRICT"
     },
     {
-      "table": "public.guild_members",
+      "table": "public.channel_permission_overrides",
       "columns": [
-        "guild_id"
+        "channel_id"
       ],
       "cardinality": "zero_or_more",
-      "parent_table": "public.guilds",
+      "parent_table": "public.channels",
       "parent_columns": [
         "id"
       ],
       "parent_cardinality": "exactly_one",
-      "def": "FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE"
+      "def": "FOREIGN KEY (channel_id) REFERENCES channels(id) ON DELETE CASCADE"
     },
     {
-      "table": "public.guild_members",
+      "table": "public.channel_reads",
       "columns": [
         "user_id"
       ],
@@ -1816,74 +1750,35 @@
       "def": "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE"
     },
     {
-      "table": "public.guild_roles",
+      "table": "public.channel_reads",
       "columns": [
-        "guild_id"
+        "channel_id"
       ],
       "cardinality": "zero_or_more",
-      "parent_table": "public.guilds",
+      "parent_table": "public.channels",
       "parent_columns": [
         "id"
       ],
       "parent_cardinality": "exactly_one",
-      "def": "FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE"
+      "def": "FOREIGN KEY (channel_id) REFERENCES channels(id) ON DELETE CASCADE"
     },
     {
-      "table": "public.guilds",
+      "table": "public.channel_last_message",
       "columns": [
-        "owner_id"
+        "channel_id"
       ],
-      "cardinality": "zero_or_more",
-      "parent_table": "public.users",
+      "cardinality": "zero_or_one",
+      "parent_table": "public.channels",
       "parent_columns": [
         "id"
       ],
       "parent_cardinality": "exactly_one",
-      "def": "FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE RESTRICT"
+      "def": "FOREIGN KEY (channel_id) REFERENCES channels(id) ON DELETE CASCADE"
     },
     {
-      "table": "public.invite_uses",
+      "table": "public.audit_logs",
       "columns": [
-        "invite_id"
-      ],
-      "cardinality": "zero_or_more",
-      "parent_table": "public.invites",
-      "parent_columns": [
-        "id"
-      ],
-      "parent_cardinality": "exactly_one",
-      "def": "FOREIGN KEY (invite_id) REFERENCES invites(id) ON DELETE CASCADE"
-    },
-    {
-      "table": "public.invite_uses",
-      "columns": [
-        "used_by"
-      ],
-      "cardinality": "zero_or_more",
-      "parent_table": "public.users",
-      "parent_columns": [
-        "id"
-      ],
-      "parent_cardinality": "exactly_one",
-      "def": "FOREIGN KEY (used_by) REFERENCES users(id) ON DELETE CASCADE"
-    },
-    {
-      "table": "public.invites",
-      "columns": [
-        "guild_id"
-      ],
-      "cardinality": "zero_or_more",
-      "parent_table": "public.guilds",
-      "parent_columns": [
-        "id"
-      ],
-      "parent_cardinality": "exactly_one",
-      "def": "FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE"
-    },
-    {
-      "table": "public.invites",
-      "columns": [
-        "created_by"
+        "actor_id"
       ],
       "cardinality": "zero_or_more",
       "parent_table": "public.users",
@@ -1891,31 +1786,44 @@
         "id"
       ],
       "parent_cardinality": "zero_or_one",
-      "def": "FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL"
+      "def": "FOREIGN KEY (actor_id) REFERENCES users(id) ON DELETE SET NULL"
     },
     {
-      "table": "public.password_reset_tokens",
+      "table": "public.audit_logs",
       "columns": [
-        "user_id"
+        "guild_id"
       ],
-      "cardinality": "zero_or_one",
+      "cardinality": "zero_or_more",
+      "parent_table": "public.guilds",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "zero_or_one",
+      "def": "FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE SET NULL"
+    },
+    {
+      "table": "public.auth_identities",
+      "columns": [
+        "principal_id"
+      ],
+      "cardinality": "zero_or_more",
       "parent_table": "public.users",
       "parent_columns": [
         "id"
       ],
       "parent_cardinality": "exactly_one",
-      "def": "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE"
+      "def": "FOREIGN KEY (principal_id) REFERENCES users(id) ON DELETE CASCADE"
     }
   ],
   "functions": [
     {
-      "name": "public.enforce_dm_pairs_channel_type",
+      "name": "public.set_users_updated_at",
       "return_type": "trigger",
       "arguments": "",
       "type": "FUNCTION"
     },
     {
-      "name": "public.set_users_updated_at",
+      "name": "public.enforce_dm_pairs_channel_type",
       "return_type": "trigger",
       "arguments": "",
       "type": "FUNCTION"

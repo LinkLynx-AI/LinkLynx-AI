@@ -4,17 +4,15 @@
 BEGIN;
 
 -- users
-INSERT INTO users (id, email, email_verified, password_hash, display_name, theme, status_text)
+INSERT INTO users (id, email, display_name, theme, status_text)
 VALUES
-  (1001, 'alice@example.com', true,  '$argon2id$v=19$m=65536,t=3,p=1$seed$alice', 'Alice', 'dark',  'Building LinkLynx'),
-  (1002, 'bob@example.com',   true,  '$argon2id$v=19$m=65536,t=3,p=1$seed$bob',   'Bob',   'light', 'Reviewing PRs'),
-  (1003, 'carol@example.com', false, '$argon2id$v=19$m=65536,t=3,p=1$seed$carol', 'Carol', 'dark',  'Designing channels'),
-  (1004, 'dave@example.com',  false, '$argon2id$v=19$m=65536,t=3,p=1$seed$dave',  'Dave',  'light', 'Testing invites')
+  (1001, 'alice@example.com', 'Alice', 'dark',  'Building LinkLynx'),
+  (1002, 'bob@example.com',   'Bob',   'light', 'Reviewing PRs'),
+  (1003, 'carol@example.com', 'Carol', 'dark',  'Designing channels'),
+  (1004, 'dave@example.com',  'Dave',  'light', 'Testing invites')
 ON CONFLICT (id) DO UPDATE
 SET
   email = EXCLUDED.email,
-  email_verified = EXCLUDED.email_verified,
-  password_hash = EXCLUDED.password_hash,
   display_name = EXCLUDED.display_name,
   theme = EXCLUDED.theme,
   status_text = EXCLUDED.status_text;
@@ -137,23 +135,6 @@ VALUES
   (4001, 1003),
   (4001, 1004)
 ON CONFLICT (invite_id, used_by) DO NOTHING;
-
--- auth tokens
-INSERT INTO email_verification_tokens (user_id, token_hash, expires_at)
-VALUES
-  (1003, 'seed_email_verif_carol', now() + interval '1 day')
-ON CONFLICT (user_id) DO UPDATE
-SET
-  token_hash = EXCLUDED.token_hash,
-  expires_at = EXCLUDED.expires_at;
-
-INSERT INTO password_reset_tokens (user_id, token_hash, expires_at)
-VALUES
-  (1002, 'seed_password_reset_bob', now() + interval '30 minutes')
-ON CONFLICT (user_id) DO UPDATE
-SET
-  token_hash = EXCLUDED.token_hash,
-  expires_at = EXCLUDED.expires_at;
 
 -- audit / outbox
 INSERT INTO audit_logs (id, guild_id, actor_id, action, target_type, target_id, metadata)

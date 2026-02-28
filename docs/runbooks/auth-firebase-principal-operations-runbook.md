@@ -1,13 +1,16 @@
 # Firebase Auth / principal_id Operations Runbook (Draft)
 
 - Status: Draft
-- Last updated: 2026-02-27
-- Owner scope: v0 auth operations baseline for REST/WS shared authentication
+- Last updated: 2026-02-28
+- Owner scope: v1 auth operations baseline for REST/WS shared authentication
 - References:
   - [ADR-005 Dragonfly Outage RateLimit Failure Policy (Hybrid)](../adr/ADR-005-dragonfly-ratelimit-failure-policy.md)
   - [Edge REST/WS Routing and WS Drain Runbook](./edge-rest-ws-routing-drain-runbook.md)
-  - [LIN-586](https://linear.app/linklynx-ai/issue/LIN-586)
-  - [LIN-618](https://linear.app/linklynx-ai/issue/LIN-618)
+  - [LIN-620](https://linear.app/linklynx-ai/issue/LIN-620)
+  - [LIN-621](https://linear.app/linklynx-ai/issue/LIN-621)
+  - [LIN-622](https://linear.app/linklynx-ai/issue/LIN-622)
+  - [LIN-624](https://linear.app/linklynx-ai/issue/LIN-624)
+  - [LIN-623](https://linear.app/linklynx-ai/issue/LIN-623)
 
 ## 1. Purpose and scope
 
@@ -33,12 +36,14 @@ Out of scope:
 - External identity source of truth: Firebase ID token (`sub` = UID)
 - Internal principal contract: `uid -> principal_id`
 - Mapping source: `auth_identities(provider, provider_subject) -> users.id`
+- Initial authentication performs idempotent provisioning when mapping is missing.
 
 ### 2.2 Error mapping policy
 
 | failure class | REST | WS close code | app-level code |
 | --- | --- | --- | --- |
 | missing/invalid/expired token | `401` | `1008` | `AUTH_MISSING_TOKEN` / `AUTH_INVALID_TOKEN` / `AUTH_TOKEN_EXPIRED` |
+| email not verified | `403` | `1008` | `AUTH_EMAIL_NOT_VERIFIED` |
 | principal mapping missing/invalid | `403` | `1008` | `AUTH_PRINCIPAL_NOT_MAPPED` |
 | auth dependency unavailable (JWKS/cache/store) | `503` | `1011` | `AUTH_UNAVAILABLE` |
 
@@ -55,9 +60,6 @@ Out of scope:
 
 - `DATABASE_URL` is required for runtime principal mapping in normal operation.
 - If `DATABASE_URL` is missing, principal resolution is fail-close by default (`AUTH_UNAVAILABLE`).
-- Local/dev-only fallback to seeded in-memory mappings is opt-in via:
-  - `AUTH_ALLOW_IN_MEMORY_PRINCIPAL_STORE=true`
-  - `AUTH_UID_PRINCIPAL_SEEDS=uidA=1001,uidB=1002`
 - Firebase issued-at skew tolerance is configurable via:
   - `FIREBASE_IAT_SKEW_SECONDS` (default: `60`)
 - Principal store retry behavior is configurable via:
@@ -68,6 +70,23 @@ Out of scope:
   - Temporary plaintext opt-out is possible only with explicit:
     - `AUTH_ALLOW_POSTGRES_NOTLS=true` (local/development only)
 
+### 2.5 Principal auto provisioning policy
+
+- Trigger: first successful token verification with missing `uid -> principal_id` mapping.
+- Provisioning behavior:
+  - Validate required identity claims for user bootstrap (email required).
+  - Create/reuse `users` row in Postgres.
+  - Upsert `auth_identities` and re-resolve in the same logical flow.
+- Concurrency safety:
+  - Provisioning must be idempotent under duplicate/concurrent first-login requests.
+  - Conflict-unresolved paths are fail-close (`403`).
+
+### 2.6 Password reset / verification email responsibility
+
+- Application runtime does not manage local password hashes or reset tokens.
+- Password reset and verification emails are delegated to Firebase standard capabilities.
+- Local fallback reset paths are prohibited.
+
 ## 3. Required logs and audit fields
 
 Minimum required log fields on authentication decision paths:
@@ -75,9 +94,11 @@ Minimum required log fields on authentication decision paths:
 - `request_id`
 - `principal_id` (when resolved)
 - `firebase_uid` (when available)
+- `email_verified` (when available)
 - `decision` (`allow` / `deny` / `unavailable`)
 - `error_class` (for non-allow decisions)
 - `reason`
+- `provision_action` (`none` / `created` / `reused` / `conflict`)
 
 Operational rule:
 
@@ -95,6 +116,9 @@ Required counters/gauges:
 - `auth_principal_cache_hit_total`
 - `auth_principal_cache_miss_total`
 - `auth_principal_cache_hit_ratio`
+- `auth_principal_provision_success_total`
+- `auth_principal_provision_failure_total`
+- `auth_principal_provision_retry_total`
 - `auth_ws_reauth_success_total`
 - `auth_ws_reauth_failure_total`
 
@@ -103,6 +127,7 @@ Alerting viewpoints (minimum draft):
 1. Unavailable spike: `auth_token_verify_unavailable_total` increases continuously for 5 minutes.
 2. Cache degradation: cache hit ratio drops sharply from baseline while miss total rises.
 3. WS reauth instability: reauth failure total rises above agreed baseline in 5-minute windows.
+4. Provisioning degradation: provisioning failure total rises while success total drops.
 
 ## 5. Failure scenarios and triage
 
@@ -146,6 +171,19 @@ Primary response:
 2. Restore store availability before retrying traffic shifts.
 3. Confirm authentication allow path recovers with valid mapped UID.
 
+### 5.4 Scenario D: provisioning conflict spike
+
+Symptoms:
+
+- `AUTH_PRINCIPAL_NOT_MAPPED` with provisioning-conflict reason increases
+- provisioning failure metric rises
+
+Primary response:
+
+1. Check unique constraint conflicts on `auth_identities` and `users(lower(email))`.
+2. Verify duplicate/parallel login burst behavior from clients.
+3. Keep fail-close response and resolve conflicting identity records operationally.
+
 ## 6. Verification procedure
 
 1. Valid token + mapped UID:
@@ -156,15 +194,20 @@ Primary response:
 - REST returns `401`.
 - WS denies or closes with `1008`.
 
-3. Missing principal mapping:
-- REST returns `403`.
-- WS closes with `1008`.
+3. Missing principal mapping on first authentication:
+- REST returns `200` when provisioning succeeds.
+- REST returns `403` when conflict is unrecoverable.
+- WS follows equivalent allow/deny behavior.
 
 4. Dependency unavailable simulation (JWKS/store):
 - REST returns `503`.
 - WS closes with `1011`.
 
-5. Log and metrics checks:
+5. Unverified email token:
+- REST returns `403` with `AUTH_EMAIL_NOT_VERIFIED`.
+- WS closes with `1008`.
+
+6. Log and metrics checks:
 - confirm `request_id` presence
 - confirm `principal_id` appears on allow logs
 - confirm metrics counters move for each scenario

@@ -19,9 +19,9 @@
 
 | Name | Type | Definition |
 | ---- | ---- | ---------- |
-| audit_logs_pkey | PRIMARY KEY | PRIMARY KEY (id) |
-| audit_logs_guild_id_fkey | FOREIGN KEY | FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE SET NULL |
 | audit_logs_actor_id_fkey | FOREIGN KEY | FOREIGN KEY (actor_id) REFERENCES users(id) ON DELETE SET NULL |
+| audit_logs_guild_id_fkey | FOREIGN KEY | FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE SET NULL |
+| audit_logs_pkey | PRIMARY KEY | PRIMARY KEY (id) |
 
 ## Indexes
 

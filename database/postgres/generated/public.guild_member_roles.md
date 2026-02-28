@@ -14,9 +14,9 @@
 
 | Name | Type | Definition |
 | ---- | ---- | ---------- |
-| guild_member_roles_pkey | PRIMARY KEY | PRIMARY KEY (guild_id, user_id) |
 | guild_member_roles_guild_id_user_id_fkey | FOREIGN KEY | FOREIGN KEY (guild_id, user_id) REFERENCES guild_members(guild_id, user_id) ON DELETE CASCADE |
 | guild_member_roles_guild_id_level_fkey | FOREIGN KEY | FOREIGN KEY (guild_id, level) REFERENCES guild_roles(guild_id, level) ON DELETE RESTRICT |
+| guild_member_roles_pkey | PRIMARY KEY | PRIMARY KEY (guild_id, user_id) |
 
 ## Indexes
 

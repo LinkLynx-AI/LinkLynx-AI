@@ -16,9 +16,9 @@
 
 | Name | Type | Definition |
 | ---- | ---- | ---------- |
-| channel_reads_pkey | PRIMARY KEY | PRIMARY KEY (channel_id, user_id) |
-| channel_reads_channel_id_fkey | FOREIGN KEY | FOREIGN KEY (channel_id) REFERENCES channels(id) ON DELETE CASCADE |
 | channel_reads_user_id_fkey | FOREIGN KEY | FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE |
+| channel_reads_channel_id_fkey | FOREIGN KEY | FOREIGN KEY (channel_id) REFERENCES channels(id) ON DELETE CASCADE |
+| channel_reads_pkey | PRIMARY KEY | PRIMARY KEY (channel_id, user_id) |
 
 ## Indexes
 

@@ -15,8 +15,8 @@
 
 | Name | Type | Definition |
 | ---- | ---- | ---------- |
-| channel_last_message_pkey | PRIMARY KEY | PRIMARY KEY (channel_id) |
 | channel_last_message_channel_id_fkey | FOREIGN KEY | FOREIGN KEY (channel_id) REFERENCES channels(id) ON DELETE CASCADE |
+| channel_last_message_pkey | PRIMARY KEY | PRIMARY KEY (channel_id) |
 
 ## Indexes
 

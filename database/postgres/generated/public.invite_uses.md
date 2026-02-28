@@ -14,9 +14,9 @@
 
 | Name | Type | Definition |
 | ---- | ---- | ---------- |
-| invite_uses_pkey | PRIMARY KEY | PRIMARY KEY (invite_id, used_by) |
-| invite_uses_invite_id_fkey | FOREIGN KEY | FOREIGN KEY (invite_id) REFERENCES invites(id) ON DELETE CASCADE |
 | invite_uses_used_by_fkey | FOREIGN KEY | FOREIGN KEY (used_by) REFERENCES users(id) ON DELETE CASCADE |
+| invite_uses_invite_id_fkey | FOREIGN KEY | FOREIGN KEY (invite_id) REFERENCES invites(id) ON DELETE CASCADE |
+| invite_uses_pkey | PRIMARY KEY | PRIMARY KEY (invite_id, used_by) |
 
 ## Indexes
 

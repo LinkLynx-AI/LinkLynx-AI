@@ -4,7 +4,8 @@ mod tests {
     use async_trait::async_trait;
     use auth::{
         CachingPrincipalResolver, InMemoryPrincipalCache, InMemoryPrincipalStore,
-        PrincipalResolver, TokenVerifier, TokenVerifyError, VerifiedToken,
+        PrincipalProvisioner, PrincipalResolver, PrincipalStore, TokenVerifier, TokenVerifyError,
+        VerifiedToken,
     };
     use axum::{body::to_bytes, http::StatusCode};
     use linklynx_shared::PrincipalId;
@@ -31,6 +32,9 @@ mod tests {
 
             Ok(VerifiedToken {
                 uid: uid.to_owned(),
+                email: Some(format!("{uid}@example.com")),
+                email_verified: true,
+                display_name: Some(uid.to_owned()),
                 expires_at_epoch: exp,
             })
         }
@@ -40,13 +44,16 @@ mod tests {
         let metrics = Arc::new(AuthMetrics::default());
         let verifier: Arc<dyn TokenVerifier> = Arc::new(StaticTokenVerifier);
 
-        let store = InMemoryPrincipalStore::default();
+        let store = Arc::new(InMemoryPrincipalStore::default());
         store.insert("firebase", "u-1", PrincipalId(1001)).await;
+        let store_resolver: Arc<dyn PrincipalStore> = store.clone();
+        let provisioner: Arc<dyn PrincipalProvisioner> = store.clone();
 
         let resolver: Arc<dyn PrincipalResolver> = Arc::new(CachingPrincipalResolver::new(
             "firebase".to_owned(),
             Arc::new(InMemoryPrincipalCache::default()),
-            Arc::new(store),
+            store_resolver,
+            provisioner,
             Duration::from_secs(120),
             Arc::clone(&metrics),
         ));
@@ -140,7 +147,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn protected_endpoint_returns_forbidden_when_mapping_missing() {
+    async fn protected_endpoint_provisions_missing_mapping() {
         let app = app_for_test().await;
         let token = format!("u-unknown:{}", unix_timestamp_seconds() + 300);
         let response = app
@@ -154,7 +161,7 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+        assert_eq!(response.status(), StatusCode::OK);
     }
 
     #[test]

@@ -23,19 +23,19 @@
 | chk_invites_max_uses_positive | CHECK | CHECK (((max_uses IS NULL) OR (max_uses > 0))) |
 | chk_invites_uses_lte_max | CHECK | CHECK (((max_uses IS NULL) OR (uses <= max_uses))) |
 | chk_invites_uses_non_negative | CHECK | CHECK ((uses >= 0)) |
-| invites_guild_id_fkey | FOREIGN KEY | FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE |
-| invites_code_key | UNIQUE | UNIQUE (code) |
-| invites_pkey | PRIMARY KEY | PRIMARY KEY (id) |
 | invites_created_by_fkey | FOREIGN KEY | FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL |
+| invites_guild_id_fkey | FOREIGN KEY | FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE |
+| invites_pkey | PRIMARY KEY | PRIMARY KEY (id) |
+| invites_code_key | UNIQUE | UNIQUE (code) |
 
 ## Indexes
 
 | Name | Definition |
 | ---- | ---------- |
-| invites_code_key | CREATE UNIQUE INDEX invites_code_key ON public.invites USING btree (code) |
 | invites_pkey | CREATE UNIQUE INDEX invites_pkey ON public.invites USING btree (id) |
-| idx_invites_expires | CREATE INDEX idx_invites_expires ON public.invites USING btree (expires_at) WHERE (expires_at IS NOT NULL) |
+| invites_code_key | CREATE UNIQUE INDEX invites_code_key ON public.invites USING btree (code) |
 | idx_invites_guild | CREATE INDEX idx_invites_guild ON public.invites USING btree (guild_id) |
+| idx_invites_expires | CREATE INDEX idx_invites_expires ON public.invites USING btree (expires_at) WHERE (expires_at IS NOT NULL) |
 
 ## Relations
 
