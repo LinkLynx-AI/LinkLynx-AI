@@ -98,7 +98,7 @@ Minimum required log fields on authentication decision paths:
 - `decision` (`allow` / `deny` / `unavailable`)
 - `error_class` (for non-allow decisions)
 - `reason`
-- `provision_action` (`none` / `created` / `reused` / `conflict`)
+- `provision_action` (`created_or_reused` / `failed`) on provisioning-attempt log events.
 
 Operational rule:
 

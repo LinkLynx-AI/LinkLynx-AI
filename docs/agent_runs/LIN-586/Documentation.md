@@ -10,7 +10,8 @@
 - REST error mapping: 401/403/503.
 - WS token expiry behavior: in-band reauth request with deadline and fail-close close-code mapping.
 - Dependency failure behavior: fail-close (`503` for REST, `1011` for WS).
-- Runtime principal store default: `DATABASE_URL` missing => fail-close; in-memory seed fallback is explicit opt-in (`AUTH_ALLOW_IN_MEMORY_PRINCIPAL_STORE=true`).
+- Runtime principal store default: `DATABASE_URL` missing => fail-close.
+  - `AUTH_ALLOW_IN_MEMORY_PRINCIPAL_STORE` was removed in this pass and is not used by the current v1 baseline.
 - Postgres principal store transport policy: TLS is required by default (fail-close) and plaintext is allowed only when `AUTH_ALLOW_POSTGRES_NOTLS=true` is explicitly set for local/development.
 - JWKS missing-`kid` handling: per-`kid` + global backoff with unavailable-class preservation during dependency outage windows.
 
