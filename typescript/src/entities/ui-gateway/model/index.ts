@@ -1,6 +1,7 @@
 export type UiGatewayLink = {
   label: string;
   href: string;
+  description?: string;
 };
 
 export type UiGatewayProvider = "mock" | "api";
@@ -20,21 +21,34 @@ export type ServerRailItem = {
   href: string;
   selected: boolean;
   unread?: boolean;
+  unreadCount?: number;
+  muted?: boolean;
 };
 
 export type ChannelListItemKind = "dm" | "text" | "settings";
+
+export type ChannelListSection = "dm" | "channels" | "shortcuts";
 
 export type ChannelListItem = {
   id: string;
   label: string;
   href: string;
   kind: ChannelListItemKind;
+  section: ChannelListSection;
   selected: boolean;
+  unread?: boolean;
+  unreadCount?: number;
+  muted?: boolean;
+  statusLabel?: string;
 };
+
+export type MemberPresence = "online" | "idle" | "dnd" | "offline";
 
 export type MemberListItem = {
   id: string;
   name: string;
+  presence: MemberPresence;
+  roleLabel?: string;
 };
 
 export type ChannelShellNavigation = {
@@ -58,11 +72,61 @@ export type SettingsShellNavigation = {
   closeHint: string;
 };
 
+export type InvitePageStatus = "valid" | "invalid" | "expired";
+
 export type InvitePageContent = {
+  status: InvitePageStatus;
   title: string;
   description: string;
+  guildName?: string;
+  memberCountLabel?: string;
   primaryAction: UiGatewayLink;
   secondaryAction: UiGatewayLink;
+  recoveryActions: ReadonlyArray<UiGatewayLink>;
+};
+
+export type ConversationContextKind = "channel" | "dm";
+
+export type ConversationHeaderAction = {
+  id: string;
+  icon: string;
+  label: string;
+};
+
+export type ConversationMessageState = "sent" | "pending" | "failed" | "edited" | "deleted";
+
+export type ConversationMessageAction = "retry" | "jump" | "edit" | "delete";
+
+export type ConversationMessage = {
+  id: string;
+  authorName: string;
+  avatarText: string;
+  timestampLabel: string;
+  body: string;
+  state: ConversationMessageState;
+  compact?: boolean;
+  system?: boolean;
+  actions: ReadonlyArray<ConversationMessageAction>;
+};
+
+export type ConversationComposerState = "idle" | "typing";
+
+export type ConversationComposer = {
+  placeholder: string;
+  draftText?: string;
+  hint: string;
+  state: ConversationComposerState;
+};
+
+export type ConversationPreviewContent = {
+  context: ConversationContextKind;
+  title: string;
+  subtitle: string;
+  headerIcon: string;
+  headerActions: ReadonlyArray<ConversationHeaderAction>;
+  messages: ReadonlyArray<ConversationMessage>;
+  composer: ConversationComposer;
+  quickActions: ReadonlyArray<UiGatewayLink>;
 };
 
 export type MessagePreviewContent = {
@@ -108,8 +172,11 @@ export type GuildUiGateway = {
 };
 
 export type MessageUiGateway = {
-  getChannelsMeContent(): Promise<MessagePreviewContent>;
-  getChannelContent(input: { guildId: string; channelId: string }): Promise<MessagePreviewContent>;
+  getChannelsMeContent(): Promise<ConversationPreviewContent>;
+  getChannelContent(input: {
+    guildId: string;
+    channelId: string;
+  }): Promise<ConversationPreviewContent>;
   getProfileSettingsContent(): Promise<MessagePreviewContent>;
   getAppearanceSettingsContent(): Promise<MessagePreviewContent>;
 };

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { APP_ROUTES, buildChannelRoute, buildInviteRoute } from "./routes";
+import { APP_ROUTES, buildChannelRoute, buildInviteRoute, buildLoginRoute } from "./routes";
 
 describe("routes", () => {
   test("公開ルート契約を固定する", () => {
@@ -20,5 +20,14 @@ describe("routes", () => {
   test("channel ルートを生成する", () => {
     expect(buildChannelRoute("guild-1", "channel-2")).toBe("/channels/guild-1/channel-2");
     expect(buildChannelRoute("guild/a", "channel b")).toBe("/channels/guild%2Fa/channel%20b");
+  });
+
+  test("login ルートを生成する", () => {
+    expect(buildLoginRoute()).toBe("/login");
+    expect(buildLoginRoute("/invite/abc123")).toBe("/login?redirect=%2Finvite%2Fabc123");
+    expect(buildLoginRoute(" /channels/me ")).toBe("/login?redirect=%2Fchannels%2Fme");
+    expect(buildLoginRoute("https://example.com")).toBe("/login");
+    expect(buildLoginRoute("//evil.example.com")).toBe("/login");
+    expect(buildLoginRoute("")).toBe("/login");
   });
 });

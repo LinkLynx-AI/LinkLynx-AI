@@ -1,11 +1,14 @@
 import { ProtectedPreviewGate } from "@/features";
 import { createUiGateway } from "@/entities";
-import { ChannelShellLayout, ShellStatePlaceholder } from "@/widgets";
 import {
-  ChannelShellMemberList,
-  ChannelShellServerRail,
-  ChannelShellSidebar,
-} from "@/app/(protected)/_components/channel-shell-preview";
+  ChannelMemberList,
+  ChannelServerRail,
+  ChannelShellLayout,
+  ChannelSidebar,
+  ConversationHeaderBar,
+  ConversationTimelineComposer,
+  ShellStatePlaceholder,
+} from "@/widgets";
 import { resolveProtectedPreviewState } from "@/app/(protected)/_lib/preview";
 
 type SearchParamsObject = Record<string, string | string[] | undefined>;
@@ -29,27 +32,13 @@ export default async function ChannelsMePage({ searchParams }: ChannelsMePagePro
     })),
     channelItems: shellNavigation.channelItems.map((item) => ({
       ...item,
-      selected: item.id === "me",
+      selected: item.id === "friends",
     })),
   };
 
   const mainContent =
     previewState.state === null ? (
-      <section className="space-y-4">
-        <h1 className="text-2xl font-semibold text-[var(--llx-text-primary)]">{content.title}</h1>
-        <p className="text-sm text-[var(--llx-text-muted)]">{content.description}</p>
-        <div className="flex flex-wrap gap-3">
-          {content.quickActions.map((action) => (
-            <a
-              key={`${action.href}-${action.label}`}
-              href={action.href}
-              className="rounded-md border border-[var(--llx-divider)] px-3 py-2 text-xs text-[var(--llx-text-secondary)] transition hover:bg-[var(--llx-bg-selected)]"
-            >
-              {action.label}
-            </a>
-          ))}
-        </div>
-      </section>
+      <ConversationTimelineComposer content={content} />
     ) : (
       <ShellStatePlaceholder state={previewState.state} />
     );
@@ -57,14 +46,15 @@ export default async function ChannelsMePage({ searchParams }: ChannelsMePagePro
   return (
     <ProtectedPreviewGate guard={previewState.guard}>
       <ChannelShellLayout
-        serverRail={<ChannelShellServerRail items={shellNavigationForMe.serverRailItems} />}
+        serverRail={<ChannelServerRail items={shellNavigationForMe.serverRailItems} />}
         channelSidebar={
-          <ChannelShellSidebar
+          <ChannelSidebar
             sectionLabel={shellNavigationForMe.sectionLabel}
             items={shellNavigationForMe.channelItems}
           />
         }
-        memberList={<ChannelShellMemberList items={shellNavigationForMe.memberItems} />}
+        memberList={<ChannelMemberList items={shellNavigationForMe.memberItems} />}
+        header={<ConversationHeaderBar content={content} />}
         mainContent={mainContent}
       />
     </ProtectedPreviewGate>

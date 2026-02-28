@@ -29,3 +29,24 @@ export function buildChannelRoute(guildId: string, channelId: string): string {
 
   return `/channels/${encodedGuildId}/${encodedChannelId}`;
 }
+
+function isSafeInternalPath(path: string): boolean {
+  return path.startsWith("/") && !path.startsWith("//");
+}
+
+/**
+ * ログイン画面への導線URLを生成する。
+ */
+export function buildLoginRoute(redirectPath?: string): string {
+  if (redirectPath === undefined) {
+    return APP_ROUTES.login;
+  }
+
+  const normalizedPath = redirectPath.trim();
+  if (normalizedPath.length === 0 || !isSafeInternalPath(normalizedPath)) {
+    return APP_ROUTES.login;
+  }
+
+  const params = new URLSearchParams({ redirect: normalizedPath });
+  return `${APP_ROUTES.login}?${params.toString()}`;
+}
