@@ -21,7 +21,7 @@ export default async function ChannelsMePage({ searchParams }: ChannelsMePagePro
     previewState.state === null ? (
       <section className="space-y-4">
         <h1 className="text-2xl font-semibold text-[var(--llx-text-primary)]">
-          @me ダッシュボード
+          me ダッシュボード
         </h1>
         <p className="text-sm text-[var(--llx-text-muted)]">
           保護ルートの表示プレビューです。`?state=loading|empty|error|readonly|disabled` または

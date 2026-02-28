@@ -10,7 +10,7 @@ export default function LoginPage() {
         { label: "新規登録へ", href: APP_ROUTES.register },
         { label: "メール確認へ", href: APP_ROUTES.verifyEmail },
         { label: "パスワード再設定へ", href: APP_ROUTES.passwordReset },
-        { label: "ログイン後の遷移先 (@me)", href: APP_ROUTES.channels.me },
+        { label: "ログイン後の遷移先 (me)", href: APP_ROUTES.channels.me },
       ]}
     />
   );

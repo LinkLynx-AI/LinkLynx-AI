@@ -8,7 +8,7 @@ describe("routes", () => {
     expect(APP_ROUTES.register).toBe("/register");
     expect(APP_ROUTES.verifyEmail).toBe("/verify-email");
     expect(APP_ROUTES.passwordReset).toBe("/password-reset");
-    expect(APP_ROUTES.channels.me).toBe("/channels/@me");
+    expect(APP_ROUTES.channels.me).toBe("/channels/me");
     expect(APP_ROUTES.settings.profile).toBe("/settings/profile");
   });
 

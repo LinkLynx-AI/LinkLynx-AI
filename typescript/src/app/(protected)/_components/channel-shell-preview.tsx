@@ -22,7 +22,7 @@ export function ChannelShellSidebar() {
           href={APP_ROUTES.channels.me}
           className="block rounded px-2 py-2 text-sm text-[var(--llx-text-secondary)] transition hover:bg-[var(--llx-bg-selected)]"
         >
-          @me
+          me
         </a>
         <a
           href={buildChannelRoute("guild-1", "channel-general")}
