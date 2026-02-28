@@ -22,6 +22,23 @@ pub struct AuthContext {
     pub request_id: String,
     pub principal_id: PrincipalId,
     pub firebase_uid: String,
+    pub expires_at_epoch: u64,
+}
+
+impl AuthContext {
+    /// 認証済み主体からAuthContextを生成する。
+    /// @param request_id リクエスト追跡ID
+    /// @param authenticated 認証済み主体
+    /// @returns ハンドラへ注入する認証文脈
+    /// @throws なし
+    pub fn from_authenticated(request_id: String, authenticated: &AuthenticatedPrincipal) -> Self {
+        Self {
+            request_id,
+            principal_id: authenticated.principal_id,
+            firebase_uid: authenticated.firebase_uid.clone(),
+            expires_at_epoch: authenticated.expires_at_epoch,
+        }
+    }
 }
 
 /// 認証エラー種別を表現する。
@@ -195,7 +212,13 @@ pub fn auth_error_response(error: &AuthError, request_id: String) -> Response {
         request_id,
     };
 
-    (error.status_code(), Json(body)).into_response()
+    let mut response = (error.status_code(), Json(body)).into_response();
+    if error.kind == AuthErrorKind::DependencyUnavailable {
+        response
+            .headers_mut()
+            .insert(RETRY_AFTER, HeaderValue::from_static("1"));
+    }
+    response
 }
 
 /// ヘッダーからBearerトークンを抽出する。
