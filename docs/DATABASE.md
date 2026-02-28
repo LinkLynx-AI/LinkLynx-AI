@@ -1,6 +1,6 @@
 # DATABASE.md
 
-最終更新: 2026-02-27
+最終更新: 2026-02-28
 
 このドキュメントは、リポジトリ内の定義ファイルを基準にした「現在のDB状態」をまとめたものです。
 実行中のDBインスタンスを直接参照したスナップショットではありません。
@@ -24,6 +24,7 @@
 3. `0003_lin139_permissions_reads_outbox`
 4. `0004_lin131_db_runtime_helpers`
 5. `0005_lin614_auth_identities`
+6. `0006_lin621_remove_local_auth_assets`
 
 ### 2.1 型（ENUM）
 
@@ -36,8 +37,6 @@
 
 - `users`
 - `auth_identities`
-- `email_verification_tokens`
-- `password_reset_tokens`
 - `guilds`
 - `guild_members`
 - `invites`
@@ -93,7 +92,6 @@
 - `idx_channel_last_message_time`
 - `idx_audit_guild_time`
 - `idx_outbox_pending`, `idx_outbox_failed`
-- `idx_email_verification_expires`, `idx_password_reset_expires`
 
 ### 2.6 Postgres Operations Baseline (LIN-588)
 

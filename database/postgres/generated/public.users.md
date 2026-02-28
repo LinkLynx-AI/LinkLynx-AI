@@ -6,10 +6,8 @@
 
 | Name | Type | Default | Nullable | Children | Parents | Comment |
 | ---- | ---- | ------- | -------- | -------- | ------- | ------- |
-| id | bigint |  | false | [public.audit_logs](public.audit_logs.md) [public.channel_reads](public.channel_reads.md) [public.channels](public.channels.md) [public.dm_pairs](public.dm_pairs.md) [public.dm_participants](public.dm_participants.md) [public.email_verification_tokens](public.email_verification_tokens.md) [public.guild_members](public.guild_members.md) [public.guilds](public.guilds.md) [public.invite_uses](public.invite_uses.md) [public.invites](public.invites.md) [public.password_reset_tokens](public.password_reset_tokens.md) |  |  |
+| id | bigint |  | false | [public.guilds](public.guilds.md) [public.guild_members](public.guild_members.md) [public.invites](public.invites.md) [public.invite_uses](public.invite_uses.md) [public.channels](public.channels.md) [public.dm_participants](public.dm_participants.md) [public.dm_pairs](public.dm_pairs.md) [public.channel_reads](public.channel_reads.md) [public.audit_logs](public.audit_logs.md) [public.auth_identities](public.auth_identities.md) |  |  |
 | email | text |  | false |  |  |  |
-| email_verified | boolean | false | false |  |  |  |
-| password_hash | text |  | false |  |  | Argon2id の PHC 文字列（例: $argon2id$v=19$...）を保存する。 |
 | display_name | text |  | false |  |  |  |
 | avatar_key | text |  | true |  |  |  |
 | status_text | text |  | true |  |  |  |
@@ -21,7 +19,6 @@
 
 | Name | Type | Definition |
 | ---- | ---- | ---------- |
-| chk_users_password_hash_argon2id | CHECK | CHECK ((password_hash ~~ '$argon2id$%'::text)) |
 | chk_users_theme | CHECK | CHECK ((theme = ANY (ARRAY['dark'::text, 'light'::text]))) |
 | users_pkey | PRIMARY KEY | PRIMARY KEY (id) |
 

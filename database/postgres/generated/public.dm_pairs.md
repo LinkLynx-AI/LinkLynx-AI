@@ -15,11 +15,11 @@
 | Name | Type | Definition |
 | ---- | ---- | ---------- |
 | chk_dm_pairs_order | CHECK | CHECK ((user_low < user_high)) |
+| dm_pairs_user_high_fkey | FOREIGN KEY | FOREIGN KEY (user_high) REFERENCES users(id) ON DELETE CASCADE |
+| dm_pairs_user_low_fkey | FOREIGN KEY | FOREIGN KEY (user_low) REFERENCES users(id) ON DELETE CASCADE |
 | dm_pairs_channel_id_fkey | FOREIGN KEY | FOREIGN KEY (channel_id) REFERENCES channels(id) ON DELETE CASCADE |
 | dm_pairs_pkey | PRIMARY KEY | PRIMARY KEY (user_low, user_high) |
 | uq_dm_pairs_channel | UNIQUE | UNIQUE (channel_id) |
-| dm_pairs_user_high_fkey | FOREIGN KEY | FOREIGN KEY (user_high) REFERENCES users(id) ON DELETE CASCADE |
-| dm_pairs_user_low_fkey | FOREIGN KEY | FOREIGN KEY (user_low) REFERENCES users(id) ON DELETE CASCADE |
 
 ## Indexes
 

@@ -28,7 +28,7 @@ make db-migrate
 
 1. `users` の `theme` 制約で不正値が拒否されること
 2. `uq_users_email_lower` により、大文字小文字違いの重複メールが拒否されること
-3. `password_reset_tokens` が「1ユーザー1有効トークン」を保証すること
+3. `auth_identities(provider, provider_subject)` が UID の一意マッピングを保証すること
 4. `invites` で `uses > max_uses` が拒否されること
 5. `dm_pairs` で `dm` 以外のチャネル参照が拒否されること
 6. `channel_reads` の単調増加 upsert 契約が文書化され、アプリ側SQLに適用されていること

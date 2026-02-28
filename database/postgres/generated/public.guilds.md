@@ -6,7 +6,7 @@
 
 | Name | Type | Default | Nullable | Children | Parents | Comment |
 | ---- | ---- | ------- | -------- | -------- | ------- | ------- |
-| id | bigint |  | false | [public.audit_logs](public.audit_logs.md) [public.channels](public.channels.md) [public.guild_members](public.guild_members.md) [public.guild_roles](public.guild_roles.md) [public.invites](public.invites.md) |  |  |
+| id | bigint |  | false | [public.guild_members](public.guild_members.md) [public.invites](public.invites.md) [public.channels](public.channels.md) [public.guild_roles](public.guild_roles.md) [public.audit_logs](public.audit_logs.md) |  |  |
 | name | text |  | false |  |  |  |
 | owner_id | bigint |  | false |  | [public.users](public.users.md) |  |
 | icon_key | text |  | true |  |  |  |
@@ -17,8 +17,8 @@
 
 | Name | Type | Definition |
 | ---- | ---- | ---------- |
-| guilds_pkey | PRIMARY KEY | PRIMARY KEY (id) |
 | guilds_owner_id_fkey | FOREIGN KEY | FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE RESTRICT |
+| guilds_pkey | PRIMARY KEY | PRIMARY KEY (id) |
 
 ## Indexes
 
