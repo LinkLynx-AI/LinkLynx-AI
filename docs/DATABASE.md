@@ -101,6 +101,13 @@ The source of truth for Postgres operations (forward-only migration, pool exhaus
 - `database/contracts/lin588_postgres_operations_baseline.md`
 - `docs/runbooks/postgres-pitr-runbook.md`
 
+### 2.7 Session/Resume Runtime Baseline (LIN-587)
+
+The source of truth for Dragonfly-backed session continuity (`session TTL`, `resume`, `heartbeat`, `degraded behavior`) is:
+
+- `database/contracts/lin587_session_resume_runtime_contract.md`
+- `docs/runbooks/session-resume-dragonfly-operations-runbook.md`
+
 ## 3. ScyllaDB の現在状態
 
 基準: `database/scylla/001_lin139_messages.cql`
@@ -145,3 +152,6 @@ The source of truth for Postgres operations (forward-only migration, pool exhaus
 - LIN-588 Postgres operations baseline:
   - `database/contracts/lin588_postgres_operations_baseline.md`
   - `docs/runbooks/postgres-pitr-runbook.md`
+- LIN-587 Session/resume operations baseline:
+  - `database/contracts/lin587_session_resume_runtime_contract.md`
+  - `docs/runbooks/session-resume-dragonfly-operations-runbook.md`

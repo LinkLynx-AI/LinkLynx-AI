@@ -20,7 +20,7 @@
 - For Python service changes, read `docs/PYTHON.md` first.
 - For database/schema/runtime contract changes, read `docs/DATABASE.md` and related files under `database/contracts/`.
 - For ADR-governed changes (event schema compatibility, delivery class boundary, search consistency, AuthZ fail-close, Dragonfly rate-limit failure policy), read relevant files under `docs/adr/` before implementation. Use `docs/adr/README.md` to identify the target ADR.
-- For runbook-governed operational changes (for example search reindex, edge REST/WS routing/drain, and Postgres PITR operations), read relevant files under `docs/runbooks/` before implementation. Use `docs/runbooks/README.md` to identify the target runbook.
+- For runbook-governed operational changes (for example search reindex, edge REST/WS routing/drain, session/resume continuity, and Postgres PITR operations), read relevant files under `docs/runbooks/` before implementation. Use `docs/runbooks/README.md` to identify the target runbook.
 - For Dragonfly/Redis rate-limit outage policy, degraded transition thresholds, recovery resynchronization rules, and Postgres migration/pooling contracts, also read related runtime contract files under `database/contracts/` before implementation.
 - Event schema changes must be additive and backward-compatible only. Breaking changes are prohibited unless approved via a separate ADR.
 - Event Class A/B classification and outage behavior decisions must follow ADR-002 as the single source of truth.
@@ -37,3 +37,4 @@
   - `docs/PYTHON.md`: Python/FastAPI rules (typing, naming, exception handling, function docs, lint/format/test).
   - `docs/adr/`: ADR directory summary and per-file descriptions are documented in `docs/adr/README.md`.
   - `docs/runbooks/`: Runbook directory summary and per-file descriptions are documented in `docs/runbooks/README.md`.
+    - `docs/runbooks/session-resume-dragonfly-operations-runbook.md`: Session/resume/TTL baseline, Dragonfly outage degraded behavior, and TTL rollout/rollback procedure.

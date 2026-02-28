@@ -130,3 +130,21 @@ LIN-139 のスコープに含め、スキーマ実装とセットで適用しま
 - 重要操作の判定時
 - ノード再起動 / リバランス直後
 - L1 状態キャッシュミス時
+
+## 4. Session/Resume（Dragonfly）実行時契約（LIN-587）
+
+- session/resume 契約のSSOTは `database/contracts/lin587_session_resume_runtime_contract.md` を参照する。
+- Dragonfly の session 状態は揮発ストアとして扱い、永続SoRとしては扱わない。
+- 固定基準:
+  - `session TTL = 180s`
+  - `heartbeat interval = 30s`
+  - `liveness timeout = 90s`
+- state model:
+  - `active`
+  - `resumable`
+  - `expired`
+- Dragonflyキー:
+  - `sess:v0:{session_id}`
+  - 必須保持項目: `principal_id`, `issued_at`, `expires_at`, `last_heartbeat_at`, `last_disconnect_at`, `resume_nonce`
+- resume 失敗時は `full re-auth + History API再取得誘導` を固定フォールバックとする。
+- Dragonfly障害時は ADR-005 の `Read/session continuity` に従い `degraded fail-open`（継続性優先、品質低下許容）を適用する。
