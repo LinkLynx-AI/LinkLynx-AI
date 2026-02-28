@@ -144,6 +144,7 @@ v0 での認可関連 SoR:
 - `noop allow-all` は `LIN-602` で導入する「v1非リリース期間限定の実装例外」であり、恒久契約ではない。
 - 本例外は `AUTHZ_ALLOW_ALL_UNTIL` で期限管理し、撤去条件は `LIN-629` のRunbookで固定する。
 - SpiceDB移植後は本節の例外は削除対象であり、fail-close契約（4.1/4.2/4.3）を唯一の運用基準とする。
+- 運用手順の詳細は `docs/runbooks/authz-noop-allow-all-spicedb-handoff-runbook.md` を参照する。
 
 ## 5. LIN-602 handoff requirements
 
