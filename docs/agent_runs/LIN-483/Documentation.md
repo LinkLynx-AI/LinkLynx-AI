@@ -2,7 +2,7 @@
 
 ## Status
 - Started: 2026-02-28
-- Current: LIN-504 implemented (ready to PR)
+- Current: LIN-503/LIN-504 merged, parent PR ready
 
 ## Decisions
 - LIN-483 の実子は LIN-503 -> LIN-504 の順で実施する。
@@ -35,4 +35,6 @@
   - `make rust-lint`: passed
 - Reviewer gate (`reviewer`): passed (`P1+` none)
 - UI gate (`reviewer_ui_guard` / `reviewer_ui`): `true` / passed (`P1+` none)
-- PR: pending
+- PR: https://github.com/LinkLynx-AI/LinkLynx-AI/pull/730
+- Base branch: `codex/lin-483-feat_add_ui_mock`
+- Merge status: merged (auto-merge)
