@@ -1,4 +1,5 @@
 mod auth;
+mod authz;
 
 use std::{
     env,
@@ -11,6 +12,10 @@ use auth::{
     auth_error_response, bearer_token_from_headers, build_runtime_auth_service,
     request_id_from_headers, unix_timestamp_seconds, AuthContext, AuthMetrics, AuthMetricsSnapshot,
     AuthService, AuthenticatedPrincipal,
+};
+use authz::{
+    authz_error_response, build_runtime_authorizer, Authorizer, AuthzAction, AuthzCheckInput,
+    AuthzResource,
 };
 use axum::{
     body::Body,
@@ -31,6 +36,7 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 #[derive(Clone)]
 pub(crate) struct AppState {
     auth_service: Arc<AuthService>,
+    authorizer: Arc<dyn Authorizer>,
     ws_reauth_grace: Duration,
 }
 
@@ -71,6 +77,7 @@ fn server_addr() -> SocketAddr {
 fn build_runtime_state() -> AppState {
     let metrics = Arc::new(AuthMetrics::default());
     let auth_service = Arc::new(build_runtime_auth_service(Arc::clone(&metrics)));
+    let authorizer = build_runtime_authorizer();
     let ws_reauth_grace = Duration::from_secs(
         env::var("WS_REAUTH_GRACE_SECONDS")
             .ok()
@@ -80,6 +87,7 @@ fn build_runtime_state() -> AppState {
 
     AppState {
         auth_service,
+        authorizer,
         ws_reauth_grace,
     }
 }

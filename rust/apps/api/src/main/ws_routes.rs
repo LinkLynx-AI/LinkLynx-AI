@@ -47,6 +47,32 @@ async fn ws_handler(
         "WS auth accepted at handshake"
     );
 
+    let authz_input = AuthzCheckInput {
+        principal_id: authenticated.principal_id,
+        resource: AuthzResource::Session,
+        action: AuthzAction::Connect,
+    };
+    if let Err(error) = state.authorizer.check(&authz_input).await {
+        tracing::warn!(
+            decision = %error.decision(),
+            request_id = %request_id,
+            principal_id = authenticated.principal_id.0,
+            error_class = %error.log_class(),
+            reason = %error.reason,
+            resource = "session",
+            action = "connect",
+            decision_source = "authorizer",
+            "WS authz rejected at handshake"
+        );
+        let close_code = error.ws_close_code();
+        let close_reason = error.app_code();
+        return ws
+            .on_upgrade(move |mut socket| async move {
+                let _ = close_socket(&mut socket, close_code, close_reason).await;
+            })
+            .into_response();
+    }
+
     ws.on_upgrade(move |socket| handle_socket(socket, state, authenticated, request_id))
         .into_response()
 }
@@ -211,6 +237,29 @@ async fn handle_socket_message(
             if let Some(token) = parse_reauth_token(&text) {
                 match state.auth_service.authenticate_token(&token).await {
                     Ok(next_principal) => {
+                        let authz_input = AuthzCheckInput {
+                            principal_id: next_principal.principal_id,
+                            resource: AuthzResource::Session,
+                            action: AuthzAction::Connect,
+                        };
+                        if let Err(error) = state.authorizer.check(&authz_input).await {
+                            state.auth_service.metrics().record_ws_reauth(false);
+                            tracing::warn!(
+                                decision = %error.decision(),
+                                request_id = %request_id,
+                                principal_id = next_principal.principal_id.0,
+                                error_class = %error.log_class(),
+                                reason = %error.reason,
+                                resource = "session",
+                                action = "connect",
+                                decision_source = "authorizer",
+                                "WS authz rejected at reauth"
+                            );
+                            let _ =
+                                close_socket(socket, error.ws_close_code(), error.app_code()).await;
+                            return false;
+                        }
+
                         if next_principal.principal_id != authenticated.principal_id {
                             state.auth_service.metrics().record_ws_reauth(false);
                             tracing::warn!(
