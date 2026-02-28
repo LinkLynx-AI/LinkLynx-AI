@@ -10,6 +10,7 @@
   - [LIN-621](https://linear.app/linklynx-ai/issue/LIN-621)
   - [LIN-622](https://linear.app/linklynx-ai/issue/LIN-622)
   - [LIN-624](https://linear.app/linklynx-ai/issue/LIN-624)
+  - [LIN-623](https://linear.app/linklynx-ai/issue/LIN-623)
 
 ## 1. Purpose and scope
 
@@ -79,6 +80,12 @@ Out of scope:
 - Concurrency safety:
   - Provisioning must be idempotent under duplicate/concurrent first-login requests.
   - Conflict-unresolved paths are fail-close (`403`).
+
+### 2.6 Password reset / verification email responsibility
+
+- Application runtime does not manage local password hashes or reset tokens.
+- Password reset and verification emails are delegated to Firebase standard capabilities.
+- Local fallback reset paths are prohibited.
 
 ## 3. Required logs and audit fields
 
