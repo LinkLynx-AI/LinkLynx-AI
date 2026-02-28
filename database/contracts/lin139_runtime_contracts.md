@@ -91,6 +91,14 @@ LIN-139 のスコープに含め、スキーマ実装とセットで適用しま
 - DLQ からの再試行時も順序キーを維持すること
 - `MessageDeleted` はトゥームストーン（`is_deleted=true`）としてインデックス更新すること
 
+### v1 Event Stream 拡張（LIN-601）
+
+- v0 の最小契約（GCP Pub/Sub中心）を維持したまま、v1 では Redpanda を拡張ストリーム経路として扱う。
+- Redpanda の topic naming / retention / replay / outage 運用は以下をSSOTとする。
+  - `database/contracts/lin601_redpanda_event_stream_baseline.md`
+  - `docs/runbooks/redpanda-topic-retention-replay-runbook.md`
+- ADR-002 の境界に従い、Class A の主耐久責務は JetStream 側に残し、Redpanda を SoR に昇格させない。
+
 ## 3. Redis レート制限（RateLimit）L2 契約
 
 - L1: 各ノードのローカルメモリ GCRA/TAT
