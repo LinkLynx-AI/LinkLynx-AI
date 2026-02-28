@@ -1,10 +1,15 @@
+import { ChannelShellLayout } from "./channel-shell-layout";
+import { SettingsShellLayout } from "./settings-shell-layout";
+import { ShellStatePlaceholder } from "./shell-state-placeholder";
+
+export { ChannelShellLayout, ShellStatePlaceholder, SettingsShellLayout };
+export { CorePrimitivesPreview } from "./core-primitives-preview";
+
 type AppShellPlaceholderProps = {
   title: string;
   subtitle: string;
   children?: React.ReactNode;
 };
-
-export { CorePrimitivesPreview } from "./core-primitives-preview";
 
 /**
  * UI基盤のApp Shellプレースホルダを描画する。
