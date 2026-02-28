@@ -13,7 +13,7 @@
 ## 1. 全体構成
 
 - PostgreSQL: ユーザー、ギルド、権限、招待、監査、既読、Outbox などの正データ
-- ScyllaDB: メッセージ本文ストア（チャネル履歴、冪等保存、ページング）
+- ScyllaDB: メッセージ SoR（本文、編集状態、履歴ページング、read_state_hotpath）
 
 ## 2. PostgreSQL の現在状態
 
@@ -122,7 +122,7 @@ The source of truth for Dragonfly-backed session continuity (`session TTL`, `res
 - `chat.messages_by_channel`
   - 主キー: `((channel_id, bucket), message_id)`
   - クラスタ順: `message_id DESC`
-  - 用途: チャネル履歴の主ストア
+  - 用途: チャネル履歴の主ストア（`version` / `edited_at` / `is_deleted` による編集・削除の最新状態を保持）
 - `chat.messages_by_id`（任意）
   - 主キー: `(message_id)`
   - 用途: message_id 直参照
@@ -134,6 +134,13 @@ The source of truth for Dragonfly-backed session continuity (`session TTL`, `res
 - 冪等保存: `database/scylla/queries/lin289_idempotent_write_strategy.cql`
   - `INSERT ... IF NOT EXISTS` による重複防止
   - 再送時の read-before-retry を規定
+
+### 3.4 Scylla Operations Baseline (LIN-589)
+
+The source of truth for Scylla operations (SoR boundary, partition review criteria, latest-N measurement perspective, node-loss continuity policy, and minimum backup/restore procedure) is:
+
+- `database/contracts/lin589_scylla_sor_partition_baseline.md`
+- `docs/runbooks/scylla-node-loss-backup-runbook.md`
 
 ## 4. 変更時の運用ルール
 
@@ -155,3 +162,6 @@ The source of truth for Dragonfly-backed session continuity (`session TTL`, `res
 - LIN-587 Session/resume operations baseline:
   - `database/contracts/lin587_session_resume_runtime_contract.md`
   - `docs/runbooks/session-resume-dragonfly-operations-runbook.md`
+- LIN-589 Scylla operations baseline:
+  - `database/contracts/lin589_scylla_sor_partition_baseline.md`
+  - `docs/runbooks/scylla-node-loss-backup-runbook.md`
