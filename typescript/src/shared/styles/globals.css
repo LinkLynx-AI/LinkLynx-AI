@@ -58,6 +58,23 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+
+  /* discord-unified.pen tokens for route/app-shell previews */
+  --llx-bg-tertiary: #1e1f22;
+  --llx-bg-secondary: #2b2d31;
+  --llx-bg-primary: #313338;
+  --llx-bg-selected: #43444b;
+  --llx-divider: #3f4147;
+  --llx-header-primary: #f2f3f5;
+  --llx-header-secondary: #b5bac1;
+  --llx-text-primary: #f2f3f5;
+  --llx-text-secondary: #b5bac1;
+  --llx-text-muted: #949ba4;
+  --llx-channels-default: #949ba4;
+  --llx-interactive-muted: #4e5058;
+  --llx-brand-blurple: #5865f2;
+  --llx-brand-red: #ed4245;
+  --llx-brand-yellow: #fee75c;
 }
 
 .dark {
