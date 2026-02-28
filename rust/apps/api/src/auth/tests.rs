@@ -121,6 +121,16 @@ mod tests {
         );
     }
 
+    #[test]
+    fn auth_error_response_adds_retry_after_on_dependency_unavailable() {
+        let response = auth_error_response(
+            &AuthError::dependency_unavailable("downstream_down"),
+            "req-1".to_owned(),
+        );
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        assert_eq!(response.headers().get(RETRY_AFTER).unwrap(), "1");
+    }
+
     #[tokio::test]
     async fn jwks_cache_respects_missing_kid_refresh_backoff() {
         let client = Client::builder()
