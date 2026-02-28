@@ -157,6 +157,22 @@ mod tests {
         assert_eq!(response.status(), StatusCode::FORBIDDEN);
     }
 
+    #[tokio::test]
+    async fn legacy_local_password_reset_paths_are_not_provided() {
+        let app = app_for_test().await;
+        let paths = ["/v1/auth/password/reset", "/v1/auth/password-reset"];
+
+        for path in paths {
+            let response = app
+                .clone()
+                .oneshot(Request::builder().uri(path).body(Body::empty()).unwrap())
+                .await
+                .unwrap();
+
+            assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        }
+    }
+
     #[test]
     fn parse_reauth_token_extracts_token() {
         let text = r#"{"type":"auth.reauthenticate","token":"next-token"}"#;

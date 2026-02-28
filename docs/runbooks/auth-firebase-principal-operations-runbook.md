@@ -1,13 +1,14 @@
 # Firebase Auth / principal_id Operations Runbook (Draft)
 
 - Status: Draft
-- Last updated: 2026-02-27
+- Last updated: 2026-02-28
 - Owner scope: v0 auth operations baseline for REST/WS shared authentication
 - References:
   - [ADR-005 Dragonfly Outage RateLimit Failure Policy (Hybrid)](../adr/ADR-005-dragonfly-ratelimit-failure-policy.md)
   - [Edge REST/WS Routing and WS Drain Runbook](./edge-rest-ws-routing-drain-runbook.md)
   - [LIN-586](https://linear.app/linklynx-ai/issue/LIN-586)
   - [LIN-618](https://linear.app/linklynx-ai/issue/LIN-618)
+  - [LIN-623](https://linear.app/linklynx-ai/issue/LIN-623)
 
 ## 1. Purpose and scope
 
@@ -175,3 +176,27 @@ Primary response:
 - LIN-595 consumes authenticated principal contract for search API access control boundaries.
 - LIN-596 consumes logging/metrics baseline as observability minimum.
 - LIN-600 consumes authenticated principal boundary before AuthZ model work.
+
+## 8. Password reset and auth-email delegation baseline (v1)
+
+### 8.1 Responsibility boundary
+
+- Password reset responsibility is delegated to Firebase standard capability.
+- The application runtime must not update `users.password_hash` for reset handling.
+- Legacy local reset token operation (`password_reset_tokens`) is out of runtime scope and must not be used as fallback.
+- Authentication e-mail delivery for v1 defaults to Firebase-managed delivery; application-side SMTP/provider pipeline is not used.
+
+### 8.2 Runtime behavior and API contract
+
+- Backend does not provide a local password-reset execution endpoint.
+- Requests to legacy local reset paths are treated as not provided by contract.
+- REST/WS authentication behavior remains controlled by section 2 error mapping policy.
+
+### 8.3 Failure handling policy for reset flow
+
+- Reset initiation and mail delivery failures are handled on Firebase/client integration boundary, not by backend retry loops.
+- Backend has no local reset retry worker or token fallback path.
+- Operational triage during reset-related incidents:
+  1. Check Firebase Auth service status and project configuration.
+  2. Check client-side invocation errors and request traces.
+  3. Confirm no local reset endpoint/path is reintroduced in backend releases.
