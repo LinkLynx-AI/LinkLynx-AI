@@ -47,7 +47,7 @@ const GUARD_CONTENT_MAP: Record<GuardKind, GuardContent> = {
     title: "対象が見つかりません",
     description: "指定されたリソースが存在しないか、すでに削除されています。",
     primaryAction: {
-      label: "@me へ",
+      label: "me へ",
       href: APP_ROUTES.channels.me,
     },
     secondaryAction: {

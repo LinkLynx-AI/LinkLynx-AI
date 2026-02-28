@@ -15,7 +15,7 @@ describe("RouteGuardScreen", () => {
     const html = renderToStaticMarkup(<RouteGuardScreen kind="forbidden" />);
 
     expect(html).toContain("アクセス権限がありません");
-    expect(html).toContain('href="/channels/@me"');
+    expect(html).toContain('href="/channels/me"');
   });
 
   test("not-found ガードを描画する", () => {

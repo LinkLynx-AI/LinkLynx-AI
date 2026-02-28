@@ -6,7 +6,7 @@ const PREVIEW_ROUTES = [
   { label: "Verify Email", href: APP_ROUTES.verifyEmail },
   { label: "Password Reset", href: APP_ROUTES.passwordReset },
   { label: "Invite", href: buildInviteRoute("discord-room") },
-  { label: "Channels (@me)", href: APP_ROUTES.channels.me },
+  { label: "Channels (me)", href: APP_ROUTES.channels.me },
   { label: "Channels (Guild)", href: buildChannelRoute("guild-1", "channel-general") },
   { label: "Settings Profile", href: APP_ROUTES.settings.profile },
   { label: "Settings Appearance", href: APP_ROUTES.settings.appearance },

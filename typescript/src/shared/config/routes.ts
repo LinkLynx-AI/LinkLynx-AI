@@ -6,7 +6,7 @@ export const APP_ROUTES = {
   verifyEmail: "/verify-email",
   passwordReset: "/password-reset",
   channels: {
-    me: "/channels/@me",
+    me: "/channels/me",
     guildChannel: "/channels/[guildId]/[channelId]",
   },
   settings: {
