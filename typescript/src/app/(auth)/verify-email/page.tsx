@@ -9,7 +9,7 @@ export default function VerifyEmailPage() {
       links={[
         { label: "ログインへ", href: APP_ROUTES.login },
         { label: "パスワード再設定へ", href: APP_ROUTES.passwordReset },
-        { label: "認証後の遷移先 (@me)", href: APP_ROUTES.channels.me },
+        { label: "認証後の遷移先 (me)", href: APP_ROUTES.channels.me },
       ]}
     />
   );
