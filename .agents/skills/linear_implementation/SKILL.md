@@ -64,6 +64,13 @@ When given a parent issue:
 3. Execute child issues sequentially in that order.
 4. Child issue is considered complete only when loop steps 1-10 are finished with recorded evidence.
 
+## 3.1 Smallest-unit Task Handling from Start
+When the initial request is already a smallest executable unit (single task and no parent/child decomposition needed):
+1. Use the current working branch as-is and do not create extra branches.
+2. Execute this skill's standard implementation flow with the same quality gates.
+3. Open one PR from the current branch to `main`.
+4. Follow `main` merge policy: do not auto-merge, mark ready for human review, and stop.
+
 ## 4. Persistent Memory Files Required
 Create and maintain the following files during long runs.
 - `Prompt.md` for fixed goals, non-goals, done conditions
@@ -78,15 +85,15 @@ Use one of these locations according to repository convention.
 ## 5. Child Issue Delivery Loop
 ### 5.0 Explicit Required Flow (No Omission)
 The following flow is mandatory per child issue and must be executed in this order.
-1. Create a branch dedicated to the child issue.
+1. Create a branch dedicated to the child issue (skip only when section 3.1 applies).
 2. Run sub-agents for exploration, implementation, and validation.
 3. Run review agents (`reviewer`, `reviewer_ui_guard`, and `reviewer_ui` when required).
 4. If review/validation gate is not passed, run sub-agents again and repeat from implementation.
-5. Open PR from child-issue branch to the parent branch and merge according to policy.
+5. Open PR from child-issue branch to the parent branch and merge according to policy (or to `main` when section 3.1 applies).
 6. Start the next child issue only after the current child issue is merged and evidence is recorded.
 
 For each child issue execute the same loop.
-1. Create branch dedicated to this child issue
+1. Create branch dedicated to this child issue (skip only when section 3.1 applies)
 2. Implement scoped changes
 3. Commit progress frequently in small logical units
 4. Run validation commands
@@ -164,6 +171,11 @@ For sequential issue runs:
 - For `main` base branch, require human approval before merge.
 - Rebase or branch from latest base before starting next issue.
 - Keep at most one active child-issue PR at a time in this flow.
+
+For smallest-unit tasks from the initial request:
+- Keep working on the current branch.
+- Open one PR to `main`.
+- Do not enable auto-merge; require human approval.
 
 ## 8. Done Criteria
 - Acceptance criteria are satisfied.
