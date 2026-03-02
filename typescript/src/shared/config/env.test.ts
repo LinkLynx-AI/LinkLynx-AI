@@ -3,6 +3,7 @@ import { parseFrontendEnv } from "./env";
 
 function createValidEnv(): NodeJS.ProcessEnv {
   return {
+    NODE_ENV: "test",
     NEXT_PUBLIC_API_URL: "http://localhost:8080",
     NEXT_PUBLIC_FIREBASE_API_KEY: "dummy-api-key",
     NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: "example.firebaseapp.com",
