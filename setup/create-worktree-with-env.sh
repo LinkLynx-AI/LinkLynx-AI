@@ -48,7 +48,11 @@ parse_csv_to_array() {
     local raw="$1"
     local -n out_ref="$2"
     out_ref=()
-    IFS=',' read -r -a out_ref <<<"$raw"
+
+    local temp_ifs="$IFS"
+    IFS=','
+    read -r -a out_ref <<<"$raw"
+    IFS="$temp_ifs"
 }
 
 resolve_source_repo_path() {
@@ -195,6 +199,19 @@ skipped_count=0
 missing_source_count=0
 detected_count=0
 
+ignored_files_tmp="$(mktemp)"
+cleanup_ignored_files_tmp() {
+    if [[ -n "${ignored_files_tmp:-}" && -f "$ignored_files_tmp" ]]; then
+        rm -f "$ignored_files_tmp"
+    fi
+}
+trap cleanup_ignored_files_tmp EXIT
+
+if ! git -C "$SOURCE_REPO_PATH" ls-files --others -i --exclude-standard -z -- "${pathspecs[@]}" >"$ignored_files_tmp"; then
+    echo "Error: failed to list ignored files from source repository" >&2
+    exit 1
+fi
+
 while IFS= read -r -d '' rel_path; do
     source_file="$SOURCE_REPO_PATH/$rel_path"
     dest_file="$TARGET_WORKTREE_PATH/$rel_path"
@@ -211,12 +228,26 @@ while IFS= read -r -d '' rel_path; do
         continue
     fi
 
-    mkdir -p "$(dirname "$dest_file")"
-    cp "$source_file" "$dest_file"
+    if [[ ! -r "$source_file" ]]; then
+        echo "Warning: source file is not readable, skipping: $source_file" >&2
+        skipped_count=$((skipped_count + 1))
+        continue
+    fi
+
+    if ! mkdir -p "$(dirname "$dest_file")"; then
+        echo "Warning: failed to create destination directory, skipping: $dest_file" >&2
+        skipped_count=$((skipped_count + 1))
+        continue
+    fi
+
+    if ! cp "$source_file" "$dest_file"; then
+        echo "Warning: failed to copy file, skipping: $source_file" >&2
+        skipped_count=$((skipped_count + 1))
+        continue
+    fi
+
     copied_count=$((copied_count + 1))
-done < <(
-    git -C "$SOURCE_REPO_PATH" ls-files --others -i --exclude-standard -z -- "${pathspecs[@]}"
-)
+done < "$ignored_files_tmp"
 
 echo "Done. Synced ignored development files to: $TARGET_WORKTREE_PATH"
 echo "Detected files: $detected_count"

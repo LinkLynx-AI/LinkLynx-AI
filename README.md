@@ -105,6 +105,13 @@ make codex-worktree NAME=lin-300 BASE=origin/main
 - `setup/create-worktree-with-env.sh` で `gitignore` 済み開発用ファイルを同期します（既定は `.env` 系）。
 - 追加対象は `WORKTREE_SYNC_IGNORED_PATHS`（カンマ区切りの git pathspec）で上書きできます。
 
+```bash
+# 同期対象を追加する例（カンマ区切り）
+WORKTREE_SYNC_IGNORED_PATHS='.env,**/.env,typescript/.env.local' make codex-worktree NAME=lin-300
+```
+
+- セキュリティ注意: `.env` には秘密情報が含まれる可能性があるため、同期対象は必要最小限にしてください。
+
 ## プロジェクト構成
 
 ```
