@@ -44,17 +44,6 @@ resolve_git_common_dir() {
     fi
 }
 
-parse_csv_to_array() {
-    local raw="$1"
-    local -n out_ref="$2"
-    out_ref=()
-
-    local temp_ifs="$IFS"
-    IFS=','
-    read -r -a out_ref <<<"$raw"
-    IFS="$temp_ifs"
-}
-
 resolve_source_repo_path() {
     local target_repo_root="$1"
     local target_canonical
@@ -178,7 +167,10 @@ fi
 
 if [[ ${#pathspecs[@]} -eq 0 ]]; then
     if [[ -n "${WORKTREE_SYNC_IGNORED_PATHS:-}" ]]; then
-        parse_csv_to_array "$WORKTREE_SYNC_IGNORED_PATHS" pathspecs
+        temp_ifs="$IFS"
+        IFS=','
+        read -r -a pathspecs <<<"$WORKTREE_SYNC_IGNORED_PATHS"
+        IFS="$temp_ifs"
     else
         pathspecs=(
             ".env"
