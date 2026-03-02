@@ -163,7 +163,8 @@ fi
 
 env_sync_script="$repo_root/setup/create-worktree-with-env.sh"
 if [[ -x "$env_sync_script" ]]; then
-    (cd "$worktree_path" && "$env_sync_script")
+    env WORKTREE_SYNC_IGNORED_PATHS="${WORKTREE_SYNC_IGNORED_PATHS:-}" \
+        "$env_sync_script" --source "$repo_root" --target "$worktree_path"
 fi
 
 echo "Created worktree: $worktree_path"
