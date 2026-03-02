@@ -73,6 +73,8 @@ export default tseslint.config(
         "error",
         {
           allow: [
+            "firebase/app",
+            "firebase/auth",
             "@/app/**",
             "@/shared/**",
             "@/features/*",

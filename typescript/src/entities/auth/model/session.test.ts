@@ -5,7 +5,7 @@ import {
   INITIAL_AUTH_SESSION,
   resolveIdToken,
   toAuthUser,
-} from "./session";
+} from "./index";
 
 describe("auth session helpers", () => {
   test("初期セッションは initializing", () => {
@@ -58,8 +58,8 @@ describe("auth session helpers", () => {
   test("共通トークンAPIは認証済みユーザーからIDトークンを取得する", async () => {
     const token = await resolveIdToken(
       {
-        getIdToken: async (forceRefresh = false) =>
-          forceRefresh ? "force-refresh-token" : "default-token",
+        getIdToken: (forceRefresh = false) =>
+          Promise.resolve(forceRefresh ? "force-refresh-token" : "default-token"),
       },
       true,
     );

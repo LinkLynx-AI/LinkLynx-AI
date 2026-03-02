@@ -2,13 +2,12 @@ import type { AuthSessionContextValue } from "@/entities";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, test, vi } from "vitest";
 
-const useAuthSessionMock = vi.hoisted(
-  () =>
-    vi.fn<() => AuthSessionContextValue>(() => ({
-      status: "authenticated",
-      user: null,
-      getIdToken: async () => null,
-    })),
+const useAuthSessionMock = vi.hoisted(() =>
+  vi.fn<() => AuthSessionContextValue>(() => ({
+    status: "authenticated",
+    user: null,
+    getIdToken: () => Promise.resolve(null),
+  })),
 );
 
 vi.mock("@/entities", () => ({
@@ -26,7 +25,7 @@ describe("ProtectedPreviewGate", () => {
     useAuthSessionMock.mockReturnValue({
       status: "authenticated",
       user: null,
-      getIdToken: async () => null,
+      getIdToken: () => Promise.resolve(null),
     });
 
     const html = renderToStaticMarkup(
@@ -42,7 +41,7 @@ describe("ProtectedPreviewGate", () => {
     useAuthSessionMock.mockReturnValue({
       status: "authenticated",
       user: null,
-      getIdToken: async () => null,
+      getIdToken: () => Promise.resolve(null),
     });
 
     const html = renderToStaticMarkup(
@@ -59,7 +58,7 @@ describe("ProtectedPreviewGate", () => {
     useAuthSessionMock.mockReturnValue({
       status: "initializing",
       user: null,
-      getIdToken: async () => null,
+      getIdToken: () => Promise.resolve(null),
     });
 
     const html = renderToStaticMarkup(
@@ -76,7 +75,7 @@ describe("ProtectedPreviewGate", () => {
     useAuthSessionMock.mockReturnValue({
       status: "unauthenticated",
       user: null,
-      getIdToken: async () => null,
+      getIdToken: () => Promise.resolve(null),
     });
 
     const html = renderToStaticMarkup(

@@ -10,7 +10,7 @@ import {
   INITIAL_AUTH_SESSION,
   resolveIdToken,
   toAuthUser,
-} from "../model/session";
+} from "../model";
 
 type AuthProviderProps = {
   children: React.ReactNode;
@@ -22,7 +22,7 @@ const AuthSessionContext = createContext<AuthSessionContextValue | null>(null);
  * Firebase認証状態を購読し、アプリ全体へ認証セッションを提供する。
  */
 export function AuthProvider({ children }: AuthProviderProps) {
-  const [session, setSession] = useState<AuthSession>(INITIAL_AUTH_SESSION);
+  const [session, updateSession] = useState<AuthSession>(INITIAL_AUTH_SESSION);
 
   useEffect(() => {
     let isMounted = true;
@@ -41,11 +41,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
           }
 
           if (user === null) {
-            setSession(createUnauthenticatedSession());
+            updateSession(createUnauthenticatedSession());
             return;
           }
 
-          setSession(createAuthenticatedSession(toAuthUser(user)));
+          updateSession(createAuthenticatedSession(toAuthUser(user)));
         });
       })
       .catch(() => {
@@ -53,7 +53,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
           return;
         }
 
-        setSession(createUnauthenticatedSession());
+        updateSession(createUnauthenticatedSession());
       });
 
     return () => {
