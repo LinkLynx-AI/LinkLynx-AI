@@ -58,6 +58,7 @@ describe("auth session helpers", () => {
   test("共通トークンAPIは認証済みユーザーからIDトークンを取得する", async () => {
     const token = await resolveIdToken(
       {
+        uid: "token-user",
         getIdToken: (forceRefresh = false) =>
           Promise.resolve(forceRefresh ? "force-refresh-token" : "default-token"),
       },

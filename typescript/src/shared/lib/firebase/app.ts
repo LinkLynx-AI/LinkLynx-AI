@@ -16,6 +16,8 @@ function buildFirebaseOptions(): FirebaseOptions {
 
 /**
  * Firebase Web SDK のアプリインスタンスを取得する。
+ * 初回呼び出し時は環境変数契約を検証し、Firebase Appを初期化する。
+ * 2回目以降は既存インスタンスを返す。
  */
 export function getFirebaseApp(): FirebaseApp {
   if (getApps().length > 0) {

@@ -48,11 +48,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
           updateSession(createAuthenticatedSession(toAuthUser(user)));
         });
       })
-      .catch(() => {
+      .catch((error: unknown) => {
         if (!isMounted) {
           return;
         }
 
+        console.error("AuthProvider initialization failed. Falling back to unauthenticated.", error);
         updateSession(createUnauthenticatedSession());
       });
 

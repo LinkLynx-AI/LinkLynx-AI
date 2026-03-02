@@ -18,6 +18,7 @@ export type AuthSessionContextValue = AuthSession & {
 };
 
 type FirebaseTokenUserLike = {
+  uid: string;
   getIdToken: (forceRefresh?: boolean) => Promise<string>;
 };
 
