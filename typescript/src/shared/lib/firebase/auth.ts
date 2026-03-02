@@ -1,4 +1,10 @@
-import { getAuth, inMemoryPersistence, setPersistence, type Auth } from "firebase/auth";
+import {
+  browserLocalPersistence,
+  getAuth,
+  inMemoryPersistence,
+  setPersistence,
+  type Auth,
+} from "firebase/auth";
 import { getFirebaseApp } from "./app";
 
 let authInstance: Auth | null = null;
@@ -21,13 +27,24 @@ export function getFirebaseAuth(): Auth {
 }
 
 /**
- * 認証永続化設定をメモリ限定で初期化する。
+ * 認証永続化設定をブラウザ永続(local)で初期化する。
+ * ブラウザ制約でlocal永続が利用できない場合は、in-memoryへフォールバックする。
  */
 export function ensureFirebaseAuthPersistence(): Promise<void> {
   if (persistenceSetupPromise !== null) {
     return persistenceSetupPromise;
   }
 
-  persistenceSetupPromise = setPersistence(getOrCreateAuth(), inMemoryPersistence);
+  const auth = getOrCreateAuth();
+  persistenceSetupPromise = setPersistence(auth, browserLocalPersistence).catch(
+    async (error: unknown) => {
+      console.warn(
+        "Browser local persistence is unavailable. Falling back to in-memory persistence.",
+        error,
+      );
+      await setPersistence(auth, inMemoryPersistence);
+    },
+  );
+
   return persistenceSetupPromise;
 }
