@@ -10,8 +10,8 @@ use std::{
 
 use auth::{
     auth_error_response, bearer_token_from_headers, build_runtime_auth_service,
-    request_id_from_headers, unix_timestamp_seconds, AuthContext, AuthMetrics, AuthMetricsSnapshot,
-    AuthService, AuthenticatedPrincipal,
+    request_id_from_headers, unix_timestamp_seconds, validate_runtime_auth_env, AuthContext,
+    AuthMetrics, AuthMetricsSnapshot, AuthService, AuthenticatedPrincipal,
 };
 use authz::{
     authz_error_response, build_runtime_authorizer, Authorizer, AuthzAction, AuthzCheckInput,
@@ -46,6 +46,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with(tracing_subscriber::fmt::layer())
         .with(tracing_filter_from_env())
         .init();
+
+    if let Err(reason) = validate_runtime_auth_env() {
+        tracing::error!(reason = %reason, "runtime auth env validation failed on startup");
+        return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, reason).into());
+    }
 
     let app = app();
 

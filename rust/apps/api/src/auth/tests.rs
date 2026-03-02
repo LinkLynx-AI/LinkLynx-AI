@@ -46,6 +46,31 @@ mod tests {
         }
     }
 
+    fn set_valid_runtime_auth_env(scoped: &mut ScopedEnv) {
+        scoped.set("FIREBASE_PROJECT_ID", "test-project");
+        scoped.set(
+            "DATABASE_URL",
+            "postgres://postgres:password@localhost:5432/linklynx",
+        );
+        scoped.set("AUTH_ALLOW_POSTGRES_NOTLS", "true");
+
+        for optional in [
+            "FIREBASE_AUDIENCE",
+            "FIREBASE_ISSUER",
+            "FIREBASE_JWKS_URL",
+            "FIREBASE_JWKS_TTL_SECONDS",
+            "FIREBASE_HTTP_TIMEOUT_SECONDS",
+            "FIREBASE_IAT_SKEW_SECONDS",
+            "AUTH_PRINCIPAL_CACHE_TTL_SECONDS",
+            "AUTH_PRINCIPAL_STORE_POOL_SIZE",
+            "AUTH_PRINCIPAL_STORE_MAX_RETRIES",
+            "AUTH_PRINCIPAL_STORE_RETRY_BASE_BACKOFF_MS",
+            "WS_REAUTH_GRACE_SECONDS",
+        ] {
+            scoped.remove(optional);
+        }
+    }
+
     struct StaticTokenVerifier;
 
     #[async_trait]
@@ -442,14 +467,36 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn parse_env_helpers_fallback_on_invalid_values() {
+    async fn runtime_auth_env_validation_rejects_missing_required_values() {
         let _lock = env_lock().lock().await;
         let mut scoped = ScopedEnv::new();
-        scoped.set("AUTH_PRINCIPAL_STORE_POOL_SIZE", "invalid");
+        set_valid_runtime_auth_env(&mut scoped);
+        scoped.remove("FIREBASE_PROJECT_ID");
+
+        let error = validate_runtime_auth_env().unwrap_err();
+        assert!(error.contains("FIREBASE_PROJECT_ID"));
+    }
+
+    #[tokio::test]
+    async fn runtime_auth_env_validation_rejects_invalid_optional_u64() {
+        let _lock = env_lock().lock().await;
+        let mut scoped = ScopedEnv::new();
+        set_valid_runtime_auth_env(&mut scoped);
+        scoped.set("FIREBASE_IAT_SKEW_SECONDS", "invalid");
+
+        let error = validate_runtime_auth_env().unwrap_err();
+        assert!(error.contains("FIREBASE_IAT_SKEW_SECONDS"));
+    }
+
+    #[tokio::test]
+    async fn runtime_auth_env_validation_rejects_invalid_required_bool() {
+        let _lock = env_lock().lock().await;
+        let mut scoped = ScopedEnv::new();
+        set_valid_runtime_auth_env(&mut scoped);
         scoped.set("AUTH_ALLOW_POSTGRES_NOTLS", "invalid");
 
-        assert_eq!(parse_env_u64("AUTH_PRINCIPAL_STORE_POOL_SIZE", 4), 4);
-        assert!(!parse_env_bool("AUTH_ALLOW_POSTGRES_NOTLS", false));
+        let error = validate_runtime_auth_env().unwrap_err();
+        assert!(error.contains("AUTH_ALLOW_POSTGRES_NOTLS"));
     }
 
     #[tokio::test]
