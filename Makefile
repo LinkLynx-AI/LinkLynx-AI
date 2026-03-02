@@ -22,6 +22,7 @@ TBLS_DOCKER_IMAGE ?= ghcr.io/k1low/tbls:latest
 TBLS_DOC_PATH ?= $(DB_GENERATED_DIR)
 TBLS_ER_FORMAT ?= svg
 POSTGRES_DUMP_CMD ?= docker compose exec -T postgres pg_dump -U postgres -d $(POSTGRES_DB_NAME) --schema-only --no-owner --no-privileges --exclude-table=_sqlx_migrations
+WORKTREE_SYNC_IGNORED_PATHS ?= .env,**/.env,.env.local,**/.env.local,.env.*.local,**/.env.*.local
 
 help: ## ヘルプを表示
 	@echo "$(BLUE)LinkLynx-AI$(NC) - Discord Clone 開発コマンド"
@@ -76,15 +77,15 @@ setup-bootstrap: ## 既存の自動セットアップスクリプトを実行
 setup-check: ## 環境構築状況を確認
 	@./setup/check-env.sh
 
-worktree-sync-env: ## 現在のworktreeへ.envファイルを自動検出元からコピー
-	@./setup/create-worktree-with-env.sh
+worktree-sync-env: ## 現在のworktreeへgitignore済み開発用ファイルをコピー(既定: .env系)
+	@WORKTREE_SYNC_IGNORED_PATHS='$(WORKTREE_SYNC_IGNORED_PATHS)' ./setup/create-worktree-with-env.sh
 
 codex-worktree: ## 新規worktreeを作成しCodex CLIを起動 (例: make codex-worktree NAME=lin-300 BASE=origin/main)
 	@if [ -z "$(NAME)" ]; then \
 		echo "$(RED)NAME を指定してください。例: make codex-worktree NAME=lin-300$(NC)"; \
 		exit 1; \
 	fi
-	@./setup/create-worktree-and-codex.sh "$(NAME)" $(if $(BASE),--base $(BASE),)
+	@WORKTREE_SYNC_IGNORED_PATHS='$(WORKTREE_SYNC_IGNORED_PATHS)' ./setup/create-worktree-and-codex.sh "$(NAME)" $(if $(BASE),--base $(BASE),)
 
 # ============================================
 # Docker コマンド
