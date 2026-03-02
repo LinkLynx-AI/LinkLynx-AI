@@ -1,7 +1,7 @@
 # Firebase Auth / principal_id Operations Runbook (Draft)
 
 - Status: Draft
-- Last updated: 2026-02-28
+- Last updated: 2026-03-02
 - Owner scope: v1 auth operations baseline for REST/WS shared authentication
 - References:
   - [ADR-005 Dragonfly Outage RateLimit Failure Policy (Hybrid)](../adr/ADR-005-dragonfly-ratelimit-failure-policy.md)
@@ -86,6 +86,38 @@ Out of scope:
 - Application runtime does not manage local password hashes or reset tokens.
 - Password reset and verification emails are delegated to Firebase standard capabilities.
 - Local fallback reset paths are prohibited.
+
+### 2.7 Local reproduction contract (env / compose)
+
+Required env contract for local auth runtime:
+
+| target | required keys |
+| --- | --- |
+| backend (`rust`) | `FIREBASE_PROJECT_ID`, `DATABASE_URL`, `AUTH_ALLOW_POSTGRES_NOTLS` |
+| frontend (`typescript`) | `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_FIREBASE_API_KEY`, `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`, `NEXT_PUBLIC_FIREBASE_PROJECT_ID`, `NEXT_PUBLIC_FIREBASE_APP_ID`, `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`, `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET` |
+
+Fail-fast policy:
+
+- Backend startup fails when required keys are missing.
+- Backend startup fails when optional numeric/bool/url env values are set to invalid values.
+- Frontend startup fails when required public Firebase keys are missing/invalid.
+
+Local steps (runbook-only reproducible flow):
+
+1. Copy env templates.
+   - `cp .env.example .env`
+   - `cp rust/.env.example rust/.env`
+   - `cp typescript/.env.example typescript/.env.local`
+2. Set real Firebase test project values in `.env` and `typescript/.env.local` (never commit secrets).
+3. Start local stack.
+   - `docker compose up -d postgres`
+   - `docker compose up -d rust typescript`
+4. Verify startup.
+   - `docker compose logs rust` should not contain env validation errors.
+   - `docker compose logs typescript` should not contain frontend env validation errors.
+5. Verify auth path.
+   - call protected REST path with valid Firebase token and confirm `200`.
+   - validate missing/invalid token path still maps to `401/403/503` per section 2.2.
 
 ## 3. Required logs and audit fields
 
