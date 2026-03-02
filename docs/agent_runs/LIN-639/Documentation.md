@@ -8,6 +8,7 @@
 - Compose and env template synchronization.
 - Startup fail-fast validation.
 - Local reproduction runbook update.
+- PR review follow-up (minor improvements from Claude feedback).
 
 ## Validation results
 - `cd rust && cargo fmt --all`: passed.
@@ -20,6 +21,9 @@
 ## Review results
 - `reviewer` / `reviewer_ui_guard` / `reviewer_ui` sub-agents: unavailable in this environment.
 - Manual diff review: no blocking defects found in implemented scope.
+- Claude review follow-up:
+  - build-time context を含む frontend env エラーメッセージへ改善
+  - runbook に `AUTH_ALLOW_POSTGRES_NOTLS` の推奨値表記（`true/false`）を追記
 
 ## Per-issue evidence (LIN-639)
 - issue: `LIN-639`

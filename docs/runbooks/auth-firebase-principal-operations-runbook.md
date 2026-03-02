@@ -101,6 +101,7 @@ Fail-fast policy:
 - Backend startup fails when required keys are missing.
 - Backend startup fails when optional numeric/bool/url env values are set to invalid values.
 - Frontend startup fails when required public Firebase keys are missing/invalid.
+- `AUTH_ALLOW_POSTGRES_NOTLS` は `true` / `false` の明示値を推奨（`1/0` なども受理されるが、運用ドキュメント上は非推奨）。
 
 Local steps (runbook-only reproducible flow):
 

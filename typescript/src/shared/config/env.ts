@@ -12,22 +12,25 @@ const FRONTEND_ENV_SCHEMA = z.object({
 
 export type FrontendEnv = z.infer<typeof FRONTEND_ENV_SCHEMA>;
 
-function formatFrontendEnvError(error: z.ZodError): string {
+function formatFrontendEnvError(error: z.ZodError, context: string): string {
   const reasons = error.issues.map((issue) => {
     const path = issue.path.join(".");
     return `${path}: ${issue.message}`;
   });
 
-  return `Invalid frontend env configuration: ${reasons.join(", ")}`;
+  return `${context} env validation failed: ${reasons.join(", ")}`;
 }
 
 /**
  * フロントエンドで必要な環境変数契約を検証する。
  */
-export function parseFrontendEnv(rawEnv: NodeJS.ProcessEnv): FrontendEnv {
+export function parseFrontendEnv(
+  rawEnv: NodeJS.ProcessEnv,
+  context = "frontend",
+): FrontendEnv {
   const parsed = FRONTEND_ENV_SCHEMA.safeParse(rawEnv);
   if (!parsed.success) {
-    throw new Error(formatFrontendEnvError(parsed.error));
+    throw new Error(formatFrontendEnvError(parsed.error, context));
   }
 
   return parsed.data;
