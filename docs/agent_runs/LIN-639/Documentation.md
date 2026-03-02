@@ -26,4 +26,6 @@
 - branch: `codex/lin-639-feat-confirm_env_for_auth`
 - reviewer gate: unavailable (manual review fallback, no blocking findings)
 - UI gate: unavailable (reviewer_ui_guard unavailable; changed files are env/config/docs and no view component diff)
-- PR: not created in this run
+- PR: https://github.com/LinkLynx-AI/LinkLynx-AI/pull/825
+- PR base branch: `main`
+- merge policy: `main` 向けのため auto-merge なし。人手レビュー待ちで停止。
