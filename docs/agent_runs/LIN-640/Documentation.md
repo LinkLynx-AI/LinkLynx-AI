@@ -22,6 +22,6 @@
 - branch: `codex/lin-640-feat-add-auth-sdk`
 - reviewer gate: unavailable (manual self-review fallback)
 - UI gate: unavailable (UI差分あり。manual self-review fallback)
-- PR: pending
+- PR: https://github.com/LinkLynx-AI/LinkLynx-AI/pull/887
 - PR base branch: `main`
 - merge policy: `main` target, no auto-merge
