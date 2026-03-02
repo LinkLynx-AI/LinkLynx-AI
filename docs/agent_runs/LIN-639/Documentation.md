@@ -1,0 +1,29 @@
+# LIN-639 Documentation Log
+
+## Status
+- Implementation completed (validation partially blocked by dependency/network constraints).
+
+## Scope
+- Frontend/backend env contract alignment.
+- Compose and env template synchronization.
+- Startup fail-fast validation.
+- Local reproduction runbook update.
+
+## Validation results
+- `cd rust && cargo fmt --all`: passed.
+- `cd rust && cargo clippy --workspace --all-targets --all-features -- -D warnings`: passed.
+- `cd rust && cargo test -p linklynx_backend --locked`: passed (`36 passed, 0 failed`).
+- `cd typescript && npm run typecheck`: failed (`tsc: command not found` because dependencies are not installed).
+- `cd typescript && pnpm install --frozen-lockfile`: failed (`ENOTFOUND registry.npmjs.org` in restricted network).
+- `make validate`: failed at `ts-format` (`prettier: command not found`).
+
+## Review results
+- `reviewer` / `reviewer_ui_guard` / `reviewer_ui` sub-agents: unavailable in this environment.
+- Manual diff review: no blocking defects found in implemented scope.
+
+## Per-issue evidence (LIN-639)
+- issue: `LIN-639`
+- branch: `codex/lin-639-feat-confirm_env_for_auth`
+- reviewer gate: unavailable (manual review fallback, no blocking findings)
+- UI gate: unavailable (reviewer_ui_guard unavailable; changed files are env/config/docs and no view component diff)
+- PR: not created in this run
