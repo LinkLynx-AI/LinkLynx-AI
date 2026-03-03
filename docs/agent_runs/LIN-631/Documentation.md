@@ -23,6 +23,6 @@
 - branch: `codex/LIN-631-notion-auth-schema-gap`
 - reviewer gate: not executed (no code-path change; manual self-review only)
 - UI gate: skipped (no UI changes)
-- PR: not created yet
-- planned PR base branch: `main` (fallback until parent branch exists)
+- PR: https://github.com/LinkLynx-AI/LinkLynx-AI/pull/983
+- PR base branch: `main` (fallback until parent branch exists)
 - merge policy: `main` target, no auto-merge
