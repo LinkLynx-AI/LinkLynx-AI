@@ -1,28 +1,38 @@
 import { z } from "zod";
 import { getFirebaseAuth } from "@/shared/lib";
 import type { Channel, Guild } from "@/shared/model/types";
+import type { CreateChannelData, CreateGuildData } from "./api-client";
 import { NoDataAPIClient } from "./no-data-api-client";
 
 const API_BASE_URL_SCHEMA = z.string().url();
+const GUILD_SUMMARY_SCHEMA = z.object({
+  guild_id: z.number().int().positive(),
+  name: z.string().trim().min(1),
+  icon_key: z.string().trim().min(1).nullable().optional(),
+  joined_at: z.string().trim().min(1),
+});
 const GUILD_LIST_RESPONSE_SCHEMA = z.object({
-  guilds: z.array(
-    z.object({
-      guild_id: z.number().int().positive(),
-      name: z.string().trim().min(1),
-      icon_key: z.string().trim().min(1).nullable().optional(),
-      joined_at: z.string().trim().min(1),
-    }),
-  ),
+  guilds: z.array(GUILD_SUMMARY_SCHEMA),
+});
+const GUILD_CREATE_RESPONSE_SCHEMA = z.object({
+  guild: z.object({
+    guild_id: z.number().int().positive(),
+    name: z.string().trim().min(1),
+    icon_key: z.string().trim().min(1).nullable().optional(),
+    owner_id: z.number().int().positive(),
+  }),
+});
+const CHANNEL_SUMMARY_SCHEMA = z.object({
+  channel_id: z.number().int().positive(),
+  guild_id: z.number().int().positive(),
+  name: z.string().trim().min(1),
+  created_at: z.string().trim().min(1),
 });
 const CHANNEL_LIST_RESPONSE_SCHEMA = z.object({
-  channels: z.array(
-    z.object({
-      channel_id: z.number().int().positive(),
-      guild_id: z.number().int().positive(),
-      name: z.string().trim().min(1),
-      created_at: z.string().trim().min(1),
-    }),
-  ),
+  channels: z.array(CHANNEL_SUMMARY_SCHEMA),
+});
+const CHANNEL_CREATE_RESPONSE_SCHEMA = z.object({
+  channel: CHANNEL_SUMMARY_SCHEMA,
 });
 const BACKEND_ERROR_RESPONSE_SCHEMA = z.object({
   code: z.string().trim().min(1),
@@ -49,6 +59,7 @@ const DEFAULT_CHANNEL_VALUES = {
 } as const;
 
 type GuildListResponse = z.infer<typeof GUILD_LIST_RESPONSE_SCHEMA>;
+type GuildCreateResponse = z.infer<typeof GUILD_CREATE_RESPONSE_SCHEMA>;
 type ChannelListResponse = z.infer<typeof CHANNEL_LIST_RESPONSE_SCHEMA>;
 
 type GuildChannelApiErrorParams = {
@@ -109,6 +120,46 @@ export function toApiErrorText(error: unknown, fallbackMessage: string): string 
   }
 
   return fallbackMessage;
+}
+
+function attachRequestId(message: string, requestId: string | null): string {
+  if (requestId === null) {
+    return message;
+  }
+  return `${message} (request_id: ${requestId})`;
+}
+
+/**
+ * 作成系API失敗をユーザー向けメッセージへ変換する。
+ */
+export function toCreateActionErrorText(error: unknown, fallbackMessage: string): string {
+  if (!(error instanceof GuildChannelApiError)) {
+    return toApiErrorText(error, fallbackMessage);
+  }
+
+  if (error.code === "VALIDATION_ERROR") {
+    return attachRequestId("入力内容を確認してください。", error.requestId);
+  }
+  if (error.code === "AUTHZ_DENIED") {
+    return attachRequestId("この操作を行う権限がありません。", error.requestId);
+  }
+  if (error.code === "AUTHZ_UNAVAILABLE") {
+    return attachRequestId(
+      "認可サービスが一時的に利用できません。しばらくしてから再試行してください。",
+      error.requestId,
+    );
+  }
+  if (error.code === "GUILD_NOT_FOUND") {
+    return attachRequestId("対象のサーバーが見つかりません。", error.requestId);
+  }
+  if (error.code === "unauthenticated" || error.code === "token-unavailable") {
+    return attachRequestId("ログイン状態を確認してから再試行してください。", error.requestId);
+  }
+  if (error.code === "network-request-failed") {
+    return attachRequestId("ネットワーク接続を確認してから再試行してください。", error.requestId);
+  }
+
+  return attachRequestId(fallbackMessage, error.requestId);
 }
 
 function resolveApiBaseUrl(): string {
@@ -205,6 +256,16 @@ function mapGuild(summary: GuildListResponse["guilds"][number]): Guild {
   };
 }
 
+function mapCreatedGuild(summary: GuildCreateResponse["guild"]): Guild {
+  return {
+    ...DEFAULT_GUILD_VALUES,
+    id: String(summary.guild_id),
+    name: summary.name,
+    icon: summary.icon_key ?? null,
+    ownerId: String(summary.owner_id),
+  };
+}
+
 function mapChannel(summary: ChannelListResponse["channels"][number], position: number): Channel {
   return {
     id: String(summary.channel_id),
@@ -264,9 +325,24 @@ export class GuildChannelAPIClient extends NoDataAPIClient {
     });
   }
 
-  private async getJson<T>(path: string, schema: z.ZodType<T>): Promise<T> {
-    const fetchResult = await authenticatedRequest(this.buildUrl(path), {
-      method: "GET",
+  private async requestJson<T>(params: {
+    path: string;
+    method: "GET" | "POST";
+    schema: z.ZodType<T>;
+    expectedStatus: number;
+    body?: Record<string, unknown>;
+  }): Promise<T> {
+    const headers = new Headers();
+    let body: string | undefined;
+    if (params.body !== undefined) {
+      headers.set("Content-Type", "application/json");
+      body = JSON.stringify(params.body);
+    }
+
+    const fetchResult = await authenticatedRequest(this.buildUrl(params.path), {
+      method: params.method,
+      headers,
+      body,
     });
     if (!fetchResult.ok) {
       throw new GuildChannelApiError(fetchResult.error.message, {
@@ -277,6 +353,12 @@ export class GuildChannelAPIClient extends NoDataAPIClient {
     const { response } = fetchResult;
     if (!response.ok) {
       throw await this.parseErrorResponse(response);
+    }
+    if (response.status !== params.expectedStatus) {
+      throw new GuildChannelApiError(`Request failed with status ${response.status}.`, {
+        status: response.status,
+        code: "UNEXPECTED_RESPONSE",
+      });
     }
 
     let payload: unknown = null;
@@ -289,7 +371,7 @@ export class GuildChannelAPIClient extends NoDataAPIClient {
       });
     }
 
-    const parsed = schema.safeParse(payload);
+    const parsed = params.schema.safeParse(payload);
     if (!parsed.success) {
       throw new GuildChannelApiError("API response schema validation failed.", {
         status: response.status,
@@ -298,6 +380,29 @@ export class GuildChannelAPIClient extends NoDataAPIClient {
     }
 
     return parsed.data;
+  }
+
+  private async getJson<T>(path: string, schema: z.ZodType<T>): Promise<T> {
+    return this.requestJson({
+      path,
+      method: "GET",
+      schema,
+      expectedStatus: 200,
+    });
+  }
+
+  private async postJson<T>(
+    path: string,
+    body: Record<string, unknown>,
+    schema: z.ZodType<T>,
+  ): Promise<T> {
+    return this.requestJson({
+      path,
+      method: "POST",
+      body,
+      schema,
+      expectedStatus: 201,
+    });
   }
 
   private async fetchGuilds(options: { resetChannelCache: boolean }): Promise<Guild[]> {
@@ -461,5 +566,63 @@ export class GuildChannelAPIClient extends NoDataAPIClient {
       status: 404,
       code: "CHANNEL_NOT_FOUND",
     });
+  }
+
+  async createServer(data: CreateGuildData): Promise<Guild> {
+    const normalizedName = data.name.trim();
+    if (normalizedName.length === 0) {
+      throw new GuildChannelApiError("入力内容を確認してください。", {
+        status: 400,
+        code: "VALIDATION_ERROR",
+      });
+    }
+
+    const response = await this.postJson(
+      "/guilds",
+      { name: normalizedName },
+      GUILD_CREATE_RESPONSE_SCHEMA,
+    );
+    return mapCreatedGuild(response.guild);
+  }
+
+  async createChannel(serverId: string, data: CreateChannelData): Promise<Channel> {
+    const normalizedServerId = serverId.trim();
+    if (normalizedServerId.length === 0) {
+      throw new GuildChannelApiError("対象のサーバーが見つかりません。", {
+        status: 404,
+        code: "GUILD_NOT_FOUND",
+      });
+    }
+
+    if (data.type !== 0) {
+      throw new GuildChannelApiError("入力内容を確認してください。", {
+        status: 400,
+        code: "VALIDATION_ERROR",
+      });
+    }
+
+    const normalizedName = data.name.trim();
+    if (normalizedName.length === 0) {
+      throw new GuildChannelApiError("入力内容を確認してください。", {
+        status: 400,
+        code: "VALIDATION_ERROR",
+      });
+    }
+
+    const response = await this.postJson(
+      `/guilds/${encodeURIComponent(normalizedServerId)}/channels`,
+      { name: normalizedName },
+      CHANNEL_CREATE_RESPONSE_SCHEMA,
+    );
+    const cachedChannels = this.channelCacheByGuild.get(normalizedServerId);
+    const nextPosition = cachedChannels?.length ?? 0;
+    const channel = mapChannel(response.channel, nextPosition);
+
+    if (cachedChannels !== undefined) {
+      this.channelCacheByGuild.set(normalizedServerId, [...cachedChannels, channel]);
+    }
+    this.channelIndex.set(channel.id, channel);
+
+    return channel;
   }
 }

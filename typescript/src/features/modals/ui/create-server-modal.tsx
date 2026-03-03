@@ -1,11 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Camera, ChevronRight } from "lucide-react";
 import { Modal, ModalBody, ModalFooter } from "@/shared/ui/modal";
 import { Button } from "@/shared/ui/button";
 import { Input } from "@/shared/ui/input";
 import { useCreateServer } from "@/shared/api/mutations/use-server-actions";
+import { toCreateActionErrorText } from "@/shared/api/guild-channel-api-client";
+import { buildGuildRoute } from "@/shared/config/routes";
 
 const templates = [
   { id: "original", label: "オリジナル", emoji: "🛠️" },
@@ -29,17 +32,34 @@ const purposes = [
 ];
 
 export function CreateServerModal({ onClose }: { onClose: () => void }) {
+  const router = useRouter();
   const [step, setStep] = useState(1);
   const [serverName, setServerName] = useState("のサーバー");
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const createServer = useCreateServer();
+  const handleClose = () => {
+    if (createServer.isPending) {
+      return;
+    }
+    onClose();
+  };
 
-  const handleCreate = () => {
-    if (!serverName.trim()) return;
-    createServer.mutate({ name: serverName.trim() }, { onSuccess: onClose });
+  const handleCreate = async () => {
+    const normalizedName = serverName.trim();
+    if (normalizedName.length === 0) return;
+
+    setSubmitError(null);
+    try {
+      const createdServer = await createServer.mutateAsync({ name: normalizedName });
+      onClose();
+      router.push(buildGuildRoute(createdServer.id));
+    } catch (error: unknown) {
+      setSubmitError(toCreateActionErrorText(error, "サーバーの作成に失敗しました。"));
+    }
   };
 
   return (
-    <Modal open onClose={onClose} className="max-w-[440px]">
+    <Modal open onClose={handleClose} className="max-w-[440px]">
       {step === 1 && (
         <>
           <div className="px-4 pt-6 pb-0 text-center">
@@ -69,7 +89,7 @@ export function CreateServerModal({ onClose }: { onClose: () => void }) {
             <p className="text-xl font-bold text-discord-header-primary">
               すでに招待を持っていますか？
             </p>
-            <Button variant="secondary" className="w-full" onClick={onClose}>
+            <Button variant="secondary" className="w-full" onClick={handleClose}>
               参加する
             </Button>
           </ModalFooter>
@@ -130,7 +150,13 @@ export function CreateServerModal({ onClose }: { onClose: () => void }) {
               <Input
                 label="サーバー名"
                 value={serverName}
-                onChange={(e) => setServerName(e.target.value)}
+                onChange={(e) => {
+                  setServerName(e.target.value);
+                  if (submitError !== null) {
+                    setSubmitError(null);
+                  }
+                }}
+                error={submitError ?? undefined}
                 fullWidth
               />
             </div>
@@ -139,7 +165,10 @@ export function CreateServerModal({ onClose }: { onClose: () => void }) {
             <Button variant="link" onClick={() => setStep(2)}>
               戻る
             </Button>
-            <Button disabled={!serverName.trim()} onClick={handleCreate}>
+            <Button
+              disabled={!serverName.trim() || createServer.isPending}
+              onClick={() => void handleCreate()}
+            >
               作成
             </Button>
           </ModalFooter>

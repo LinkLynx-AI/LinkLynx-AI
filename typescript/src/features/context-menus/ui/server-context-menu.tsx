@@ -14,6 +14,15 @@ export function ServerContextMenu({ data }: { data: { server: Guild } }) {
       <MenuItem onClick={hideContextMenu}>サーバーをミュート</MenuItem>
       <MenuItem
         onClick={() => {
+          openModal("create-channel", { serverId: data.server.id });
+          hideContextMenu();
+        }}
+      >
+        チャンネルを作成
+      </MenuItem>
+      <MenuSeparator />
+      <MenuItem
+        onClick={() => {
           openModal("create-invite");
           hideContextMenu();
         }}

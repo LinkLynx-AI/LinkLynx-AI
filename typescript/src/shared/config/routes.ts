@@ -208,6 +208,11 @@ export function buildInviteRoute(code: string): string {
   return `/invite/${encodeURIComponent(code.trim())}`;
 }
 
+export function buildGuildRoute(guildId: string): string {
+  const encodedGuildId = encodeURIComponent(guildId.trim());
+  return `/channels/${encodedGuildId}`;
+}
+
 export function buildChannelRoute(guildId: string, channelId: string): string {
   const encodedGuildId = encodeURIComponent(guildId.trim());
   const encodedChannelId = encodeURIComponent(channelId.trim());
