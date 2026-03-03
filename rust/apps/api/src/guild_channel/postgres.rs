@@ -11,6 +11,38 @@ pub struct PostgresGuildChannelService {
 impl PostgresGuildChannelService {
     const DEFAULT_POOL_SIZE: usize = 4;
     const MAX_POOL_SIZE: usize = 100;
+    const CREATE_GUILD_CHANNEL_SQL: &str = "INSERT INTO channels (type, guild_id, name, created_by)
+                 SELECT
+                    'guild_text',
+                    gm.guild_id,
+                    $2,
+                    $3
+                 FROM guild_members gm
+                 WHERE gm.guild_id = $1
+                   AND gm.user_id = $3
+                 FOR KEY SHARE
+                 RETURNING
+                    id AS channel_id,
+                    guild_id,
+                    name,
+                    to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS created_at";
+    const LIST_GUILD_CHANNELS_SQL: &str = "WITH member AS (
+                    SELECT gm.guild_id
+                    FROM guild_members gm
+                    WHERE gm.guild_id = $1
+                      AND gm.user_id = $2
+                    FOR KEY SHARE
+                 )
+                 SELECT
+                    c.id AS channel_id,
+                    m.guild_id,
+                    c.name,
+                    to_char(c.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS created_at_text
+                 FROM member m
+                 LEFT JOIN channels c
+                   ON c.guild_id = m.guild_id
+                  AND c.type = 'guild_text'
+                 ORDER BY c.created_at ASC NULLS LAST, c.id ASC NULLS LAST";
 
     /// Postgresサービスを生成する。
     /// @param database_url 接続文字列
@@ -145,53 +177,53 @@ impl PostgresGuildChannelService {
         guard.clear();
     }
 
-    /// guild存在とメンバー所属を検証する。
+    /// 読み取り系DBエラーをAPIエラーへ変換する。
+    /// @param context エラー文脈
+    /// @param error Postgresエラー
+    /// @returns APIエラー
+    /// @throws なし
+    async fn map_read_error(
+        &self,
+        context: &str,
+        error: tokio_postgres::Error,
+    ) -> GuildChannelError {
+        if Self::should_invalidate_pool_for_read_error(&error) {
+            self.invalidate_pool().await;
+        }
+        GuildChannelError::dependency_unavailable(format!("{context}:{error}"))
+    }
+
+    /// 読み取り系DBエラーでプール破棄が必要か判定する。
+    /// @param error Postgresエラー
+    /// @returns 接続断系エラーの場合は `true`
+    /// @throws なし
+    fn should_invalidate_pool_for_read_error(error: &tokio_postgres::Error) -> bool {
+        if error.is_closed() {
+            return true;
+        }
+
+        std::error::Error::source(error)
+            .and_then(|source| source.downcast_ref::<std::io::Error>())
+            .is_some()
+    }
+
+    /// guild存在を確認する。
     /// @param client Postgresクライアント
-    /// @param principal_id 認証済みprincipal_id
     /// @param guild_id 対象guild_id
-    /// @returns 検証成功時は `Ok(())`
-    /// @throws GuildChannelError 非メンバー/未存在/依存障害時
-    async fn ensure_guild_member(
+    /// @returns guildが存在する場合は `true`
+    /// @throws GuildChannelError 依存障害時
+    async fn has_guild(
         &self,
         client: &tokio_postgres::Client,
-        principal_id: PrincipalId,
         guild_id: i64,
-    ) -> Result<(), GuildChannelError> {
-        let guild_exists = client
+    ) -> Result<bool, GuildChannelError> {
+        match client
             .query_opt("SELECT 1 FROM guilds WHERE id = $1", &[&guild_id])
             .await
-            .map_err(|error| {
-                GuildChannelError::dependency_unavailable(format!(
-                    "guild_lookup_failed:{error}"
-                ))
-            })?
-            .is_some();
-
-        if !guild_exists {
-            return Err(GuildChannelError::not_found("guild_not_found"));
+        {
+            Ok(row) => Ok(row.is_some()),
+            Err(error) => Err(self.map_read_error("guild_lookup_failed", error).await),
         }
-
-        // TODO(LIN-629): Remove local membership authorization once the common
-        // SpiceDB-backed Authorizer evaluates Guild/GuildChannel resources.
-        // Keep the guild existence check to preserve 404 contract semantics.
-        let is_member = client
-            .query_opt(
-                "SELECT 1 FROM guild_members WHERE guild_id = $1 AND user_id = $2",
-                &[&guild_id, &principal_id.0],
-            )
-            .await
-            .map_err(|error| {
-                GuildChannelError::dependency_unavailable(format!(
-                    "guild_membership_lookup_failed:{error}"
-                ))
-            })?
-            .is_some();
-
-        if !is_member {
-            return Err(GuildChannelError::forbidden("guild_membership_required"));
-        }
-
-        Ok(())
     }
 
     /// 書き込み系DBエラーをAPIエラーへ変換する。
@@ -204,7 +236,9 @@ impl PostgresGuildChannelService {
             if db_error.code() == &SqlState::CHECK_VIOLATION {
                 return GuildChannelError::validation("name_must_not_be_blank");
             }
-            if db_error.code() == &SqlState::FOREIGN_KEY_VIOLATION {
+            if db_error.code() == &SqlState::FOREIGN_KEY_VIOLATION
+                && db_error.constraint() == Some("channels_guild_id_fkey")
+            {
                 return GuildChannelError::not_found("guild_not_found");
             }
         }
@@ -225,7 +259,7 @@ impl GuildChannelService for PostgresGuildChannelService {
     ) -> Result<Vec<GuildSummary>, GuildChannelError> {
         let client = self.select_client().await?;
 
-        let rows = client
+        let rows = match client
             .query(
                 "SELECT
                     g.id AS guild_id,
@@ -239,9 +273,10 @@ impl GuildChannelService for PostgresGuildChannelService {
                 &[&principal_id.0],
             )
             .await
-            .map_err(|error| {
-                GuildChannelError::dependency_unavailable(format!("guild_list_query_failed:{error}"))
-            })?;
+        {
+            Ok(rows) => rows,
+            Err(error) => return Err(self.map_read_error("guild_list_query_failed", error).await),
+        };
 
         let guilds = rows
             .into_iter()
@@ -335,35 +370,33 @@ impl GuildChannelService for PostgresGuildChannelService {
         guild_id: i64,
     ) -> Result<Vec<ChannelSummary>, GuildChannelError> {
         let client = self.select_client().await?;
-        self.ensure_guild_member(&client, principal_id, guild_id).await?;
-
-        let rows = client
-            .query(
-                "SELECT
-                    id AS channel_id,
-                    guild_id,
-                    name,
-                    to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS created_at_text
-                 FROM channels
-                 WHERE guild_id = $1
-                   AND type = 'guild_text'
-                 ORDER BY created_at ASC, id ASC",
-                &[&guild_id],
-            )
+        let rows = match client
+            .query(Self::LIST_GUILD_CHANNELS_SQL, &[&guild_id, &principal_id.0])
             .await
-            .map_err(|error| {
-                GuildChannelError::dependency_unavailable(format!(
-                    "channel_list_query_failed:{error}"
-                ))
-            })?;
+        {
+            Ok(rows) => rows,
+            Err(error) => return Err(self.map_read_error("channel_list_query_failed", error).await),
+        };
+
+        if rows.is_empty() {
+            if self.has_guild(&client, guild_id).await? {
+                return Err(GuildChannelError::forbidden("guild_membership_required"));
+            }
+            return Err(GuildChannelError::not_found("guild_not_found"));
+        }
 
         let channels = rows
             .into_iter()
-            .map(|row| ChannelSummary {
-                channel_id: row.get::<&str, i64>("channel_id"),
-                guild_id: row.get::<&str, i64>("guild_id"),
-                name: row.get::<&str, String>("name"),
-                created_at: row.get::<&str, String>("created_at_text"),
+            .filter_map(|row| {
+                let channel_id = row.get::<&str, Option<i64>>("channel_id")?;
+                let name = row.get::<&str, Option<String>>("name")?;
+                let created_at = row.get::<&str, Option<String>>("created_at_text")?;
+                Some(ChannelSummary {
+                    channel_id,
+                    guild_id: row.get::<&str, i64>("guild_id"),
+                    name,
+                    created_at,
+                })
             })
             .collect();
 
@@ -384,22 +417,21 @@ impl GuildChannelService for PostgresGuildChannelService {
     ) -> Result<CreatedChannel, GuildChannelError> {
         let normalized_name = normalize_non_empty_name(&name, "channel_name_required")?;
         let client = self.select_client().await?;
-        self.ensure_guild_member(&client, principal_id, guild_id).await?;
 
         let row = match client
-            .query_one(
-                "INSERT INTO channels (type, guild_id, name, created_by)
-                 VALUES ('guild_text', $1, $2, $3)
-                 RETURNING
-                    id AS channel_id,
-                    guild_id,
-                    name,
-                    to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS created_at",
+            .query_opt(
+                Self::CREATE_GUILD_CHANNEL_SQL,
                 &[&guild_id, &normalized_name, &principal_id.0],
             )
             .await
         {
-            Ok(row) => row,
+            Ok(Some(row)) => row,
+            Ok(None) => {
+                if self.has_guild(&client, guild_id).await? {
+                    return Err(GuildChannelError::forbidden("guild_membership_required"));
+                }
+                return Err(GuildChannelError::not_found("guild_not_found"));
+            }
             Err(error) => {
                 self.invalidate_pool().await;
                 return Err(Self::map_write_error("channel_create_insert_failed", error));

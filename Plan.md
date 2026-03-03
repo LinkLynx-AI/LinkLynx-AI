@@ -1,23 +1,35 @@
 # Plan
 
-1. `docs/TYPESCRIPT.md` を読み、現行構造との差分を把握する。 ✅
-2. 非FSDトップレベル (`components/hooks/lib/providers/services/stores/types`) をFSDレイヤ配下に再配置する。 ✅
-3. 全importを新パスへ一括更新する。 ✅
-4. ESLint設定の対象パスを新構造に合わせる。 ✅
-5. TypeScript typecheck / lint で参照整合性を確認する。 ✅
+## Rules
+- Stop-and-fix: レビューまたは検証が失敗した場合は次工程へ進まず修正する。
+- Scope lock: `server/guild` 関連以外は変更しない。
 
-## Follow-up (widgets/legacy廃止)
+## Milestones
+### M1: 対象特定と前提確認
+- Acceptance criteria:
+  - [x] `guild_channel` 周辺の実装と既存契約を把握
+  - [x] 調査対象ファイルを確定
+- Validation:
+  - `rg --files rust/apps/api/src/guild_channel`
 
-1. `typescript/src/widgets/legacy` の中身を `widgets/<slice>/ui` へ再配置する。 ✅
-2. `@/widgets/legacy/ui/*` import を新しい `widgets` スライス参照へ置換する。 ✅
-3. `widgets` 各スライスに Public API (`index.ts`) を用意する。 ✅
-4. `eslint.config.mjs` の `legacy` 前提パスを新構成へ更新する。 ✅
-5. TypeScript typecheck / lint を再実行する。 ✅
+### M2: 初回レビューゲート実行
+- Acceptance criteria:
+  - [x] `reviewer` を実行して指摘一覧を取得
+  - [x] UI影響有無を判断（必要時のみ UI review）
+- Validation:
+  - `reviewer` agent result
 
-## Follow-up (理想系化)
+### M3: 指摘修正 + コード検証
+- Acceptance criteria:
+  - [x] blocking 指摘を修正
+  - [x] Rust 検証コマンドが成功
+- Validation:
+  - `make validate`
+  - 必要に応じて `cd rust && cargo test -p api guild_channel`
 
-1. `widgets` のうちユースケース中心スライスを `features` へ再配置する。 ✅
-2. `@/widgets/<slice>` import を `@/features/<slice>` に一括更新する。 ✅
-3. `features/index.ts` で再配置スライスの Public API を公開する。 ✅
-4. TypeScript専用の FSD境界チェックを追加し、`make ts-fsd-check` で実行可能にする。 ✅
-5. `fsd-check / typecheck / lint` で整合性を確認する。 ✅
+### M4: 再レビューで収束
+- Acceptance criteria:
+  - [x] `reviewer` 再実行で blocking 指摘 0
+  - [x] 実施ログを `Documentation.md` に記録
+- Validation:
+  - `reviewer` agent result (pass)

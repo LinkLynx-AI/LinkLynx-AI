@@ -1,22 +1,22 @@
 # Documentation
 
-## TypeScript FSD移行メモ
+## Current status
+- Now: `server/guild` Rust バックエンドのレビュー修正ループを完了。
+- Next: 必要ならコミット/PR 化。
 
-- `typescript/src` のトップレベルは `app / entities / features / shared / widgets / test` のみとし、非FSD直下ディレクトリを解消。
-- 既存UI実装は変更せず、物理配置と import パスのみを更新。
-- `widgets` レイヤは `widgets/<slice>/ui` の形に統一し、`widgets/legacy` は廃止。
-- `widgets/<slice>/index.ts` を Public API として配置し、外部からはスライス単位の import を優先。
-- 既存の mock-design 系コードに対する ESLint 緩和設定は `src/widgets/**/*` に適用して維持。
+## Decisions
+- Start mode は `standalone smallest-unit`。
+- 変更は `guild_channel` 実装と関連テストに限定。
+- 既存API契約（`guild_not_found` と `guild_membership_required` の分類、`VALIDATION_ERROR`）を維持。
 
-## TypeScript FSD理想系（2026-03-03 更新）
+## Review gate evidence
+- 初回 `reviewer`: `gate: block`
+- 修正後 `reviewer`（差分対象）: `gate: pass`
+- `reviewer_ui_guard`: 両回とも `run_ui_checks: false`
 
-- `widgets` はレイアウト/複合表示の単位に限定:
-  - `app-shell`, `channel-sidebar`, `chat`, `member-list`, `panels`, `server-list`
-- ユースケース中心のスライスは `features` へ集約:
-  - `auth-guard`, `context-menus`, `dm-friends`, `forum`, `modals`, `notifications`,
-    `pickers`, `settings`, `special`, `threads`, `user-profile`, `voice`
-- `features/index.ts` を更新し、移動したスライスをPublic APIとして再公開。
-- FSD境界の自動検査を追加:
-  - 実体: `typescript/scripts/check-fsd.mjs`
-  - 実行: `make ts-fsd-check` または `cd typescript && make fsd-check`
-  - `cd typescript && make lint` 実行時にも `fsd-check` を先行実行。
+## Validation evidence
+- `cd rust && cargo test -p linklynx_backend guild_channel`
+- `make validate`
+
+## Known issues / follow-ups
+- なし（今回差分に対する blocking 指摘は解消済み）。

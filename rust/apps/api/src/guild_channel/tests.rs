@@ -37,4 +37,22 @@ mod tests {
 
         assert_eq!(result, "hello");
     }
+
+    #[test]
+    fn create_guild_channel_sql_requires_membership_lookup() {
+        let sql = PostgresGuildChannelService::CREATE_GUILD_CHANNEL_SQL;
+
+        assert!(sql.contains("FROM guild_members"));
+        assert!(sql.contains("FOR KEY SHARE"));
+        assert!(!sql.contains("VALUES ('guild_text'"));
+    }
+
+    #[test]
+    fn list_guild_channels_sql_requires_membership_lookup() {
+        let sql = PostgresGuildChannelService::LIST_GUILD_CHANNELS_SQL;
+
+        assert!(sql.contains("FROM guild_members"));
+        assert!(sql.contains("LEFT JOIN channels"));
+        assert!(sql.contains("FOR KEY SHARE"));
+    }
 }
