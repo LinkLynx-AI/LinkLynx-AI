@@ -4,6 +4,7 @@ import {
   reload,
   sendEmailVerification,
   sendPasswordResetEmail,
+  signOut,
   signInWithPopup,
   signInWithEmailAndPassword,
 } from "firebase/auth";
@@ -191,5 +192,17 @@ export async function sendPasswordResetEmailByAddress(params: {
     return { ok: true, data: null };
   } catch (error: unknown) {
     return toFailure(error, "パスワード再設定メールの送信に失敗しました。");
+  }
+}
+
+/**
+ * 現在ログイン中ユーザーをログアウトする。
+ */
+export async function signOutCurrentUser(): Promise<AuthActionResult<null>> {
+  try {
+    await signOut(getFirebaseAuth());
+    return { ok: true, data: null };
+  } catch (error: unknown) {
+    return toFailure(error, "ログアウトに失敗しました。");
   }
 }

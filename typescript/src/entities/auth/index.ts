@@ -13,13 +13,20 @@ export type {
   AuthSessionStatus,
   AuthTokenGetter,
   AuthUser,
+  WsCloseKind,
+  WsConnectionState,
+  WsConnectionStatePhase,
 } from "./model";
+export { createInitialWsConnectionState } from "./model";
+export type { WsTicketIssueError, WsTicketIssueResult } from "./api";
 export {
   ensurePrincipalProvisionedForCurrentUser,
   authenticatedFetch,
+  issueWsTicket,
   loginWithEmailAndPassword,
   registerWithEmailAndPassword,
   reloadCurrentAuthUser,
+  signOutCurrentUser,
   sendPasswordResetEmailByAddress,
   signInWithGooglePopup,
   sendVerificationEmailForCurrentUser,

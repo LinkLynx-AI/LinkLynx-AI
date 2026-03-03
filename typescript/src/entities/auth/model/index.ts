@@ -16,6 +16,12 @@ export {
   type AuthenticatedFetchErrorCode,
   type AuthenticatedFetchResult,
 } from "./authenticated-fetch";
+export {
+  createInitialWsConnectionState,
+  type WsCloseKind,
+  type WsConnectionState,
+  type WsConnectionStatePhase,
+} from "./ws-connection";
 
 export type AuthSessionStatus = "initializing" | "authenticated" | "unauthenticated";
 
