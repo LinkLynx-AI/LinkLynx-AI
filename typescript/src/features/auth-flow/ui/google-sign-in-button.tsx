@@ -15,7 +15,7 @@ export function GoogleSignInButton({ disabled, isSubmitting, onClick }: GoogleSi
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className="inline-flex w-full items-center justify-center rounded-md border border-[var(--llx-divider)] bg-[var(--llx-bg-secondary)] px-4 py-2 text-sm font-medium text-[var(--llx-text-primary)] transition hover:bg-[var(--llx-bg-selected)] disabled:cursor-not-allowed disabled:opacity-60"
+      className="h-10 w-full rounded-[4px] bg-discord-bg-tertiary text-sm font-medium text-discord-text-normal transition hover:bg-discord-bg-mod-hover disabled:cursor-not-allowed disabled:opacity-60"
     >
       {isSubmitting ? "Googleサインイン中..." : "Googleで続行"}
     </button>

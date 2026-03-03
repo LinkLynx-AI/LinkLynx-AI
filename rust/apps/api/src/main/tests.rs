@@ -2,6 +2,7 @@
 mod tests {
     use super::*;
     use async_trait::async_trait;
+    use std::collections::HashSet;
     use auth::{
         CachingPrincipalResolver, InMemoryPrincipalCache, InMemoryPrincipalStore,
         PrincipalProvisioner, PrincipalResolver, PrincipalStore, TokenVerifier, TokenVerifyError,
@@ -304,6 +305,21 @@ mod tests {
             guild_channel_service: Arc::new(StaticGuildChannelService),
             profile_service,
             ws_reauth_grace: Duration::from_secs(30),
+            ws_ticket_ttl: Duration::from_secs(60),
+            auth_identify_timeout: Duration::from_secs(5),
+            ws_ticket_store: Arc::new(WsTicketStore::default()),
+            ws_ticket_rate_limiter: Arc::new(FixedWindowRateLimiter::new(
+                20,
+                Duration::from_secs(60),
+            )),
+            ws_identify_rate_limiter: Arc::new(FixedWindowRateLimiter::new(
+                60,
+                Duration::from_secs(60),
+            )),
+            ws_origin_allowlist: Arc::new(WsOriginAllowlist::new(HashSet::from([
+                "http://localhost:3000".to_owned(),
+                "http://127.0.0.1:3000".to_owned(),
+            ]))),
         };
 
         app_with_state(state)
@@ -669,6 +685,50 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn ws_ticket_endpoint_returns_ticket_for_authenticated_request() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/auth/ws-ticket")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert!(json["ticket"].as_str().is_some_and(|value| !value.is_empty()));
+        assert!(json["expiresAt"].as_str().is_some_and(|value| !value.is_empty()));
+    }
+
+    #[tokio::test]
+    async fn ws_ticket_endpoint_rejects_missing_token() {
+        let app = app_for_test().await;
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/auth/ws-ticket")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
     async fn get_my_profile_returns_profile() {
         let app = app_for_test().await;
         let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
@@ -871,14 +931,23 @@ mod tests {
     }
 
     #[test]
-    fn parse_reauth_token_extracts_token() {
-        let text = r#"{"type":"auth.reauthenticate","token":"next-token"}"#;
-        assert_eq!(parse_reauth_token(text), Some("next-token".to_owned()));
+    fn parse_reauth_id_token_extracts_token() {
+        let text = r#"{"type":"auth.reauthenticate","d":{"idToken":"next-token"}}"#;
+        assert_eq!(parse_reauth_id_token(text), Some("next-token".to_owned()));
     }
 
     #[test]
-    fn parse_reauth_token_ignores_non_reauth_messages() {
+    fn parse_reauth_id_token_ignores_non_reauth_messages() {
         let text = r#"{"type":"message.create","body":"hi"}"#;
-        assert_eq!(parse_reauth_token(text), None);
+        assert_eq!(parse_reauth_id_token(text), None);
+    }
+
+    #[test]
+    fn parse_identify_payload_extracts_ticket() {
+        let text = r#"{"type":"auth.identify","d":{"method":"ticket","ticket":"abc"}}"#;
+        let payload = parse_identify_payload(text).unwrap();
+
+        assert_eq!(payload.method, "ticket");
+        assert_eq!(payload.ticket, "abc");
     }
 }

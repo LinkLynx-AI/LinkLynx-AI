@@ -191,8 +191,8 @@ let apiInstance: APIClient | undefined;
 export function getAPIClient(): APIClient {
   if (!apiInstance) {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { NoDataAPIClient } = require("./no-data-api-client");
-    apiInstance = new NoDataAPIClient() as APIClient;
+    const { GuildChannelAPIClient } = require("./guild-channel-api-client");
+    apiInstance = new GuildChannelAPIClient() as APIClient;
   }
   return apiInstance;
 }

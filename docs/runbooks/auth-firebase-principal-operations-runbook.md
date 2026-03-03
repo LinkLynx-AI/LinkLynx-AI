@@ -38,7 +38,21 @@ Out of scope:
 - Mapping source: `auth_identities(provider, provider_subject) -> users.id`
 - Initial authentication performs idempotent provisioning when mapping is missing.
 
-### 2.2 Error mapping policy
+### 2.2 WS browser handshake baseline
+
+- `POST /auth/ws-ticket` issues short-lived one-time ticket for authenticated principal.
+- `GET /ws` accepts unauthenticated upgrade and requires `auth.identify` within timeout.
+- Identify contract:
+  - Client -> Server: `{ \"type\": \"auth.identify\", \"d\": { \"method\": \"ticket\", \"ticket\": string } }`
+  - Server -> Client: `{ \"type\": \"auth.ready\", \"d\": { \"principalId\": number } }`
+- Compatibility paths:
+  - `GET /ws?ticket=<ticket>`
+  - `Authorization` header based WS handshake
+- Close behavior:
+  - invalid/expired/replayed ticket, identify timeout, identify-before-ready violation -> `1008`
+  - auth dependency unavailable -> `1011`
+
+### 2.3 Error mapping policy
 
 | failure class | REST | WS close code | app-level code |
 | --- | --- | --- | --- |
@@ -47,21 +61,27 @@ Out of scope:
 | principal mapping missing/invalid | `403` | `1008` | `AUTH_PRINCIPAL_NOT_MAPPED` |
 | auth dependency unavailable (JWKS/cache/store) | `503` | `1011` | `AUTH_UNAVAILABLE` |
 
-### 2.3 WS token expiry and reauthentication
+### 2.4 WS token expiry and reauthentication
 
 - On expiry during active WS session, server sends `auth.reauthenticate` request with deadline.
-- Client must send `auth.reauthenticate` with a new token before the deadline.
+- Client must send `auth.reauthenticate` with `{ \"d\": { \"idToken\": string } }` before the deadline.
 - While reauthentication is pending, application messages other than `auth.reauthenticate` are rejected and the session is closed with `1008` (`reauth_required`).
 - If reauthentication fails or deadline passes, server closes with:
   - `1008` for deterministic auth failure
   - `1011` for dependency unavailability
 
-### 2.4 Runtime configuration safety defaults
+### 2.5 Runtime configuration safety defaults
 
 - `DATABASE_URL` is required for runtime principal mapping in normal operation.
 - If `DATABASE_URL` is missing, principal resolution is fail-close by default (`AUTH_UNAVAILABLE`).
 - Firebase issued-at skew tolerance is configurable via:
   - `FIREBASE_IAT_SKEW_SECONDS` (default: `60`)
+- WS ticket and identify runtime knobs:
+  - `WS_TICKET_TTL_SECONDS` (default: `60`)
+  - `AUTH_IDENTIFY_TIMEOUT_SECONDS` (default: `5`)
+  - `WS_TICKET_RATE_LIMIT_MAX_PER_MINUTE` (default: `20`)
+  - `WS_IDENTIFY_RATE_LIMIT_MAX_PER_MINUTE` (default: `60`)
+  - `WS_ALLOWED_ORIGINS` (default: `http://localhost:3000,http://127.0.0.1:3000`)
 - Principal store retry behavior is configurable via:
   - `AUTH_PRINCIPAL_STORE_MAX_RETRIES` (default: `2`)
   - `AUTH_PRINCIPAL_STORE_RETRY_BASE_BACKOFF_MS` (default: `25`)
@@ -70,7 +90,7 @@ Out of scope:
   - Temporary plaintext opt-out is possible only with explicit:
     - `AUTH_ALLOW_POSTGRES_NOTLS=true` (local/development only)
 
-### 2.5 Principal auto provisioning policy
+### 2.6 Principal auto provisioning policy
 
 - Trigger: first successful token verification with missing `uid -> principal_id` mapping.
 - Provisioning behavior:
@@ -81,13 +101,13 @@ Out of scope:
   - Provisioning must be idempotent under duplicate/concurrent first-login requests.
   - Conflict-unresolved paths are fail-close (`403`).
 
-### 2.6 Password reset / verification email responsibility
+### 2.7 Password reset / verification email responsibility
 
 - Application runtime does not manage local password hashes or reset tokens.
 - Password reset and verification emails are delegated to Firebase standard capabilities.
 - Local fallback reset paths are prohibited.
 
-### 2.7 Local reproduction contract (env / compose)
+### 2.8 Local reproduction contract (env / compose)
 
 Required env contract for local auth runtime:
 
@@ -118,7 +138,7 @@ Local steps (runbook-only reproducible flow):
    - `docker compose logs typescript` should not contain frontend env validation errors.
 5. Verify auth path.
    - call protected REST path with valid Firebase token and confirm `200`.
-   - validate missing/invalid token path still maps to `401/403/503` per section 2.2.
+  - validate missing/invalid token path still maps to `401/403/503` per section 2.3.
 
 ## 3. Required logs and audit fields
 

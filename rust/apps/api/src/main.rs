@@ -4,6 +4,7 @@ mod guild_channel;
 mod profile;
 
 use std::{
+    collections::HashSet,
     env,
     net::SocketAddr,
     sync::Arc,
@@ -12,8 +13,10 @@ use std::{
 
 use auth::{
     auth_error_response, bearer_token_from_headers, build_runtime_auth_service,
-    request_id_from_headers, unix_timestamp_seconds, validate_runtime_auth_env, AuthContext,
-    AuthMetrics, AuthMetricsSnapshot, AuthService, AuthenticatedPrincipal,
+    format_ticket_expiration, parse_ws_origin_allowlist, request_id_from_headers,
+    unix_timestamp_seconds, validate_runtime_auth_env, AuthContext, AuthMetrics,
+    AuthMetricsSnapshot, AuthService, AuthenticatedPrincipal, FixedWindowRateLimiter,
+    WsOriginAllowlist, WsTicketStore, DEFAULT_WS_ALLOWED_ORIGINS,
 };
 use authz::{
     authz_error_response, build_runtime_authorizer, Authorizer, AuthzAction, AuthzCheckInput,
@@ -24,12 +27,12 @@ use axum::{
     extract::{
         rejection::JsonRejection,
         ws::{CloseFrame, Message, WebSocket, WebSocketUpgrade},
-        Extension, Path, State,
+        Extension, Path, Query, State,
     },
     http::{HeaderMap, Request, StatusCode},
     middleware::{self, Next},
     response::{IntoResponse, Response},
-    routing::get,
+    routing::{get, post},
     Json, Router,
 };
 use guild_channel::{
@@ -51,6 +54,12 @@ pub(crate) struct AppState {
     guild_channel_service: Arc<dyn GuildChannelService>,
     profile_service: Arc<dyn ProfileService>,
     ws_reauth_grace: Duration,
+    ws_ticket_ttl: Duration,
+    auth_identify_timeout: Duration,
+    ws_ticket_store: Arc<WsTicketStore>,
+    ws_ticket_rate_limiter: Arc<FixedWindowRateLimiter>,
+    ws_identify_rate_limiter: Arc<FixedWindowRateLimiter>,
+    ws_origin_allowlist: Arc<WsOriginAllowlist>,
 }
 
 #[tokio::main]
@@ -104,6 +113,13 @@ fn build_runtime_state() -> AppState {
             .and_then(|value| value.parse::<u64>().ok())
             .unwrap_or(30),
     );
+    let ws_ticket_ttl = Duration::from_secs(parse_runtime_u64("WS_TICKET_TTL_SECONDS", 60));
+    let auth_identify_timeout =
+        Duration::from_secs(parse_runtime_u64("AUTH_IDENTIFY_TIMEOUT_SECONDS", 5));
+    let ws_ticket_rate_limit_max =
+        parse_runtime_u64("WS_TICKET_RATE_LIMIT_MAX_PER_MINUTE", 20).min(u32::MAX as u64) as u32;
+    let ws_identify_rate_limit_max =
+        parse_runtime_u64("WS_IDENTIFY_RATE_LIMIT_MAX_PER_MINUTE", 60).min(u32::MAX as u64) as u32;
 
     AppState {
         auth_service,
@@ -111,6 +127,58 @@ fn build_runtime_state() -> AppState {
         guild_channel_service,
         profile_service,
         ws_reauth_grace,
+        ws_ticket_ttl,
+        auth_identify_timeout,
+        ws_ticket_store: Arc::new(WsTicketStore::default()),
+        ws_ticket_rate_limiter: Arc::new(FixedWindowRateLimiter::new(
+            ws_ticket_rate_limit_max,
+            Duration::from_secs(60),
+        )),
+        ws_identify_rate_limiter: Arc::new(FixedWindowRateLimiter::new(
+            ws_identify_rate_limit_max,
+            Duration::from_secs(60),
+        )),
+        ws_origin_allowlist: Arc::new(build_runtime_ws_origin_allowlist()),
+    }
+}
+
+fn parse_runtime_u64(name: &str, default: u64) -> u64 {
+    match env::var(name) {
+        Ok(value) => match value.parse::<u64>() {
+            Ok(parsed) => parsed,
+            Err(error) => {
+                tracing::warn!(
+                    env_var = %name,
+                    value = %value,
+                    reason = %error,
+                    default = default,
+                    "invalid runtime u64 env value; fallback to default"
+                );
+                default
+            }
+        },
+        Err(_) => default,
+    }
+}
+
+fn build_runtime_ws_origin_allowlist() -> WsOriginAllowlist {
+    let configured =
+        env::var("WS_ALLOWED_ORIGINS").unwrap_or_else(|_| DEFAULT_WS_ALLOWED_ORIGINS.to_owned());
+    match parse_ws_origin_allowlist(&configured) {
+        Ok(origins) => WsOriginAllowlist::new(origins),
+        Err(reason) => {
+            tracing::warn!(
+                env_var = "WS_ALLOWED_ORIGINS",
+                reason = %reason,
+                fallback = DEFAULT_WS_ALLOWED_ORIGINS,
+                "invalid WS origin allowlist value; fallback to defaults"
+            );
+            let fallback = HashSet::from([
+                "http://localhost:3000".to_owned(),
+                "http://127.0.0.1:3000".to_owned(),
+            ]);
+            WsOriginAllowlist::new(fallback)
+        }
     }
 }
 
