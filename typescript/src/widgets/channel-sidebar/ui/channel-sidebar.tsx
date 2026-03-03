@@ -2,8 +2,11 @@
 
 import { useMemo } from "react";
 import { useChannels } from "@/shared/api/queries/use-channels";
+import { toApiErrorText } from "@/shared/api/guild-channel-api-client";
+import { parseGuildChannelRoute } from "@/shared/config/routes";
 import { useGuildStore } from "@/shared/model/stores/guild-store";
 import { useServer } from "@/shared/api/queries/use-servers";
+import { usePathname } from "next/navigation";
 import { ServerHeader } from "./server-header";
 import { ChannelCategory } from "./channel-category";
 import { ChannelItem } from "./channel-item";
@@ -42,15 +45,29 @@ function groupChannelsByCategory(channels: Channel[]): CategoryGroup[] {
 }
 
 export function ChannelSidebar() {
-  const activeServerId = useGuildStore((s) => s.activeServerId);
-  const activeChannelId = useGuildStore((s) => s.activeChannelId);
+  const pathname = usePathname();
+  const routeSelection = parseGuildChannelRoute(pathname ?? "");
+  const activeServerIdFromStore = useGuildStore((s) => s.activeServerId);
+  const activeChannelIdFromStore = useGuildStore((s) => s.activeChannelId);
+  const activeServerId = routeSelection?.guildId ?? activeServerIdFromStore;
+  const activeChannelId = routeSelection ? routeSelection.channelId : activeChannelIdFromStore;
   const collapsedCategories = useGuildStore((s) => s.collapsedCategories);
   const toggleCategory = useGuildStore((s) => s.toggleCategory);
 
   const { data: server } = useServer(activeServerId ?? "");
-  const { data: channels } = useChannels(activeServerId ?? "");
+  const {
+    data: channels,
+    isLoading: isChannelsLoading,
+    isError: isChannelsError,
+    error: channelsError,
+  } = useChannels(activeServerId ?? "");
 
-  const groups = useMemo(() => groupChannelsByCategory(channels ?? []), [channels]);
+  const groups = useMemo(
+    () => (channels === undefined ? [] : groupChannelsByCategory(channels)),
+    [channels],
+  );
+  const channelErrorMessage = toApiErrorText(channelsError, "チャンネル一覧の取得に失敗しました。");
+  const shouldShowChannelError = isChannelsError && (channels?.length ?? 0) === 0;
 
   if (!activeServerId) return null;
 
@@ -58,18 +75,61 @@ export function ChannelSidebar() {
 
   return (
     <div className="flex h-full w-60 flex-col bg-discord-bg-secondary">
-      <ServerHeader serverName={server?.name ?? ""} />
+      <ServerHeader serverName={server?.name ?? "サーバー"} />
 
       {/* Channel list */}
       <div className="discord-scrollbar flex-1 overflow-y-auto pb-2">
-        {groups.map((group) => {
-          const key = group.category?.id ?? "__top__";
-          const isCollapsed = group.category ? collapsed.has(group.category.id) : false;
+        {isChannelsLoading && (
+          <div className="px-4 py-3 text-sm text-discord-text-muted">チャンネルを読み込み中...</div>
+        )}
 
-          if (!group.category) {
-            // Top-level channels without category
+        {shouldShowChannelError && (
+          <div className="px-4 py-3 text-xs leading-5 text-discord-text-muted">
+            {channelErrorMessage}
+          </div>
+        )}
+
+        {!isChannelsLoading && !shouldShowChannelError && groups.length === 0 && (
+          <div className="px-4 py-3 text-sm text-discord-text-muted">
+            表示可能なチャンネルがありません。
+          </div>
+        )}
+
+        {!isChannelsLoading &&
+          !shouldShowChannelError &&
+          groups.map((group) => {
+            const key = group.category?.id ?? "__top__";
+            const isCollapsed = group.category ? collapsed.has(group.category.id) : false;
+
+            if (!group.category) {
+              // Top-level channels without category
+              return (
+                <div key={key} className="pt-2">
+                  {group.channels.map((ch) =>
+                    ch.type === 2 ? (
+                      <VoiceChannel key={ch.id} channel={ch} serverId={activeServerId} />
+                    ) : (
+                      <ChannelItem
+                        key={ch.id}
+                        channel={ch}
+                        serverId={activeServerId}
+                        isActive={activeChannelId === ch.id}
+                        isUnread={false}
+                        isMuted={false}
+                      />
+                    ),
+                  )}
+                </div>
+              );
+            }
+
             return (
-              <div key={key} className="pt-2">
+              <ChannelCategory
+                key={key}
+                name={group.category.name}
+                collapsed={isCollapsed}
+                onToggle={() => toggleCategory(activeServerId, group.category!.id)}
+              >
                 {group.channels.map((ch) =>
                   ch.type === 2 ? (
                     <VoiceChannel key={ch.id} channel={ch} serverId={activeServerId} />
@@ -84,34 +144,9 @@ export function ChannelSidebar() {
                     />
                   ),
                 )}
-              </div>
+              </ChannelCategory>
             );
-          }
-
-          return (
-            <ChannelCategory
-              key={key}
-              name={group.category.name}
-              collapsed={isCollapsed}
-              onToggle={() => toggleCategory(activeServerId, group.category!.id)}
-            >
-              {group.channels.map((ch) =>
-                ch.type === 2 ? (
-                  <VoiceChannel key={ch.id} channel={ch} serverId={activeServerId} />
-                ) : (
-                  <ChannelItem
-                    key={ch.id}
-                    channel={ch}
-                    serverId={activeServerId}
-                    isActive={activeChannelId === ch.id}
-                    isUnread={false}
-                    isMuted={false}
-                  />
-                ),
-              )}
-            </ChannelCategory>
-          );
-        })}
+          })}
       </div>
 
       {/* Voice connection panel (shows when connected) */}
