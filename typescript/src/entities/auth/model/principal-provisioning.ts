@@ -1,5 +1,6 @@
 export type PrincipalProvisionErrorCode =
   | "unauthenticated"
+  | "token-unavailable"
   | "email-not-verified"
   | "principal-not-mapped"
   | "auth-unavailable"

@@ -94,7 +94,11 @@ export function ProtectedPreviewGate({ guard, children }: ProtectedPreviewGatePr
       };
     }
 
-    if (provisionResult.error.status === 401 || provisionResult.error.code === "unauthenticated") {
+    if (
+      provisionResult.error.status === 401 ||
+      provisionResult.error.code === "unauthenticated" ||
+      provisionResult.error.code === "token-unavailable"
+    ) {
       return {
         visibleGuard: "unauthenticated",
         loginReason: "session-expired",

@@ -41,10 +41,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
 
         <p className="mt-6 text-sm text-discord-text-muted">
           アカウントをお持ちでないですか？{" "}
-          <Link
-            href={APP_ROUTES.register}
-            className="text-discord-text-link hover:underline"
-          >
+          <Link href={APP_ROUTES.register} className="text-discord-text-link hover:underline">
             新規登録
           </Link>
         </p>

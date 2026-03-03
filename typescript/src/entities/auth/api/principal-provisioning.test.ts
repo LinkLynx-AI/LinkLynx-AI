@@ -141,6 +141,25 @@ describe("ensurePrincipalProvisionedForCurrentUser", () => {
     expect(result.error.status).toBe(503);
   });
 
+  test("IDトークン取得失敗時は token-unavailable を返す", async () => {
+    process.env.NEXT_PUBLIC_API_URL = "http://localhost:8080";
+    setCurrentUser({
+      getIdToken: () => Promise.reject(new Error("token unavailable")),
+    });
+
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await ensurePrincipalProvisionedForCurrentUser();
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      throw new Error("expected error result");
+    }
+
+    expect(result.error.code).toBe("token-unavailable");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   test("fetch 失敗時は network-request-failed を返す", async () => {
     process.env.NEXT_PUBLIC_API_URL = "http://localhost:8080";
     setCurrentUser({

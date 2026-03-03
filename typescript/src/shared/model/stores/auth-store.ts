@@ -7,6 +7,7 @@ type AuthState = {
   customStatus: string | null;
 
   setCurrentUser: (user: User) => void;
+  clearCurrentUser: () => void;
   setStatus: (status: UserStatus) => void;
   setCustomStatus: (text: string | null) => void;
 };
@@ -17,6 +18,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   customStatus: null,
 
   setCurrentUser: (user) => set({ currentUser: user }),
+  clearCurrentUser: () => set({ currentUser: null }),
   setStatus: (status) => set({ status }),
   setCustomStatus: (text) => set({ customStatus: text }),
 }));
