@@ -2,7 +2,7 @@
 
 ## Current status
 - Now: 実装・検証完了
-- Next: PR 作成（必要なら説明整形）
+- Next: 人手レビュー待ち（`main` base のため auto-merge なし）
 
 ## Decisions
 - 未確認メールユーザーは `verify-email` へ遷移する。
@@ -29,8 +29,8 @@
 - validation commands: all passed
 - reviewer gate: unavailable (manual review fallback)
 - UI gate: unavailable (manual review fallback, UI差分あり)
-- PR: pending
-- PR base branch: pending
+- PR: https://github.com/LinkLynx-AI/LinkLynx-AI/pull/984
+- PR base branch: `main`
 
 ## Known issues / follow-ups
 - reviewer 系サブエージェント可用性が低いため、必要時は手動レビュー記録を継続する。
