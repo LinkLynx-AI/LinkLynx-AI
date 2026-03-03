@@ -172,3 +172,9 @@ v0 での認可関連 SoR:
 - tri-state (`NULL` 継承 / `TRUE` 明示許可 / `FALSE` 明示拒否) は維持し、評価優先順は `user deny > user allow > role deny > role allow > role default > default deny` で固定する。
 - 上記優先順は fail-close を前提にし、判定不能時に許可へ倒さない。
 - 変換規約と移行互換方針のSSOTは `database/contracts/lin633_channel_user_override_spicedb_contract.md`。
+
+## 9. LIN-857 transition note (legacy permission assets removal)
+
+- LIN-857 で `guild_roles` / `guild_member_roles` / `channel_permission_overrides` / `role_level` を post-cutover で削除し、v2モデルへ単一化する。
+- 本文 3章の v0写像は「移行前契約の履歴情報」として扱い、現行DB SoR は `*_v2` 系を参照する。
+- 削除契約のSSOTは `database/contracts/lin857_legacy_permission_assets_removal_contract.md`。

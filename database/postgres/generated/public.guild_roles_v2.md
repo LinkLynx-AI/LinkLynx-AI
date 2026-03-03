@@ -16,7 +16,6 @@
 | is_system | boolean | false | false |  |  |  |
 | created_at | timestamp with time zone | now() | false |  |  |  |
 | updated_at | timestamp with time zone | now() | false |  |  |  |
-| source_level | role_level |  | true |  |  |  |
 
 ## Constraints
 

@@ -113,7 +113,7 @@ Note:
   - `guild_member_roles.level`
   - `channel_permission_overrides.level/can_view/can_post`
   - reason: rollback safety と dual-write整合性のため（Phase 2/3完了まで保持）。
-- deletion candidates are tracked as post-cutover work, not in LIN-632 scope.
+- deletion candidates are tracked as post-cutover work (`LIN-857`), not in LIN-632 scope.
 
 ## 5. Validation
 
