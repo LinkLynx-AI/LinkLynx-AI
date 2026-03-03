@@ -127,6 +127,12 @@ The source of truth for v1 Redpanda event stream operations (topic naming, reten
 - `database/contracts/lin601_redpanda_event_stream_baseline.md`
 - `docs/runbooks/redpanda-topic-retention-replay-runbook.md`
 
+### 2.10 Auth Schema Gap Correction (LIN-631)
+
+The source of truth for auth-schema gap correction between legacy Notion design and current `main` is:
+
+- `database/contracts/lin631_notion_auth_schema_gap_correction.md`
+
 ## 3. ScyllaDB の現在状態
 
 基準: `database/scylla/001_lin139_messages.cql`
@@ -190,3 +196,5 @@ The source of truth for Scylla operations (SoR boundary, partition review criter
 - LIN-601 Event stream operations baseline:
   - `database/contracts/lin601_redpanda_event_stream_baseline.md`
   - `docs/runbooks/redpanda-topic-retention-replay-runbook.md`
+- LIN-631 Notion auth schema gap correction:
+  - `database/contracts/lin631_notion_auth_schema_gap_correction.md`
