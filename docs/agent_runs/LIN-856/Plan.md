@@ -22,8 +22,8 @@
 
 ### M3: 統合検証・証跡更新
 - Acceptance criteria:
-  - [ ] TypeScript 全体テストを通過。
-  - [ ] `make validate` を通過。
+  - [x] TypeScript 全体テストを通過。
+  - [x] `make validate` を通過。
   - [x] runtime smoke 結果（または実施不能理由）を記録。
   - [x] review gate 結果（またはフォールバック）を記録。
 - Validation:

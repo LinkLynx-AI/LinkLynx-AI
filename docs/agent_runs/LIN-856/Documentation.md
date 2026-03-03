@@ -1,8 +1,8 @@
 # LIN-856 Documentation Log
 
 ## Current status
-- Now: 実装・証跡記録完了（TypeScript テストは実行環境制約で失敗）
-- Next: Node.js バージョンを要件以上へ更新して TypeScript テストを再実行
+- Now: 実装・検証・PR更新完了
+- Next: レビュー対応待ち
 
 ## Decisions
 - 自動確認は 5秒間隔 / 5分上限で実施する。
@@ -12,6 +12,7 @@
 - focus / visibilitychange の同時発火連打を避けるため 1秒クールダウンを入れる。
 - 非表示タブ中 (`document.hidden=true`) はポーリングを停止し、可視化復帰時の即時再確認に寄せる。
 - 5分到達時は最終1回の確認を実行してから自動確認を停止する。
+- 実行環境（Node `v22.4.0`）互換のため `jsdom` を `26.1.0` へ固定し、テストの `window.location` モック方式を調整する。
 
 ## Progress
 - [x] verify-email パネルへ自動確認ロジックを追加
@@ -22,14 +23,12 @@
 - [x] review/runtime gate 記録を完了
 
 ## Validation results
-- `npm -C typescript ci`: passed（依存導入。engine warning あり）
+- `pnpm -C typescript install`: passed（`jsdom 27.4.0 -> 26.1.0`）
 - `cd typescript && npm run typecheck`: passed
 - `cd typescript && npm run lint`: passed
-- `cd typescript && npm run test -- src/features/auth-flow/ui/verify-email-panel.test.tsx`: failed
-  - failure: `ERR_REQUIRE_ESM` (`html-encoding-sniffer` -> `@exodus/bytes`)
-  - context: `jsdom@27.x` が Node `>=22.12` を要求する一方、実行環境 Node は `v22.4.0`
-- `cd typescript && npm run test`: failed（同一原因）
-- `make validate`: failed（TypeScript test ステップで同一原因。format/lint/rust/python は通過）
+- `cd typescript && npm run test -- src/features/auth-flow/ui/verify-email-panel.test.tsx`: passed
+- `cd typescript && npm run test`: passed
+- `make validate`: passed
 
 ## Runtime smoke
 - `make dev`: passed（DB + Next.js + Rust API 起動を確認）
@@ -54,8 +53,8 @@
 - validation commands:
   - `typecheck`: passed
   - `lint`: passed
-  - `test`: failed（Node/`jsdom` 互換制約）
-  - `make validate`: failed（上記 test 失敗に起因）
+  - `test`: passed
+  - `make validate`: passed
 - reviewer gate: unavailable (manual self-review fallback)
 - UI gate: unavailable (manual self-review fallback, UI change exists)
 - runtime smoke: passed
@@ -70,4 +69,4 @@
 5. 必要時に「確認状態を更新」ボタンで手動フォールバックできることを確認する
 
 ## Known issues / follow-ups
-- テスト実行環境の Node `v22.4.0` が `jsdom@27` の要件 (`>=22.12`) を満たさず、jsdom系テストで `ERR_REQUIRE_ESM` が発生する。
+- none
