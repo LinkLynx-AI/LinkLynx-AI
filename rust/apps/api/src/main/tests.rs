@@ -146,7 +146,7 @@ mod tests {
         let response = app
             .oneshot(
                 Request::builder()
-                    .uri("/v1/protected/ping")
+                    .uri("/protected/ping")
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -163,7 +163,7 @@ mod tests {
         let response = app
             .oneshot(
                 Request::builder()
-                    .uri("/v1/protected/ping")
+                    .uri("/protected/ping")
                     .header("authorization", format!("Bearer {token}"))
                     .header("x-request-id", "test-req-id")
                     .body(Body::empty())
@@ -192,7 +192,7 @@ mod tests {
             .clone()
             .oneshot(
                 Request::builder()
-                    .uri("/v1/protected/ping")
+                    .uri("/protected/ping")
                     .header("authorization", format!("Bearer {token}"))
                     .body(Body::empty())
                     .unwrap(),
@@ -206,7 +206,7 @@ mod tests {
             .clone()
             .oneshot(
                 Request::builder()
-                    .uri("/v1/protected/ping")
+                    .uri("/protected/ping")
                     .header("authorization", format!("Bearer {token}"))
                     .body(Body::empty())
                     .unwrap(),
@@ -232,7 +232,7 @@ mod tests {
                 app_clone
                     .oneshot(
                         Request::builder()
-                            .uri("/v1/protected/ping")
+                            .uri("/protected/ping")
                             .header("authorization", format!("Bearer {token_clone}"))
                             .body(Body::empty())
                             .unwrap(),
@@ -263,7 +263,7 @@ mod tests {
         let response = app
             .oneshot(
                 Request::builder()
-                    .uri("/v1/protected/ping")
+                    .uri("/protected/ping")
                     .header("authorization", format!("Bearer {token}"))
                     .header("x-request-id", "authz-denied-test")
                     .body(Body::empty())
@@ -288,7 +288,7 @@ mod tests {
         let response = app
             .oneshot(
                 Request::builder()
-                    .uri("/v1/protected/ping")
+                    .uri("/protected/ping")
                     .header("authorization", format!("Bearer {token}"))
                     .header("x-request-id", "authz-unavailable-test")
                     .body(Body::empty())

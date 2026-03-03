@@ -9,7 +9,7 @@ fn app_with_state(state: AppState) -> Router {
         .allow_headers(Any);
 
     let protected_routes = Router::new()
-        .route("/v1/protected/ping", get(protected_ping))
+        .route("/protected/ping", get(protected_ping))
         .route_layer(middleware::from_fn_with_state(
             state.clone(),
             rest_auth_middleware,
