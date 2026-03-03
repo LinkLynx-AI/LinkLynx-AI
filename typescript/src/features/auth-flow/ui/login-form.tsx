@@ -8,6 +8,7 @@ import {
   signInWithGooglePopup,
 } from "@/entities";
 import { APP_ROUTES, type LoginRedirectReason, normalizeReturnToPath } from "@/shared/config";
+import Link from "next/link";
 import {
   buildVerifyEmailRoute,
   getGoogleSignInErrorMessage,
@@ -139,39 +140,51 @@ export function LoginForm({ returnTo, reason }: LoginFormProps) {
       }}
     >
       <div className="space-y-2">
-        <label className="block text-xs font-bold uppercase tracking-wider text-discord-header-secondary">
+        <label className="block text-xs font-bold uppercase tracking-[0.06em] text-discord-header-secondary">
           メールアドレス <span className="text-discord-brand-red">*</span>
         </label>
         <input
           type="email"
+          name="email"
           value={form.email}
           onChange={(event) => updateForm("email", event.target.value)}
           autoComplete="email"
-          className="w-full rounded bg-discord-input-bg px-3 py-2.5 text-sm text-discord-text-normal outline-none ring-0 transition focus:ring-2 focus:ring-discord-brand-blurple"
+          placeholder="name@example.com"
+          className="h-10 w-full rounded-[3px] bg-discord-bg-tertiary px-[10px] text-sm text-discord-text-normal outline-none transition placeholder:text-discord-text-muted focus:ring-2 focus:ring-discord-brand-blurple/50"
         />
       </div>
 
       <div className="space-y-2">
-        <label className="block text-xs font-bold uppercase tracking-wider text-discord-header-secondary">
-          パスワード <span className="text-discord-brand-red">*</span>
-        </label>
+        <div className="flex items-center justify-between">
+          <label className="text-xs font-bold uppercase tracking-[0.06em] text-discord-header-secondary">
+            パスワード <span className="text-discord-brand-red">*</span>
+          </label>
+          <Link
+            href={APP_ROUTES.passwordReset}
+            className="text-xs text-discord-text-link hover:underline"
+          >
+            パスワードを忘れた場合
+          </Link>
+        </div>
         <input
           type="password"
+          name="password"
           value={form.password}
           onChange={(event) => updateForm("password", event.target.value)}
           autoComplete="current-password"
-          className="w-full rounded bg-discord-input-bg px-3 py-2.5 text-sm text-discord-text-normal outline-none ring-0 transition focus:ring-2 focus:ring-discord-brand-blurple"
+          placeholder="••••••••"
+          className="h-10 w-full rounded-[3px] bg-discord-bg-tertiary px-[10px] text-sm text-discord-text-normal outline-none transition placeholder:text-discord-text-muted focus:ring-2 focus:ring-discord-brand-blurple/50"
         />
       </div>
 
       {reasonMessage === null ? null : (
-        <p className="rounded-md border border-amber-300/40 bg-amber-300/10 px-3 py-2 text-sm text-amber-200">
+        <p className="rounded-[3px] bg-amber-300/10 px-3 py-2 text-sm text-amber-200">
           {reasonMessage}
         </p>
       )}
 
       {errorMessage === null ? null : (
-        <p className="rounded-md border border-[var(--llx-brand-red)]/40 bg-[var(--llx-brand-red)]/10 px-3 py-2 text-sm text-[var(--llx-brand-red)]">
+        <p className="rounded-[3px] bg-discord-brand-red/10 px-3 py-2 text-sm text-discord-brand-red">
           {errorMessage}
         </p>
       )}
@@ -179,10 +192,16 @@ export function LoginForm({ returnTo, reason }: LoginFormProps) {
       <button
         type="submit"
         disabled={isSubmitting}
-        className="mt-2 w-full rounded bg-discord-brand-blurple px-4 py-3 text-sm font-medium text-white transition hover:bg-discord-btn-blurple-hover disabled:cursor-not-allowed disabled:opacity-50"
+        className="mt-2 h-11 w-full rounded-[4px] bg-discord-brand-blurple text-sm font-medium text-white transition hover:bg-discord-btn-blurple-hover disabled:cursor-not-allowed disabled:opacity-50"
       >
         {submitKind === "email" ? "ログイン中..." : "ログイン"}
       </button>
+
+      <div className="flex items-center gap-3">
+        <div className="h-px flex-1 bg-discord-divider" />
+        <span className="text-xs text-discord-text-muted">または</span>
+        <div className="h-px flex-1 bg-discord-divider" />
+      </div>
 
       <GoogleSignInButton
         disabled={isSubmitting}
