@@ -1,6 +1,6 @@
 # DATABASE.md
 
-最終更新: 2026-02-28
+最終更新: 2026-03-03
 
 このドキュメントは、リポジトリ内の定義ファイルを基準にした「現在のDB状態」をまとめたものです。
 実行中のDBインスタンスを直接参照したスナップショットではありません。
@@ -26,6 +26,7 @@
 5. `0005_lin614_auth_identities`
 6. `0006_lin621_remove_local_auth_assets`
 7. `0007_lin622_users_id_sequence_for_provisioning`
+8. `0008_lin803_server_channel_minimal_contract`
 
 ### 2.1 型（ENUM）
 
@@ -57,9 +58,11 @@
 
 - `guilds.owner_id -> users.id`
 - `users.id` は `users_id_seq` デフォルト採番により初回認証時プロビジョニングを許容
+- `guilds.id` と `channels.id` はデフォルト採番（`guilds_id_seq` / `channels_id_seq`）を許容
 - `auth_identities(provider, provider_subject)` は外部認証主体（例: Firebase UID）を一意化し、`principal_id -> users.id` へ正規化
 - `guild_members(guild_id, user_id)` は `guilds/users` への多対多
 - `channels` は `channel_type` でギルドチャネル/DM を表現
+- `guilds.name` と `channels(type='guild_text').name` は空文字（空白のみ）を拒否
 - `dm_pairs` は `user_low < user_high` 制約と `channel_id` 一意制約で DM 1対1 を保証
 - `guild_roles` + `guild_member_roles` + `channel_permission_overrides` でロール/権限上書き
 - `channel_reads` は `(channel_id, user_id)` を主キーとして既読位置管理
@@ -87,7 +90,9 @@
 - `uq_auth_identities_provider_principal`（`provider + principal_id` 一意）
 - `idx_auth_identities_principal_id`
 - `idx_guild_members_user`
+- `idx_guild_members_user_joined_guild`
 - `idx_channels_guild`（`type='guild_text'` 条件付き）
+- `idx_channels_guild_created_id`（`type='guild_text'` 条件付き）
 - `idx_dm_participants_user`
 - `idx_invites_guild`, `idx_invites_expires`
 - `idx_channel_reads_user`

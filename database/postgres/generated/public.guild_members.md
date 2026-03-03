@@ -25,6 +25,7 @@
 | ---- | ---------- |
 | guild_members_pkey | CREATE UNIQUE INDEX guild_members_pkey ON public.guild_members USING btree (guild_id, user_id) |
 | idx_guild_members_user | CREATE INDEX idx_guild_members_user ON public.guild_members USING btree (user_id) |
+| idx_guild_members_user_joined_guild | CREATE INDEX idx_guild_members_user_joined_guild ON public.guild_members USING btree (user_id, joined_at DESC, guild_id) |
 
 ## Relations
 
