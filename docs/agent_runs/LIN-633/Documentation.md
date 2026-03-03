@@ -19,7 +19,7 @@
 ## Validation results
 - `make db-migrate`: failed in this environment because `sqlx` CLI is not installed.
 - Fallback migration verification:
-  - Applied all `database/postgres/migrations/*up.sql` in order via `psql` on temporary local Postgres (`COMPOSE_FILE=/tmp/linklynx-db-only-compose.yml`).
+  - Applied all `database/postgres/migrations/*up.sql` in order via `psql` on temporary local Postgres (`COMPOSE_FILE=/tmp/linklynx-db-only-5432-compose.yml`).
   - `0009` applied successfully.
 - `make db-schema`: passed.
 - `make db-schema-check`: passed.
@@ -28,10 +28,14 @@
 
 ## Data checks
 - `channel_role_permission_overrides_v2` / `channel_user_permission_overrides_v2` / `channel_permission_overrides_subject_v2` counts: `0 / 0 / 0`
+- `channel_user_permission_overrides_v2` indexes: `pkey`, `idx_channel_user_overrides_v2_user`, `idx_channel_user_overrides_v2_guild_user`
 
 ## Review results
 - `reviewer_simple` / `reviewer_ui_guard` / `reviewer_ui`: unavailable in current execution environment.
 - Manual self-review: no blocking issues found in changed scope.
+- Claude auto-review feedback handling:
+  - addressed: index strategy suggestion -> added `idx_channel_user_overrides_v2_guild_user`.
+  - evaluated (not applied): trigger種別変更（BEFORE -> AFTER等）は整合性強制の目的に対して不適切なため据え置き。
 
 ## Per-issue evidence (LIN-633)
 - issue: `LIN-633`

@@ -28,6 +28,7 @@
 | ---- | ---------- |
 | channel_user_permission_overrides_v2_pkey | CREATE UNIQUE INDEX channel_user_permission_overrides_v2_pkey ON public.channel_user_permission_overrides_v2 USING btree (channel_id, user_id) |
 | idx_channel_user_overrides_v2_user | CREATE INDEX idx_channel_user_overrides_v2_user ON public.channel_user_permission_overrides_v2 USING btree (user_id, guild_id) |
+| idx_channel_user_overrides_v2_guild_user | CREATE INDEX idx_channel_user_overrides_v2_guild_user ON public.channel_user_permission_overrides_v2 USING btree (guild_id, user_id) |
 
 ## Triggers
 

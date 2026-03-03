@@ -1925,6 +1925,15 @@
             "user_id",
             "guild_id"
           ]
+        },
+        {
+          "name": "idx_channel_user_overrides_v2_guild_user",
+          "def": "CREATE INDEX idx_channel_user_overrides_v2_guild_user ON public.channel_user_permission_overrides_v2 USING btree (guild_id, user_id)",
+          "table": "public.channel_user_permission_overrides_v2",
+          "columns": [
+            "guild_id",
+            "user_id"
+          ]
         }
       ],
       "constraints": [

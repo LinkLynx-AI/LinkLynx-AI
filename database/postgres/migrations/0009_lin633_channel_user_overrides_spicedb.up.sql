@@ -15,6 +15,9 @@ CREATE TABLE channel_user_permission_overrides_v2 (
 CREATE INDEX idx_channel_user_overrides_v2_user
   ON channel_user_permission_overrides_v2 (user_id, guild_id);
 
+CREATE INDEX idx_channel_user_overrides_v2_guild_user
+  ON channel_user_permission_overrides_v2 (guild_id, user_id);
+
 COMMENT ON COLUMN channel_user_permission_overrides_v2.can_view
   IS 'NULL はロール既定値を継承、TRUE/FALSE はユーザー単位で明示上書き。';
 COMMENT ON COLUMN channel_user_permission_overrides_v2.can_post

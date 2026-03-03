@@ -31,6 +31,9 @@ Out of scope:
   - `TRUE`: 明示許可
   - `FALSE`: 明示拒否
 - `guild_id` と `channels.guild_id` は trigger で一致強制。
+- index policy:
+  - `idx_channel_user_overrides_v2_user (user_id, guild_id)` for user-centric lookups
+  - `idx_channel_user_overrides_v2_guild_user (guild_id, user_id)` for guild-scoped scans
 
 ### 1.2 `channel_permission_overrides_subject_v2`
 
@@ -103,4 +106,3 @@ INSERT INTO channel_user_permission_overrides_v2(channel_id, guild_id, user_id, 
 VALUES (1001, 10, 2001, FALSE)
 ON CONFLICT (channel_id, user_id) DO UPDATE SET can_view = EXCLUDED.can_view;
 ```
-

@@ -99,6 +99,7 @@
 - `idx_dm_participants_user`
 - `idx_invites_guild`, `idx_invites_expires`
 - `idx_channel_user_overrides_v2_user`
+- `idx_channel_user_overrides_v2_guild_user`
 - `idx_channel_reads_user`
 - `idx_channel_last_message_time`
 - `idx_audit_guild_time`
