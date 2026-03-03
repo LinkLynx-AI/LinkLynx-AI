@@ -66,6 +66,11 @@ mod tests {
             "AUTH_PRINCIPAL_STORE_MAX_RETRIES",
             "AUTH_PRINCIPAL_STORE_RETRY_BASE_BACKOFF_MS",
             "WS_REAUTH_GRACE_SECONDS",
+            "WS_TICKET_TTL_SECONDS",
+            "AUTH_IDENTIFY_TIMEOUT_SECONDS",
+            "WS_TICKET_RATE_LIMIT_MAX_PER_MINUTE",
+            "WS_IDENTIFY_RATE_LIMIT_MAX_PER_MINUTE",
+            "WS_ALLOWED_ORIGINS",
         ] {
             scoped.remove(optional);
         }
@@ -400,6 +405,45 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn ws_ticket_store_rejects_ticket_reuse() {
+        let store = WsTicketStore::default();
+        let principal = AuthenticatedPrincipal {
+            principal_id: PrincipalId(1001),
+            firebase_uid: "u-1".to_owned(),
+            expires_at_epoch: unix_timestamp_seconds() + 120,
+        };
+
+        let issued = store.issue_ticket(principal.clone(), Duration::from_secs(60)).await;
+        let consumed = store.consume_ticket(&issued.ticket).await.unwrap();
+        assert_eq!(consumed.principal_id, principal.principal_id);
+
+        let second = store.consume_ticket(&issued.ticket).await.unwrap_err();
+        assert_eq!(second, WsTicketConsumeError::AlreadyUsed);
+    }
+
+    #[tokio::test]
+    async fn fixed_window_rate_limiter_blocks_after_limit() {
+        let limiter = FixedWindowRateLimiter::new(2, Duration::from_secs(60));
+        assert!(limiter.check_and_record("k-1").await);
+        assert!(limiter.check_and_record("k-1").await);
+        assert!(!limiter.check_and_record("k-1").await);
+    }
+
+    #[test]
+    fn parse_ws_origin_allowlist_normalizes_entries() {
+        let parsed =
+            parse_ws_origin_allowlist("http://LOCALHOST:3000, https://example.com").unwrap();
+        assert!(parsed.contains("http://localhost:3000"));
+        assert!(parsed.contains("https://example.com:443"));
+    }
+
+    #[test]
+    fn parse_ws_origin_allowlist_rejects_invalid_origin() {
+        let error = parse_ws_origin_allowlist("file:///tmp").unwrap_err();
+        assert!(error.contains("invalid origin"));
+    }
+
+    #[tokio::test]
     async fn runtime_principal_store_fail_closes_without_database_url() {
         let _lock = env_lock().lock().await;
         let mut scoped = ScopedEnv::new();
@@ -497,6 +541,17 @@ mod tests {
 
         let error = validate_runtime_auth_env().unwrap_err();
         assert!(error.contains("AUTH_ALLOW_POSTGRES_NOTLS"));
+    }
+
+    #[tokio::test]
+    async fn runtime_auth_env_validation_rejects_invalid_ws_origins() {
+        let _lock = env_lock().lock().await;
+        let mut scoped = ScopedEnv::new();
+        set_valid_runtime_auth_env(&mut scoped);
+        scoped.set("WS_ALLOWED_ORIGINS", "invalid-origin");
+
+        let error = validate_runtime_auth_env().unwrap_err();
+        assert!(error.contains("WS_ALLOWED_ORIGINS"));
     }
 
     #[tokio::test]

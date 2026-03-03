@@ -24,6 +24,7 @@ fn app_with_state(state: AppState) -> Router {
         .route("/", get(root))
         .route("/health", get(health_check))
         .route("/ws", get(ws_handler))
+        .route("/auth/ws-ticket", post(issue_ws_ticket))
         .route("/internal/auth/metrics", get(auth_metrics_handler))
         .merge(protected_routes)
         .with_state(state)
@@ -75,6 +76,109 @@ async fn protected_ping(
 /// @throws なし
 async fn auth_metrics_handler(State(state): State<AppState>) -> Json<AuthMetricsSnapshot> {
     Json(state.auth_service.metrics().snapshot())
+}
+
+#[derive(Debug, Serialize)]
+struct WsTicketResponse {
+    ticket: String,
+    #[serde(rename = "expiresAt")]
+    expires_at: String,
+}
+
+#[derive(Debug, Serialize)]
+struct ApiErrorResponse {
+    code: &'static str,
+    message: &'static str,
+    request_id: String,
+}
+
+/// WS identify用ワンタイムチケットを発行する。
+/// @param state アプリケーション状態
+/// @param headers HTTPヘッダー
+/// @returns 発行済みWSチケット
+/// @throws なし
+async fn issue_ws_ticket(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    let request_id = request_id_from_headers(&headers);
+    let token = match bearer_token_from_headers(&headers) {
+        Ok(token) => token,
+        Err(error) => {
+            tracing::warn!(
+                decision = %error.decision(),
+                request_id = %request_id,
+                error_class = %error.log_class(),
+                reason = %error.reason,
+                "WS ticket issuance rejected at header parsing"
+            );
+            return auth_error_response(&error, request_id);
+        }
+    };
+
+    let authenticated = match state.auth_service.authenticate_token(&token).await {
+        Ok(authenticated) => authenticated,
+        Err(error) => {
+            tracing::warn!(
+                decision = %error.decision(),
+                request_id = %request_id,
+                error_class = %error.log_class(),
+                reason = %error.reason,
+                "WS ticket issuance rejected at authentication"
+            );
+            return auth_error_response(&error, request_id);
+        }
+    };
+
+    let rate_limit_key = format!("principal:{}", authenticated.principal_id.0);
+    if !state
+        .ws_ticket_rate_limiter
+        .check_and_record(&rate_limit_key)
+        .await
+    {
+        tracing::warn!(
+            decision = "deny",
+            request_id = %request_id,
+            principal_id = authenticated.principal_id.0,
+            error_class = "rate_limited",
+            reason = "ws_ticket_rate_limited",
+            "WS ticket issuance rejected by rate limit"
+        );
+        let body = ApiErrorResponse {
+            code: "AUTH_RATE_LIMITED",
+            message: "authentication rate limit exceeded",
+            request_id,
+        };
+        return (StatusCode::TOO_MANY_REQUESTS, Json(body)).into_response();
+    }
+
+    let authz_input = AuthzCheckInput {
+        principal_id: authenticated.principal_id,
+        resource: AuthzResource::Session,
+        action: AuthzAction::Connect,
+    };
+    if let Err(error) = state.authorizer.check(&authz_input).await {
+        tracing::warn!(
+            decision = %error.decision(),
+            request_id = %request_id,
+            principal_id = authenticated.principal_id.0,
+            error_class = %error.log_class(),
+            reason = %error.reason,
+            resource = "session",
+            action = "connect",
+            decision_source = "authorizer",
+            "WS ticket issuance rejected by authz"
+        );
+        return authz_error_response(&error, request_id);
+    }
+
+    let issued = state
+        .ws_ticket_store
+        .issue_ticket(authenticated, state.ws_ticket_ttl)
+        .await;
+    let body = WsTicketResponse {
+        ticket: issued.ticket,
+        expires_at: format_ticket_expiration(issued.expires_at_epoch),
+    };
+
+    Json(body).into_response()
 }
 
 #[derive(Debug, Serialize)]
