@@ -25,6 +25,7 @@
 | [public.channel_role_permission_overrides_v2](public.channel_role_permission_overrides_v2.md) | 7 |  | BASE TABLE |
 | [public.channel_user_permission_overrides_v2](public.channel_user_permission_overrides_v2.md) | 7 |  | BASE TABLE |
 | [public.channel_permission_overrides_subject_v2](public.channel_permission_overrides_subject_v2.md) | 8 |  | VIEW |
+| [public.channel_hierarchies_v2](public.channel_hierarchies_v2.md) | 9 |  | BASE TABLE |
 
 ## Stored procedures and functions
 
@@ -38,12 +39,14 @@
 | public.mark_outbox_event_failed | void | p_id bigint, p_retry_seconds integer DEFAULT 15 | FUNCTION |
 | public.enforce_channel_role_overrides_v2_scope | trigger |  | FUNCTION |
 | public.enforce_channel_user_overrides_v2_scope | trigger |  | FUNCTION |
+| public.enforce_channel_hierarchies_v2_scope | trigger |  | FUNCTION |
 
 ## Enums
 
 | Name | Values |
 | ---- | ------- |
 | public.audit_action | CHANNEL_CREATE, CHANNEL_DELETE, CHANNEL_UPDATE, GUILD_MEMBER_JOIN, GUILD_MEMBER_LEAVE, INVITE_CREATE, INVITE_DISABLE, MESSAGE_DELETE_MOD, ROLE_ASSIGN, ROLE_REVOKE, USER_BAN, USER_UNBAN |
+| public.channel_hierarchy_kind | category_child, thread |
 | public.channel_type | dm, guild_text |
 | public.outbox_status | FAILED, PENDING, SENT |
 | public.role_level | admin, member, owner |

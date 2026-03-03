@@ -6,7 +6,7 @@
 
 | Name | Type | Default | Nullable | Children | Parents | Comment |
 | ---- | ---- | ------- | -------- | -------- | ------- | ------- |
-| id | bigint | nextval('guilds_id_seq'::regclass) | false | [public.guild_members](public.guild_members.md) [public.invites](public.invites.md) [public.channels](public.channels.md) [public.guild_roles](public.guild_roles.md) [public.audit_logs](public.audit_logs.md) [public.guild_roles_v2](public.guild_roles_v2.md) |  |  |
+| id | bigint | nextval('guilds_id_seq'::regclass) | false | [public.guild_members](public.guild_members.md) [public.invites](public.invites.md) [public.channels](public.channels.md) [public.guild_roles](public.guild_roles.md) [public.audit_logs](public.audit_logs.md) [public.guild_roles_v2](public.guild_roles_v2.md) [public.channel_hierarchies_v2](public.channel_hierarchies_v2.md) |  |  |
 | name | text |  | false |  |  |  |
 | owner_id | bigint |  | false |  | [public.users](public.users.md) |  |
 | icon_key | text |  | true |  |  |  |

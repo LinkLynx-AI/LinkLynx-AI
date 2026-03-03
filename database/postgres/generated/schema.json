@@ -2077,6 +2077,189 @@
         "public.channel_role_permission_overrides_v2",
         "public.channel_user_permission_overrides_v2"
       ]
+    },
+    {
+      "name": "public.channel_hierarchies_v2",
+      "type": "BASE TABLE",
+      "columns": [
+        {
+          "name": "child_channel_id",
+          "type": "bigint",
+          "nullable": false
+        },
+        {
+          "name": "guild_id",
+          "type": "bigint",
+          "nullable": false
+        },
+        {
+          "name": "parent_channel_id",
+          "type": "bigint",
+          "nullable": false
+        },
+        {
+          "name": "hierarchy_kind",
+          "type": "channel_hierarchy_kind",
+          "nullable": false
+        },
+        {
+          "name": "parent_message_id",
+          "type": "bigint",
+          "nullable": true
+        },
+        {
+          "name": "position",
+          "type": "integer",
+          "nullable": false,
+          "default": "0"
+        },
+        {
+          "name": "archived_at",
+          "type": "timestamp with time zone",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default": "now()"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default": "now()"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "channel_hierarchies_v2_pkey",
+          "def": "CREATE UNIQUE INDEX channel_hierarchies_v2_pkey ON public.channel_hierarchies_v2 USING btree (child_channel_id)",
+          "table": "public.channel_hierarchies_v2",
+          "columns": [
+            "child_channel_id"
+          ]
+        },
+        {
+          "name": "idx_channel_hierarchies_v2_parent_pos",
+          "def": "CREATE INDEX idx_channel_hierarchies_v2_parent_pos ON public.channel_hierarchies_v2 USING btree (parent_channel_id, \"position\", child_channel_id)",
+          "table": "public.channel_hierarchies_v2",
+          "columns": [
+            "parent_channel_id",
+            "position",
+            "child_channel_id"
+          ]
+        },
+        {
+          "name": "idx_channel_hierarchies_v2_guild_kind",
+          "def": "CREATE INDEX idx_channel_hierarchies_v2_guild_kind ON public.channel_hierarchies_v2 USING btree (guild_id, hierarchy_kind, parent_channel_id)",
+          "table": "public.channel_hierarchies_v2",
+          "columns": [
+            "guild_id",
+            "hierarchy_kind",
+            "parent_channel_id"
+          ]
+        },
+        {
+          "name": "uq_channel_hierarchies_v2_thread_parent_message",
+          "def": "CREATE UNIQUE INDEX uq_channel_hierarchies_v2_thread_parent_message ON public.channel_hierarchies_v2 USING btree (guild_id, parent_channel_id, parent_message_id) WHERE (hierarchy_kind = 'thread'::channel_hierarchy_kind)",
+          "table": "public.channel_hierarchies_v2",
+          "columns": [
+            "guild_id",
+            "parent_channel_id",
+            "parent_message_id"
+          ]
+        }
+      ],
+      "constraints": [
+        {
+          "name": "chk_ch_hier_v2_thread_parent_msg",
+          "type": "CHECK",
+          "def": "CHECK ((((hierarchy_kind = 'thread'::channel_hierarchy_kind) AND (parent_message_id IS NOT NULL)) OR ((hierarchy_kind = 'category_child'::channel_hierarchy_kind) AND (parent_message_id IS NULL))))",
+          "table": "public.channel_hierarchies_v2",
+          "referenced_table": "",
+          "columns": [
+            "hierarchy_kind",
+            "parent_message_id"
+          ]
+        },
+        {
+          "name": "chk_channel_hierarchies_v2_not_self",
+          "type": "CHECK",
+          "def": "CHECK ((child_channel_id \u003c\u003e parent_channel_id))",
+          "table": "public.channel_hierarchies_v2",
+          "referenced_table": "",
+          "columns": [
+            "child_channel_id",
+            "parent_channel_id"
+          ]
+        },
+        {
+          "name": "chk_channel_hierarchies_v2_position_non_negative",
+          "type": "CHECK",
+          "def": "CHECK ((\"position\" \u003e= 0))",
+          "table": "public.channel_hierarchies_v2",
+          "referenced_table": "",
+          "columns": [
+            "position"
+          ]
+        },
+        {
+          "name": "channel_hierarchies_v2_guild_id_fkey",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE",
+          "table": "public.channel_hierarchies_v2",
+          "referenced_table": "guilds",
+          "columns": [
+            "guild_id"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "channel_hierarchies_v2_child_channel_id_fkey",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (child_channel_id) REFERENCES channels(id) ON DELETE CASCADE",
+          "table": "public.channel_hierarchies_v2",
+          "referenced_table": "channels",
+          "columns": [
+            "child_channel_id"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "channel_hierarchies_v2_parent_channel_id_fkey",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (parent_channel_id) REFERENCES channels(id) ON DELETE CASCADE",
+          "table": "public.channel_hierarchies_v2",
+          "referenced_table": "channels",
+          "columns": [
+            "parent_channel_id"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "channel_hierarchies_v2_pkey",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (child_channel_id)",
+          "table": "public.channel_hierarchies_v2",
+          "referenced_table": "",
+          "columns": [
+            "child_channel_id"
+          ]
+        }
+      ],
+      "triggers": [
+        {
+          "name": "trg_enforce_channel_hierarchies_v2_scope",
+          "def": "CREATE TRIGGER trg_enforce_channel_hierarchies_v2_scope BEFORE INSERT OR UPDATE ON public.channel_hierarchies_v2 FOR EACH ROW EXECUTE FUNCTION enforce_channel_hierarchies_v2_scope()"
+        }
+      ]
     }
   ],
   "relations": [
@@ -2507,6 +2690,45 @@
       ],
       "parent_cardinality": "exactly_one",
       "def": "FOREIGN KEY (channel_id) REFERENCES channels(id) ON DELETE CASCADE"
+    },
+    {
+      "table": "public.channel_hierarchies_v2",
+      "columns": [
+        "guild_id"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "public.guilds",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "exactly_one",
+      "def": "FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE"
+    },
+    {
+      "table": "public.channel_hierarchies_v2",
+      "columns": [
+        "child_channel_id"
+      ],
+      "cardinality": "zero_or_one",
+      "parent_table": "public.channels",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "exactly_one",
+      "def": "FOREIGN KEY (child_channel_id) REFERENCES channels(id) ON DELETE CASCADE"
+    },
+    {
+      "table": "public.channel_hierarchies_v2",
+      "columns": [
+        "parent_channel_id"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "public.channels",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "exactly_one",
+      "def": "FOREIGN KEY (parent_channel_id) REFERENCES channels(id) ON DELETE CASCADE"
     }
   ],
   "functions": [
@@ -2557,6 +2779,12 @@
       "return_type": "trigger",
       "arguments": "",
       "type": "FUNCTION"
+    },
+    {
+      "name": "public.enforce_channel_hierarchies_v2_scope",
+      "return_type": "trigger",
+      "arguments": "",
+      "type": "FUNCTION"
     }
   ],
   "enums": [
@@ -2575,6 +2803,13 @@
         "ROLE_REVOKE",
         "USER_BAN",
         "USER_UNBAN"
+      ]
+    },
+    {
+      "name": "public.channel_hierarchy_kind",
+      "values": [
+        "category_child",
+        "thread"
       ]
     },
     {
