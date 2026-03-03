@@ -5,6 +5,9 @@ export type {
   PrincipalProvisionError,
   PrincipalProvisionErrorCode,
   PrincipalProvisionResult,
+  AuthenticatedFetchError,
+  AuthenticatedFetchErrorCode,
+  AuthenticatedFetchResult,
   AuthSession,
   AuthSessionContextValue,
   AuthSessionStatus,
@@ -13,6 +16,7 @@ export type {
 } from "./model";
 export {
   ensurePrincipalProvisionedForCurrentUser,
+  authenticatedFetch,
   loginWithEmailAndPassword,
   registerWithEmailAndPassword,
   reloadCurrentAuthUser,

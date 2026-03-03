@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { ensurePrincipalProvisionedForCurrentUser, loginWithEmailAndPassword } from "@/entities";
-import { APP_ROUTES } from "@/shared/config";
+import { APP_ROUTES, type LoginRedirectReason, normalizeReturnToPath } from "@/shared/config";
 import {
   buildVerifyEmailRoute,
   getLoginErrorMessage,
@@ -20,13 +20,32 @@ const INITIAL_FORM_STATE: LoginFormState = {
   password: "",
 };
 
+type LoginFormProps = {
+  returnTo: string | null;
+  reason: LoginRedirectReason | null;
+};
+
+function resolveReasonMessage(reason: LoginRedirectReason | null): string | null {
+  if (reason === "session-expired") {
+    return "セッションの有効期限が切れました。再度ログインしてください。";
+  }
+
+  if (reason === "unauthenticated") {
+    return "この画面にアクセスするにはログインが必要です。";
+  }
+
+  return null;
+}
+
 /**
  * ログインフォームを表示し Firebase 認証へ接続する。
  */
-export function LoginForm() {
+export function LoginForm({ returnTo, reason }: LoginFormProps) {
   const [form, setForm] = useState<LoginFormState>(INITIAL_FORM_STATE);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const reasonMessage = resolveReasonMessage(reason);
+  const redirectPath = normalizeReturnToPath(returnTo) ?? APP_ROUTES.channels.me;
 
   function updateForm<K extends keyof LoginFormState>(key: K, value: LoginFormState[K]) {
     setForm((current) => ({
@@ -62,6 +81,7 @@ export function LoginForm() {
       window.location.assign(
         buildVerifyEmailRoute({
           email: result.data.email,
+          returnTo: redirectPath,
         }),
       );
       return;
@@ -76,7 +96,7 @@ export function LoginForm() {
       return;
     }
 
-    window.location.assign(APP_ROUTES.channels.me);
+    window.location.assign(redirectPath);
   }
 
   return (
@@ -111,6 +131,12 @@ export function LoginForm() {
           className="w-full rounded-md border border-[var(--llx-divider)] bg-[var(--llx-bg-secondary)] px-3 py-2 text-sm text-[var(--llx-text-primary)] outline-none transition focus:border-[var(--llx-brand-blurple)]"
         />
       </label>
+
+      {reasonMessage === null ? null : (
+        <p className="rounded-md border border-amber-300/40 bg-amber-300/10 px-3 py-2 text-sm text-amber-200">
+          {reasonMessage}
+        </p>
+      )}
 
       {errorMessage === null ? null : (
         <p className="rounded-md border border-[var(--llx-brand-red)]/40 bg-[var(--llx-brand-red)]/10 px-3 py-2 text-sm text-[var(--llx-brand-red)]">

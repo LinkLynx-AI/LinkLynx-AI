@@ -7,12 +7,13 @@ import {
   sendVerificationEmailForCurrentUser,
   useAuthSession,
 } from "@/entities";
-import { APP_ROUTES } from "@/shared/config";
+import { APP_ROUTES, normalizeReturnToPath } from "@/shared/config";
 import { getPrincipalProvisionErrorMessage, getVerifyEmailErrorMessage } from "../model";
 
 type VerifyEmailPanelProps = {
   initialEmail: string | null;
   initialSent: string | null;
+  returnTo: string | null;
 };
 
 type NoticeTone = "info" | "success" | "error";
@@ -55,11 +56,12 @@ function resolveNoticeClassName(tone: NoticeTone): string {
 /**
  * メール確認導線（再送・確認状態更新）を表示する。
  */
-export function VerifyEmailPanel({ initialEmail, initialSent }: VerifyEmailPanelProps) {
+export function VerifyEmailPanel({ initialEmail, initialSent, returnTo }: VerifyEmailPanelProps) {
   const session = useAuthSession();
   const [notice, setNotice] = useState<NoticeState | null>(() => resolveInitialNotice(initialSent));
   const [isResending, setIsResending] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const redirectPath = normalizeReturnToPath(returnTo) ?? APP_ROUTES.channels.me;
 
   const targetEmail = useMemo(() => {
     const sessionEmail = session.user?.email?.trim();
@@ -134,7 +136,7 @@ export function VerifyEmailPanel({ initialEmail, initialSent }: VerifyEmailPanel
         return;
       }
 
-      window.location.assign(APP_ROUTES.channels.me);
+      window.location.assign(redirectPath);
       return;
     }
 

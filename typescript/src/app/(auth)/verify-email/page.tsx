@@ -1,4 +1,5 @@
 import { createUiGateway } from "@/entities";
+import { normalizeReturnToPath } from "@/shared/config";
 import { AuthRoutePreview } from "@/app/(auth)/_components/auth-route-preview";
 import { VerifyEmailPanel } from "@/features";
 
@@ -28,10 +29,11 @@ export default async function VerifyEmailPage({ searchParams }: VerifyEmailPageP
   ]);
   const initialEmail = toSingleValue(resolvedSearchParams.email);
   const initialSent = toSingleValue(resolvedSearchParams.sent);
+  const returnTo = normalizeReturnToPath(toSingleValue(resolvedSearchParams.returnTo));
 
   return (
     <AuthRoutePreview {...content}>
-      <VerifyEmailPanel initialEmail={initialEmail} initialSent={initialSent} />
+      <VerifyEmailPanel initialEmail={initialEmail} initialSent={initialSent} returnTo={returnTo} />
     </AuthRoutePreview>
   );
 }
