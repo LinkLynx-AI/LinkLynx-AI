@@ -30,7 +30,7 @@ describe("authenticatedFetch", () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
 
-    const result = await authenticatedFetch("http://localhost:8080/v1/protected/ping");
+    const result = await authenticatedFetch("http://localhost:8080/protected/ping");
 
     expect(result.ok).toBe(false);
     if (result.ok) {
@@ -50,7 +50,7 @@ describe("authenticatedFetch", () => {
       .mockResolvedValue(new Response(JSON.stringify({ ok: true }), { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
 
-    const result = await authenticatedFetch("http://localhost:8080/v1/protected/ping", {
+    const result = await authenticatedFetch("http://localhost:8080/protected/ping", {
       method: "GET",
       headers: {
         "x-client-id": "ui",
@@ -59,7 +59,7 @@ describe("authenticatedFetch", () => {
 
     expect(result.ok).toBe(true);
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock).toHaveBeenCalledWith("http://localhost:8080/v1/protected/ping", {
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:8080/protected/ping", {
       method: "GET",
       headers: expect.any(Headers),
     });
@@ -79,7 +79,7 @@ describe("authenticatedFetch", () => {
       getIdToken: () => Promise.reject(new Error("token unavailable")),
     });
 
-    const result = await authenticatedFetch("http://localhost:8080/v1/protected/ping");
+    const result = await authenticatedFetch("http://localhost:8080/protected/ping");
     expect(result.ok).toBe(false);
     if (result.ok) {
       throw new Error("expected error result");
@@ -94,7 +94,7 @@ describe("authenticatedFetch", () => {
     });
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
 
-    const result = await authenticatedFetch("http://localhost:8080/v1/protected/ping");
+    const result = await authenticatedFetch("http://localhost:8080/protected/ping");
     expect(result.ok).toBe(false);
     if (result.ok) {
       throw new Error("expected error result");

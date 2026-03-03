@@ -9,7 +9,7 @@
 - `returnTo` は内部保護ルートのみ許可し、public/auth/外部URLは破棄する。
 - 403 は forbidden、503 は service-unavailable として画面分類する。
 - `invite` は public 導線として非保護を維持する。
-- 実認証ガードは `@tanstack/react-query` で `/v1/protected/ping` 判定を実行し、`useEffect` 内 setState を避ける。
+- 実認証ガードは `@tanstack/react-query` で `/protected/ping` 判定を実行し、`useEffect` 内 setState を避ける。
 
 ## How to run / demo
 - `cd typescript && npm run dev`

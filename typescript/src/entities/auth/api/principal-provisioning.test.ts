@@ -54,7 +54,7 @@ describe("ensurePrincipalProvisionedForCurrentUser", () => {
       },
     });
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock).toHaveBeenCalledWith("http://localhost:8080/v1/protected/ping", {
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:8080/protected/ping", {
       method: "GET",
       headers: expect.any(Headers),
     });

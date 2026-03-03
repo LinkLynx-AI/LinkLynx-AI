@@ -16,7 +16,7 @@
 
 ### M2: 保護ルート実ガード + `/login` 誘導を実装
 - Acceptance criteria:
-  - [ ] 保護ルートで `authenticated` 時に `/v1/protected/ping` 判定を行う。
+  - [ ] 保護ルートで `authenticated` 時に `/protected/ping` 判定を行う。
   - [ ] 401 は `/login?returnTo=...` へ誘導する。
   - [ ] 403 は forbidden、503 は service-unavailable を表示する。
   - [ ] preview query (`guard`, `state`) 互換を維持する。

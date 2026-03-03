@@ -2,7 +2,7 @@
 
 ## Goal
 - `authenticatedFetch` を実装し、Firebase IDトークンをBearerとして付与する共通REST境界を追加する。
-- `/v1/protected/ping` との疎通を保護ルート実ガードへ接続し、未認証は `/login` へ誘導する。
+- `/protected/ping` との疎通を保護ルート実ガードへ接続し、未認証は `/login` へ誘導する。
 - 401/403/503 の分岐を契約どおり画面へ反映する。
 
 ## Non-goals
@@ -17,7 +17,7 @@
 - route判定テーブル（public/auth/protected）と `invite` 非保護の回帰テスト。
 
 ## Done when
-- [x] 認証済みユーザーが `/v1/protected/ping` で 200 を受け取り、保護ルートを表示できる。
+- [x] 認証済みユーザーが `/protected/ping` で 200 を受け取り、保護ルートを表示できる。
 - [x] 未認証ユーザーは保護ルートで `/login` 誘導される。
 - [x] 401/403/503 の分類表示が契約どおり動作する。
 - [x] `cd typescript && npm run test` / `cd typescript && npm run typecheck` が通る。

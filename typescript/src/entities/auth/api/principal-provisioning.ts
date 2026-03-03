@@ -50,7 +50,7 @@ function resolveApiBaseUrl(): string {
 
 function toProtectedPingUrl(apiBaseUrl: string): string {
   const normalizedBaseUrl = apiBaseUrl.replace(/\/+$/, "");
-  return `${normalizedBaseUrl}/v1/protected/ping`;
+  return `${normalizedBaseUrl}/protected/ping`;
 }
 
 function appendRequestIdSuffix(message: string, requestId: string | null): string {
