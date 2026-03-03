@@ -59,7 +59,7 @@
 - reviewer gate: unavailable (manual self-review fallback)
 - UI gate: unavailable (manual self-review fallback, UI change exists)
 - runtime smoke: passed
-- PR: pending
+- PR: https://github.com/LinkLynx-AI/LinkLynx-AI/pull/1005
 - PR base branch: `main` (planned)
 
 ## How to run / demo
