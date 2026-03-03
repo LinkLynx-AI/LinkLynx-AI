@@ -24,10 +24,7 @@ function formatFrontendEnvError(error: z.ZodError, context: string): string {
 /**
  * フロントエンドで必要な環境変数契約を検証する。
  */
-export function parseFrontendEnv(
-  rawEnv: NodeJS.ProcessEnv,
-  context = "frontend",
-): FrontendEnv {
+export function parseFrontendEnv(rawEnv: NodeJS.ProcessEnv, context = "frontend"): FrontendEnv {
   const parsed = FRONTEND_ENV_SCHEMA.safeParse(rawEnv);
   if (!parsed.success) {
     throw new Error(formatFrontendEnvError(parsed.error, context));

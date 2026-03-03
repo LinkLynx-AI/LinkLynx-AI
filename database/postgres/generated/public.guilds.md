@@ -6,7 +6,7 @@
 
 | Name | Type | Default | Nullable | Children | Parents | Comment |
 | ---- | ---- | ------- | -------- | -------- | ------- | ------- |
-| id | bigint |  | false | [public.guild_members](public.guild_members.md) [public.invites](public.invites.md) [public.channels](public.channels.md) [public.guild_roles](public.guild_roles.md) [public.audit_logs](public.audit_logs.md) [public.guild_roles_v2](public.guild_roles_v2.md) |  |  |
+| id | bigint | nextval('guilds_id_seq'::regclass) | false | [public.guild_members](public.guild_members.md) [public.invites](public.invites.md) [public.channels](public.channels.md) [public.guild_roles](public.guild_roles.md) [public.audit_logs](public.audit_logs.md) [public.guild_roles_v2](public.guild_roles_v2.md) |  |  |
 | name | text |  | false |  |  |  |
 | owner_id | bigint |  | false |  | [public.users](public.users.md) |  |
 | icon_key | text |  | true |  |  |  |
@@ -17,6 +17,7 @@
 
 | Name | Type | Definition |
 | ---- | ---- | ---------- |
+| chk_guilds_name_not_blank | CHECK | CHECK ((btrim(name) <> ''::text)) |
 | guilds_owner_id_fkey | FOREIGN KEY | FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE RESTRICT |
 | guilds_pkey | PRIMARY KEY | PRIMARY KEY (id) |
 

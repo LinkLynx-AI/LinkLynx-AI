@@ -85,7 +85,7 @@ mod tests {
         let input = AuthzCheckInput {
             principal_id: PrincipalId(1001),
             resource: AuthzResource::RestPath {
-                path: "/v1/protected/ping".to_owned(),
+                path: "/protected/ping".to_owned(),
             },
             action: AuthzAction::View,
         };

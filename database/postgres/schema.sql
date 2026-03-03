@@ -361,9 +361,23 @@ CREATE TABLE public.channels (
     created_by bigint,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chk_channels_guild_text_name_not_blank CHECK (((type <> 'guild_text'::public.channel_type) OR (btrim(COALESCE(name, ''::text)) <> ''::text))),
     CONSTRAINT chk_channels_shape_dm CHECK (((type <> 'dm'::public.channel_type) OR (guild_id IS NULL))),
     CONSTRAINT chk_channels_shape_guild_text CHECK (((type <> 'guild_text'::public.channel_type) OR ((guild_id IS NOT NULL) AND (name IS NOT NULL))))
 );
+
+
+
+CREATE SEQUENCE public.channels_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+
+ALTER SEQUENCE public.channels_id_seq OWNED BY public.channels.id;
 
 
 
@@ -443,8 +457,22 @@ CREATE TABLE public.guilds (
     owner_id bigint NOT NULL,
     icon_key text,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chk_guilds_name_not_blank CHECK ((btrim(name) <> ''::text))
 );
+
+
+
+CREATE SEQUENCE public.guilds_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+
+ALTER SEQUENCE public.guilds_id_seq OWNED BY public.guilds.id;
 
 
 
@@ -512,6 +540,14 @@ CREATE SEQUENCE public.users_id_seq
 
 
 ALTER SEQUENCE public.users_id_seq OWNED BY public.users.id;
+
+
+
+ALTER TABLE ONLY public.channels ALTER COLUMN id SET DEFAULT nextval('public.channels_id_seq'::regclass);
+
+
+
+ALTER TABLE ONLY public.guilds ALTER COLUMN id SET DEFAULT nextval('public.guilds_id_seq'::regclass);
 
 
 
@@ -662,6 +698,10 @@ CREATE INDEX idx_channels_guild ON public.channels USING btree (guild_id) WHERE 
 
 
 
+CREATE INDEX idx_channels_guild_created_id ON public.channels USING btree (guild_id, created_at, id) WHERE (type = 'guild_text'::public.channel_type);
+
+
+
 CREATE INDEX idx_dm_participants_user ON public.dm_participants USING btree (user_id);
 
 
@@ -675,6 +715,7 @@ CREATE INDEX idx_guild_members_user ON public.guild_members USING btree (user_id
 
 
 CREATE INDEX idx_guild_roles_v2_priority ON public.guild_roles_v2 USING btree (guild_id, priority DESC, role_key);
+CREATE INDEX idx_guild_members_user_joined_guild ON public.guild_members USING btree (user_id, joined_at DESC, guild_id);
 
 
 
@@ -871,7 +912,6 @@ ALTER TABLE ONLY public.invites
 
 ALTER TABLE ONLY public.invites
     ADD CONSTRAINT invites_guild_id_fkey FOREIGN KEY (guild_id) REFERENCES public.guilds(id) ON DELETE CASCADE;
-
 
 
 
