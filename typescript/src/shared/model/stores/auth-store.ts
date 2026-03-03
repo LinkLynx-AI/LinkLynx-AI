@@ -6,7 +6,7 @@ type AuthState = {
   status: UserStatus;
   customStatus: string | null;
 
-  setCurrentUser: (user: User) => void;
+  setCurrentUser: (user: User | null) => void;
   setStatus: (status: UserStatus) => void;
   setCustomStatus: (text: string | null) => void;
 };

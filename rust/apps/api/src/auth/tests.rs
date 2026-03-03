@@ -500,17 +500,17 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn postgres_principal_store_requires_tls_by_default() {
+    async fn postgres_principal_store_uses_tls_by_default() {
         let _lock = env_lock().lock().await;
         let mut scoped = ScopedEnv::new();
         scoped.remove("AUTH_ALLOW_POSTGRES_NOTLS");
 
         let store = PostgresPrincipalStore::new(
-            "postgres://localhost/test".to_owned(),
+            "postgres://127.0.0.1:9/test".to_owned(),
             Arc::new(AuthMetrics::default()),
         );
         let error = store.connect_client().await.unwrap_err();
-        assert!(error.starts_with("postgres_tls_required"));
+        assert!(error.starts_with("postgres_connect_tls_failed:"));
     }
 
     #[tokio::test]

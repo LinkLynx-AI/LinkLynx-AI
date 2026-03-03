@@ -496,27 +496,51 @@ impl PostgresPrincipalStore {
         }
     }
 
+    /// Postgres向けのTLSコネクタを構築する。
+    /// @param なし
+    /// @returns RustlsベースのTLSコネクタ
+    /// @throws なし
+    fn build_tls_connector() -> MakeRustlsConnect {
+        let mut root_cert_store = RootCertStore::empty();
+        root_cert_store.extend(TLS_SERVER_ROOTS.iter().cloned());
+
+        let client_config = ClientConfig::builder()
+            .with_root_certificates(root_cert_store)
+            .with_no_client_auth();
+        MakeRustlsConnect::new(client_config)
+    }
+
     /// Postgres接続を1本生成する。
     /// @param なし
     /// @returns Postgresクライアント
     /// @throws String 接続失敗時
     async fn connect_client(&self) -> Result<Arc<tokio_postgres::Client>, String> {
-        let (client, connection) = match self.transport_security {
+        let client = match self.transport_security {
             PostgresTransportSecurity::TlsRequiredFailClose => {
-                return Err("postgres_tls_required: set AUTH_ALLOW_POSTGRES_NOTLS=true only for local development until TLS connector is configured".to_owned());
+                let tls = Self::build_tls_connector();
+                let (client, connection) = tokio_postgres::connect(self.database_url.as_ref(), tls)
+                    .await
+                    .map_err(|error| format!("postgres_connect_tls_failed:{error}"))?;
+                tokio::spawn(async move {
+                    if let Err(error) = connection.await {
+                        tracing::error!(reason = %error, "postgres principal store connection error");
+                    }
+                });
+                client
             }
             PostgresTransportSecurity::NoTlsAllowed => {
-                tokio_postgres::connect(self.database_url.as_ref(), NoTls)
+                let (client, connection) =
+                    tokio_postgres::connect(self.database_url.as_ref(), NoTls)
                     .await
-                    .map_err(|error| format!("postgres_connect_notls_failed:{error}"))?
+                    .map_err(|error| format!("postgres_connect_notls_failed:{error}"))?;
+                tokio::spawn(async move {
+                    if let Err(error) = connection.await {
+                        tracing::error!(reason = %error, "postgres principal store connection error");
+                    }
+                });
+                client
             }
         };
-
-        tokio::spawn(async move {
-            if let Err(error) = connection.await {
-                tracing::error!(reason = %error, "postgres principal store connection error");
-            }
-        });
 
         Ok(Arc::new(client))
     }

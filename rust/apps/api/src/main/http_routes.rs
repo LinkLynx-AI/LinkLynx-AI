@@ -10,6 +10,7 @@ fn app_with_state(state: AppState) -> Router {
 
     let protected_routes = Router::new()
         .route("/protected/ping", get(protected_ping))
+        .route("/internal/auth/metrics", get(auth_metrics_handler))
         .route("/guilds", get(list_guilds).post(create_guild))
         .route(
             "/guilds/{guild_id}/channels",
@@ -24,7 +25,6 @@ fn app_with_state(state: AppState) -> Router {
         .route("/", get(root))
         .route("/health", get(health_check))
         .route("/ws", get(ws_handler))
-        .route("/internal/auth/metrics", get(auth_metrics_handler))
         .merge(protected_routes)
         .with_state(state)
         .layer(cors)
@@ -288,15 +288,6 @@ async fn rest_auth_middleware(
         }
     };
 
-    tracing::info!(
-        decision = "allow",
-        request_id = %request_id,
-        principal_id = authenticated.principal_id.0,
-        firebase_uid = %authenticated.firebase_uid,
-        email_verified = true,
-        "REST auth accepted"
-    );
-
     let action = match request_method {
         axum::http::Method::GET | axum::http::Method::HEAD => AuthzAction::View,
         axum::http::Method::POST => AuthzAction::Post,
@@ -329,6 +320,18 @@ async fn rest_auth_middleware(
         );
         return authz_error_response(&error, request_id);
     }
+
+    tracing::info!(
+        decision = "allow",
+        request_id = %request_id,
+        principal_id = authenticated.principal_id.0,
+        firebase_uid = %authenticated.firebase_uid,
+        email_verified = true,
+        resource = %request_path,
+        action = action_label,
+        decision_source = "authorizer",
+        "REST auth accepted"
+    );
 
     request.extensions_mut().insert(AuthContext {
         request_id,

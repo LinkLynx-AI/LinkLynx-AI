@@ -17,11 +17,14 @@ use axum::{
 use jsonwebtoken::{errors::ErrorKind, Algorithm, DecodingKey, Validation};
 use linklynx_shared::PrincipalId;
 use reqwest::Client;
+use rustls::{ClientConfig, RootCertStore};
 use serde::{Deserialize, Serialize};
 use tokio::sync::{Mutex, RwLock};
 use tokio_postgres::NoTls;
+use tokio_postgres_rustls::MakeRustlsConnect;
 use tracing::warn;
 use uuid::Uuid;
+use webpki_roots::TLS_SERVER_ROOTS;
 
 const FIREBASE_PROVIDER: &str = "firebase";
 const DEFAULT_JWKS_URL: &str =

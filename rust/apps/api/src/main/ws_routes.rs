@@ -38,15 +38,6 @@ async fn ws_handler(
         }
     };
 
-    tracing::info!(
-        decision = "allow",
-        request_id = %request_id,
-        principal_id = authenticated.principal_id.0,
-        firebase_uid = %authenticated.firebase_uid,
-        email_verified = true,
-        "WS auth accepted at handshake"
-    );
-
     let authz_input = AuthzCheckInput {
         principal_id: authenticated.principal_id,
         resource: AuthzResource::Session,
@@ -72,6 +63,18 @@ async fn ws_handler(
             })
             .into_response();
     }
+
+    tracing::info!(
+        decision = "allow",
+        request_id = %request_id,
+        principal_id = authenticated.principal_id.0,
+        firebase_uid = %authenticated.firebase_uid,
+        email_verified = true,
+        resource = "session",
+        action = "connect",
+        decision_source = "authorizer",
+        "WS auth accepted at handshake"
+    );
 
     ws.on_upgrade(move |socket| handle_socket(socket, state, authenticated, request_id))
         .into_response()

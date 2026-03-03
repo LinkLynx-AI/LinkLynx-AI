@@ -15,6 +15,7 @@ export function AuthBridge() {
 
   useEffect(() => {
     if (session.status !== "authenticated" || session.user === null) {
+      setCurrentUser(null);
       return;
     }
 

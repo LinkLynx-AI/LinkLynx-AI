@@ -66,7 +66,7 @@ Out of scope:
   - `AUTH_PRINCIPAL_STORE_MAX_RETRIES` (default: `2`)
   - `AUTH_PRINCIPAL_STORE_RETRY_BASE_BACKOFF_MS` (default: `25`)
 - Postgres transport is TLS-required by default.
-  - Current implementation is fail-close when TLS is required and no TLS connector is configured.
+  - Runtime uses Rustls TLS connector, and TLS connection failures are fail-close (`AUTH_UNAVAILABLE`).
   - Temporary plaintext opt-out is possible only with explicit:
     - `AUTH_ALLOW_POSTGRES_NOTLS=true` (local/development only)
 
