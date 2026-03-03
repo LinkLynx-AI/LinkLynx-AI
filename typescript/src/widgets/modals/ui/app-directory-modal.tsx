@@ -13,71 +13,7 @@ type AppInfo = {
   category: string;
 };
 
-const mockApps: AppInfo[] = [
-  {
-    id: "1",
-    name: "MEE6",
-    description: "レベリング、モデレーション、カスタムコマンド",
-    color: "#7289da",
-    category: "人気",
-  },
-  {
-    id: "2",
-    name: "Dyno",
-    description: "高機能モデレーションとカスタムコマンド",
-    color: "#f04747",
-    category: "人気",
-  },
-  {
-    id: "3",
-    name: "Carl-bot",
-    description: "リアクションロール、ログ、自動モデレーション",
-    color: "#ff9b00",
-    category: "モデレーション",
-  },
-  {
-    id: "4",
-    name: "ProBot",
-    description: "ウェルカム画像、レベリング、保護",
-    color: "#ff73fa",
-    category: "人気",
-  },
-  {
-    id: "5",
-    name: "YAGPDB",
-    description: "汎用ボットでカスタムコマンドに対応",
-    color: "#43b581",
-    category: "ユーティリティ",
-  },
-  {
-    id: "6",
-    name: "Arcane",
-    description: "レベリングとリーダーボード",
-    color: "#7c3aed",
-    category: "ゲーム",
-  },
-  {
-    id: "7",
-    name: "Dank Memer",
-    description: "ミームコマンドとカレンシーゲーム",
-    color: "#4ade80",
-    category: "ゲーム",
-  },
-  {
-    id: "8",
-    name: "AutoMod+",
-    description: "高度な自動モデレーション設定",
-    color: "#ef4444",
-    category: "モデレーション",
-  },
-  {
-    id: "9",
-    name: "MusicBot",
-    description: "高品質な音楽再生ボット",
-    color: "#3b82f6",
-    category: "新着",
-  },
-];
+const mockApps: AppInfo[] = [];
 
 const categories = ["すべて", "人気", "新着", "ゲーム", "モデレーション", "ユーティリティ"];
 

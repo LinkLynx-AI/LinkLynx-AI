@@ -13,32 +13,7 @@ type Invite = {
   expiresAt: string | null;
 };
 
-const mockInvites: Invite[] = [
-  {
-    id: "inv1",
-    code: "abc123",
-    creator: "太郎",
-    uses: 5,
-    maxUses: 10,
-    expiresAt: "2026-04-01",
-  },
-  {
-    id: "inv2",
-    code: "xyz789",
-    creator: "花子",
-    uses: 12,
-    maxUses: null,
-    expiresAt: null,
-  },
-  {
-    id: "inv3",
-    code: "qwe456",
-    creator: "次郎",
-    uses: 0,
-    maxUses: 5,
-    expiresAt: "2026-03-15",
-  },
-];
+const mockInvites: Invite[] = [];
 
 export function ChannelEditInvites({ channelId }: { channelId?: string }) {
   const [invites, setInvites] = useState<Invite[]>(mockInvites);

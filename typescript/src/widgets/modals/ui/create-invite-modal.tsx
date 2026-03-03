@@ -8,7 +8,6 @@ import { Select } from "@/shared/ui/legacy/select";
 import { Toggle } from "@/shared/ui/legacy/toggle";
 import { Avatar } from "@/shared/ui/legacy/avatar";
 import { getAPIClient } from "@/shared/api/legacy/api-client";
-import { mockUsers } from "@/shared/api/legacy/mock/data/users";
 import { Search, Send } from "lucide-react";
 
 const expiryOptions = [
@@ -31,7 +30,12 @@ const maxUsesOptions = [
   { value: "100", label: "100回" },
 ];
 
-const friendUsers = mockUsers.filter((u) => !u.bot && u.id !== "100000000000000001").slice(0, 5);
+const friendUsers: {
+  id: string;
+  username: string;
+  displayName: string;
+  avatar: string | null;
+}[] = [];
 
 export function CreateInviteModal({
   onClose,
@@ -51,9 +55,14 @@ export function CreateInviteModal({
   useEffect(() => {
     if (!channelId) return;
     const api = getAPIClient();
-    api.createInvite(channelId, { maxAge: Number(maxAge) }).then((invite) => {
-      setInviteLink(`https://discord.gg/${invite.code}`);
-    });
+    api
+      .createInvite(channelId, { maxAge: Number(maxAge) })
+      .then((invite) => {
+        setInviteLink(`https://discord.gg/${invite.code}`);
+      })
+      .catch(() => {
+        setInviteLink("");
+      });
   }, [channelId, maxAge]);
 
   const handleCopy = async () => {

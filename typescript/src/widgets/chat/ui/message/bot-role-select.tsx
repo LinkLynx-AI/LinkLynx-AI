@@ -10,13 +10,7 @@ type MockRole = {
   color: string;
 };
 
-const mockRoles: MockRole[] = [
-  { id: "role-admin", name: "Admin", color: "#ed4245" },
-  { id: "role-moderator", name: "Moderator", color: "#5865f2" },
-  { id: "role-member", name: "Member", color: "#99aab5" },
-  { id: "role-dj", name: "DJ", color: "#57f287" },
-  { id: "role-everyone", name: "@everyone", color: "#99aab5" },
-];
+const mockRoles: MockRole[] = [];
 
 export function BotRoleSelect({
   component,

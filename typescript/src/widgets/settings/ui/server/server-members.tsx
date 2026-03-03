@@ -8,53 +8,7 @@ import { Button } from "@/shared/ui/legacy/button";
 import { useMembers } from "@/shared/api/legacy/queries/use-members";
 import type { GuildMember } from "@/shared/model/legacy/types/server";
 
-const mockMembers: GuildMember[] = [
-  {
-    user: {
-      id: "1",
-      username: "alice",
-      displayName: "Alice",
-      avatar: null,
-      status: "online",
-      customStatus: null,
-      bot: false,
-    },
-    nick: null,
-    roles: ["Admin"],
-    joinedAt: "2024-01-15T00:00:00Z",
-    avatar: null,
-  },
-  {
-    user: {
-      id: "2",
-      username: "bob",
-      displayName: "Bob",
-      avatar: null,
-      status: "idle",
-      customStatus: null,
-      bot: false,
-    },
-    nick: "Bobby",
-    roles: ["Moderator"],
-    joinedAt: "2024-03-20T00:00:00Z",
-    avatar: null,
-  },
-  {
-    user: {
-      id: "3",
-      username: "charlie",
-      displayName: "Charlie",
-      avatar: null,
-      status: "offline",
-      customStatus: null,
-      bot: false,
-    },
-    nick: null,
-    roles: ["Member"],
-    joinedAt: "2024-06-10T00:00:00Z",
-    avatar: null,
-  },
-];
+const mockMembers: GuildMember[] = [];
 
 const roleColors: Record<string, string> = {
   Admin: "#e74c3c",

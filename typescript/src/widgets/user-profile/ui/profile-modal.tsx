@@ -8,8 +8,7 @@ import { ProfileBadges } from "./profile-badges";
 import { RolePills } from "./role-pills";
 import { useUserProfile } from "@/shared/api/legacy/queries/use-user-profile";
 import { useGuildStore } from "@/shared/model/legacy/stores/guild-store";
-import { mockRoles, mockMembers, mockServers } from "@/shared/api/legacy/mock/data/servers";
-import { mockUsers } from "@/shared/api/legacy/mock/data/users";
+import { mockRoles, mockMembers } from "@/shared/api/legacy/mock/data/servers";
 import type { Role } from "@/shared/model/legacy/types/server";
 
 function numberToHex(color: number): string {
@@ -23,28 +22,16 @@ const profileTabs = [
 ];
 
 // Mock mutual servers data
-const mockMutualServers = [
-  { id: "200000000000000001", name: "開発チーム", icon: null },
-  { id: "200000000000000002", name: "ゲーミングラウンジ", icon: null },
-];
+const mockMutualServers: { id: string; name: string; icon: string | null }[] = [];
 
 // Mock mutual friends data
-const mockMutualFriends = [
-  {
-    id: "100000000000000002",
-    username: "hanako_design",
-    displayName: "花子",
-    avatar: null,
-    status: "online" as const,
-  },
-  {
-    id: "100000000000000003",
-    username: "jiro_gamer",
-    displayName: "次郎",
-    avatar: null,
-    status: "idle" as const,
-  },
-];
+const mockMutualFriends: {
+  id: string;
+  username: string;
+  displayName: string;
+  avatar: string | null;
+  status: "online" | "idle" | "dnd" | "offline";
+}[] = [];
 
 export function ProfileModal({ userId, onClose }: { userId: string; onClose: () => void }) {
   const { data: profile } = useUserProfile(userId);

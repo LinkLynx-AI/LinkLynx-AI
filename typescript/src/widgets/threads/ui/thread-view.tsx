@@ -11,13 +11,8 @@ import { ThreadMembersPopout, type ThreadMember } from "./thread-members-popout"
 import { ThreadNotificationMenu } from "./thread-notification-menu";
 import { ThreadArchiveBanner } from "./thread-archive-banner";
 import { ThreadSearch } from "./thread-search";
-import { mockUsers } from "@/shared/api/legacy/mock/data/users";
 
-const mockThreadMembers: ThreadMember[] = mockUsers.slice(0, 5).map((u) => ({
-  userId: u.id,
-  displayName: u.displayName,
-  avatar: u.avatar,
-}));
+const mockThreadMembers: ThreadMember[] = [];
 
 export function ThreadView({
   threadId,

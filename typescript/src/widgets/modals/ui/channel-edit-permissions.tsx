@@ -16,11 +16,7 @@ type PermissionOverride = {
   state: "allow" | "deny" | "inherit";
 };
 
-const mockRoles: Role[] = [
-  { id: "everyone", name: "@everyone" },
-  { id: "mod", name: "Moderator", color: "#e74c3c" },
-  { id: "member", name: "Member", color: "#3498db" },
-];
+const mockRoles: Role[] = [];
 
 const defaultPermissions: PermissionOverride[] = [
   { id: "send_messages", label: "メッセージを送信", state: "inherit" },
@@ -31,7 +27,7 @@ const defaultPermissions: PermissionOverride[] = [
 ];
 
 export function ChannelEditPermissions({ channelId }: { channelId?: string }) {
-  const [selectedRole, setSelectedRole] = useState<string>("everyone");
+  const [selectedRole, setSelectedRole] = useState<string>("");
   const [permissions, setPermissions] = useState<Record<string, PermissionOverride[]>>(() => {
     const map: Record<string, PermissionOverride[]> = {};
     for (const role of mockRoles) {

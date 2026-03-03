@@ -14,26 +14,7 @@ type BotData = {
   addedAt: string;
 };
 
-const mockBots: BotData[] = [
-  {
-    id: "bot-1",
-    name: "AutoMod Plus",
-    avatar: null,
-    description:
-      "高度なモデレーション機能を提供するボットです。カスタムフィルタ、自動警告、ログ機能を搭載。",
-    permissions: ["メッセージの管理", "メンバーのキック", "メンバーのBAN", "メッセージ履歴の閲覧"],
-    addedAt: "2025-08-10T10:00:00Z",
-  },
-  {
-    id: "bot-2",
-    name: "Music Player",
-    avatar: null,
-    description:
-      "ボイスチャンネルで音楽を再生するボットです。YouTube、Spotify対応。キュー管理、プレイリスト保存機能付き。",
-    permissions: ["ボイスチャンネルに接続", "発言", "メッセージの送信", "埋め込みリンク"],
-    addedAt: "2025-10-05T14:30:00Z",
-  },
-];
+const mockBots: BotData[] = [];
 
 export function ServerBots({ serverId }: { serverId: string }) {
   const [bots, setBots] = useState<BotData[]>(mockBots);

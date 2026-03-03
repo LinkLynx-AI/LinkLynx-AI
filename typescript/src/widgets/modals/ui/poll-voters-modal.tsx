@@ -11,36 +11,9 @@ type MockVoter = {
   avatar: string | null;
 };
 
-const mockPollOptions = [
-  { id: "opt1", text: "オプション A", emoji: "🅰️", votes: 8 },
-  { id: "opt2", text: "オプション B", emoji: "🅱️", votes: 5 },
-  { id: "opt3", text: "オプション C", emoji: "🅲", votes: 3 },
-];
+const mockPollOptions: { id: string; text: string; emoji?: string; votes: number }[] = [];
 
-const mockVoters: Record<string, MockVoter[]> = {
-  opt1: [
-    { id: "v1", displayName: "Tanaka Yuki", avatar: null },
-    { id: "v2", displayName: "Sato Haruto", avatar: null },
-    { id: "v3", displayName: "Yamada Aoi", avatar: null },
-    { id: "v4", displayName: "Suzuki Ren", avatar: null },
-    { id: "v5", displayName: "Takahashi Mei", avatar: null },
-    { id: "v6", displayName: "Ito Sora", avatar: null },
-    { id: "v7", displayName: "Watanabe Hina", avatar: null },
-    { id: "v8", displayName: "Nakamura Riku", avatar: null },
-  ],
-  opt2: [
-    { id: "v9", displayName: "Kobayashi Yua", avatar: null },
-    { id: "v10", displayName: "Kato Haruki", avatar: null },
-    { id: "v11", displayName: "Yoshida Sakura", avatar: null },
-    { id: "v12", displayName: "Yamamoto Sota", avatar: null },
-    { id: "v13", displayName: "Matsumoto Yuto", avatar: null },
-  ],
-  opt3: [
-    { id: "v14", displayName: "Inoue Akari", avatar: null },
-    { id: "v15", displayName: "Kimura Hinata", avatar: null },
-    { id: "v16", displayName: "Hayashi Kaito", avatar: null },
-  ],
-};
+const mockVoters: Record<string, MockVoter[]> = {};
 
 export function PollVotersModal({
   onClose,
@@ -49,7 +22,7 @@ export function PollVotersModal({
   pollId?: string;
   optionId?: string;
 }) {
-  const [selectedOption, setSelectedOption] = useState(mockPollOptions[0].id);
+  const [selectedOption, setSelectedOption] = useState<string>("");
 
   const voters = mockVoters[selectedOption] ?? [];
 

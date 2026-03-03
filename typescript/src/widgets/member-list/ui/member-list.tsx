@@ -6,6 +6,7 @@ import { useGuildStore } from "@/shared/model/legacy/stores/guild-store";
 import { MemberCategory } from "./member-category";
 import { MemberItem } from "./member-item";
 import type { GuildMember, Role } from "@/shared/model/legacy/types/server";
+import { mockRoles } from "@/shared/api/legacy/mock/data/servers";
 
 function numberToHex(color: number): string {
   if (color === 0) return "";
@@ -61,13 +62,9 @@ function groupMembersByRole(members: GuildMember[], roles: Role[]): MemberGroup[
   return result;
 }
 
-// Hardcoded roles for mock - will come from API later
-import { mockRoles } from "@/shared/api/legacy/mock/data/servers";
-
 export function MemberList() {
   const serverId = useGuildStore((s) => s.activeServerId);
   const { data: members } = useMembers(serverId ?? "");
-
   const roles = serverId ? (mockRoles[serverId] ?? []) : [];
 
   const groups = useMemo(() => {

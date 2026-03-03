@@ -191,8 +191,8 @@ let apiInstance: APIClient | undefined;
 export function getAPIClient(): APIClient {
   if (!apiInstance) {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { MockAPIClient } = require("./mock/mock-api-client");
-    apiInstance = new MockAPIClient() as APIClient;
+    const { NoDataAPIClient } = require("./no-data-api-client");
+    apiInstance = new NoDataAPIClient() as APIClient;
   }
   return apiInstance;
 }

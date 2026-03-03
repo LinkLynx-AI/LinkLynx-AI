@@ -12,20 +12,7 @@ type WebhookItem = {
   url: string;
 };
 
-const mockWebhooks: WebhookItem[] = [
-  {
-    id: "wh1",
-    name: "GitHub Notifications",
-    avatar: null,
-    url: "https://discord.com/api/webhooks/1234/abcdef",
-  },
-  {
-    id: "wh2",
-    name: "Deploy Bot",
-    avatar: null,
-    url: "https://discord.com/api/webhooks/5678/ghijkl",
-  },
-];
+const mockWebhooks: WebhookItem[] = [];
 
 export function ChannelEditIntegrations({ channelId }: { channelId?: string }) {
   const [webhooks, setWebhooks] = useState<WebhookItem[]>(mockWebhooks);

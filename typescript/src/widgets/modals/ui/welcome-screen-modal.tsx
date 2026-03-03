@@ -5,14 +5,12 @@ import { Modal, ModalFooter } from "@/shared/ui/legacy/modal";
 import { cn } from "@/shared/lib/legacy/cn";
 import { Check } from "lucide-react";
 
-const mockRecommendedChannels = [
-  { id: "1", emoji: "👋", name: "挨拶", description: "自己紹介をしましょう！" },
-  { id: "2", emoji: "💬", name: "雑談", description: "自由におしゃべり" },
-  { id: "3", emoji: "📢", name: "お知らせ", description: "重要なアナウンス" },
-  { id: "4", emoji: "🎮", name: "ゲーム", description: "ゲームの話題はこちら" },
-  { id: "5", emoji: "🎵", name: "音楽", description: "おすすめの音楽をシェア" },
-  { id: "6", emoji: "💻", name: "プログラミング", description: "コードについて語ろう" },
-];
+const mockRecommendedChannels: {
+  id: string;
+  emoji: string;
+  name: string;
+  description: string;
+}[] = [];
 
 export function WelcomeScreenModal({
   onClose,

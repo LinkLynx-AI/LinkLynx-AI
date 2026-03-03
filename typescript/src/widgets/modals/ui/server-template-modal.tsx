@@ -5,33 +5,11 @@ import { Modal, ModalHeader, ModalBody, ModalFooter } from "@/shared/ui/legacy/m
 import { Hash, Volume2, ChevronDown, ChevronRight, FolderOpen } from "lucide-react";
 import { cn } from "@/shared/lib/legacy/cn";
 
-const mockChannelTree = [
-  {
-    id: "cat1",
-    name: "テキストチャンネル",
-    channels: [
-      { id: "ch1", name: "一般", type: "text" as const },
-      { id: "ch2", name: "雑談", type: "text" as const },
-      { id: "ch3", name: "お知らせ", type: "text" as const },
-    ],
-  },
-  {
-    id: "cat2",
-    name: "ボイスチャンネル",
-    channels: [
-      { id: "ch4", name: "通話部屋", type: "voice" as const },
-      { id: "ch5", name: "ゲーム部屋", type: "voice" as const },
-    ],
-  },
-  {
-    id: "cat3",
-    name: "管理用",
-    channels: [
-      { id: "ch6", name: "mod-chat", type: "text" as const },
-      { id: "ch7", name: "ログ", type: "text" as const },
-    ],
-  },
-];
+const mockChannelTree: {
+  id: string;
+  name: string;
+  channels: { id: string; name: string; type: "text" | "voice" }[];
+}[] = [];
 
 export function ServerTemplateModal({ onClose }: { onClose: () => void; serverId?: string }) {
   const [view, setView] = useState<"create" | "preview">("create");

@@ -6,18 +6,18 @@ type CreateUiGatewayOptions = {
   provider?: string;
 };
 
-const UI_GATEWAY_PROVIDER_SCHEMA = z.enum(["mock", "api"]);
+const UI_GATEWAY_PROVIDER_SCHEMA = z.enum(["no-data", "api"]);
 
 function resolveUiGatewayProvider(provider: string | undefined): UiGatewayProvider {
   if (provider === undefined) {
-    return "mock";
+    return "no-data";
   }
 
   const parsedProvider = UI_GATEWAY_PROVIDER_SCHEMA.safeParse(provider);
 
   if (!parsedProvider.success) {
     throw new Error(
-      `Invalid NEXT_PUBLIC_UI_GATEWAY_PROVIDER: ${provider}. Allowed values are 'mock' or 'api'.`,
+      `Invalid NEXT_PUBLIC_UI_GATEWAY_PROVIDER: ${provider}. Allowed values are 'no-data' or 'api'.`,
     );
   }
 
@@ -32,10 +32,10 @@ export function createUiGateway(options: CreateUiGatewayOptions = {}): UiGateway
     options.provider ?? process.env.NEXT_PUBLIC_UI_GATEWAY_PROVIDER,
   );
 
-  if (provider === "mock") {
+  if (provider === "no-data") {
     return createMockUiGateway();
   }
 
-  // LIN-504 では API adapter 未実装のため、provider=api でも表示確認を継続できるよう mock へフォールバックする。
+  // API adapter 未実装のため、provider=api 指定でも no-data gateway を返す。
   return createMockUiGateway();
 }

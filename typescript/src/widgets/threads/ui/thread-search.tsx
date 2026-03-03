@@ -4,7 +4,6 @@ import { useState } from "react";
 import { cn } from "@/shared/lib/legacy/cn";
 import { Search, X } from "lucide-react";
 import { Avatar } from "@/shared/ui/legacy/avatar";
-import { mockUsers } from "@/shared/api/legacy/mock/data/users";
 
 type SearchResult = {
   messageId: string;
@@ -14,29 +13,7 @@ type SearchResult = {
   timestamp: string;
 };
 
-const mockSearchResults: SearchResult[] = [
-  {
-    messageId: "sr-1",
-    content: "このバグの原因を特定しました。状態管理の問題です。",
-    authorName: "花子",
-    authorAvatar: null,
-    timestamp: "2024-01-14 09:05",
-  },
-  {
-    messageId: "sr-2",
-    content: "useEffectのクリーンアップを追加すれば解決できそうです。",
-    authorName: "花子",
-    authorAvatar: null,
-    timestamp: "2024-01-14 09:15",
-  },
-  {
-    messageId: "sr-3",
-    content: "修正完了しました。レビューお願いします！",
-    authorName: "花子",
-    authorAvatar: null,
-    timestamp: "2024-01-15 14:30",
-  },
-];
+const mockSearchResults: SearchResult[] = [];
 
 function highlightText(text: string, query: string) {
   if (!query.trim()) return text;

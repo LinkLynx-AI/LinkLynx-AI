@@ -11,45 +11,9 @@ type MockUser = {
   avatar: string | null;
 };
 
-const mockReactionUsers: Record<string, MockUser[]> = {
-  "👍": [
-    { id: "u1", displayName: "Tanaka Yuki", avatar: null },
-    { id: "u2", displayName: "Sato Haruto", avatar: null },
-    { id: "u3", displayName: "Yamada Aoi", avatar: null },
-    { id: "u4", displayName: "Suzuki Ren", avatar: null },
-    { id: "u5", displayName: "Takahashi Mei", avatar: null },
-    { id: "u6", displayName: "Ito Sora", avatar: null },
-    { id: "u7", displayName: "Watanabe Hina", avatar: null },
-    { id: "u8", displayName: "Nakamura Riku", avatar: null },
-    { id: "u9", displayName: "Kobayashi Yua", avatar: null },
-    { id: "u10", displayName: "Kato Haruki", avatar: null },
-    { id: "u11", displayName: "Yoshida Sakura", avatar: null },
-    { id: "u12", displayName: "Yamamoto Sota", avatar: null },
-  ],
-  "❤️": [
-    { id: "u1", displayName: "Tanaka Yuki", avatar: null },
-    { id: "u3", displayName: "Yamada Aoi", avatar: null },
-    { id: "u5", displayName: "Takahashi Mei", avatar: null },
-    { id: "u7", displayName: "Watanabe Hina", avatar: null },
-    { id: "u9", displayName: "Kobayashi Yua", avatar: null },
-    { id: "u11", displayName: "Yoshida Sakura", avatar: null },
-    { id: "u13", displayName: "Matsumoto Yuto", avatar: null },
-    { id: "u14", displayName: "Inoue Akari", avatar: null },
-  ],
-  "😂": [
-    { id: "u2", displayName: "Sato Haruto", avatar: null },
-    { id: "u4", displayName: "Suzuki Ren", avatar: null },
-    { id: "u6", displayName: "Ito Sora", avatar: null },
-    { id: "u8", displayName: "Nakamura Riku", avatar: null },
-    { id: "u10", displayName: "Kato Haruki", avatar: null },
-  ],
-};
+const mockReactionUsers: Record<string, MockUser[]> = {};
 
-const emojiTabs = [
-  { emoji: "👍", count: 12 },
-  { emoji: "❤️", count: 8 },
-  { emoji: "😂", count: 5 },
-];
+const emojiTabs: { emoji: string; count: number }[] = [];
 
 export function ReactionDetailModal({
   onClose,

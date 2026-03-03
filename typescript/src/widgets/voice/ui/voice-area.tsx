@@ -5,7 +5,6 @@ import { Users } from "lucide-react";
 import { cn } from "@/shared/lib/legacy/cn";
 import { useVoiceStore } from "@/shared/model/legacy/stores/voice-store";
 import { useAuthStore } from "@/shared/model/legacy/stores/auth-store";
-import { mockUsers } from "@/shared/api/legacy/mock/data/users";
 import { VoiceParticipantTile } from "./voice-participant-tile";
 import { VoiceControlBar } from "./voice-control-bar";
 import { TextInVoice } from "./text-in-voice";
@@ -14,10 +13,9 @@ import { ClipsPreviewCard } from "./clips-preview-card";
 import type { ClipData } from "./clips-preview-card";
 
 function resolveUser(userId: string) {
-  const user = mockUsers.find((u) => u.id === userId);
   return {
-    displayName: user?.displayName ?? userId,
-    avatar: user?.avatar ?? null,
+    displayName: userId,
+    avatar: null,
   };
 }
 

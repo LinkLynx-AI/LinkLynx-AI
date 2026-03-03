@@ -12,14 +12,7 @@ type MockChannel = {
   category: string;
 };
 
-const mockChannels: MockChannel[] = [
-  { id: "ch-1", name: "一般", type: 0, category: "テキストチャンネル" },
-  { id: "ch-2", name: "開発", type: 0, category: "テキストチャンネル" },
-  { id: "ch-3", name: "デザイン", type: 0, category: "テキストチャンネル" },
-  { id: "ch-4", name: "雑談", type: 0, category: "テキストチャンネル" },
-  { id: "ch-5", name: "ボイスチャット", type: 2, category: "ボイスチャンネル" },
-  { id: "ch-6", name: "ミーティング", type: 2, category: "ボイスチャンネル" },
-];
+const mockChannels: MockChannel[] = [];
 
 export function BotChannelSelect({
   component,

@@ -5,6 +5,7 @@ import { cn } from "@/shared/lib/legacy/cn";
 import { FriendList } from "./friend-list";
 import { PendingRequests } from "./pending-requests";
 import { AddFriend } from "./add-friend";
+import { FeatureShortcuts } from "./feature-shortcuts";
 
 const tabs = ["オンライン", "全て", "保留中", "ブロック中"] as const;
 
@@ -52,6 +53,8 @@ export function FriendsPage() {
           </button>
         </nav>
       </header>
+
+      <FeatureShortcuts />
 
       {/* Content */}
       {activeTab === "フレンドに追加" ? (

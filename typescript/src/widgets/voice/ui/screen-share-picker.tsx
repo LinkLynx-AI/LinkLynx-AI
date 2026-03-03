@@ -11,19 +11,9 @@ type ScreenSource = {
   name: string;
 };
 
-const mockScreens: ScreenSource[] = [
-  { type: "screen", id: "screen-1", name: "画面 1" },
-  { type: "screen", id: "screen-2", name: "画面 2" },
-  { type: "screen", id: "screen-3", name: "画面 3" },
-];
+const mockScreens: ScreenSource[] = [];
 
-const mockApps: ScreenSource[] = [
-  { type: "window", id: "app-1", name: "Visual Studio Code" },
-  { type: "window", id: "app-2", name: "Google Chrome" },
-  { type: "window", id: "app-3", name: "Discord" },
-  { type: "window", id: "app-4", name: "Finder" },
-  { type: "window", id: "app-5", name: "ターミナル" },
-];
+const mockApps: ScreenSource[] = [];
 
 const tabs = [
   { id: "screen", label: "画面" },

@@ -13,36 +13,7 @@ type VoiceChatMessage = {
   timestamp: string;
 };
 
-const mockMessages: VoiceChatMessage[] = [
-  {
-    id: "vcm-1",
-    userId: "100000000000000002",
-    displayName: "花子",
-    content: "みんな聞こえてる？",
-    timestamp: "14:30",
-  },
-  {
-    id: "vcm-2",
-    userId: "100000000000000003",
-    displayName: "次郎",
-    content: "聞こえてるよ！",
-    timestamp: "14:31",
-  },
-  {
-    id: "vcm-3",
-    userId: "100000000000000004",
-    displayName: "美咲",
-    content: "音量少し下げてもらえる？",
-    timestamp: "14:32",
-  },
-  {
-    id: "vcm-4",
-    userId: "100000000000000002",
-    displayName: "花子",
-    content: "了解、下げたよ",
-    timestamp: "14:33",
-  },
-];
+const mockMessages: VoiceChatMessage[] = [];
 
 export function TextInVoice({ channelName }: { channelId: string; channelName: string }) {
   const [input, setInput] = useState("");

@@ -14,36 +14,9 @@ type StageParticipant = {
   muted: boolean;
 };
 
-const MOCK_SPEAKERS: StageParticipant[] = [
-  {
-    userId: "100000000000000002",
-    displayName: "花子",
-    avatar: null,
-    speaking: true,
-    muted: false,
-  },
-  {
-    userId: "100000000000000004",
-    displayName: "さくら",
-    avatar: null,
-    speaking: false,
-    muted: false,
-  },
-];
+const MOCK_SPEAKERS: StageParticipant[] = [];
 
-const MOCK_AUDIENCE: StageParticipant[] = [
-  { userId: "100000000000000001", displayName: "太郎", avatar: null, speaking: false, muted: true },
-  { userId: "100000000000000003", displayName: "次郎", avatar: null, speaking: false, muted: true },
-  {
-    userId: "100000000000000005",
-    displayName: "Ken Bot",
-    avatar: null,
-    speaking: false,
-    muted: true,
-  },
-  { userId: "100000000000000006", displayName: "ゆき", avatar: null, speaking: false, muted: true },
-  { userId: "audience-5", displayName: "みか", avatar: null, speaking: false, muted: true },
-];
+const MOCK_AUDIENCE: StageParticipant[] = [];
 
 export function StageChannelView({
   channelId,

@@ -150,13 +150,12 @@ const PERMISSION_DEFS: PermissionDef[] = [
   },
 ];
 
-const MOCK_MEMBERS = [
-  { id: "u1", username: "田中太郎", avatar: "T", discriminator: "1234" },
-  { id: "u2", username: "佐藤花子", avatar: "S", discriminator: "5678" },
-  { id: "u3", username: "鈴木一郎", avatar: "Z", discriminator: "9012" },
-  { id: "u4", username: "高橋美咲", avatar: "A", discriminator: "3456" },
-  { id: "u5", username: "渡辺健", avatar: "W", discriminator: "7890" },
-];
+const MOCK_MEMBERS: {
+  id: string;
+  username: string;
+  avatar: string;
+  discriminator: string;
+}[] = [];
 
 export function RoleEditPanel({
   role,

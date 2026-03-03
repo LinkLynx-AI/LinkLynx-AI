@@ -40,17 +40,7 @@ const perks = [
   },
 ];
 
-const mockBoosters = [
-  { id: "b1", name: "Taro", date: "2026-01-15" },
-  { id: "b2", name: "Hana", date: "2026-01-18" },
-  { id: "b3", name: "Yuki", date: "2026-01-22" },
-  { id: "b4", name: "Kenta", date: "2026-02-01" },
-  { id: "b5", name: "Mika", date: "2026-02-05" },
-  { id: "b6", name: "Sora", date: "2026-02-10" },
-  { id: "b7", name: "Ryo", date: "2026-02-14" },
-  { id: "b8", name: "Aoi", date: "2026-02-20" },
-  { id: "b9", name: "Ren", date: "2026-02-25" },
-];
+const mockBoosters: { id: string; name: string; date: string }[] = [];
 
 const maxBoosts = 14;
 

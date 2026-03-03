@@ -13,11 +13,7 @@ const notificationOptions = [
 
 type TTSMode = "all" | "mentions" | "disabled";
 
-const mockServers = [
-  { id: "1", name: "Discord開発サーバー", setting: "all" },
-  { id: "2", name: "ゲームコミュニティ", setting: "mentions" },
-  { id: "3", name: "勉強会グループ", setting: "nothing" },
-];
+const mockServers: { id: string; name: string; setting: string }[] = [];
 
 export function UserNotifications() {
   const [desktopNotifications, setDesktopNotifications] = useState(true);

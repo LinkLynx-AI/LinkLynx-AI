@@ -18,12 +18,7 @@ function formatDuration(seconds: number) {
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
-const mockClips: ClipItem[] = [
-  { id: "clip-1", duration: 15, timestamp: "2分前", channelName: "一般ボイス" },
-  { id: "clip-2", duration: 28, timestamp: "10分前", channelName: "ゲーム部屋" },
-  { id: "clip-3", duration: 8, timestamp: "1時間前", channelName: "一般ボイス" },
-  { id: "clip-4", duration: 22, timestamp: "3時間前", channelName: "音楽" },
-];
+const mockClips: ClipItem[] = [];
 
 export function ClipsGallery({
   clips = mockClips,
