@@ -304,4 +304,15 @@
 - 回答: 特になし
 - 結論: 主要論点は全て議論済み
 
+### Round 8: Terraform vs Terragrunt 比較（2026-03-03）
+
+**Q: Terraform 単体 vs Terragrunt**
+- 比較ドキュメント: [03_terraform_vs_terragrunt.md](./03_terraform_vs_terragrunt.md)
+- 結論: **Phase 1〜3 は Terraform 単体。マルチリージョン展開時に必要なら Terragrunt を導入**
+- 理由:
+  1. 3環境 × 9モジュール程度なら Terraform 単体で十分管理可能
+  2. K8s + Terraform + ArgoCD + Helm + Kustomize の同時学習負荷が既に大きい
+  3. Terragrunt を知っている運用者を見つけるのが難しい（運用引き継ぎ原則）
+  4. Terraform モジュールをきちんと作れば後から Terragrunt を被せるのは容易
+
 ---

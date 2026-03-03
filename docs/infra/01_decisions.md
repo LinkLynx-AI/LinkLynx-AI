@@ -118,7 +118,7 @@
 
 | 項目 | 決定 |
 |------|------|
-| IaC | **Terraform** |
+| IaC | **Terraform 単体**（Phase 1〜3）→ 必要に応じて Terragrunt 導入（Phase 4〜） |
 | CI | **GitHub Actions**（既存を拡張） |
 | コンテナレジストリ | **GCP Artifact Registry** |
 | GitOps | **ArgoCD** |
