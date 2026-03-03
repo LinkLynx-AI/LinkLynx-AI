@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { getFirebaseAuth } from "@/shared/lib";
 import type { PrincipalProvisionErrorCode, PrincipalProvisionResult } from "../model";
 import { createPrincipalProvisionError } from "../model";
+import { authenticatedFetch } from "./authenticated-fetch";
 
 const API_BASE_URL_SCHEMA = z.string().url();
 const PROTECTED_PING_SUCCESS_SCHEMA = z.object({
@@ -67,38 +67,12 @@ function appendRequestIdSuffix(message: string, requestId: string | null): strin
 export async function ensurePrincipalProvisionedForCurrentUser(params?: {
   forceRefresh?: boolean;
 }): Promise<PrincipalProvisionResult> {
-  const currentUser = getFirebaseAuth().currentUser;
-  if (currentUser === null) {
-    return {
-      ok: false,
-      error: createPrincipalProvisionError({
-        code: "unauthenticated",
-        message: "ログイン中のユーザーが見つかりません。",
-      }),
-    };
-  }
-
-  let idToken: string;
-  try {
-    idToken = await currentUser.getIdToken(params?.forceRefresh ?? false);
-  } catch {
-    return {
-      ok: false,
-      error: createPrincipalProvisionError({
-        code: "network-request-failed",
-        message: "IDトークンの取得に失敗しました。",
-      }),
-    };
-  }
-
   let endpointUrl: string;
   try {
     endpointUrl = toProtectedPingUrl(resolveApiBaseUrl());
   } catch (error: unknown) {
     const message =
-      error instanceof Error
-        ? error.message
-        : "frontend runtime configuration is invalid.";
+      error instanceof Error ? error.message : "frontend runtime configuration is invalid.";
     return {
       ok: false,
       error: createPrincipalProvisionError({
@@ -108,23 +82,45 @@ export async function ensurePrincipalProvisionedForCurrentUser(params?: {
     };
   }
 
-  let response: Response;
-  try {
-    response = await fetch(endpointUrl, {
+  const fetchOptions =
+    params?.forceRefresh === undefined ? {} : { forceRefresh: params.forceRefresh };
+  const fetchResult = await authenticatedFetch(
+    endpointUrl,
+    {
       method: "GET",
-      headers: {
-        Authorization: `Bearer ${idToken}`,
-      },
-    });
-  } catch {
+    },
+    fetchOptions,
+  );
+  if (!fetchResult.ok) {
+    if (fetchResult.error.code === "unauthenticated") {
+      return {
+        ok: false,
+        error: createPrincipalProvisionError({
+          code: "unauthenticated",
+          message: fetchResult.error.message,
+        }),
+      };
+    }
+
+    if (fetchResult.error.code === "token-unavailable") {
+      return {
+        ok: false,
+        error: createPrincipalProvisionError({
+          code: "network-request-failed",
+          message: fetchResult.error.message,
+        }),
+      };
+    }
+
     return {
       ok: false,
       error: createPrincipalProvisionError({
         code: "network-request-failed",
-        message: "認証APIへの接続に失敗しました。",
+        message: fetchResult.error.message,
       }),
     };
   }
+  const response = fetchResult.response;
 
   let payload: unknown;
   try {

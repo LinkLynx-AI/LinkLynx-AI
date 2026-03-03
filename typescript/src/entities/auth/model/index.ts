@@ -10,6 +10,12 @@ export {
   type PrincipalProvisionErrorCode,
   type PrincipalProvisionResult,
 } from "./principal-provisioning";
+export {
+  createAuthenticatedFetchError,
+  type AuthenticatedFetchError,
+  type AuthenticatedFetchErrorCode,
+  type AuthenticatedFetchResult,
+} from "./authenticated-fetch";
 
 export type AuthSessionStatus = "initializing" | "authenticated" | "unauthenticated";
 

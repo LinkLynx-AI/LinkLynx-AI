@@ -3,6 +3,7 @@ import { APP_ROUTES } from "@/shared/config";
 
 type RouteGuardScreenProps = {
   kind: GuardKind;
+  loginHref?: string;
 };
 
 type GuardContent = {
@@ -55,13 +56,28 @@ const GUARD_CONTENT_MAP: Record<GuardKind, GuardContent> = {
       href: APP_ROUTES.home,
     },
   },
+  "service-unavailable": {
+    title: "認証基盤が一時的に利用できません",
+    description:
+      "しばらく時間をおいて再試行してください。継続する場合は運用者へお問い合わせください。",
+    primaryAction: {
+      label: "ホームへ",
+      href: APP_ROUTES.home,
+    },
+    secondaryAction: {
+      label: "ログインへ",
+      href: APP_ROUTES.login,
+    },
+  },
 };
 
 /**
  * 保護ルートの遷移ガード画面を描画する。
  */
-export function RouteGuardScreen({ kind }: RouteGuardScreenProps) {
+export function RouteGuardScreen({ kind, loginHref }: RouteGuardScreenProps) {
   const content = GUARD_CONTENT_MAP[kind];
+  const resolvedPrimaryActionHref =
+    kind === "unauthenticated" && loginHref !== undefined ? loginHref : content.primaryAction.href;
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-[var(--llx-bg-tertiary)] p-6 text-[var(--llx-text-primary)]">
@@ -74,7 +90,7 @@ export function RouteGuardScreen({ kind }: RouteGuardScreenProps) {
 
         <div className="mt-8 flex flex-wrap gap-3">
           <a
-            href={content.primaryAction.href}
+            href={resolvedPrimaryActionHref}
             aria-label={`${content.primaryAction.label}: ${content.description}`}
             className="inline-flex items-center justify-center rounded-md bg-[var(--llx-brand-blurple)] px-4 py-2 text-sm font-medium text-white transition hover:brightness-110"
           >

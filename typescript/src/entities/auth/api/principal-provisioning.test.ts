@@ -56,10 +56,16 @@ describe("ensurePrincipalProvisionedForCurrentUser", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:8080/v1/protected/ping", {
       method: "GET",
-      headers: {
-        Authorization: "Bearer token-1",
-      },
+      headers: expect.any(Headers),
     });
+
+    const firstCall = fetchMock.mock.calls[0];
+    if (firstCall === undefined) {
+      throw new Error("expected fetch to be called");
+    }
+    const requestInit = firstCall[1] as RequestInit;
+    const headers = requestInit.headers as Headers;
+    expect(headers.get("Authorization")).toBe("Bearer token-1");
   });
 
   test("currentUser が無い場合は unauthenticated を返す", async () => {
