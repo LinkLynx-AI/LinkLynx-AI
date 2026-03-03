@@ -12,9 +12,11 @@ import type { User } from "@/shared/model/types/user";
 export function AuthBridge() {
   const session = useAuthSession();
   const setCurrentUser = useAuthStore((s) => s.setCurrentUser);
+  const clearCurrentUser = useAuthStore((s) => s.clearCurrentUser);
 
   useEffect(() => {
     if (session.status !== "authenticated" || session.user === null) {
+      clearCurrentUser();
       return;
     }
 
@@ -32,7 +34,7 @@ export function AuthBridge() {
     };
 
     setCurrentUser(mocUser);
-  }, [session, setCurrentUser]);
+  }, [clearCurrentUser, session, setCurrentUser]);
 
   return null;
 }

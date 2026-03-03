@@ -106,7 +106,7 @@ export async function ensurePrincipalProvisionedForCurrentUser(params?: {
       return {
         ok: false,
         error: createPrincipalProvisionError({
-          code: "network-request-failed",
+          code: "token-unavailable",
           message: fetchResult.error.message,
         }),
       };

@@ -68,6 +68,17 @@ describe("auth flow error message", () => {
     expect(message).toBe("ネットワークエラーが発生しました。接続を確認して再試行してください。");
   });
 
+  test("principal確保の token-unavailable は再ログイン文言を返す", () => {
+    const message = getPrincipalProvisionErrorMessage({
+      code: "token-unavailable",
+      message: "token unavailable",
+      backendCode: null,
+      requestId: null,
+      status: null,
+    });
+    expect(message).toBe("セッションが無効です。再度ログインしてください。");
+  });
+
   test("password reset の完了メッセージを固定化する", () => {
     expect(PASSWORD_RESET_COMPLETION_MESSAGE).toBe(
       "メールアドレスが登録されている場合、パスワード再設定メールを送信しました。",

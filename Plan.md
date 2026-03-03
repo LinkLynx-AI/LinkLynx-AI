@@ -1,23 +1,31 @@
 # Plan
 
-1. `docs/TYPESCRIPT.md` を読み、現行構造との差分を把握する。 ✅
-2. 非FSDトップレベル (`components/hooks/lib/providers/services/stores/types`) をFSDレイヤ配下に再配置する。 ✅
-3. 全importを新パスへ一括更新する。 ✅
-4. ESLint設定の対象パスを新構造に合わせる。 ✅
-5. TypeScript typecheck / lint で参照整合性を確認する。 ✅
+## Rules
+- validation/review で失敗したら次に進まず修正する。
 
-## Follow-up (widgets/legacy廃止)
+## Milestones
+### M1: Backend auth hardening
+- Acceptance criteria:
+  - [x] `AUTHZ_PROVIDER` 未設定/不正/未実装時に allow-all へ落ちない。
+  - [x] auth metrics エンドポイントが認証保護される。
+- Validation:
+  - `cd rust && cargo test -p linklynx_backend`
 
-1. `typescript/src/widgets/legacy` の中身を `widgets/<slice>/ui` へ再配置する。 ✅
-2. `@/widgets/legacy/ui/*` import を新しい `widgets` スライス参照へ置換する。 ✅
-3. `widgets` 各スライスに Public API (`index.ts`) を用意する。 ✅
-4. `eslint.config.mjs` の `legacy` 前提パスを新構成へ更新する。 ✅
-5. TypeScript typecheck / lint を再実行する。 ✅
+### M2: Frontend auth consistency
+- Acceptance criteria:
+  - [x] AuthBridge が未認証遷移時に stale user を残さない。
+  - [x] principal provisioning が `token-unavailable` を正しく扱う。
+- Validation:
+  - `cd typescript && npm run test -- src/entities/auth/api/principal-provisioning.test.ts src/features/auth-flow/model/error-message.test.ts`
 
-## Follow-up (理想系化)
+### M3: Route guard regression tests
+- Acceptance criteria:
+  - [x] route guard の 401/403/503 分岐をカバーするテストが追加される。
+- Validation:
+  - `cd typescript && npm run test -- src/features/route-guard/ui/protected-preview-gate.test.tsx src/features/route-guard/ui/protected-preview-gate.browser.test.tsx src/app/providers/auth-bridge.test.tsx`
 
-1. `widgets` のうちユースケース中心スライスを `features` へ再配置する。 ✅
-2. `@/widgets/<slice>` import を `@/features/<slice>` に一括更新する。 ✅
-3. `features/index.ts` で再配置スライスの Public API を公開する。 ✅
-4. TypeScript専用の FSD境界チェックを追加し、`make ts-fsd-check` で実行可能にする。 ✅
-5. `fsd-check / typecheck / lint` で整合性を確認する。 ✅
+### M4: Review loop
+- Acceptance criteria:
+  - [x] `reviewer` 再実行で blocking finding がない。
+- Validation:
+  - `reviewer`: gate=pass（P1以上なし）

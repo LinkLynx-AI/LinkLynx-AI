@@ -1,49 +1,33 @@
 # Implement
 
-## 2026-03-03
-- `docs/TYPESCRIPT.md` を確認し、FSDレイヤ要件を基準に移行方針を確定。
-- 以下の非FSDトップレベルをFSDレイヤ配下へ移動:
-  - `typescript/src/components/ui` → `typescript/src/shared/ui/legacy`
-  - `typescript/src/components/*` (ui除く) → `typescript/src/widgets/legacy/ui/*`
-  - `typescript/src/hooks` → `typescript/src/shared/model/legacy/hooks`
-  - `typescript/src/lib` → `typescript/src/shared/lib/legacy`
-  - `typescript/src/services` → `typescript/src/shared/api/legacy`
-  - `typescript/src/stores` → `typescript/src/shared/model/legacy/stores`
-  - `typescript/src/types` → `typescript/src/shared/model/legacy/types`
-  - `typescript/src/providers` → `typescript/src/app/providers`
-- 全 `@/components|hooks|lib|providers|services|stores|types` import を新パスへ一括更新。
-- `typescript/eslint.config.mjs` の許可パス/緩和対象を新ディレクトリ構造へ更新。
-- 検証:
-  - `cd typescript && npm run typecheck` ✅
-  - `cd typescript && npm run lint` ✅
+## Execution policy
+- Plan.md の順序で実装する。
+- scope 外変更は行わない。
+- 各マイルストーンでテストを実行し、失敗時は即修正する。
 
-## 2026-03-03 (widgets/legacy 廃止対応)
-- `typescript/src/widgets/legacy/ui/*` を `typescript/src/widgets/<slice>/ui` へ移動し、`widgets/legacy` を削除。
-- `auth-guard` は `typescript/src/widgets/auth-guard/ui/auth-guard.tsx` として再配置。
-- 各 `widgets/<slice>/index.ts` を追加し、Public API をスライス単位で公開。
-- `@/widgets/legacy/ui/*` import を新構造へ置換:
-  - ルート参照: `@/widgets/<slice>`
-  - 深い参照: `@/widgets/<slice>/ui/...`
-- widget 間参照の一部を Public API 経由に整理:
-  - 例: `panels` → `threads`, `modals` → `user-profile`
-- `typescript/eslint.config.mjs` の緩和対象を `src/widgets/legacy/**/*` から `src/widgets/**/*` に更新。
-- 検証:
-  - `cd typescript && npm run typecheck` ✅
-  - `cd typescript && npm run lint` ✅
-
-## 2026-03-03 (理想系へ再配置 + FSDチェック導入)
-- `widgets` 偏重を解消するため、下記スライスを `widgets` から `features` へ移動:
-  - `auth-guard`, `context-menus`, `dm-friends`, `forum`, `modals`, `notifications`,
-    `pickers`, `settings`, `special`, `threads`, `user-profile`, `voice`
-- `@/widgets/<slice>` 参照を `@/features/<slice>` へ一括置換し、`app/widgets/features` の参照整合を維持。
-- `typescript/src/features/index.ts` に移動済みスライスの export を追加し、Public APIを集約。
-- TypeScript専用FSDチェックを追加:
-  - `typescript/scripts/check-fsd.mjs`
-  - `typescript/package.json` に `fsd:check` 追加
-  - `typescript/Makefile` に `fsd-check` 追加、`lint` 前に実行
-  - ルート `Makefile` に `ts-fsd-check` 追加
-- `typescript/eslint.config.mjs` にて、旧 `widgets` から `features` へ移動したモックUI群へ既存緩和ルールを適用。
-- 検証:
-  - `make ts-fsd-check` ✅
-  - `cd typescript && npm run typecheck` ✅
-  - `cd typescript && make lint` ✅
+## Progress log
+- 2026-03-04: auth 関連コードを backend/frontend で探索。
+- 2026-03-04: reviewer 実行で P1/P2/P3 指摘を取得。
+- 2026-03-04: Backend 修正を反映。
+  - `rust/apps/api/src/authz/runtime.rs`: デフォルト/unknown/spicedb フォールバックを `noop_unavailable` へ変更し fail-close 化。
+  - `rust/apps/api/src/main/http_routes.rs`: `/internal/auth/metrics` を認証ミドルウェア配下へ移動。
+  - `rust/apps/api/src/authz/tests.rs` と `rust/apps/api/src/main/tests.rs`: 上記挙動を検証するテストを追加。
+- 2026-03-04: Frontend 修正を反映。
+  - `typescript/src/app/providers/auth-bridge.tsx` + `typescript/src/shared/model/stores/auth-store.ts`:
+    未認証/不整合セッション時の `currentUser` クリアを追加。
+  - `typescript/src/entities/auth/api/principal-provisioning.ts`:
+    `token-unavailable` を `network-request-failed` へ潰さず維持。
+  - `typescript/src/features/auth-flow/model/error-message.ts` と
+    `typescript/src/features/route-guard/ui/protected-preview-gate.tsx`:
+    `token-unavailable` をセッション失効系として扱うよう調整。
+  - `typescript/src/app/providers/auth-bridge.test.tsx` と
+    `typescript/src/features/route-guard/ui/protected-preview-gate.browser.test.tsx` を追加。
+- 2026-03-04: 検証実行。
+  - `cd rust && cargo test -p linklynx_backend` ✅
+  - `cd typescript && npm run test -- src/entities/auth/api/principal-provisioning.test.ts src/features/auth-flow/model/error-message.test.ts src/features/route-guard/ui/protected-preview-gate.test.tsx src/features/route-guard/ui/protected-preview-gate.browser.test.tsx src/app/providers/auth-bridge.test.tsx` ✅
+  - `make validate` ✅
+- 2026-03-04: 再レビュー実行。
+  - `reviewer_simple`: gate=pass（P1以上なし）
+  - `reviewer`: gate=pass（P1以上なし、P3の追加テスト改善余地のみ）
+- 2026-03-04: P3追補後の最終レビュー実行。
+  - `reviewer_simple`: gate=pass（findings 0件、blockingなし）

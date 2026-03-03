@@ -10,6 +10,7 @@ fn app_with_state(state: AppState) -> Router {
 
     let protected_routes = Router::new()
         .route("/protected/ping", get(protected_ping))
+        .route("/internal/auth/metrics", get(auth_metrics_handler))
         .route("/guilds", get(list_guilds).post(create_guild))
         .route(
             "/guilds/{guild_id}/channels",
@@ -25,7 +26,6 @@ fn app_with_state(state: AppState) -> Router {
         .route("/health", get(health_check))
         .route("/ws", get(ws_handler))
         .route("/auth/ws-ticket", post(issue_ws_ticket))
-        .route("/internal/auth/metrics", get(auth_metrics_handler))
         .merge(protected_routes)
         .with_state(state)
         .layer(cors)

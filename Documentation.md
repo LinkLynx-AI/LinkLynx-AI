@@ -1,22 +1,17 @@
 # Documentation
 
-## TypeScript FSD移行メモ
+## Current status
+- Now: auth 修正・追加テスト・最終レビューまで完了。
+- Next: PR作成と最終説明。
 
-- `typescript/src` のトップレベルは `app / entities / features / shared / widgets / test` のみとし、非FSD直下ディレクトリを解消。
-- 既存UI実装は変更せず、物理配置と import パスのみを更新。
-- `widgets` レイヤは `widgets/<slice>/ui` の形に統一し、`widgets/legacy` は廃止。
-- `widgets/<slice>/index.ts` を Public API として配置し、外部からはスライス単位の import を優先。
-- 既存の mock-design 系コードに対する ESLint 緩和設定は `src/widgets/**/*` に適用して維持。
+## Decisions
+- AuthZ runtime の fail-close を優先し、allow-all fallback を除去する。
+- 認証状態同期とエラー分類の不整合は frontend 側で明示的に扱う。
 
-## TypeScript FSD理想系（2026-03-03 更新）
+## How to run / demo
+- Primary validate: `make validate`
+- Rust tests: `cd rust && cargo test -p linklynx_backend`
+- TS focused tests: `cd typescript && npm run test -- src/entities/auth/api/principal-provisioning.test.ts src/features/route-guard/ui/protected-preview-gate.test.tsx src/features/route-guard/ui/protected-preview-gate.browser.test.tsx src/features/auth-flow/model/error-message.test.ts src/app/providers/auth-bridge.test.tsx`
 
-- `widgets` はレイアウト/複合表示の単位に限定:
-  - `app-shell`, `channel-sidebar`, `chat`, `member-list`, `panels`, `server-list`
-- ユースケース中心のスライスは `features` へ集約:
-  - `auth-guard`, `context-menus`, `dm-friends`, `forum`, `modals`, `notifications`,
-    `pickers`, `settings`, `special`, `threads`, `user-profile`, `voice`
-- `features/index.ts` を更新し、移動したスライスをPublic APIとして再公開。
-- FSD境界の自動検査を追加:
-  - 実体: `typescript/scripts/check-fsd.mjs`
-  - 実行: `make ts-fsd-check` または `cd typescript && make fsd-check`
-  - `cd typescript && make lint` 実行時にも `fsd-check` を先行実行。
+## Known issues / follow-ups
+- 最終レビュー結果: findings 0件 / blocking なし。

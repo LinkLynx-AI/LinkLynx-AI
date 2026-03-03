@@ -1,4 +1,4 @@
-const DEFAULT_AUTHZ_PROVIDER: &str = "noop";
+const DEFAULT_AUTHZ_PROVIDER: &str = "noop_unavailable";
 const DEFAULT_ALLOW_ALL_UNTIL: &str = "2026-06-30";
 
 /// 実行時向けの認可実装を生成する。
@@ -62,27 +62,27 @@ pub fn build_runtime_authorizer() -> Arc<dyn Authorizer> {
         "spicedb" => {
             warn!(
                 provider = "spicedb",
-                fallback = "noop",
+                fallback = "noop_unavailable",
                 allow_all_until = %allow_all_until,
                 supported_action_count = supported_actions.len(),
-                "AUTHZ_PROVIDER=spicedb is not implemented yet; fallback to noop allow-all"
+                "AUTHZ_PROVIDER=spicedb is not implemented yet; fallback to noop unavailable mode"
             );
             Arc::new(NoopAllowAllAuthorizer::new(
                 allow_all_until,
-                NoopAuthorizerMode::Allow,
+                NoopAuthorizerMode::Unavailable,
             ))
         }
         _ => {
             warn!(
                 provider = %provider,
-                fallback = "noop",
+                fallback = "noop_unavailable",
                 allow_all_until = %allow_all_until,
                 supported_action_count = supported_actions.len(),
-                "unknown AUTHZ_PROVIDER; fallback to noop allow-all"
+                "unknown AUTHZ_PROVIDER; fallback to noop unavailable mode"
             );
             Arc::new(NoopAllowAllAuthorizer::new(
                 allow_all_until,
-                NoopAuthorizerMode::Allow,
+                NoopAuthorizerMode::Unavailable,
             ))
         }
     }
