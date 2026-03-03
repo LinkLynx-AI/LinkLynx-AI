@@ -9,17 +9,16 @@ pub struct PostgresGuildChannelService {
 }
 
 impl PostgresGuildChannelService {
+    const DEFAULT_POOL_SIZE: usize = 4;
+    const MAX_POOL_SIZE: usize = 100;
+
     /// Postgresサービスを生成する。
     /// @param database_url 接続文字列
     /// @param allow_postgres_notls 平文接続許可フラグ
     /// @returns Postgresサービス
     /// @throws なし
     pub fn new(database_url: String, allow_postgres_notls: bool) -> Self {
-        let pool_size = env::var("GUILD_CHANNEL_STORE_POOL_SIZE")
-            .ok()
-            .and_then(|value| value.parse::<usize>().ok())
-            .unwrap_or(4)
-            .max(1);
+        let pool_size = Self::parse_pool_size_from_env();
 
         Self {
             database_url: Arc::from(database_url),
@@ -27,6 +26,47 @@ impl PostgresGuildChannelService {
             clients: Arc::new(RwLock::new(Vec::new())),
             next_index: Arc::new(AtomicU64::new(0)),
             pool_size,
+        }
+    }
+
+    /// 接続プールサイズを環境変数から解釈する。
+    /// @param なし
+    /// @returns プールサイズ
+    /// @throws なし
+    fn parse_pool_size_from_env() -> usize {
+        match env::var("GUILD_CHANNEL_STORE_POOL_SIZE") {
+            Ok(value) => match value.parse::<usize>() {
+                Ok(0) => {
+                    warn!(
+                        env_var = "GUILD_CHANNEL_STORE_POOL_SIZE",
+                        value = %value,
+                        default = Self::DEFAULT_POOL_SIZE,
+                        "pool size must be >= 1; fallback to default"
+                    );
+                    Self::DEFAULT_POOL_SIZE
+                }
+                Ok(parsed) if parsed > Self::MAX_POOL_SIZE => {
+                    warn!(
+                        env_var = "GUILD_CHANNEL_STORE_POOL_SIZE",
+                        value = %value,
+                        max = Self::MAX_POOL_SIZE,
+                        "pool size exceeds upper bound; clamped"
+                    );
+                    Self::MAX_POOL_SIZE
+                }
+                Ok(parsed) => parsed,
+                Err(error) => {
+                    warn!(
+                        env_var = "GUILD_CHANNEL_STORE_POOL_SIZE",
+                        value = %value,
+                        reason = %error,
+                        default = Self::DEFAULT_POOL_SIZE,
+                        "invalid pool size env value; fallback to default"
+                    );
+                    Self::DEFAULT_POOL_SIZE
+                }
+            },
+            Err(_) => Self::DEFAULT_POOL_SIZE,
         }
     }
 
