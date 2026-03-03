@@ -17,10 +17,10 @@
   - `rust/apps/api/src/guild_channel/tests.rs`
 - Wired runtime state with `guild_channel_service` in `rust/apps/api/src/main.rs`.
 - Added endpoints in `rust/apps/api/src/main/http_routes.rs`:
-  - `GET /v1/guilds`
-  - `POST /v1/guilds`
-  - `GET /v1/guilds/{guild_id}/channels`
-  - `POST /v1/guilds/{guild_id}/channels`
+  - `GET /guilds`
+  - `POST /guilds`
+  - `GET /guilds/{guild_id}/channels`
+  - `POST /guilds/{guild_id}/channels`
 - Added request/response/error mapping:
   - `VALIDATION_ERROR` (400)
   - `GUILD_NOT_FOUND` (404)
@@ -60,8 +60,8 @@
   - Result: startup succeeded (`server starting address=0.0.0.0:8080`).
   - Access checks (same permission context):
     - `GET /health` => `200 OK`.
-    - `GET /v1/guilds` => `401 AUTH_MISSING_TOKEN`.
-    - `GET /v1/guilds/2001/channels` => `401 AUTH_MISSING_TOKEN`.
+    - `GET /guilds` => `401 AUTH_MISSING_TOKEN`.
+    - `GET /guilds/2001/channels` => `401 AUTH_MISSING_TOKEN`.
 - Playwright smoke: skipped.
   - Rationale: this issue adds backend API only and does not introduce/modify frontend user flow.
 

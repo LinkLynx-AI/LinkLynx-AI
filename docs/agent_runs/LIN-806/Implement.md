@@ -6,7 +6,7 @@
 - 招待/DM/カテゴリ/スレッドへの横展開は禁止。
 
 ## Fixed decisions
-- API path は `guild` 基準（`/v1/guilds`）。
+- API path は `guild` 基準（`/guilds`）。
 - 非メンバー時は `403 AUTHZ_DENIED`。
 - Guild作成時は owner bootstrap まで（default channelは作らない）。
 - Channel作成は全メンバー可。

@@ -10,9 +10,9 @@ fn app_with_state(state: AppState) -> Router {
 
     let protected_routes = Router::new()
         .route("/protected/ping", get(protected_ping))
-        .route("/v1/guilds", get(list_guilds).post(create_guild))
+        .route("/guilds", get(list_guilds).post(create_guild))
         .route(
-            "/v1/guilds/{guild_id}/channels",
+            "/guilds/{guild_id}/channels",
             get(list_guild_channels).post(create_guild_channel),
         )
         .route_layer(middleware::from_fn_with_state(

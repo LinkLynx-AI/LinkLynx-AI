@@ -11,7 +11,7 @@
 - UI実装や導線接続の実装。
 
 ## Done conditions
-- `GET/POST /v1/guilds` を実装済み。
-- `GET/POST /v1/guilds/{guild_id}/channels` を実装済み。
+- `GET/POST /guilds` を実装済み。
+- `GET/POST /guilds/{guild_id}/channels` を実装済み。
 - 非メンバーアクセスが `403 AUTHZ_DENIED` で拒否される。
 - `docs/agent_runs/LIN-806/Documentation.md` に検証結果が記録される。

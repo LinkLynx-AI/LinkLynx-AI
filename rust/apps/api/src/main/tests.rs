@@ -410,7 +410,7 @@ mod tests {
         let response = app
             .oneshot(
                 Request::builder()
-                    .uri("/v1/guilds")
+                    .uri("/guilds")
                     .header("authorization", format!("Bearer {token}"))
                     .body(Body::empty())
                     .unwrap(),
@@ -434,7 +434,7 @@ mod tests {
         let response = app
             .oneshot(
                 Request::builder()
-                    .uri("/v1/guilds/2001/channels")
+                    .uri("/guilds/2001/channels")
                     .header("authorization", format!("Bearer {token}"))
                     .header("x-request-id", "non-member-test")
                     .body(Body::empty())
@@ -459,7 +459,7 @@ mod tests {
         let response = app
             .oneshot(
                 Request::builder()
-                    .uri("/v1/guilds/9999/channels")
+                    .uri("/guilds/9999/channels")
                     .header("authorization", format!("Bearer {token}"))
                     .body(Body::empty())
                     .unwrap(),
@@ -483,7 +483,7 @@ mod tests {
             .oneshot(
                 Request::builder()
                     .method("POST")
-                    .uri("/v1/guilds")
+                    .uri("/guilds")
                     .header("authorization", format!("Bearer {token}"))
                     .header("content-type", "application/json")
                     .body(Body::from(r#"{"name":"   "}"#))
@@ -508,7 +508,7 @@ mod tests {
             .oneshot(
                 Request::builder()
                     .method("POST")
-                    .uri("/v1/guilds")
+                    .uri("/guilds")
                     .header("authorization", format!("Bearer {token}"))
                     .header("content-type", "application/json")
                     .body(Body::from(r#"{"name":"My Guild"}"#))
@@ -535,7 +535,7 @@ mod tests {
             .oneshot(
                 Request::builder()
                     .method("POST")
-                    .uri("/v1/guilds/2001/channels")
+                    .uri("/guilds/2001/channels")
                     .header("authorization", format!("Bearer {token}"))
                     .header("content-type", "application/json")
                     .body(Body::from(r#"{"name":"release"}"#))
