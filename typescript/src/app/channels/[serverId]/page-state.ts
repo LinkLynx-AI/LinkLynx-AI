@@ -8,7 +8,7 @@ export type ServerPageDisplayState = "loading" | "error" | "redirect-or-idle" | 
 export function findFirstTextChannel(channels: Channel[]): Channel | null {
   const firstTextChannel = channels
     .filter((channel) => channel.type === 0)
-    .sort((left, right) => left.position - right.position)[0];
+    .sort((left, right) => left.position - right.position || left.id.localeCompare(right.id))[0];
 
   return firstTextChannel ?? null;
 }

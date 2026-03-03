@@ -30,6 +30,23 @@ const BACKEND_ERROR_RESPONSE_SCHEMA = z.object({
   request_id: z.string().trim().min(1),
 });
 const CHANNEL_LOOKUP_BATCH_SIZE = 4;
+const DEFAULT_GUILD_VALUES = {
+  banner: null,
+  ownerId: "0",
+  memberCount: 0,
+  boostLevel: 0,
+  boostCount: 0,
+  features: [] as Guild["features"],
+  description: null,
+} as const;
+const DEFAULT_CHANNEL_VALUES = {
+  type: 0,
+  topic: null,
+  parentId: null,
+  nsfw: false,
+  rateLimitPerUser: 0,
+  lastMessageId: null,
+} as const;
 
 type GuildListResponse = z.infer<typeof GUILD_LIST_RESPONSE_SCHEMA>;
 type ChannelListResponse = z.infer<typeof CHANNEL_LIST_RESPONSE_SCHEMA>;
@@ -184,28 +201,17 @@ function mapGuild(summary: GuildListResponse["guilds"][number]): Guild {
     id: String(summary.guild_id),
     name: summary.name,
     icon: summary.icon_key ?? null,
-    banner: null,
-    ownerId: "0",
-    memberCount: 0,
-    boostLevel: 0,
-    boostCount: 0,
-    features: [],
-    description: null,
+    ...DEFAULT_GUILD_VALUES,
   };
 }
 
 function mapChannel(summary: ChannelListResponse["channels"][number], position: number): Channel {
   return {
     id: String(summary.channel_id),
-    type: 0,
     guildId: String(summary.guild_id),
     name: summary.name,
-    topic: null,
     position,
-    parentId: null,
-    nsfw: false,
-    rateLimitPerUser: 0,
-    lastMessageId: null,
+    ...DEFAULT_CHANNEL_VALUES,
   };
 }
 

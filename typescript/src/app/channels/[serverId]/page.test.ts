@@ -29,6 +29,15 @@ describe("channels/[serverId]/page", () => {
     expect(selected?.id).toBe("3003");
   });
 
+  test("uses id as tie-breaker when text channel positions are equal", () => {
+    const first = createChannel({ id: "3002", type: 0, position: 1 });
+    const second = createChannel({ id: "3001", type: 0, position: 1 });
+
+    const selected = findFirstTextChannel([first, second]);
+
+    expect(selected?.id).toBe("3001");
+  });
+
   test("returns null when no text channel exists", () => {
     const channels = [
       createChannel({ id: "3002", type: 2, position: 0 }),

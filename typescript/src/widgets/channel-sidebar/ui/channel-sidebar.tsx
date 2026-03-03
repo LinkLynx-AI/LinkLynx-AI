@@ -62,7 +62,10 @@ export function ChannelSidebar() {
     error: channelsError,
   } = useChannels(activeServerId ?? "");
 
-  const groups = useMemo(() => groupChannelsByCategory(channels ?? []), [channels]);
+  const groups = useMemo(
+    () => (channels === undefined ? [] : groupChannelsByCategory(channels)),
+    [channels],
+  );
   const channelErrorMessage = toApiErrorText(channelsError, "チャンネル一覧の取得に失敗しました。");
   const shouldShowChannelError = isChannelsError && (channels?.length ?? 0) === 0;
 

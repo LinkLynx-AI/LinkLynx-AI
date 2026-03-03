@@ -92,7 +92,11 @@ export function parseGuildChannelRoute(pathname: string): GuildChannelRouteSelec
   if (routeSegments.length < 1 || routeSegments.length > 2) {
     return null;
   }
-  if (routeSegments.some((segment) => segment.length === 0)) {
+  if (
+    routeSegments.some(
+      (segment) => segment.length === 0 || safeDecodeURIComponent(segment) === null,
+    )
+  ) {
     return null;
   }
 

@@ -48,6 +48,7 @@ describe("routes", () => {
     expect(parseGuildChannelRoute("/channels/me/3001")).toBeNull();
     expect(parseGuildChannelRoute("/channels/1001/3001/extra")).toBeNull();
     expect(parseGuildChannelRoute("/channels//3001")).toBeNull();
+    expect(parseGuildChannelRoute("/channels/%E0%A4%A/3001")).toBeNull();
     expect(parseGuildChannelRoute("/settings/profile")).toBeNull();
   });
 
