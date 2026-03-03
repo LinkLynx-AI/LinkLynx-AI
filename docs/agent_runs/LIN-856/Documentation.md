@@ -1,0 +1,73 @@
+# LIN-856 Documentation Log
+
+## Current status
+- Now: 実装・証跡記録完了（TypeScript テストは実行環境制約で失敗）
+- Next: Node.js バージョンを要件以上へ更新して TypeScript テストを再実行
+
+## Decisions
+- 自動確認は 5秒間隔 / 5分上限で実施する。
+- focus / visibilitychange(visible) で即時再確認する。
+- エラー時は通知を表示して自動確認を継続する。
+- 5分上限到達時は自動確認を停止し、手動更新フォールバックを通知する。
+- focus / visibilitychange の同時発火連打を避けるため 1秒クールダウンを入れる。
+- 非表示タブ中 (`document.hidden=true`) はポーリングを停止し、可視化復帰時の即時再確認に寄せる。
+- 5分到達時は最終1回の確認を実行してから自動確認を停止する。
+
+## Progress
+- [x] verify-email パネルへ自動確認ロジックを追加
+- [x] focus / visibilitychange 即時再確認を追加
+- [x] タイムアウト停止とフォールバック通知を追加
+- [x] `verify-email-panel` UI テストを追加
+- [x] 全体検証結果を記録（環境制約を含む）
+- [x] review/runtime gate 記録を完了
+
+## Validation results
+- `npm -C typescript ci`: passed（依存導入。engine warning あり）
+- `cd typescript && npm run typecheck`: passed
+- `cd typescript && npm run lint`: passed
+- `cd typescript && npm run test -- src/features/auth-flow/ui/verify-email-panel.test.tsx`: failed
+  - failure: `ERR_REQUIRE_ESM` (`html-encoding-sniffer` -> `@exodus/bytes`)
+  - context: `jsdom@27.x` が Node `>=22.12` を要求する一方、実行環境 Node は `v22.4.0`
+- `cd typescript && npm run test`: failed（同一原因）
+- `make validate`: failed（TypeScript test ステップで同一原因。format/lint/rust/python は通過）
+
+## Runtime smoke
+- `make dev`: passed（DB + Next.js + Rust API 起動を確認）
+- `curl http://localhost:3000/verify-email`: `200`
+- 取得HTMLで新文言を確認:
+  - `確認完了後は自動で次画面へ進みます。進まない場合は「確認状態を更新」を押してください。`
+- 実施メモ:
+  - Docker 起動が sandbox では不可だったため、権限昇格で実施
+  - スモーク後は `Ctrl-C` で停止
+
+## Review results
+- `reviewer`: unavailable (`agent type is currently not available`)
+- `reviewer_ui_guard`: unavailable (`agent type is currently not available`)
+- fallback: manual self-review 実施
+  - UI 変更あり（`verify-email-panel` 文言・挙動変更、UIテスト追加）
+  - blocking issue は未検出
+
+## Per-issue evidence (LIN-856)
+- issue: `LIN-856`
+- branch: `codex/lin-856`
+- start mode: `child issue start`
+- validation commands:
+  - `typecheck`: passed
+  - `lint`: passed
+  - `test`: failed（Node/`jsdom` 互換制約）
+  - `make validate`: failed（上記 test 失敗に起因）
+- reviewer gate: unavailable (manual self-review fallback)
+- UI gate: unavailable (manual self-review fallback, UI change exists)
+- runtime smoke: passed
+- PR: pending
+- PR base branch: `main` (planned)
+
+## How to run / demo
+1. `make dev`
+2. `/verify-email` を開いたまま外部確認リンクを完了する
+3. 自動遷移することを確認する
+4. タブを切り替えて復帰し、即時再確認が走ることを確認する
+5. 必要時に「確認状態を更新」ボタンで手動フォールバックできることを確認する
+
+## Known issues / follow-ups
+- テスト実行環境の Node `v22.4.0` が `jsdom@27` の要件 (`>=22.12`) を満たさず、jsdom系テストで `ERR_REQUIRE_ESM` が発生する。
