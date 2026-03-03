@@ -41,8 +41,8 @@
 - reviewer gate: unavailable (manual self-review fallback)
 - UI gate: unavailable (manual self-review fallback, UI change exists)
 - runtime smoke: passed (route-level)
-- PR: pending
-- PR base branch: pending
+- PR: https://github.com/LinkLynx-AI/LinkLynx-AI/pull/1003
+- PR base branch: `main`
 
 ## How to run / demo
 - `cd typescript && npm run dev`
