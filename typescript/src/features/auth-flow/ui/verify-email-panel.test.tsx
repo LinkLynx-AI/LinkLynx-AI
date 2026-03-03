@@ -163,6 +163,33 @@ describe("VerifyEmailPanel", () => {
     expect(reloadCurrentAuthUserMock).toHaveBeenCalledTimes(1);
   });
 
+  test("principal確保失敗時はエラー通知を表示して遷移しない", async () => {
+    reloadCurrentAuthUserMock.mockResolvedValue({
+      ok: true,
+      data: {
+        uid: "uid-1",
+        email: "verify@example.com",
+        emailVerified: true,
+      },
+    });
+    ensurePrincipalProvisionedForCurrentUserMock.mockResolvedValue({
+      ok: false,
+      error: {
+        code: "unauthenticated",
+        message: "session invalid",
+        backendCode: null,
+        requestId: null,
+        status: 401,
+      },
+    });
+
+    renderPanel();
+    await advanceTime(5_000);
+
+    expect(screen.getByText("セッションが無効です。再度ログインしてください。")).toBeTruthy();
+    expect(locationAssignMock).not.toHaveBeenCalled();
+  });
+
   test("focus と visibilitychange(visible) で即時再確認する", async () => {
     renderPanel();
 
@@ -229,6 +256,17 @@ describe("VerifyEmailPanel", () => {
 
     await advanceTime(5_000);
     expect(reloadCurrentAuthUserMock).toHaveBeenCalledTimes(2);
+  });
+
+  test("予期しない例外が発生した場合は汎用エラー通知を表示する", async () => {
+    reloadCurrentAuthUserMock.mockRejectedValueOnce(new Error("boom"));
+
+    renderPanel();
+    await advanceTime(5_000);
+
+    expect(
+      screen.getByText("メール確認処理に失敗しました。時間をおいて再試行してください。"),
+    ).toBeTruthy();
   });
 
   test("5分上限で自動確認を停止して手動フォールバック通知を表示する", async () => {

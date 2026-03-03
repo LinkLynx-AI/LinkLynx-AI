@@ -2,7 +2,7 @@
 
 ## Current status
 - Now: 実装・検証・PR更新完了
-- Next: レビュー対応待ち
+- Next: 最終レビュー待ち
 
 ## Decisions
 - 自動確認は 5秒間隔 / 5分上限で実施する。
@@ -13,6 +13,7 @@
 - 非表示タブ中 (`document.hidden=true`) はポーリングを停止し、可視化復帰時の即時再確認に寄せる。
 - 5分到達時は最終1回の確認を実行してから自動確認を停止する。
 - 実行環境（Node `v22.4.0`）互換のため `jsdom` を `26.1.0` へ固定し、テストの `window.location` モック方式を調整する。
+- Claudeレビュー指摘への対応として、自動確認設定値を `AUTO_REFRESH_CONFIG` に集約し、`runRefreshCheck` にJSDocと予期しない例外向けフォールバック通知を追加する。
 
 ## Progress
 - [x] verify-email パネルへ自動確認ロジックを追加
@@ -21,6 +22,7 @@
 - [x] `verify-email-panel` UI テストを追加
 - [x] 全体検証結果を記録（環境制約を含む）
 - [x] review/runtime gate 記録を完了
+- [x] Claudeレビュー改善提案（定数整理・JSDoc・例外系テスト追加）を反映
 
 ## Validation results
 - `pnpm -C typescript install`: passed（`jsdom 27.4.0 -> 26.1.0`）

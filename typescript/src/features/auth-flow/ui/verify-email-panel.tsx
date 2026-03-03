@@ -26,9 +26,13 @@ type NoticeState = {
 
 type RefreshTrigger = "manual" | "polling" | "focus" | "visibilitychange";
 
-const AUTO_REFRESH_INTERVAL_MS = 5_000;
-const AUTO_REFRESH_TIMEOUT_MS = 5 * 60 * 1_000;
-const AUTO_REFRESH_EVENT_COOLDOWN_MS = 1_000;
+const AUTO_REFRESH_CONFIG = {
+  intervalMs: 5_000,
+  timeoutMs: 5 * 60 * 1_000,
+  eventCooldownMs: 1_000,
+} as const;
+const VERIFY_REFRESH_GENERIC_ERROR_MESSAGE =
+  "メール確認処理に失敗しました。時間をおいて再試行してください。";
 
 function resolveInitialNotice(initialSent: string | null): NoticeState | null {
   if (initialSent === "1") {
@@ -101,6 +105,9 @@ export function VerifyEmailPanel({ initialEmail, initialSent, returnTo }: Verify
     });
   }, []);
 
+  /**
+   * メール確認状態を再検証し、必要に応じて次画面へ遷移する。
+   */
   const runRefreshCheck = useCallback(
     async (trigger: RefreshTrigger) => {
       const isManualTrigger = trigger === "manual";
@@ -163,6 +170,12 @@ export function VerifyEmailPanel({ initialEmail, initialSent, returnTo }: Verify
 
         isAutoRefreshStoppedRef.current = true;
         window.location.assign(redirectPath);
+      } catch (error: unknown) {
+        console.error("Verify email refresh check failed unexpectedly.", error);
+        setNotice({
+          tone: "error",
+          text: VERIFY_REFRESH_GENERIC_ERROR_MESSAGE,
+        });
       } finally {
         isCheckInFlightRef.current = false;
         if (isManualTrigger) {
@@ -198,7 +211,7 @@ export function VerifyEmailPanel({ initialEmail, initialSent, returnTo }: Verify
       }
 
       const now = Date.now();
-      if (now - lastEventTriggeredAtRef.current < AUTO_REFRESH_EVENT_COOLDOWN_MS) {
+      if (now - lastEventTriggeredAtRef.current < AUTO_REFRESH_CONFIG.eventCooldownMs) {
         return;
       }
 
@@ -212,7 +225,7 @@ export function VerifyEmailPanel({ initialEmail, initialSent, returnTo }: Verify
       }
 
       const elapsedTime = Date.now() - autoRefreshStartedAtRef.current;
-      if (elapsedTime >= AUTO_REFRESH_TIMEOUT_MS) {
+      if (elapsedTime >= AUTO_REFRESH_CONFIG.timeoutMs) {
         void runRefreshCheck("polling").finally(() => {
           stopAutoRefresh();
         });
@@ -224,7 +237,7 @@ export function VerifyEmailPanel({ initialEmail, initialSent, returnTo }: Verify
       }
 
       void runRefreshCheck("polling");
-    }, AUTO_REFRESH_INTERVAL_MS);
+    }, AUTO_REFRESH_CONFIG.intervalMs);
 
     const handleFocus = () => {
       runEventDrivenRefresh("focus");
