@@ -6,7 +6,7 @@
 
 | Name | Type | Default | Nullable | Children | Parents | Comment |
 | ---- | ---- | ------- | -------- | -------- | ------- | ------- |
-| id | bigint |  | false | [public.dm_participants](public.dm_participants.md) [public.dm_pairs](public.dm_pairs.md) [public.channel_permission_overrides](public.channel_permission_overrides.md) [public.channel_reads](public.channel_reads.md) [public.channel_last_message](public.channel_last_message.md) |  |  |
+| id | bigint | nextval('channels_id_seq'::regclass) | false | [public.dm_participants](public.dm_participants.md) [public.dm_pairs](public.dm_pairs.md) [public.channel_permission_overrides](public.channel_permission_overrides.md) [public.channel_reads](public.channel_reads.md) [public.channel_last_message](public.channel_last_message.md) |  |  |
 | type | channel_type |  | false |  |  |  |
 | guild_id | bigint |  | true |  | [public.guilds](public.guilds.md) |  |
 | name | text |  | true |  |  |  |
@@ -18,6 +18,7 @@
 
 | Name | Type | Definition |
 | ---- | ---- | ---------- |
+| chk_channels_guild_text_name_not_blank | CHECK | CHECK (((type <> 'guild_text'::channel_type) OR (btrim(COALESCE(name, ''::text)) <> ''::text))) |
 | chk_channels_shape_dm | CHECK | CHECK (((type <> 'dm'::channel_type) OR (guild_id IS NULL))) |
 | chk_channels_shape_guild_text | CHECK | CHECK (((type <> 'guild_text'::channel_type) OR ((guild_id IS NOT NULL) AND (name IS NOT NULL)))) |
 | channels_created_by_fkey | FOREIGN KEY | FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL |
@@ -30,6 +31,7 @@
 | ---- | ---------- |
 | channels_pkey | CREATE UNIQUE INDEX channels_pkey ON public.channels USING btree (id) |
 | idx_channels_guild | CREATE INDEX idx_channels_guild ON public.channels USING btree (guild_id) WHERE (type = 'guild_text'::channel_type) |
+| idx_channels_guild_created_id | CREATE INDEX idx_channels_guild_created_id ON public.channels USING btree (guild_id, created_at, id) WHERE (type = 'guild_text'::channel_type) |
 
 ## Relations
 

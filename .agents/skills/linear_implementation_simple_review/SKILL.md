@@ -25,7 +25,7 @@ description: Implement linklinx-AI Linear issues with one issue equals one PR de
 ## 0.3 Execution Guardrails (Hard Stop)
 - This skill is an execution contract, not optional guidance. Follow steps in order.
 - Never implement multiple child issues in one branch or one PR.
-- Never start the next child issue until the current child issue reaches step 10 in the delivery loop.
+- Never start the next child issue until the current child issue reaches the PR merge step in the delivery loop.
 - If required evidence for the current child issue is missing, stop and complete evidence first.
 - If conversation is interrupted, resume from the current child issue state before any new implementation.
 - If branch naming/policy conflicts are found, follow repository/developer policy first and record the decision in `Documentation.md`.
@@ -97,28 +97,33 @@ The following flow is mandatory per child issue and must be executed in this ord
 2. Run sub-agents for exploration, implementation, and validation.
 3. Run review agents (`reviewer_simple`, `reviewer_ui_guard`, and `reviewer_ui` when required).
 4. If review/validation gate is not passed, run sub-agents again and repeat from implementation.
-5. Open PR from child-issue branch to the parent branch and merge according to policy (or to `main` when section 3.1 or 3.2 applies).
-6. Start the next child issue only after the current child issue is merged and evidence is recorded.
+5. For non-trivial changes, run the runtime smoke gate (`make dev` startup/access check and Playwright behavior check).
+6. Open PR from child-issue branch to the parent branch and merge according to policy (or to `main` when section 3.1 or 3.2 applies).
+7. Start the next child issue only after the current child issue is merged and evidence is recorded.
 
 For each child issue execute the same loop.
 1. Create branch dedicated to this child issue (skip only when section 3.1 applies)
 2. Implement scoped changes
 3. Commit progress frequently in small logical units
-4. Run validation commands
+4. Run `make validate` as the primary validation command, then run issue-specific checks when needed
 5. Run `reviewer_simple` for consolidated review and gate decision
 6. Run `reviewer_ui_guard` to detect whether UI-related files changed
 7. If UI changes are detected, run `reviewer_ui`; if not, skip UI checks
 8. If self-review gate is not passed (validation failure, blocking review finding, or failed required UI checks), fix issues and return to step 2.
-9. Open PR
-10. Merge according to merge policy
-11. Move to next issue
+9. If the change is non-trivial, run `make dev`, access primary route(s), and confirm no fatal errors
+10. If the change is non-trivial, run Playwright smoke checks for primary user flow(s)
+11. If runtime smoke gate is not passed, fix issues and return to step 2
+12. Open PR
+13. Merge according to merge policy
+14. Move to next issue
 
 ### 5.1 Required Per-child Evidence Before Moving On
 Record all items below in `Documentation.md` per child issue. Do not proceed if any item is missing.
 - child issue key and branch name
-- validation commands and pass/fail results
+- `make validate` result and any additional validation command pass/fail results
 - reviewer gate result (`reviewer_simple`) and blocking findings disposition
 - UI gate result (`reviewer_ui_guard`) and `reviewer_ui` result when applicable
+- runtime smoke gate result for non-trivial changes (`make dev` startup/access check and Playwright result), or explicit skip rationale when treated as trivial
 - PR URL, base branch, and merge/auto-merge status
 
 ### 5.2 Interruption Recovery Rule
@@ -126,6 +131,15 @@ When a run is resumed after interruption:
 1. Detect the in-progress child issue from branch/commits/Documentation.
 2. Complete missing loop steps for that child issue first.
 3. Only then start the next child issue.
+
+### 5.3 Non-trivial Change Runtime Smoke Gate (Required)
+- Treat the change as non-trivial by default unless it is clearly tiny and behavior-neutral (for example docs-only, comments-only, or formatting-only).
+- Execute this gate after implementation/review and before opening PR.
+- Required checks:
+  1. Run `make dev` and verify startup succeeds.
+  2. Access primary route(s) and confirm no fatal error (startup crash, immediate 500, blank critical screen, or blocking runtime exception).
+  3. Run Playwright smoke checks for primary user flow(s) and confirm no blocking console/network failures.
+- If any check fails, fix the issue and return to delivery loop step 2.
 
 ## 6. Role Contracts
 ### Explorer
@@ -137,7 +151,8 @@ When a run is resumed after interruption:
 - Keep diff minimal and avoid scope expansion.
 
 ### Monitor or Tester
-- Run lint, typecheck, test, build, and issue-specific checks.
+- Run `make validate` first, then run issue-specific checks when needed.
+- For non-trivial changes, run the runtime smoke gate: `make dev` startup/access check and Playwright smoke checks.
 - Summarize failures with likely causes.
 
 ### Unified Reviewer
@@ -181,6 +196,7 @@ For smallest-unit tasks from the initial request:
 ## 8. Done Criteria
 - Acceptance criteria are satisfied.
 - Required validations in plan pass.
+- For non-trivial changes, runtime smoke gate passes (`make dev` startup/access + Playwright smoke checks).
 - PR is created.
 - For non-main base, auto-merge is enabled after review gate pass and merge is completed automatically.
 - For main base, stop at human review required state.
