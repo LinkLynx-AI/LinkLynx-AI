@@ -25,6 +25,13 @@ mod tests {
             }
             env::set_var(name, value);
         }
+
+        fn remove(&mut self, name: &str) {
+            if !self.backups.iter().any(|(saved, _)| saved == name) {
+                self.backups.push((name.to_owned(), env::var(name).ok()));
+            }
+            env::remove_var(name);
+        }
     }
 
     impl Drop for ScopedEnv {
@@ -58,7 +65,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn runtime_provider_spicedb_falls_back_to_allow_all() {
+    async fn runtime_provider_spicedb_falls_back_to_unavailable() {
         let _guard = env_lock().lock().await;
         let mut scoped = ScopedEnv::new();
         scoped.set("AUTHZ_PROVIDER", "spicedb");
@@ -71,11 +78,12 @@ mod tests {
             action: AuthzAction::Connect,
         };
 
-        assert!(authorizer.check(&input).await.is_ok());
+        let error = authorizer.check(&input).await.unwrap_err();
+        assert_eq!(error.kind, AuthzErrorKind::DependencyUnavailable);
     }
 
     #[tokio::test]
-    async fn runtime_provider_unknown_falls_back_to_allow_all() {
+    async fn runtime_provider_unknown_falls_back_to_unavailable() {
         let _guard = env_lock().lock().await;
         let mut scoped = ScopedEnv::new();
         scoped.set("AUTHZ_PROVIDER", "unknown");
@@ -85,12 +93,31 @@ mod tests {
         let input = AuthzCheckInput {
             principal_id: PrincipalId(1001),
             resource: AuthzResource::RestPath {
-                path: "/v1/protected/ping".to_owned(),
+                path: "/protected/ping".to_owned(),
             },
             action: AuthzAction::View,
         };
 
-        assert!(authorizer.check(&input).await.is_ok());
+        let error = authorizer.check(&input).await.unwrap_err();
+        assert_eq!(error.kind, AuthzErrorKind::DependencyUnavailable);
+    }
+
+    #[tokio::test]
+    async fn runtime_provider_default_falls_back_to_unavailable() {
+        let _guard = env_lock().lock().await;
+        let mut scoped = ScopedEnv::new();
+        scoped.remove("AUTHZ_PROVIDER");
+        scoped.set("AUTHZ_ALLOW_ALL_UNTIL", "2026-06-30");
+
+        let authorizer = build_runtime_authorizer();
+        let input = AuthzCheckInput {
+            principal_id: PrincipalId(1001),
+            resource: AuthzResource::Session,
+            action: AuthzAction::Connect,
+        };
+
+        let error = authorizer.check(&input).await.unwrap_err();
+        assert_eq!(error.kind, AuthzErrorKind::DependencyUnavailable);
     }
 
     #[tokio::test]

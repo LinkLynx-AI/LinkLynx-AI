@@ -2,12 +2,17 @@
 mod tests {
     use super::*;
     use async_trait::async_trait;
+    use std::collections::HashSet;
     use auth::{
         CachingPrincipalResolver, InMemoryPrincipalCache, InMemoryPrincipalStore,
         PrincipalProvisioner, PrincipalResolver, PrincipalStore, TokenVerifier, TokenVerifyError,
         VerifiedToken,
     };
     use authz::{Authorizer, AuthzCheckInput, AuthzError};
+    use guild_channel::{
+        ChannelSummary, CreatedChannel, CreatedGuild, GuildChannelError, GuildChannelService,
+        GuildSummary,
+    };
     use axum::{body::to_bytes, http::StatusCode};
     use linklynx_shared::PrincipalId;
     use tower::ServiceExt;
@@ -18,6 +23,7 @@ mod tests {
     struct StaticAllowAllAuthorizer;
     struct StaticDenyAuthorizer;
     struct StaticUnavailableAuthorizer;
+    struct StaticGuildChannelService;
 
     #[async_trait]
     impl TokenVerifier for StaticTokenVerifier {
@@ -65,6 +71,97 @@ mod tests {
         }
     }
 
+    #[async_trait]
+    impl GuildChannelService for StaticGuildChannelService {
+        async fn list_guilds(
+            &self,
+            principal_id: PrincipalId,
+        ) -> Result<Vec<GuildSummary>, GuildChannelError> {
+            if principal_id.0 != 1001 {
+                return Ok(vec![]);
+            }
+
+            Ok(vec![GuildSummary {
+                guild_id: 2001,
+                name: "LinkLynx Developers".to_owned(),
+                icon_key: None,
+                joined_at: "2026-03-03T00:00:00Z".to_owned(),
+            }])
+        }
+
+        async fn create_guild(
+            &self,
+            principal_id: PrincipalId,
+            name: String,
+        ) -> Result<CreatedGuild, GuildChannelError> {
+            let normalized = name.trim();
+            if normalized.is_empty() {
+                return Err(GuildChannelError::validation("guild_name_required"));
+            }
+
+            Ok(CreatedGuild {
+                guild_id: 2002,
+                name: normalized.to_owned(),
+                icon_key: None,
+                owner_id: principal_id.0,
+            })
+        }
+
+        async fn list_guild_channels(
+            &self,
+            principal_id: PrincipalId,
+            guild_id: i64,
+        ) -> Result<Vec<ChannelSummary>, GuildChannelError> {
+            if guild_id != 2001 {
+                return Err(GuildChannelError::not_found("guild_not_found"));
+            }
+            if principal_id.0 != 1001 {
+                return Err(GuildChannelError::forbidden("guild_membership_required"));
+            }
+
+            Ok(vec![
+                ChannelSummary {
+                    channel_id: 3001,
+                    guild_id,
+                    name: "general".to_owned(),
+                    created_at: "2026-03-03T00:00:00Z".to_owned(),
+                },
+                ChannelSummary {
+                    channel_id: 3002,
+                    guild_id,
+                    name: "random".to_owned(),
+                    created_at: "2026-03-03T00:00:30Z".to_owned(),
+                },
+            ])
+        }
+
+        async fn create_guild_channel(
+            &self,
+            principal_id: PrincipalId,
+            guild_id: i64,
+            name: String,
+        ) -> Result<CreatedChannel, GuildChannelError> {
+            if guild_id != 2001 {
+                return Err(GuildChannelError::not_found("guild_not_found"));
+            }
+            if principal_id.0 != 1001 {
+                return Err(GuildChannelError::forbidden("guild_membership_required"));
+            }
+
+            let normalized = name.trim();
+            if normalized.is_empty() {
+                return Err(GuildChannelError::validation("channel_name_required"));
+            }
+
+            Ok(CreatedChannel {
+                channel_id: 3003,
+                guild_id,
+                name: normalized.to_owned(),
+                created_at: "2026-03-03T00:01:00Z".to_owned(),
+            })
+        }
+    }
+
     async fn app_for_test() -> Router {
         app_for_test_with_authorizer(Arc::new(StaticAllowAllAuthorizer)).await
     }
@@ -91,10 +188,34 @@ mod tests {
         let state = AppState {
             auth_service,
             authorizer,
+            guild_channel_service: Arc::new(StaticGuildChannelService),
             ws_reauth_grace: Duration::from_secs(30),
+            ws_ticket_ttl: Duration::from_secs(60),
+            auth_identify_timeout: Duration::from_secs(5),
+            ws_ticket_store: Arc::new(WsTicketStore::default()),
+            ws_ticket_rate_limiter: Arc::new(FixedWindowRateLimiter::new(
+                20,
+                Duration::from_secs(60),
+            )),
+            ws_identify_rate_limiter: Arc::new(FixedWindowRateLimiter::new(
+                60,
+                Duration::from_secs(60),
+            )),
+            ws_origin_allowlist: Arc::new(WsOriginAllowlist::new(HashSet::from([
+                "http://localhost:3000".to_owned(),
+                "http://127.0.0.1:3000".to_owned(),
+            ]))),
         };
 
         app_with_state(state)
+    }
+
+    async fn parse_principal_id_from_response(response: Response) -> i64 {
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        json["principal_id"].as_i64().unwrap()
     }
 
     #[tokio::test]
@@ -138,7 +259,7 @@ mod tests {
         let response = app
             .oneshot(
                 Request::builder()
-                    .uri("/v1/protected/ping")
+                    .uri("/protected/ping")
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -149,13 +270,88 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn auth_metrics_endpoint_rejects_missing_token() {
+        let app = app_for_test().await;
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/internal/auth/metrics")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn auth_metrics_endpoint_rejects_invalid_token() {
+        let app = app_for_test().await;
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/internal/auth/metrics")
+                    .header("authorization", "Bearer invalid-token")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn auth_metrics_endpoint_rejects_expired_token() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds().saturating_sub(1));
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/internal/auth/metrics")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn auth_metrics_endpoint_accepts_valid_token() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/internal/auth/metrics")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert!(json.get("token_verify_success_total").is_some());
+        assert!(json.get("principal_cache_hit_ratio").is_some());
+    }
+
+    #[tokio::test]
     async fn protected_endpoint_accepts_valid_token() {
         let app = app_for_test().await;
         let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
         let response = app
             .oneshot(
                 Request::builder()
-                    .uri("/v1/protected/ping")
+                    .uri("/protected/ping")
                     .header("authorization", format!("Bearer {token}"))
                     .header("x-request-id", "test-req-id")
                     .body(Body::empty())
@@ -180,18 +376,72 @@ mod tests {
     async fn protected_endpoint_provisions_missing_mapping() {
         let app = app_for_test().await;
         let token = format!("u-unknown:{}", unix_timestamp_seconds() + 300);
-        let response = app
+        let first_response = app
+            .clone()
             .oneshot(
                 Request::builder()
-                    .uri("/v1/protected/ping")
+                    .uri("/protected/ping")
                     .header("authorization", format!("Bearer {token}"))
                     .body(Body::empty())
                     .unwrap(),
             )
             .await
             .unwrap();
+        assert_eq!(first_response.status(), StatusCode::OK);
+        let first_principal_id = parse_principal_id_from_response(first_response).await;
 
-        assert_eq!(response.status(), StatusCode::OK);
+        let second_response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/protected/ping")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(second_response.status(), StatusCode::OK);
+        let second_principal_id = parse_principal_id_from_response(second_response).await;
+
+        assert_eq!(first_principal_id, second_principal_id);
+    }
+
+    #[tokio::test]
+    async fn protected_endpoint_concurrent_retry_reuses_same_principal() {
+        let app = app_for_test().await;
+        let token = format!("u-concurrent:{}", unix_timestamp_seconds() + 300);
+
+        let mut handles = Vec::new();
+        for _ in 0..6 {
+            let app_clone = app.clone();
+            let token_clone = token.clone();
+            handles.push(tokio::spawn(async move {
+                app_clone
+                    .oneshot(
+                        Request::builder()
+                            .uri("/protected/ping")
+                            .header("authorization", format!("Bearer {token_clone}"))
+                            .body(Body::empty())
+                            .unwrap(),
+                    )
+                    .await
+                    .unwrap()
+            }));
+        }
+
+        let mut principal_ids = Vec::new();
+        for handle in handles {
+            let response = handle.await.unwrap();
+            assert_eq!(response.status(), StatusCode::OK);
+            principal_ids.push(parse_principal_id_from_response(response).await);
+        }
+
+        let expected = principal_ids.first().copied().unwrap();
+        assert!(
+            principal_ids.iter().all(|principal_id| *principal_id == expected),
+            "all concurrent retries must resolve to the same principal_id"
+        );
     }
 
     #[tokio::test]
@@ -201,7 +451,7 @@ mod tests {
         let response = app
             .oneshot(
                 Request::builder()
-                    .uri("/v1/protected/ping")
+                    .uri("/protected/ping")
                     .header("authorization", format!("Bearer {token}"))
                     .header("x-request-id", "authz-denied-test")
                     .body(Body::empty())
@@ -226,7 +476,7 @@ mod tests {
         let response = app
             .oneshot(
                 Request::builder()
-                    .uri("/v1/protected/ping")
+                    .uri("/protected/ping")
                     .header("authorization", format!("Bearer {token}"))
                     .header("x-request-id", "authz-unavailable-test")
                     .body(Body::empty())
@@ -244,15 +494,218 @@ mod tests {
         assert_eq!(json["request_id"], "authz-unavailable-test");
     }
 
-    #[test]
-    fn parse_reauth_token_extracts_token() {
-        let text = r#"{"type":"auth.reauthenticate","token":"next-token"}"#;
-        assert_eq!(parse_reauth_token(text), Some("next-token".to_owned()));
+    #[tokio::test]
+    async fn list_guilds_returns_member_scoped_result() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/guilds")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["guilds"][0]["guild_id"], 2001);
+        assert_eq!(json["guilds"][0]["name"], "LinkLynx Developers");
+    }
+
+    #[tokio::test]
+    async fn list_guild_channels_returns_forbidden_for_non_member() {
+        let app = app_for_test().await;
+        let token = format!("u-unknown:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/guilds/2001/channels")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("x-request-id", "non-member-test")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "AUTHZ_DENIED");
+        assert_eq!(json["request_id"], "non-member-test");
+    }
+
+    #[tokio::test]
+    async fn list_guild_channels_returns_not_found_for_unknown_guild() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/guilds/9999/channels")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "GUILD_NOT_FOUND");
+    }
+
+    #[tokio::test]
+    async fn create_guild_rejects_blank_name() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/guilds")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"name":"   "}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "VALIDATION_ERROR");
+    }
+
+    #[tokio::test]
+    async fn create_guild_returns_created() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/guilds")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"name":"My Guild"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::CREATED);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["guild"]["guild_id"], 2002);
+        assert_eq!(json["guild"]["name"], "My Guild");
+        assert_eq!(json["guild"]["owner_id"], 1001);
+    }
+
+    #[tokio::test]
+    async fn create_guild_channel_returns_created_for_member() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/guilds/2001/channels")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"name":"release"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::CREATED);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["channel"]["guild_id"], 2001);
+        assert_eq!(json["channel"]["name"], "release");
+    }
+
+    #[tokio::test]
+    async fn ws_ticket_endpoint_returns_ticket_for_authenticated_request() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/auth/ws-ticket")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert!(json["ticket"].as_str().is_some_and(|value| !value.is_empty()));
+        assert!(json["expiresAt"].as_str().is_some_and(|value| !value.is_empty()));
+    }
+
+    #[tokio::test]
+    async fn ws_ticket_endpoint_rejects_missing_token() {
+        let app = app_for_test().await;
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/auth/ws-ticket")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
     }
 
     #[test]
-    fn parse_reauth_token_ignores_non_reauth_messages() {
+    fn parse_reauth_id_token_extracts_token() {
+        let text = r#"{"type":"auth.reauthenticate","d":{"idToken":"next-token"}}"#;
+        assert_eq!(parse_reauth_id_token(text), Some("next-token".to_owned()));
+    }
+
+    #[test]
+    fn parse_reauth_id_token_ignores_non_reauth_messages() {
         let text = r#"{"type":"message.create","body":"hi"}"#;
-        assert_eq!(parse_reauth_token(text), None);
+        assert_eq!(parse_reauth_id_token(text), None);
+    }
+
+    #[test]
+    fn parse_identify_payload_extracts_ticket() {
+        let text = r#"{"type":"auth.identify","d":{"method":"ticket","ticket":"abc"}}"#;
+        let payload = parse_identify_payload(text).unwrap();
+
+        assert_eq!(payload.method, "ticket");
+        assert_eq!(payload.ticket, "abc");
     }
 }

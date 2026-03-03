@@ -53,7 +53,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
           return;
         }
 
-        console.error("AuthProvider initialization failed. Falling back to unauthenticated.", error);
+        console.error(
+          "AuthProvider initialization failed. Falling back to unauthenticated.",
+          error,
+        );
         updateSession(createUnauthenticatedSession());
       });
 

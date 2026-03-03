@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     env,
     sync::{
         atomic::{AtomicBool, AtomicU64, Ordering},
@@ -33,5 +33,6 @@ include!("auth/metrics.rs");
 include!("auth/service.rs");
 include!("auth/firebase.rs");
 include!("auth/principal.rs");
+include!("auth/ws_ticket.rs");
 include!("auth/runtime.rs");
 include!("auth/tests.rs");

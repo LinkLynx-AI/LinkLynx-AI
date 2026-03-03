@@ -11,6 +11,17 @@ describe("RouteGuardScreen", () => {
     expect(html).toContain('href="/register"');
   });
 
+  test("未ログインガードのログインリンクを上書きできる", () => {
+    const html = renderToStaticMarkup(
+      <RouteGuardScreen
+        kind="unauthenticated"
+        loginHref="/login?returnTo=%2Fchannels%2Fme&reason=session-expired"
+      />,
+    );
+
+    expect(html).toContain('href="/login?returnTo=%2Fchannels%2Fme&amp;reason=session-expired"');
+  });
+
   test("権限不足ガードを描画する", () => {
     const html = renderToStaticMarkup(<RouteGuardScreen kind="forbidden" />);
 
@@ -23,5 +34,12 @@ describe("RouteGuardScreen", () => {
 
     expect(html).toContain("対象が見つかりません");
     expect(html).toContain('href="/"');
+  });
+
+  test("service-unavailable ガードを描画する", () => {
+    const html = renderToStaticMarkup(<RouteGuardScreen kind="service-unavailable" />);
+
+    expect(html).toContain("認証基盤が一時的に利用できません");
+    expect(html).toContain('href="/login"');
   });
 });

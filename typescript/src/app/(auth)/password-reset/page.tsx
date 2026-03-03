@@ -1,9 +1,17 @@
-import { createUiGateway } from "@/entities";
-import { AuthRoutePreview } from "@/app/(auth)/_components/auth-route-preview";
+import { AuthLayout } from "@/app/(auth)/_components/auth-layout";
+import { PasswordResetForm } from "@/features/auth-flow";
+import { APP_ROUTES } from "@/shared/config";
 
-export default async function PasswordResetPage() {
-  const uiGateway = createUiGateway();
-  const content = await uiGateway.auth.getRouteContent("password-reset");
-
-  return <AuthRoutePreview {...content} />;
+export default function PasswordResetPage() {
+  return (
+    <AuthLayout
+      title="パスワードをリセット"
+      description="登録済みのメールアドレスへ再設定リンクを送ります"
+      footerText="ログイン画面に戻る"
+      footerLinkText="ログイン"
+      footerLinkHref={APP_ROUTES.login}
+    >
+      <PasswordResetForm />
+    </AuthLayout>
+  );
 }

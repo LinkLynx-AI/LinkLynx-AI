@@ -1,8 +1,16 @@
 import type { AuthRouteContent } from "@/entities";
 
-type AuthRoutePreviewProps = AuthRouteContent;
+type AuthRoutePreviewProps = AuthRouteContent & {
+  children?: React.ReactNode;
+};
 
-export function AuthRoutePreview({ title, description, links, footerLink }: AuthRoutePreviewProps) {
+export function AuthRoutePreview({
+  title,
+  description,
+  links,
+  footerLink,
+  children,
+}: AuthRoutePreviewProps) {
   return (
     <main className="flex min-h-screen items-center justify-center bg-[var(--llx-bg-tertiary)] px-4 py-10 text-[var(--llx-text-primary)]">
       <section className="w-full max-w-md rounded-xl border border-[var(--llx-divider)] bg-[var(--llx-bg-primary)] p-8">
@@ -12,7 +20,9 @@ export function AuthRoutePreview({ title, description, links, footerLink }: Auth
         <h1 className="mt-3 text-2xl font-semibold">{title}</h1>
         <p className="mt-2 text-sm text-[var(--llx-text-muted)]">{description}</p>
 
-        <div className="mt-8 space-y-3">
+        {children === undefined ? null : <div className="mt-8">{children}</div>}
+
+        <div className="mt-6 space-y-3">
           {links.map((link) => (
             <a
               key={`${link.href}-${link.label}`}
