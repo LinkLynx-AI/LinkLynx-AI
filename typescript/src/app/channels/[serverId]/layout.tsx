@@ -1,7 +1,7 @@
-import { ChannelSidebar } from "@/components/channel-sidebar";
-import { ServerSync } from "@/components/channel-sidebar/server-sync";
-import { MemberListPanel } from "@/components/member-list";
-import { RightPanelContainer } from "@/components/panels";
+import { ChannelSidebar } from "@/widgets/legacy/ui/channel-sidebar";
+import { ServerSync } from "@/widgets/legacy/ui/channel-sidebar/server-sync";
+import { MemberListPanel } from "@/widgets/legacy/ui/member-list";
+import { RightPanelContainer } from "@/widgets/legacy/ui/panels";
 
 export default async function ServerLayout({
   children,

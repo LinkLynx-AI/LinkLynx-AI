@@ -1,13 +1,13 @@
 "use client";
 
-import { useSyncServerId } from "@/hooks/use-sync-guild-params";
-import { useDMChannels } from "@/services/queries/use-channels";
-import { Avatar } from "@/components/ui/avatar";
-import { UserPanel } from "@/components/channel-sidebar/user-panel";
+import { useSyncServerId } from "@/shared/model/legacy/hooks/use-sync-guild-params";
+import { useDMChannels } from "@/shared/api/legacy/queries/use-channels";
+import { Avatar } from "@/shared/ui/legacy/avatar";
+import { UserPanel } from "@/widgets/legacy/ui/channel-sidebar/user-panel";
 import Link from "next/link";
 import { Users } from "lucide-react";
 import { usePathname } from "next/navigation";
-import { cn } from "@/lib/cn";
+import { cn } from "@/shared/lib/legacy/cn";
 
 export default function DMLayout({ children }: { children: React.ReactNode }) {
   // DM mode: no server selected

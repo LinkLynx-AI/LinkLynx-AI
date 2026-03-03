@@ -1,0 +1,111 @@
+import type { User, UserProfile } from "@/shared/model/legacy/types/user";
+
+export const mockCurrentUser: User = {
+  id: "100000000000000001",
+  username: "taro_dev",
+  displayName: "太郎",
+  avatar: null,
+  status: "online",
+  customStatus: "コーディング中",
+  bot: false,
+};
+
+export const mockUsers: User[] = [
+  mockCurrentUser,
+  {
+    id: "100000000000000002",
+    username: "hanako_design",
+    displayName: "花子",
+    avatar: null,
+    status: "online",
+    customStatus: null,
+    bot: false,
+  },
+  {
+    id: "100000000000000003",
+    username: "jiro_gamer",
+    displayName: "次郎",
+    avatar: null,
+    status: "idle",
+    customStatus: "AFK",
+    bot: false,
+  },
+  {
+    id: "100000000000000004",
+    username: "sakura_music",
+    displayName: "さくら",
+    avatar: null,
+    status: "dnd",
+    customStatus: "配信中",
+    bot: false,
+  },
+  {
+    id: "100000000000000005",
+    username: "kenbot",
+    displayName: "Ken Bot",
+    avatar: null,
+    status: "online",
+    customStatus: null,
+    bot: true,
+  },
+  {
+    id: "100000000000000006",
+    username: "yuki_offline",
+    displayName: "ゆき",
+    avatar: null,
+    status: "offline",
+    customStatus: null,
+    bot: false,
+  },
+];
+
+export const mockUserProfiles: Record<string, UserProfile> = {
+  "100000000000000001": {
+    ...mockUsers[0],
+    banner: null,
+    bio: "フルスタックエンジニア。TypeScript / React が好きです。",
+    accentColor: 0x5865f2,
+    badges: ["nitro", "developer", "active_developer"],
+    createdAt: "2019-08-10T08:00:00.000Z",
+  },
+  "100000000000000002": {
+    ...mockUsers[1],
+    banner: null,
+    bio: "UIデザイナー / Figma大好き",
+    accentColor: 0x5865f2,
+    badges: ["nitro", "active_developer"],
+    createdAt: "2020-03-15T10:00:00.000Z",
+  },
+  "100000000000000003": {
+    ...mockUsers[2],
+    banner: null,
+    bio: "ゲーム好き。FPS中心にやってます。",
+    accentColor: 0x57f287,
+    badges: ["hypesquad_bravery"],
+    createdAt: "2021-06-20T15:30:00.000Z",
+  },
+  "100000000000000004": {
+    ...mockUsers[3],
+    banner: null,
+    bio: "音楽プロデューサー / DTMer",
+    accentColor: 0xeb459e,
+    badges: ["nitro", "boost", "hypesquad_brilliance"],
+    createdAt: "2020-11-05T12:00:00.000Z",
+  },
+  "100000000000000005": {
+    ...mockUsers[4],
+    banner: null,
+    bio: "多機能Botです。/help でコマンド一覧を表示します。",
+    accentColor: 0x5865f2,
+    badges: ["developer"],
+    createdAt: "2022-01-01T00:00:00.000Z",
+  },
+  "100000000000000006": {
+    ...mockUsers[5],
+    banner: null,
+    bio: null,
+    accentColor: 0xfee75c,
+    badges: ["early_supporter"],
+    createdAt: "2019-05-20T09:30:00.000Z",
+  },
+};
