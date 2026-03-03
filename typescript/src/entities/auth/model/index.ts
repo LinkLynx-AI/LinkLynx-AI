@@ -1,3 +1,10 @@
+export {
+  createManualAuthActionError,
+  type AuthActionError,
+  type AuthActionErrorCode,
+  type AuthActionResult,
+} from "./auth-action-error";
+
 export type AuthSessionStatus = "initializing" | "authenticated" | "unauthenticated";
 
 export type AuthUser = {
