@@ -104,7 +104,8 @@
         {
           "name": "id",
           "type": "bigint",
-          "nullable": false
+          "nullable": false,
+          "default": "nextval('guilds_id_seq'::regclass)"
         },
         {
           "name": "name",
@@ -145,6 +146,16 @@
         }
       ],
       "constraints": [
+        {
+          "name": "chk_guilds_name_not_blank",
+          "type": "CHECK",
+          "def": "CHECK ((btrim(name) \u003c\u003e ''::text))",
+          "table": "public.guilds",
+          "referenced_table": "",
+          "columns": [
+            "name"
+          ]
+        },
         {
           "name": "guilds_owner_id_fkey",
           "type": "FOREIGN KEY",
@@ -212,6 +223,16 @@
           "table": "public.guild_members",
           "columns": [
             "user_id"
+          ]
+        },
+        {
+          "name": "idx_guild_members_user_joined_guild",
+          "def": "CREATE INDEX idx_guild_members_user_joined_guild ON public.guild_members USING btree (user_id, joined_at DESC, guild_id)",
+          "table": "public.guild_members",
+          "columns": [
+            "user_id",
+            "joined_at",
+            "guild_id"
           ]
         }
       ],
@@ -501,7 +522,8 @@
         {
           "name": "id",
           "type": "bigint",
-          "nullable": false
+          "nullable": false,
+          "default": "nextval('channels_id_seq'::regclass)"
         },
         {
           "name": "type",
@@ -552,9 +574,30 @@
           "columns": [
             "guild_id"
           ]
+        },
+        {
+          "name": "idx_channels_guild_created_id",
+          "def": "CREATE INDEX idx_channels_guild_created_id ON public.channels USING btree (guild_id, created_at, id) WHERE (type = 'guild_text'::channel_type)",
+          "table": "public.channels",
+          "columns": [
+            "guild_id",
+            "created_at",
+            "id"
+          ]
         }
       ],
       "constraints": [
+        {
+          "name": "chk_channels_guild_text_name_not_blank",
+          "type": "CHECK",
+          "def": "CHECK (((type \u003c\u003e 'guild_text'::channel_type) OR (btrim(COALESCE(name, ''::text)) \u003c\u003e ''::text)))",
+          "table": "public.channels",
+          "referenced_table": "",
+          "columns": [
+            "type",
+            "name"
+          ]
+        },
         {
           "name": "chk_channels_shape_dm",
           "type": "CHECK",

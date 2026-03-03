@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
-import "@/shared/styles/globals.css";
-import { Providers } from "@/shared/providers";
+import "./globals.css";
+import { Providers } from "@/app/providers";
 
 export const metadata: Metadata = {
-  title: "LinkLynx - Discord Clone",
-  description: "A real-time chat application",
+  title: "Discord",
+  description: "Discord UI Clone",
 };
 
 export default function RootLayout({
@@ -13,8 +13,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ja" suppressHydrationWarning>
-      <body>
+    <html lang="ja">
+      <body className="antialiased">
         <Providers>{children}</Providers>
       </body>
     </html>
