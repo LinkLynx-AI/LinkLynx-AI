@@ -28,7 +28,7 @@ export function InteractionOverlay({
     <div
       className={cn(
         "absolute inset-0 z-10 flex items-center justify-center rounded",
-        "bg-discord-bg-primary/80 backdrop-blur-[1px]"
+        "bg-discord-bg-primary/80 backdrop-blur-[1px]",
       )}
     >
       {state === "loading" && (
@@ -53,9 +53,7 @@ export function InteractionOverlay({
               d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
             />
           </svg>
-          <span className="text-sm text-discord-text-muted">
-            {message ?? "処理中..."}
-          </span>
+          <span className="text-sm text-discord-text-muted">{message ?? "処理中..."}</span>
         </div>
       )}
       {state === "failed" && (
@@ -79,9 +77,7 @@ export function InteractionOverlay({
       {state === "success" && (
         <div className="flex items-center gap-2">
           <Check className="h-5 w-5 text-discord-btn-success" />
-          <span className="text-sm text-discord-btn-success">
-            {message ?? "完了"}
-          </span>
+          <span className="text-sm text-discord-btn-success">{message ?? "完了"}</span>
         </div>
       )}
     </div>

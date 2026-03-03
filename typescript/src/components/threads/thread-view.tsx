@@ -40,7 +40,9 @@ export function ThreadView({
   const [showMembers, setShowMembers] = useState(false);
   const [showNotificationMenu, setShowNotificationMenu] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
-  const [notificationSetting, setNotificationSetting] = useState<"all" | "mentions" | "nothing">("all");
+  const [notificationSetting, setNotificationSetting] = useState<"all" | "mentions" | "nothing">(
+    "all",
+  );
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const handleSubmit = useCallback(() => {
@@ -59,7 +61,7 @@ export function ThreadView({
         handleSubmit();
       }
     },
-    [handleSubmit]
+    [handleSubmit],
   );
 
   const handleInput = useCallback(() => {
@@ -74,9 +76,7 @@ export function ThreadView({
       {/* Header */}
       <div className="flex items-center justify-between border-b border-discord-divider px-4 py-3">
         <div className="flex items-center gap-2">
-          <h2 className="text-base font-semibold text-discord-header-primary">
-            {threadName}
-          </h2>
+          <h2 className="text-base font-semibold text-discord-header-primary">{threadName}</h2>
           <span className="flex items-center gap-1 rounded bg-discord-bg-accent/20 px-1.5 py-0.5 text-xs text-discord-text-muted">
             <Users className="h-3 w-3" />
             {memberCount}
@@ -88,7 +88,7 @@ export function ThreadView({
               onClick={() => setShowNotificationMenu(!showNotificationMenu)}
               className={cn(
                 "rounded p-1.5 transition-colors",
-                "text-discord-interactive-normal hover:text-discord-interactive-hover"
+                "text-discord-interactive-normal hover:text-discord-interactive-hover",
               )}
               aria-label="通知設定"
             >
@@ -107,7 +107,7 @@ export function ThreadView({
               onClick={() => setShowMembers(!showMembers)}
               className={cn(
                 "rounded p-1.5 transition-colors",
-                "text-discord-interactive-normal hover:text-discord-interactive-hover"
+                "text-discord-interactive-normal hover:text-discord-interactive-hover",
               )}
               aria-label="メンバー"
             >
@@ -127,7 +127,7 @@ export function ThreadView({
             onClick={() => setShowSearch(!showSearch)}
             className={cn(
               "rounded p-1.5 transition-colors",
-              "text-discord-interactive-normal hover:text-discord-interactive-hover"
+              "text-discord-interactive-normal hover:text-discord-interactive-hover",
             )}
             aria-label="検索"
           >
@@ -146,12 +146,7 @@ export function ThreadView({
       </div>
 
       {/* Thread search */}
-      {showSearch && (
-        <ThreadSearch
-          threadId={threadId}
-          onClose={() => setShowSearch(false)}
-        />
-      )}
+      {showSearch && <ThreadSearch threadId={threadId} onClose={() => setShowSearch(false)} />}
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto">
@@ -168,32 +163,24 @@ export function ThreadView({
                 {parentMessage.author.displayName}
               </span>
             </div>
-            <p className="mt-1 text-sm text-discord-text-normal">
-              {parentMessage.content}
-            </p>
+            <p className="mt-1 text-sm text-discord-text-normal">{parentMessage.content}</p>
           </div>
         )}
 
         {/* System message */}
         <div className="px-4 py-3">
-          <p className="text-sm text-discord-text-muted">
-            ユーザーがスレッドを開始しました
-          </p>
+          <p className="text-sm text-discord-text-muted">ユーザーがスレッドを開始しました</p>
         </div>
 
         {/* Thread messages */}
         {mockThreadMessages.map((message, index) => {
           const prevMessage = index > 0 ? mockThreadMessages[index - 1] : null;
-          const isGrouped =
-            !!prevMessage && prevMessage.author.id === message.author.id;
+          const isGrouped = !!prevMessage && prevMessage.author.id === message.author.id;
 
           return (
             <div
               key={message.id}
-              className={cn(
-                "group relative px-4",
-                isGrouped ? "py-0.5" : "mt-[1.0625rem] py-0.5"
-              )}
+              className={cn("group relative px-4", isGrouped ? "py-0.5" : "mt-[1.0625rem] py-0.5")}
             >
               {isGrouped ? (
                 <div className="pl-[52px]">
@@ -227,10 +214,7 @@ export function ThreadView({
       </div>
 
       {/* Archive/Lock banner */}
-      <ThreadArchiveBanner
-        isArchived={isArchived}
-        isLocked={isLocked}
-      />
+      <ThreadArchiveBanner isArchived={isArchived} isLocked={isLocked} />
 
       {/* Message input */}
       <div className={cn("px-4 pb-4", isLocked && "pointer-events-none opacity-50")}>
@@ -239,7 +223,7 @@ export function ThreadView({
             className={cn(
               "shrink-0 p-2.5",
               "text-discord-interactive-normal hover:text-discord-interactive-hover",
-              "transition-colors"
+              "transition-colors",
             )}
             disabled={isLocked}
           >
@@ -260,14 +244,14 @@ export function ThreadView({
               "max-h-[300px] min-h-[24px] flex-1 resize-none",
               "bg-transparent py-2.5 text-base text-discord-text-normal",
               "placeholder:text-discord-text-muted",
-              "outline-none"
+              "outline-none",
             )}
           />
           <button
             className={cn(
               "shrink-0 p-2.5",
               "text-discord-interactive-normal hover:text-discord-interactive-hover",
-              "transition-colors"
+              "transition-colors",
             )}
             disabled={isLocked}
           >

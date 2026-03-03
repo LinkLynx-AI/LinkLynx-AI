@@ -4,12 +4,7 @@ import { useState } from "react";
 import { cn } from "@/lib/cn";
 import { parseDiscordMarkdown, type MarkdownNode } from "@/lib/parse-markdown";
 import type { User } from "@/types/user";
-import {
-  UserMention,
-  ChannelMention,
-  EveryoneMention,
-  HereMention,
-} from "./mention";
+import { UserMention, ChannelMention, EveryoneMention, HereMention } from "./mention";
 import { CodeBlock } from "./code-block";
 
 interface MessageContentProps {
@@ -18,22 +13,13 @@ interface MessageContentProps {
   channelNames?: Record<string, string>;
 }
 
-export function MessageContent({
-  content,
-  mentions = [],
-  channelNames = {},
-}: MessageContentProps) {
+export function MessageContent({ content, mentions = [], channelNames = {} }: MessageContentProps) {
   const nodes = parseDiscordMarkdown(content);
 
   return (
     <div className="text-[16px] leading-[1.375rem] text-discord-text-normal break-words">
       {nodes.map((node, i) => (
-        <MarkdownRenderer
-          key={i}
-          node={node}
-          mentions={mentions}
-          channelNames={channelNames}
-        />
+        <MarkdownRenderer key={i} node={node} mentions={mentions} channelNames={channelNames} />
       ))}
     </div>
   );
@@ -58,44 +44,28 @@ function MarkdownRenderer({
     case "bold":
       return (
         <strong className="font-bold">
-          <RenderChildren
-            nodes={node.children}
-            mentions={mentions}
-            channelNames={channelNames}
-          />
+          <RenderChildren nodes={node.children} mentions={mentions} channelNames={channelNames} />
         </strong>
       );
 
     case "italic":
       return (
         <em>
-          <RenderChildren
-            nodes={node.children}
-            mentions={mentions}
-            channelNames={channelNames}
-          />
+          <RenderChildren nodes={node.children} mentions={mentions} channelNames={channelNames} />
         </em>
       );
 
     case "underline":
       return (
         <u>
-          <RenderChildren
-            nodes={node.children}
-            mentions={mentions}
-            channelNames={channelNames}
-          />
+          <RenderChildren nodes={node.children} mentions={mentions} channelNames={channelNames} />
         </u>
       );
 
     case "strikethrough":
       return (
         <s>
-          <RenderChildren
-            nodes={node.children}
-            mentions={mentions}
-            channelNames={channelNames}
-          />
+          <RenderChildren nodes={node.children} mentions={mentions} channelNames={channelNames} />
         </s>
       );
 
@@ -114,11 +84,7 @@ function MarkdownRenderer({
         <div className="flex">
           <div className="mr-2 w-1 shrink-0 rounded-sm bg-discord-interactive-muted" />
           <div className="whitespace-pre-wrap">
-            <RenderChildren
-              nodes={node.children}
-              mentions={mentions}
-              channelNames={channelNames}
-            />
+            <RenderChildren nodes={node.children} mentions={mentions} channelNames={channelNames} />
           </div>
         </div>
       );
@@ -134,11 +100,7 @@ function MarkdownRenderer({
       };
       return (
         <div className={sizes[node.level]}>
-          <RenderChildren
-            nodes={node.children}
-            mentions={mentions}
-            channelNames={channelNames}
-          />
+          <RenderChildren nodes={node.children} mentions={mentions} channelNames={channelNames} />
         </div>
       );
     }
@@ -151,11 +113,7 @@ function MarkdownRenderer({
           target="_blank"
           rel="noopener noreferrer"
         >
-          <RenderChildren
-            nodes={node.children}
-            mentions={mentions}
-            channelNames={channelNames}
-          />
+          <RenderChildren nodes={node.children} mentions={mentions} channelNames={channelNames} />
         </a>
       );
 
@@ -166,10 +124,7 @@ function MarkdownRenderer({
 
     case "channelMention":
       return (
-        <ChannelMention
-          channelId={node.channelId}
-          channelName={channelNames[node.channelId]}
-        />
+        <ChannelMention channelId={node.channelId} channelName={channelNames[node.channelId]} />
       );
 
     case "everyoneMention":
@@ -195,12 +150,7 @@ function RenderChildren({
   return (
     <>
       {nodes.map((child, i) => (
-        <MarkdownRenderer
-          key={i}
-          node={child}
-          mentions={mentions}
-          channelNames={channelNames}
-        />
+        <MarkdownRenderer key={i} node={child} mentions={mentions} channelNames={channelNames} />
       ))}
     </>
   );
@@ -221,19 +171,13 @@ function SpoilerText({
     <span
       className={cn(
         "cursor-pointer rounded-[3px] px-0.5",
-        revealed
-          ? "bg-discord-bg-accent/40"
-          : "bg-discord-bg-accent text-transparent"
+        revealed ? "bg-discord-bg-accent/40" : "bg-discord-bg-accent text-transparent",
       )}
       onClick={() => setRevealed((r) => !r)}
       role="button"
       tabIndex={0}
     >
-      <RenderChildren
-        nodes={node.children}
-        mentions={mentions}
-        channelNames={channelNames}
-      />
+      <RenderChildren nodes={node.children} mentions={mentions} channelNames={channelNames} />
     </span>
   );
 }

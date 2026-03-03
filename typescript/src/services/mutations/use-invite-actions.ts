@@ -9,13 +9,8 @@ export function useCreateInvite() {
   const api = getAPIClient();
 
   return useMutation({
-    mutationFn: ({
-      channelId,
-      data,
-    }: {
-      channelId: string;
-      data: CreateInviteData;
-    }) => api.createInvite(channelId, data),
+    mutationFn: ({ channelId, data }: { channelId: string; data: CreateInviteData }) =>
+      api.createInvite(channelId, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["invites"] });
     },

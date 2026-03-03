@@ -21,12 +21,7 @@ const mockBots: BotData[] = [
     avatar: null,
     description:
       "高度なモデレーション機能を提供するボットです。カスタムフィルタ、自動警告、ログ機能を搭載。",
-    permissions: [
-      "メッセージの管理",
-      "メンバーのキック",
-      "メンバーのBAN",
-      "メッセージ履歴の閲覧",
-    ],
+    permissions: ["メッセージの管理", "メンバーのキック", "メンバーのBAN", "メッセージ履歴の閲覧"],
     addedAt: "2025-08-10T10:00:00Z",
   },
   {
@@ -35,12 +30,7 @@ const mockBots: BotData[] = [
     avatar: null,
     description:
       "ボイスチャンネルで音楽を再生するボットです。YouTube、Spotify対応。キュー管理、プレイリスト保存機能付き。",
-    permissions: [
-      "ボイスチャンネルに接続",
-      "発言",
-      "メッセージの送信",
-      "埋め込みリンク",
-    ],
+    permissions: ["ボイスチャンネルに接続", "発言", "メッセージの送信", "埋め込みリンク"],
     addedAt: "2025-10-05T14:30:00Z",
   },
 ];
@@ -55,9 +45,7 @@ export function ServerBots({ serverId }: { serverId: string }) {
   return (
     <div>
       <div className="mb-5 flex items-center justify-between">
-        <h2 className="text-xl font-bold text-discord-header-primary">
-          ボット
-        </h2>
+        <h2 className="text-xl font-bold text-discord-header-primary">ボット</h2>
         <Button>
           <ExternalLink className="mr-1.5 h-4 w-4" />
           ボットを追加
@@ -81,17 +69,12 @@ export function ServerBots({ serverId }: { serverId: string }) {
       ) : (
         <div className="space-y-3">
           {bots.map((bot) => (
-            <div
-              key={bot.id}
-              className="rounded-lg bg-discord-bg-secondary p-4"
-            >
+            <div key={bot.id} className="rounded-lg bg-discord-bg-secondary p-4">
               <div className="flex items-start gap-4">
                 <Avatar src={bot.avatar ?? undefined} alt={bot.name} size={40} />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <h3 className="text-sm font-semibold text-discord-text-normal">
-                      {bot.name}
-                    </h3>
+                    <h3 className="text-sm font-semibold text-discord-text-normal">{bot.name}</h3>
                     <span className="rounded bg-discord-brand-blurple/20 px-1.5 py-0.5 text-[10px] font-bold uppercase text-discord-brand-blurple">
                       BOT
                     </span>
@@ -124,11 +107,7 @@ export function ServerBots({ serverId }: { serverId: string }) {
                   <Shield className="mr-1.5 h-3.5 w-3.5" />
                   権限を管理
                 </Button>
-                <Button
-                  variant="danger"
-                  size="sm"
-                  onClick={() => handleRemove(bot.id)}
-                >
+                <Button variant="danger" size="sm" onClick={() => handleRemove(bot.id)}>
                   <Trash2 className="mr-1.5 h-3.5 w-3.5" />
                   削除
                 </Button>

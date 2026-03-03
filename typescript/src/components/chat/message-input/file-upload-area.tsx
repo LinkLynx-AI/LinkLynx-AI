@@ -19,18 +19,14 @@ interface FileUploadAreaProps {
   onToggleSpoiler?: (index: number) => void;
 }
 
-export function FileUploadArea({
-  files,
-  onRemove,
-  onToggleSpoiler,
-}: FileUploadAreaProps) {
+export function FileUploadArea({ files, onRemove, onToggleSpoiler }: FileUploadAreaProps) {
   if (files.length === 0) return null;
 
   return (
     <div
       className={cn(
         "flex gap-2 overflow-x-auto px-3 pt-2",
-        "scrollbar-thin scrollbar-track-transparent scrollbar-thumb-discord-bg-mod-faint"
+        "scrollbar-thin scrollbar-track-transparent scrollbar-thumb-discord-bg-mod-faint",
       )}
     >
       {files.map((file, index) => (

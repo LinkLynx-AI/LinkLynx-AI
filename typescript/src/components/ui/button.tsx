@@ -7,8 +7,7 @@ const variants = {
     "bg-discord-brand-blurple text-white hover:bg-discord-btn-blurple-hover active:bg-discord-btn-blurple-active",
   secondary:
     "bg-discord-btn-secondary-bg text-white hover:bg-discord-btn-secondary-hover active:bg-discord-btn-secondary-active",
-  success:
-    "bg-discord-btn-success text-white hover:bg-discord-btn-success-hover",
+  success: "bg-discord-btn-success text-white hover:bg-discord-btn-success-hover",
   danger: "bg-discord-btn-danger text-white hover:bg-discord-btn-danger-hover",
   link: "bg-transparent text-discord-text-link hover:underline",
 };
@@ -37,7 +36,7 @@ export function Button({
         variants[variant],
         sizes[size],
         disabled && "opacity-50 cursor-not-allowed pointer-events-none",
-        className
+        className,
       )}
       disabled={disabled}
       {...props}

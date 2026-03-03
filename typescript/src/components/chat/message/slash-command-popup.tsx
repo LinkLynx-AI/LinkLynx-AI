@@ -21,19 +21,14 @@ export function SlashCommandPopup({
   const [selectedCommand, setSelectedCommand] = useState<SlashCommand | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
-  const filtered = commands.filter((cmd) =>
-    cmd.name.toLowerCase().includes(filter.toLowerCase())
-  );
+  const filtered = commands.filter((cmd) => cmd.name.toLowerCase().includes(filter.toLowerCase()));
 
-  const grouped = filtered.reduce<Record<string, SlashCommand[]>>(
-    (acc, cmd) => {
-      const group = cmd.botName;
-      if (!acc[group]) acc[group] = [];
-      acc[group].push(cmd);
-      return acc;
-    },
-    {}
-  );
+  const grouped = filtered.reduce<Record<string, SlashCommand[]>>((acc, cmd) => {
+    const group = cmd.botName;
+    if (!acc[group]) acc[group] = [];
+    acc[group].push(cmd);
+    return acc;
+  }, {});
 
   const flatList = Object.values(grouped).flat();
 
@@ -49,7 +44,7 @@ export function SlashCommandPopup({
         onSelect(cmd);
       }
     },
-    [onSelect]
+    [onSelect],
   );
 
   const handleKeyDown = useCallback(
@@ -77,7 +72,7 @@ export function SlashCommandPopup({
         }
       }
     },
-    [flatList, activeIndex, handleSelectCommand, onClose, selectedCommand]
+    [flatList, activeIndex, handleSelectCommand, onClose, selectedCommand],
   );
 
   useEffect(() => {
@@ -86,9 +81,7 @@ export function SlashCommandPopup({
   }, [handleKeyDown]);
 
   useEffect(() => {
-    const activeEl = listRef.current?.querySelector(
-      "[data-active='true']"
-    ) as HTMLElement | null;
+    const activeEl = listRef.current?.querySelector("[data-active='true']") as HTMLElement | null;
     if (activeEl && typeof activeEl.scrollIntoView === "function") {
       activeEl.scrollIntoView({ block: "nearest" });
     }
@@ -99,7 +92,7 @@ export function SlashCommandPopup({
       <div
         className={cn(
           "absolute bottom-full left-0 z-50 mb-1 w-full",
-          "rounded-lg bg-discord-bg-floating shadow-xl"
+          "rounded-lg bg-discord-bg-floating shadow-xl",
         )}
       >
         <SlashCommandArgs
@@ -123,7 +116,7 @@ export function SlashCommandPopup({
       ref={listRef}
       className={cn(
         "absolute bottom-full left-0 z-50 mb-1 w-full max-h-[300px] overflow-y-auto",
-        "rounded-lg bg-discord-bg-floating shadow-xl"
+        "rounded-lg bg-discord-bg-floating shadow-xl",
       )}
       role="listbox"
     >
@@ -147,23 +140,14 @@ export function SlashCommandPopup({
                     "flex w-full items-center gap-3 rounded px-2 py-2 text-sm transition-colors",
                     isActive
                       ? "bg-discord-brand-blurple text-white"
-                      : "text-discord-text-normal hover:bg-discord-bg-mod-hover"
+                      : "text-discord-text-normal hover:bg-discord-bg-mod-hover",
                   )}
                 >
-                  <Avatar
-                    src={cmd.botAvatar}
-                    alt={cmd.botName}
-                    size={16}
-                  />
+                  <Avatar src={cmd.botAvatar} alt={cmd.botName} size={16} />
                   <div className="min-w-0 flex-1 text-left">
                     <span className="font-medium">/{cmd.name}</span>
                     <span
-                      className={cn(
-                        "ml-2",
-                        isActive
-                          ? "text-white/70"
-                          : "text-discord-text-muted"
-                      )}
+                      className={cn("ml-2", isActive ? "text-white/70" : "text-discord-text-muted")}
                     >
                       {cmd.description}
                     </span>

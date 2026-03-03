@@ -28,25 +28,15 @@ export function ChannelEditModal({
 
   return (
     <Modal open onClose={onClose} className="max-w-[660px]">
-      <ModalHeader>
-        {channelName ? `#${channelName} の編集` : "チャンネルを編集"}
-      </ModalHeader>
+      <ModalHeader>{channelName ? `#${channelName} の編集` : "チャンネルを編集"}</ModalHeader>
       <div className="px-4">
         <Tabs tabs={tabs} activeTab={activeTab} onChange={setActiveTab} />
       </div>
       <ModalBody>
-        {activeTab === "overview" && (
-          <ChannelEditOverview channelId={channelId} />
-        )}
-        {activeTab === "permissions" && (
-          <ChannelEditPermissions channelId={channelId} />
-        )}
-        {activeTab === "invites" && (
-          <ChannelEditInvites channelId={channelId} />
-        )}
-        {activeTab === "integrations" && (
-          <ChannelEditIntegrations channelId={channelId} />
-        )}
+        {activeTab === "overview" && <ChannelEditOverview channelId={channelId} />}
+        {activeTab === "permissions" && <ChannelEditPermissions channelId={channelId} />}
+        {activeTab === "invites" && <ChannelEditInvites channelId={channelId} />}
+        {activeTab === "integrations" && <ChannelEditIntegrations channelId={channelId} />}
       </ModalBody>
     </Modal>
   );

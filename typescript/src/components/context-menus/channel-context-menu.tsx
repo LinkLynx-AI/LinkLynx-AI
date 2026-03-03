@@ -1,25 +1,15 @@
 "use client";
 
-import {
-  ContextMenu,
-  MenuItem,
-  MenuSeparator,
-} from "@/components/ui/context-menu";
+import { ContextMenu, MenuItem, MenuSeparator } from "@/components/ui/context-menu";
 import { useUIStore } from "@/stores/ui-store";
 import type { Channel } from "@/types/channel";
 
-export function ChannelContextMenu({
-  data,
-}: {
-  data: { channel: Channel; serverId: string };
-}) {
+export function ChannelContextMenu({ data }: { data: { channel: Channel; serverId: string } }) {
   const openModal = useUIStore((s) => s.openModal);
   const hideContextMenu = useUIStore((s) => s.hideContextMenu);
 
   const handleCopyLink = () => {
-    navigator.clipboard.writeText(
-      `/channels/${data.serverId}/${data.channel.id}`
-    );
+    navigator.clipboard.writeText(`/channels/${data.serverId}/${data.channel.id}`);
     hideContextMenu();
   };
 

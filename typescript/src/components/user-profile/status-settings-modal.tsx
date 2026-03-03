@@ -57,7 +57,7 @@ export function StatusSettingsModal({ onClose }: { onClose: () => void }) {
                   "flex h-9 w-9 items-center justify-center rounded text-lg transition-colors",
                   selectedEmoji === emoji
                     ? "bg-discord-brand-blurple"
-                    : "bg-discord-bg-tertiary hover:bg-discord-bg-mod-hover"
+                    : "bg-discord-bg-tertiary hover:bg-discord-bg-mod-hover",
                 )}
               >
                 {emoji}
@@ -93,7 +93,7 @@ export function StatusSettingsModal({ onClose }: { onClose: () => void }) {
                   "flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors",
                   selectedPreset === preset.value
                     ? "bg-discord-brand-blurple text-white"
-                    : "bg-discord-bg-tertiary text-discord-text-normal hover:bg-discord-bg-mod-hover"
+                    : "bg-discord-bg-tertiary text-discord-text-normal hover:bg-discord-bg-mod-hover",
                 )}
               >
                 <span>{preset.emoji}</span>
@@ -108,11 +108,7 @@ export function StatusSettingsModal({ onClose }: { onClose: () => void }) {
           <div className="mb-2 text-xs font-bold uppercase text-discord-header-secondary">
             消去するタイミング
           </div>
-          <Select
-            options={clearAfterOptions}
-            value={clearAfter}
-            onChange={setClearAfter}
-          />
+          <Select options={clearAfterOptions} value={clearAfter} onChange={setClearAfter} />
         </div>
       </ModalBody>
 

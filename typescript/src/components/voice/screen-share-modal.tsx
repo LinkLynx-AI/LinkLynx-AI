@@ -33,9 +33,12 @@ export function ScreenShareModal({
               "px-4 py-2 text-sm font-medium transition-colors",
               tab === "screen"
                 ? "border-b-2 border-discord-brand-blurple text-discord-text-normal"
-                : "text-discord-text-muted hover:text-discord-text-normal"
+                : "text-discord-text-muted hover:text-discord-text-normal",
             )}
-            onClick={() => { setTab("screen"); setSelected(null); }}
+            onClick={() => {
+              setTab("screen");
+              setSelected(null);
+            }}
           >
             画面
           </button>
@@ -44,9 +47,12 @@ export function ScreenShareModal({
               "px-4 py-2 text-sm font-medium transition-colors",
               tab === "app"
                 ? "border-b-2 border-discord-brand-blurple text-discord-text-normal"
-                : "text-discord-text-muted hover:text-discord-text-normal"
+                : "text-discord-text-muted hover:text-discord-text-normal",
             )}
-            onClick={() => { setTab("app"); setSelected(null); }}
+            onClick={() => {
+              setTab("app");
+              setSelected(null);
+            }}
           >
             アプリケーション
           </button>
@@ -68,15 +74,10 @@ export function ScreenShareModal({
                 "flex flex-col items-center gap-1 rounded-lg border-2 p-2 transition-colors",
                 selected === item.id
                   ? "border-discord-brand-blurple"
-                  : "border-transparent hover:border-discord-interactive-normal/30"
+                  : "border-transparent hover:border-discord-interactive-normal/30",
               )}
             >
-              <div
-                className={cn(
-                  "h-20 w-full rounded bg-gradient-to-br",
-                  item.color
-                )}
-              />
+              <div className={cn("h-20 w-full rounded bg-gradient-to-br", item.color)} />
               <span className="text-xs text-discord-text-muted">{item.label}</span>
             </button>
           ))}

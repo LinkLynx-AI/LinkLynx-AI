@@ -7,14 +7,26 @@ function getSystemMessageContent(message: Message) {
   const name = message.author.displayName;
   switch (message.type) {
     case 7:
-      return { icon: ArrowRight, color: "text-discord-brand-green", text: `${name} がサーバーに参加しました。` };
+      return {
+        icon: ArrowRight,
+        color: "text-discord-brand-green",
+        text: `${name} がサーバーに参加しました。`,
+      };
     case 8:
     case 9:
     case 10:
     case 11:
-      return { icon: Rocket, color: "text-discord-brand-fuchsia", text: `${name} がサーバーをブーストしました！` };
+      return {
+        icon: Rocket,
+        color: "text-discord-brand-fuchsia",
+        text: `${name} がサーバーをブーストしました！`,
+      };
     case 6:
-      return { icon: Pin, color: "text-discord-text-muted", text: `${name} がメッセージをピン留めしました。` };
+      return {
+        icon: Pin,
+        color: "text-discord-text-muted",
+        text: `${name} がメッセージをピン留めしました。`,
+      };
     default:
       return { icon: ArrowRight, color: "text-discord-text-muted", text: message.content };
   }
@@ -26,9 +38,7 @@ export function SystemMessage({ message }: { message: Message }) {
   return (
     <div className="flex items-center gap-2 px-4 py-0.5">
       <Icon className={cn("h-4 w-4 shrink-0", color)} />
-      <span className="text-sm text-discord-text-muted">
-        {text}
-      </span>
+      <span className="text-sm text-discord-text-muted">{text}</span>
       <span className="text-xs text-discord-text-muted">
         {formatMessageTimestamp(message.timestamp)}
       </span>

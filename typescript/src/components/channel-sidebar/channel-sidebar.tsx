@@ -18,9 +18,7 @@ interface CategoryGroup {
 }
 
 function groupChannelsByCategory(channels: Channel[]): CategoryGroup[] {
-  const categories = channels
-    .filter((c) => c.type === 4)
-    .sort((a, b) => a.position - b.position);
+  const categories = channels.filter((c) => c.type === 4).sort((a, b) => a.position - b.position);
 
   const groups: CategoryGroup[] = [];
 
@@ -52,10 +50,7 @@ export function ChannelSidebar() {
   const { data: server } = useServer(activeServerId ?? "");
   const { data: channels } = useChannels(activeServerId ?? "");
 
-  const groups = useMemo(
-    () => groupChannelsByCategory(channels ?? []),
-    [channels]
-  );
+  const groups = useMemo(() => groupChannelsByCategory(channels ?? []), [channels]);
 
   if (!activeServerId) return null;
 
@@ -69,9 +64,7 @@ export function ChannelSidebar() {
       <div className="discord-scrollbar flex-1 overflow-y-auto pb-2">
         {groups.map((group) => {
           const key = group.category?.id ?? "__top__";
-          const isCollapsed = group.category
-            ? collapsed.has(group.category.id)
-            : false;
+          const isCollapsed = group.category ? collapsed.has(group.category.id) : false;
 
           if (!group.category) {
             // Top-level channels without category
@@ -79,11 +72,7 @@ export function ChannelSidebar() {
               <div key={key} className="pt-2">
                 {group.channels.map((ch) =>
                   ch.type === 2 ? (
-                    <VoiceChannel
-                      key={ch.id}
-                      channel={ch}
-                      serverId={activeServerId}
-                    />
+                    <VoiceChannel key={ch.id} channel={ch} serverId={activeServerId} />
                   ) : (
                     <ChannelItem
                       key={ch.id}
@@ -93,7 +82,7 @@ export function ChannelSidebar() {
                       isUnread={false}
                       isMuted={false}
                     />
-                  )
+                  ),
                 )}
               </div>
             );
@@ -104,17 +93,11 @@ export function ChannelSidebar() {
               key={key}
               name={group.category.name}
               collapsed={isCollapsed}
-              onToggle={() =>
-                toggleCategory(activeServerId, group.category!.id)
-              }
+              onToggle={() => toggleCategory(activeServerId, group.category!.id)}
             >
               {group.channels.map((ch) =>
                 ch.type === 2 ? (
-                  <VoiceChannel
-                    key={ch.id}
-                    channel={ch}
-                    serverId={activeServerId}
-                  />
+                  <VoiceChannel key={ch.id} channel={ch} serverId={activeServerId} />
                 ) : (
                   <ChannelItem
                     key={ch.id}
@@ -124,7 +107,7 @@ export function ChannelSidebar() {
                     isUnread={false}
                     isMuted={false}
                   />
-                )
+                ),
               )}
             </ChannelCategory>
           );

@@ -35,9 +35,7 @@ export function UserAccount() {
 
   return (
     <div>
-      <h2 className="mb-5 text-xl font-bold text-discord-header-primary">
-        マイアカウント
-      </h2>
+      <h2 className="mb-5 text-xl font-bold text-discord-header-primary">マイアカウント</h2>
 
       {/* User card */}
       <div className="rounded-lg bg-discord-bg-secondary overflow-hidden">
@@ -55,64 +53,40 @@ export function UserAccount() {
           <div className="rounded-lg bg-discord-bg-tertiary p-4">
             <div className="mb-3 flex items-center justify-between">
               <div>
-                <p className="text-sm font-semibold text-discord-text-normal">
-                  表示名
-                </p>
+                <p className="text-sm font-semibold text-discord-text-normal">表示名</p>
                 <p className="text-sm text-discord-text-muted">{displayName}</p>
               </div>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => setEditField("displayName")}
-              >
+              <Button variant="secondary" size="sm" onClick={() => setEditField("displayName")}>
                 編集
               </Button>
             </div>
 
             <div className="mb-3 flex items-center justify-between">
               <div>
-                <p className="text-sm font-semibold text-discord-text-normal">
-                  ユーザー名
-                </p>
+                <p className="text-sm font-semibold text-discord-text-normal">ユーザー名</p>
                 <p className="text-sm text-discord-text-muted">{username}</p>
               </div>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => setEditField("username")}
-              >
+              <Button variant="secondary" size="sm" onClick={() => setEditField("username")}>
                 編集
               </Button>
             </div>
 
             <div className="mb-3 flex items-center justify-between">
               <div>
-                <p className="text-sm font-semibold text-discord-text-normal">
-                  メールアドレス
-                </p>
+                <p className="text-sm font-semibold text-discord-text-normal">メールアドレス</p>
                 <p className="text-sm text-discord-text-muted">u*****@example.com</p>
               </div>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => setEditField("email")}
-              >
+              <Button variant="secondary" size="sm" onClick={() => setEditField("email")}>
                 編集
               </Button>
             </div>
 
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-semibold text-discord-text-normal">
-                  電話番号
-                </p>
+                <p className="text-sm font-semibold text-discord-text-normal">電話番号</p>
                 <p className="text-sm text-discord-text-muted">***-****-**00</p>
               </div>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => setEditField("phone")}
-              >
+              <Button variant="secondary" size="sm" onClick={() => setEditField("phone")}>
                 編集
               </Button>
             </div>
@@ -125,10 +99,7 @@ export function UserAccount() {
         <h3 className="mb-2 text-sm font-bold uppercase text-discord-header-secondary">
           パスワードと認証
         </h3>
-        <Button
-          variant="secondary"
-          onClick={() => setShowPasswordChange(!showPasswordChange)}
-        >
+        <Button variant="secondary" onClick={() => setShowPasswordChange(!showPasswordChange)}>
           パスワードを変更
         </Button>
         {showPasswordChange && (
@@ -151,17 +122,11 @@ export function UserAccount() {
         <p className="mb-3 text-sm text-discord-text-muted">
           二要素認証でアカウントに追加のセキュリティレイヤーを設けましょう。
         </p>
-        <Button
-          variant="secondary"
-          onClick={() => setShow2FA(!show2FA)}
-        >
+        <Button variant="secondary" onClick={() => setShow2FA(!show2FA)}>
           二要素認証を有効にする
         </Button>
         {show2FA && (
-          <TwoFactorSetup
-            onComplete={() => setShow2FA(false)}
-            onCancel={() => setShow2FA(false)}
-          />
+          <TwoFactorSetup onComplete={() => setShow2FA(false)} onCancel={() => setShow2FA(false)} />
         )}
       </div>
 
@@ -178,10 +143,7 @@ export function UserAccount() {
           </div>
         )}
         <div className="flex gap-3">
-          <Button
-            variant="danger"
-            onClick={() => setShowDisableWarning(!showDisableWarning)}
-          >
+          <Button variant="danger" onClick={() => setShowDisableWarning(!showDisableWarning)}>
             アカウントを無効にする
           </Button>
           <Button variant="danger">アカウントを削除</Button>

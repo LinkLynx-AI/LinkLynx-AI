@@ -15,13 +15,7 @@ export function HomeButton() {
   // TODO: derive from actual unread DM state
   const hasUnreadDM = false;
 
-  const pillState = isActive
-    ? "selected"
-    : isHovered
-      ? "hover"
-      : hasUnreadDM
-        ? "unread"
-        : "none";
+  const pillState = isActive ? "selected" : isHovered ? "hover" : hasUnreadDM ? "unread" : "none";
 
   return (
     <div className="relative flex items-center justify-center">
@@ -33,7 +27,7 @@ export function HomeButton() {
             "flex h-12 w-12 items-center justify-center transition-all duration-150",
             isActive || isHovered
               ? "rounded-[33%] bg-discord-brand-blurple"
-              : "rounded-full bg-discord-bg-primary"
+              : "rounded-full bg-discord-bg-primary",
           )}
           onMouseEnter={() => setIsHovered(true)}
           onMouseLeave={() => setIsHovered(false)}

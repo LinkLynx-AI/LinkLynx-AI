@@ -14,10 +14,22 @@ interface ChannelPermDef {
 
 const CHANNEL_PERMISSIONS: ChannelPermDef[] = [
   { id: "view_channel", label: "チャンネルを見る", description: "このチャンネルを閲覧できます" },
-  { id: "send_messages", label: "メッセージを送信", description: "このチャンネルにメッセージを送信できます" },
-  { id: "manage_messages", label: "メッセージの管理", description: "メッセージの削除やピン留めができます" },
+  {
+    id: "send_messages",
+    label: "メッセージを送信",
+    description: "このチャンネルにメッセージを送信できます",
+  },
+  {
+    id: "manage_messages",
+    label: "メッセージの管理",
+    description: "メッセージの削除やピン留めができます",
+  },
   { id: "attach_files", label: "ファイルを添付", description: "ファイルやメディアを添付できます" },
-  { id: "add_reactions", label: "リアクションの追加", description: "メッセージにリアクションを追加できます" },
+  {
+    id: "add_reactions",
+    label: "リアクションの追加",
+    description: "メッセージにリアクションを追加できます",
+  },
   { id: "embed_links", label: "埋め込みリンク", description: "リンクのプレビューを送信できます" },
 ];
 
@@ -30,8 +42,8 @@ export function ChannelPermissions({
   channelName: string;
   roleId: string;
 }) {
-  const [overrides, setOverrides] = useState<Record<string, PermissionState>>(
-    () => Object.fromEntries(CHANNEL_PERMISSIONS.map((p) => [p.id, "inherit" as const]))
+  const [overrides, setOverrides] = useState<Record<string, PermissionState>>(() =>
+    Object.fromEntries(CHANNEL_PERMISSIONS.map((p) => [p.id, "inherit" as const])),
   );
 
   function setPermission(id: string, state: PermissionState) {
@@ -44,9 +56,7 @@ export function ChannelPermissions({
     <div>
       <div className="mb-4 flex items-center gap-2">
         <Hash className="h-5 w-5 text-discord-channel-icon" />
-        <h3 className="text-base font-semibold text-discord-header-primary">
-          {channelName}
-        </h3>
+        <h3 className="text-base font-semibold text-discord-header-primary">{channelName}</h3>
       </div>
 
       <p className="mb-4 text-xs text-discord-text-muted">
@@ -56,7 +66,8 @@ export function ChannelPermissions({
       {hasOverrides && (
         <div className="mb-3 rounded bg-discord-bg-secondary px-3 py-2">
           <p className="text-xs text-discord-text-warning">
-            {Object.values(overrides).filter((v) => v !== "inherit").length} 件の権限オーバーライドが設定されています
+            {Object.values(overrides).filter((v) => v !== "inherit").length}{" "}
+            件の権限オーバーライドが設定されています
           </p>
         </div>
       )}

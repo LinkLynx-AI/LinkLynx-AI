@@ -16,7 +16,7 @@ export function Skeleton({
       className={cn(
         "animate-pulse bg-discord-bg-accent/30",
         rounded ? "rounded-full" : "rounded",
-        className
+        className,
       )}
       style={{ width, height }}
     />

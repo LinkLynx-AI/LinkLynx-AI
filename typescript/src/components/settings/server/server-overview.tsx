@@ -45,9 +45,7 @@ export function ServerOverview({ serverId }: { serverId: string }) {
 
   return (
     <div>
-      <h2 className="mb-5 text-xl font-bold text-discord-header-primary">
-        サーバー概要
-      </h2>
+      <h2 className="mb-5 text-xl font-bold text-discord-header-primary">サーバー概要</h2>
 
       {/* Banner Upload */}
       <div className="mb-6">
@@ -58,9 +56,7 @@ export function ServerOverview({ serverId }: { serverId: string }) {
           <div className="flex flex-col items-center gap-1 text-discord-interactive-muted">
             <Upload className="h-6 w-6" />
             <span className="text-xs">バナーをアップロード</span>
-            <span className="text-[10px] text-discord-text-muted">
-              推奨サイズ: 960x540px
-            </span>
+            <span className="text-[10px] text-discord-text-muted">推奨サイズ: 960x540px</span>
           </div>
         </div>
       </div>
@@ -76,12 +72,7 @@ export function ServerOverview({ serverId }: { serverId: string }) {
               <Upload className="h-5 w-5 text-white" />
             </div>
           </button>
-          <input
-            ref={iconInputRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-          />
+          <input ref={iconInputRef} type="file" accept="image/*" className="hidden" />
           <Button
             variant="secondary"
             size="sm"
@@ -168,12 +159,8 @@ export function ServerOverview({ serverId }: { serverId: string }) {
         </label>
         <div className="inline-flex items-center gap-2 rounded-full bg-discord-bg-secondary px-4 py-2">
           <Zap className="h-4 w-4 text-[#ff73fa]" />
-          <span className="text-sm font-medium text-discord-text-normal">
-            レベル 1
-          </span>
-          <span className="text-xs text-discord-text-muted">
-            ・ ブースト 2/7
-          </span>
+          <span className="text-sm font-medium text-discord-text-normal">レベル 1</span>
+          <span className="text-xs text-discord-text-muted">・ ブースト 2/7</span>
         </div>
       </div>
     </div>

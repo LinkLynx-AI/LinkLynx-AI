@@ -5,11 +5,7 @@ import { ModalManager } from "@/components/modals";
 import { SkipNav } from "@/components/ui/skip-nav";
 import { AuthGuard } from "@/components/auth-guard";
 
-export default function ChannelsLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function ChannelsLayout({ children }: { children: React.ReactNode }) {
   return (
     <AuthGuard>
       <div className="flex h-screen w-screen flex-col overflow-hidden">

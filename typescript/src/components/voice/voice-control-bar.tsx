@@ -80,7 +80,7 @@ export function VoiceControlBar({
             "flex h-10 w-10 items-center justify-center rounded-full transition-colors",
             selfMuted
               ? "bg-discord-bg-tertiary text-discord-btn-danger"
-              : "bg-discord-bg-tertiary text-discord-interactive-normal hover:text-discord-interactive-hover"
+              : "bg-discord-bg-tertiary text-discord-interactive-normal hover:text-discord-interactive-hover",
           )}
           aria-label={selfMuted ? "ミュート解除" : "ミュート"}
         >
@@ -95,15 +95,11 @@ export function VoiceControlBar({
             "flex h-10 w-10 items-center justify-center rounded-full transition-colors",
             selfDeafened
               ? "bg-discord-bg-tertiary text-discord-btn-danger"
-              : "bg-discord-bg-tertiary text-discord-interactive-normal hover:text-discord-interactive-hover"
+              : "bg-discord-bg-tertiary text-discord-interactive-normal hover:text-discord-interactive-hover",
           )}
           aria-label={selfDeafened ? "スピーカーミュート解除" : "スピーカーミュート"}
         >
-          {selfDeafened ? (
-            <HeadphoneOff className="h-5 w-5" />
-          ) : (
-            <Headphones className="h-5 w-5" />
-          )}
+          {selfDeafened ? <HeadphoneOff className="h-5 w-5" /> : <Headphones className="h-5 w-5" />}
         </button>
       </Tooltip>
 
@@ -114,7 +110,7 @@ export function VoiceControlBar({
             "flex h-10 w-10 items-center justify-center rounded-full transition-colors",
             cameraOn
               ? "bg-discord-btn-success text-white"
-              : "bg-discord-bg-tertiary text-discord-interactive-normal hover:text-discord-interactive-hover"
+              : "bg-discord-bg-tertiary text-discord-interactive-normal hover:text-discord-interactive-hover",
           )}
           aria-label={cameraOn ? "カメラをオフ" : "カメラをオン"}
         >
@@ -129,7 +125,7 @@ export function VoiceControlBar({
             "flex h-10 w-10 items-center justify-center rounded-full transition-colors",
             screenSharing
               ? "bg-discord-brand-blurple text-white"
-              : "bg-discord-bg-tertiary text-discord-interactive-normal hover:text-discord-interactive-hover"
+              : "bg-discord-bg-tertiary text-discord-interactive-normal hover:text-discord-interactive-hover",
           )}
           aria-label={screenSharing ? "画面共有を停止" : "画面を共有"}
         >
@@ -153,7 +149,7 @@ export function VoiceControlBar({
               "flex h-10 w-10 items-center justify-center rounded-full transition-colors",
               soundboardOpen
                 ? "bg-discord-brand-blurple text-white"
-                : "bg-discord-bg-tertiary text-discord-interactive-normal hover:text-discord-interactive-hover"
+                : "bg-discord-bg-tertiary text-discord-interactive-normal hover:text-discord-interactive-hover",
             )}
             aria-label="サウンドボード"
           >
@@ -175,7 +171,7 @@ export function VoiceControlBar({
             "flex h-10 w-10 items-center justify-center rounded-full transition-colors",
             showTextChat
               ? "bg-discord-brand-blurple text-white"
-              : "bg-discord-bg-tertiary text-discord-interactive-normal hover:text-discord-interactive-hover"
+              : "bg-discord-bg-tertiary text-discord-interactive-normal hover:text-discord-interactive-hover",
           )}
           aria-label={showTextChat ? "テキストチャットを閉じる" : "テキストチャット"}
         >

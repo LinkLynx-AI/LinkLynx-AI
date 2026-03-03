@@ -44,12 +44,7 @@ const mockMessages: VoiceChatMessage[] = [
   },
 ];
 
-export function TextInVoice({
-  channelName,
-}: {
-  channelId: string;
-  channelName: string;
-}) {
+export function TextInVoice({ channelName }: { channelId: string; channelName: string }) {
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<VoiceChatMessage[]>(mockMessages);
 
@@ -87,19 +82,13 @@ export function TextInVoice({
         <div className="flex flex-col gap-2">
           {messages.map((msg) => (
             <div key={msg.id} className="flex items-start gap-2">
-              <Avatar
-                src={msg.avatar}
-                alt={msg.displayName}
-                size={16}
-              />
+              <Avatar src={msg.avatar} alt={msg.displayName} size={16} />
               <div className="min-w-0 flex-1">
                 <div className="flex items-baseline gap-1">
                   <span className="text-xs font-medium text-discord-header-primary">
                     {msg.displayName}
                   </span>
-                  <span className="text-[10px] text-discord-text-muted">
-                    {msg.timestamp}
-                  </span>
+                  <span className="text-[10px] text-discord-text-muted">{msg.timestamp}</span>
                 </div>
                 <p className="text-sm text-discord-text-normal">{msg.content}</p>
               </div>

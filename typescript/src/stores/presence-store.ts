@@ -1,11 +1,6 @@
 import { create } from "zustand";
 
-export type ActivityType =
-  | "playing"
-  | "streaming"
-  | "listening"
-  | "watching"
-  | "competing";
+export type ActivityType = "playing" | "streaming" | "listening" | "watching" | "competing";
 
 export interface Activity {
   name: string;
@@ -37,7 +32,9 @@ const initialPresences: Record<string, UserPresence> = {
   },
   "100000000000000002": {
     status: "idle",
-    activities: [{ name: "Spotify", type: "listening", details: "Chill Vibes", state: "Lo-Fi Beats" }],
+    activities: [
+      { name: "Spotify", type: "listening", details: "Chill Vibes", state: "Lo-Fi Beats" },
+    ],
   },
   "100000000000000003": {
     status: "dnd",

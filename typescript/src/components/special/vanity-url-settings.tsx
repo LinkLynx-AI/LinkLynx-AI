@@ -40,9 +40,7 @@ export function VanityURLSettings({
 
       <div className="flex items-center gap-2">
         <div className="flex flex-1 items-center rounded-md bg-discord-bg-tertiary">
-          <span className="shrink-0 pl-3 text-sm text-discord-text-muted">
-            discord.gg/
-          </span>
+          <span className="shrink-0 pl-3 text-sm text-discord-text-muted">discord.gg/</span>
           <input
             type="text"
             value={url}

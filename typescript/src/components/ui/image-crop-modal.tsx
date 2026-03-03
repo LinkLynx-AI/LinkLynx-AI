@@ -30,7 +30,7 @@ export function ImageCropModal({
       dragStart.current = { x: e.clientX, y: e.clientY };
       posStart.current = { ...position };
     },
-    [position]
+    [position],
   );
 
   const handleMouseMove = useCallback(
@@ -43,7 +43,7 @@ export function ImageCropModal({
         y: posStart.current.y + dy,
       });
     },
-    [dragging]
+    [dragging],
   );
 
   const handleMouseUp = useCallback(() => {
@@ -102,7 +102,7 @@ export function ImageCropModal({
           <div
             className={cn(
               "pointer-events-none absolute inset-2 border-2 border-white/50",
-              shape === "circle" ? "rounded-full" : "rounded-sm"
+              shape === "circle" ? "rounded-full" : "rounded-sm",
             )}
           />
         </div>
@@ -121,9 +121,7 @@ export function ImageCropModal({
             aria-label="ズーム"
           />
           <span className="text-xs text-discord-text-muted">200%</span>
-          <span className="min-w-[40px] text-right text-sm text-discord-text-normal">
-            {zoom}%
-          </span>
+          <span className="min-w-[40px] text-right text-sm text-discord-text-normal">{zoom}%</span>
         </div>
       </ModalBody>
       <ModalFooter>

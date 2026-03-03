@@ -25,7 +25,7 @@ export function Checkbox({
           ? "bg-discord-brand-blurple"
           : "border border-discord-interactive-normal bg-transparent",
         disabled && "opacity-50 cursor-not-allowed",
-        className
+        className,
       )}
     >
       {checked && (

@@ -37,20 +37,14 @@ export function InviteEmbed({
       <div className="flex items-center gap-4">
         <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-discord-bg-tertiary text-lg font-bold text-discord-text-normal">
           {serverIcon ? (
-            <img
-              src={serverIcon}
-              alt={serverName}
-              className="h-12 w-12 rounded-2xl object-cover"
-            />
+            <img src={serverIcon} alt={serverName} className="h-12 w-12 rounded-2xl object-cover" />
           ) : (
             serverName.charAt(0).toUpperCase()
           )}
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
-            <p className="truncate text-base font-bold text-discord-text-normal">
-              {serverName}
-            </p>
+            <p className="truncate text-base font-bold text-discord-text-normal">{serverName}</p>
             <CheckCircle className="h-4 w-4 shrink-0 text-discord-brand-blurple" />
           </div>
           <div className="flex items-center gap-3 text-xs text-discord-text-muted">

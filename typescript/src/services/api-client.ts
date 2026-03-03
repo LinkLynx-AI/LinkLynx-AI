@@ -110,35 +110,20 @@ export interface APIClient {
   // Messages
   getMessages(
     channelId: string,
-    params?: { before?: string; after?: string; limit?: number }
+    params?: { before?: string; after?: string; limit?: number },
   ): Promise<Message[]>;
   getMessage(channelId: string, messageId: string): Promise<Message>;
   sendMessage(channelId: string, data: CreateMessageData): Promise<Message>;
-  editMessage(
-    channelId: string,
-    messageId: string,
-    data: EditMessageData
-  ): Promise<Message>;
+  editMessage(channelId: string, messageId: string, data: EditMessageData): Promise<Message>;
   deleteMessage(channelId: string, messageId: string): Promise<void>;
   getPinnedMessages(channelId: string): Promise<Message[]>;
 
   // Reactions
-  addReaction(
-    channelId: string,
-    messageId: string,
-    emoji: string
-  ): Promise<void>;
-  removeReaction(
-    channelId: string,
-    messageId: string,
-    emoji: string
-  ): Promise<void>;
+  addReaction(channelId: string, messageId: string, emoji: string): Promise<void>;
+  removeReaction(channelId: string, messageId: string, emoji: string): Promise<void>;
 
   // Members
-  getMembers(
-    serverId: string,
-    params?: { limit?: number; after?: string }
-  ): Promise<GuildMember[]>;
+  getMembers(serverId: string, params?: { limit?: number; after?: string }): Promise<GuildMember[]>;
   getMember(serverId: string, userId: string): Promise<GuildMember>;
 
   // Users
@@ -166,31 +151,21 @@ export interface APIClient {
   getRoles(serverId: string): Promise<Role[]>;
   createRole(
     serverId: string,
-    data: { name: string; color?: string; permissions?: number }
+    data: { name: string; color?: string; permissions?: number },
   ): Promise<Role>;
-  updateRole(
-    serverId: string,
-    roleId: string,
-    data: Partial<Role>
-  ): Promise<Role>;
+  updateRole(serverId: string, roleId: string, data: Partial<Role>): Promise<Role>;
   deleteRole(serverId: string, roleId: string): Promise<void>;
-  reorderRoles(
-    serverId: string,
-    roles: { id: string; position: number }[]
-  ): Promise<void>;
+  reorderRoles(serverId: string, roles: { id: string; position: number }[]): Promise<void>;
 
   // Webhooks
   getWebhooks(channelId: string): Promise<Webhook[]>;
-  createWebhook(
-    channelId: string,
-    data: { name: string; avatar?: string }
-  ): Promise<Webhook>;
+  createWebhook(channelId: string, data: { name: string; avatar?: string }): Promise<Webhook>;
   deleteWebhook(webhookId: string): Promise<void>;
 
   // Audit Log
   getAuditLog(
     serverId: string,
-    params?: { before?: string; limit?: number }
+    params?: { before?: string; limit?: number },
   ): Promise<AuditLogEntry[]>;
 
   // Message moderation
@@ -199,21 +174,9 @@ export interface APIClient {
 
   // Member moderation
   kickMember(serverId: string, userId: string): Promise<void>;
-  banMember(
-    serverId: string,
-    userId: string,
-    data?: { deleteMessageDays?: number }
-  ): Promise<void>;
-  timeoutMember(
-    serverId: string,
-    userId: string,
-    until: string | null
-  ): Promise<void>;
-  updateMemberNickname(
-    serverId: string,
-    userId: string,
-    nickname: string
-  ): Promise<void>;
+  banMember(serverId: string, userId: string, data?: { deleteMessageDays?: number }): Promise<void>;
+  timeoutMember(serverId: string, userId: string, until: string | null): Promise<void>;
+  updateMemberNickname(serverId: string, userId: string, nickname: string): Promise<void>;
 
   // Typing
   triggerTyping(channelId: string): Promise<void>;

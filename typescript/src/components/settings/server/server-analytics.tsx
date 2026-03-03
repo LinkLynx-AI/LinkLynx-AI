@@ -26,7 +26,7 @@ export function ServerAnalytics({ serverId }: { serverId: string }) {
     const last = filteredStats[filteredStats.length - 1];
     const totalNew = filteredStats.reduce((sum, d) => sum + d.newMembers, 0);
     const avgActive = Math.round(
-      filteredStats.reduce((sum, d) => sum + d.activeMembers, 0) / filteredStats.length
+      filteredStats.reduce((sum, d) => sum + d.activeMembers, 0) / filteredStats.length,
     );
     const totalMessages = filteredStats.reduce((sum, d) => sum + d.messageCount, 0);
     return {
@@ -46,9 +46,7 @@ export function ServerAnalytics({ serverId }: { serverId: string }) {
 
   return (
     <div>
-      <h2 className="mb-5 text-xl font-bold text-discord-header-primary">
-        サーバーインサイト
-      </h2>
+      <h2 className="mb-5 text-xl font-bold text-discord-header-primary">サーバーインサイト</h2>
 
       {/* Period selector */}
       <div className="mb-6 flex gap-2">
@@ -60,7 +58,7 @@ export function ServerAnalytics({ serverId }: { serverId: string }) {
               "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
               period === opt.value
                 ? "bg-discord-brand-blurple text-white"
-                : "bg-discord-bg-secondary text-discord-text-muted hover:text-discord-text-normal"
+                : "bg-discord-bg-secondary text-discord-text-muted hover:text-discord-text-normal",
             )}
           >
             {opt.label}
@@ -76,14 +74,9 @@ export function ServerAnalytics({ serverId }: { serverId: string }) {
           { label: "新規メンバー", value: `+${summary.newMembers}` },
           { label: "メッセージ送信数", value: summary.messageCount.toLocaleString() },
         ].map((card) => (
-          <div
-            key={card.label}
-            className="rounded-lg bg-discord-bg-secondary p-4"
-          >
+          <div key={card.label} className="rounded-lg bg-discord-bg-secondary p-4">
             <p className="text-xs text-discord-text-muted">{card.label}</p>
-            <p className="mt-1 text-2xl font-bold text-discord-header-primary">
-              {card.value}
-            </p>
+            <p className="mt-1 text-2xl font-bold text-discord-header-primary">{card.value}</p>
           </div>
         ))}
       </div>

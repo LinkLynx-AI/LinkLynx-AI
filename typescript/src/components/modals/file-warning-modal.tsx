@@ -25,9 +25,7 @@ export function FileWarningModal({
               信頼できるソースからのファイルのみダウンロードしてください。
             </p>
             <div className="rounded bg-discord-bg-secondary px-3 py-2">
-              <p className="text-sm text-discord-text-normal font-medium break-all">
-                {filename}
-              </p>
+              <p className="text-sm text-discord-text-normal font-medium break-all">{filename}</p>
             </div>
           </div>
         </div>

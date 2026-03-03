@@ -49,9 +49,7 @@ export function UserConnectedAccounts() {
 
   const handleToggleVisibility = (serviceId: string) => {
     setConnected((prev) =>
-      prev.map((a) =>
-        a.serviceId === serviceId ? { ...a, visible: !a.visible } : a
-      )
+      prev.map((a) => (a.serviceId === serviceId ? { ...a, visible: !a.visible } : a)),
     );
   };
 
@@ -70,9 +68,7 @@ export function UserConnectedAccounts() {
 
   return (
     <div>
-      <h2 className="mb-5 text-xl font-bold text-discord-header-primary">
-        接続済みアカウント
-      </h2>
+      <h2 className="mb-5 text-xl font-bold text-discord-header-primary">接続済みアカウント</h2>
 
       {/* Connected accounts list */}
       {connected.length > 0 && (
@@ -96,16 +92,12 @@ export function UserConnectedAccounts() {
                   <p className="text-sm font-semibold text-discord-text-normal">
                     {account.serviceName}
                   </p>
-                  <p className="text-xs text-discord-text-muted">
-                    {account.username}
-                  </p>
+                  <p className="text-xs text-discord-text-muted">{account.username}</p>
                 </div>
               </div>
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-discord-text-muted">
-                    プロフィールに表示
-                  </span>
+                  <span className="text-xs text-discord-text-muted">プロフィールに表示</span>
                   <Toggle
                     checked={account.visible}
                     onChange={() => handleToggleVisibility(account.serviceId)}
@@ -140,14 +132,8 @@ export function UserConnectedAccounts() {
             >
               {service.name.charAt(0)}
             </div>
-            <span className="flex-1 truncate text-sm text-discord-text-normal">
-              {service.name}
-            </span>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => handleConnect(service)}
-            >
+            <span className="flex-1 truncate text-sm text-discord-text-normal">{service.name}</span>
+            <Button variant="secondary" size="sm" onClick={() => handleConnect(service)}>
               接続
             </Button>
           </div>

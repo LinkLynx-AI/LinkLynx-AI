@@ -29,9 +29,7 @@ export function ServerStickers({ serverId }: { serverId: string }) {
   return (
     <div>
       <div className="mb-5 flex items-center justify-between">
-        <h2 className="text-xl font-bold text-discord-header-primary">
-          スタンプ
-        </h2>
+        <h2 className="text-xl font-bold text-discord-header-primary">スタンプ</h2>
         <Button>アップロード</Button>
       </div>
 
@@ -53,12 +51,8 @@ export function ServerStickers({ serverId }: { serverId: string }) {
               style={{ backgroundColor: sticker.color }}
             />
             <div className="text-center">
-              <p className="text-sm font-medium text-discord-text-normal">
-                {sticker.name}
-              </p>
-              <p className="mt-0.5 text-xs text-discord-text-muted">
-                {sticker.description}
-              </p>
+              <p className="text-sm font-medium text-discord-text-normal">{sticker.name}</p>
+              <p className="mt-0.5 text-xs text-discord-text-muted">{sticker.description}</p>
             </div>
 
             <button

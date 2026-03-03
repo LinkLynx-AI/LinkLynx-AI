@@ -49,7 +49,7 @@ export function ThreadNotificationMenu({
       ref={ref}
       className={cn(
         "absolute right-0 top-full z-50 mt-1 w-[250px]",
-        "rounded-lg bg-discord-bg-floating p-1.5 shadow-xl"
+        "rounded-lg bg-discord-bg-floating p-1.5 shadow-xl",
       )}
     >
       <div className="px-2 py-1.5 text-xs font-bold uppercase text-discord-header-secondary">
@@ -67,7 +67,7 @@ export function ThreadNotificationMenu({
             "hover:bg-discord-brand-blurple hover:text-white",
             currentSetting === option.value
               ? "text-discord-text-normal"
-              : "text-discord-text-muted"
+              : "text-discord-text-muted",
           )}
         >
           <span
@@ -75,7 +75,7 @@ export function ThreadNotificationMenu({
               "flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2",
               currentSetting === option.value
                 ? "border-discord-brand-blurple"
-                : "border-discord-text-muted"
+                : "border-discord-text-muted",
             )}
           >
             {currentSetting === option.value && (

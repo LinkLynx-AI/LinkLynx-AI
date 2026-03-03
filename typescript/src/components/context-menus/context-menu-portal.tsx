@@ -18,34 +18,19 @@ function getMenuComponent(type: string, data: unknown) {
         />
       );
     case "message":
-      return (
-        <MessageContextMenu
-          data={data as { message: import("@/types/message").Message }}
-        />
-      );
+      return <MessageContextMenu data={data as { message: import("@/types/message").Message }} />;
     case "user":
       return (
-        <UserContextMenu
-          data={data as { user: import("@/types/user").User; serverId?: string }}
-        />
+        <UserContextMenu data={data as { user: import("@/types/user").User; serverId?: string }} />
       );
     default:
       return null;
   }
 }
 
-function clampPosition(
-  x: number,
-  y: number,
-  menuWidth: number,
-  menuHeight: number
-) {
-  const clampedX =
-    x + menuWidth > window.innerWidth ? window.innerWidth - menuWidth - 8 : x;
-  const clampedY =
-    y + menuHeight > window.innerHeight
-      ? window.innerHeight - menuHeight - 8
-      : y;
+function clampPosition(x: number, y: number, menuWidth: number, menuHeight: number) {
+  const clampedX = x + menuWidth > window.innerWidth ? window.innerWidth - menuWidth - 8 : x;
+  const clampedY = y + menuHeight > window.innerHeight ? window.innerHeight - menuHeight - 8 : y;
   return {
     x: Math.max(8, clampedX),
     y: Math.max(8, clampedY),
@@ -63,7 +48,7 @@ export function ContextMenuPortal() {
         hideContextMenu();
       }
     },
-    [hideContextMenu]
+    [hideContextMenu],
   );
 
   useEffect(() => {
@@ -86,7 +71,7 @@ export function ContextMenuPortal() {
       contextMenu.position.x,
       contextMenu.position.y,
       menu.offsetWidth,
-      menu.offsetHeight
+      menu.offsetHeight,
     );
     menu.style.left = `${x}px`;
     menu.style.top = `${y}px`;

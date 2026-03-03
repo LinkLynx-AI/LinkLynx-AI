@@ -26,9 +26,7 @@ export function UserAccessibility() {
 
   return (
     <div className="pb-20">
-      <h2 className="mb-5 text-xl font-bold text-discord-header-primary">
-        アクセシビリティ
-      </h2>
+      <h2 className="mb-5 text-xl font-bold text-discord-header-primary">アクセシビリティ</h2>
 
       {/* TTS Rate */}
       <section className="mb-8 border-b border-discord-divider pb-8">
@@ -47,12 +45,8 @@ export function UserAccessibility() {
       {/* High Contrast */}
       <section className="mb-6 flex items-center justify-between">
         <div>
-          <h3 className="text-sm font-medium text-discord-text-normal">
-            高コントラストモード
-          </h3>
-          <p className="text-xs text-discord-text-muted">
-            テキストと要素のコントラストを高めます
-          </p>
+          <h3 className="text-sm font-medium text-discord-text-normal">高コントラストモード</h3>
+          <p className="text-xs text-discord-text-muted">テキストと要素のコントラストを高めます</p>
         </div>
         <Toggle checked={highContrast} onChange={setHighContrast} />
       </section>
@@ -60,9 +54,7 @@ export function UserAccessibility() {
       {/* Reduce Motion */}
       <section className="mb-8 flex items-center justify-between border-b border-discord-divider pb-8">
         <div>
-          <h3 className="text-sm font-medium text-discord-text-normal">
-            アニメーションを減らす
-          </h3>
+          <h3 className="text-sm font-medium text-discord-text-normal">アニメーションを減らす</h3>
           <p className="text-xs text-discord-text-muted">
             モーションが減り、自動再生GIFが停止されます
           </p>
@@ -75,16 +67,12 @@ export function UserAccessibility() {
         <h3 className="mb-3 text-xs font-bold uppercase text-discord-header-secondary">
           スタンプアニメーション
         </h3>
-        <div
-          className="flex flex-col gap-2"
-          role="radiogroup"
-          aria-label="スタンプアニメーション"
-        >
-          {([
+        <div className="flex flex-col gap-2" role="radiogroup" aria-label="スタンプアニメーション">
+          {[
             { id: "always" as const, label: "常に再生" },
             { id: "hover" as const, label: "ホバー時のみ" },
             { id: "never" as const, label: "再生しない" },
-          ]).map((opt) => (
+          ].map((opt) => (
             <button
               key={opt.id}
               role="radio"
@@ -97,7 +85,7 @@ export function UserAccessibility() {
                   "flex h-5 w-5 items-center justify-center rounded-full border-2",
                   stickerAnimation === opt.id
                     ? "border-discord-brand-blurple"
-                    : "border-discord-interactive-normal"
+                    : "border-discord-interactive-normal",
                 )}
               >
                 {stickerAnimation === opt.id && (
@@ -129,9 +117,7 @@ export function UserAccessibility() {
           <h3 className="text-sm font-medium text-discord-text-normal">
             フォーカスインジケーター常時表示
           </h3>
-          <p className="text-xs text-discord-text-muted">
-            キーボードフォーカスを常に表示します
-          </p>
+          <p className="text-xs text-discord-text-muted">キーボードフォーカスを常に表示します</p>
         </div>
         <Toggle checked={focusIndicator} onChange={setFocusIndicator} />
       </section>
@@ -139,9 +125,7 @@ export function UserAccessibility() {
       {/* Underline Links */}
       <section className="mb-6 flex items-center justify-between">
         <div>
-          <h3 className="text-sm font-medium text-discord-text-normal">
-            リンクに下線を表示
-          </h3>
+          <h3 className="text-sm font-medium text-discord-text-normal">リンクに下線を表示</h3>
           <p className="text-xs text-discord-text-muted">
             メッセージ内のリンクに下線を付けて識別しやすくします
           </p>

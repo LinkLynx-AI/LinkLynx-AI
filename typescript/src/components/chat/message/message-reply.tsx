@@ -1,11 +1,7 @@
 import { Avatar } from "@/components/ui/avatar";
 import type { Message } from "@/types/message";
 
-export function MessageReply({
-  referencedMessage,
-}: {
-  referencedMessage: Message | null;
-}) {
+export function MessageReply({ referencedMessage }: { referencedMessage: Message | null }) {
   if (!referencedMessage) return null;
 
   return (

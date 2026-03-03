@@ -5,10 +5,7 @@ import { CreditCard, Pencil, Trash2 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  mockPaymentMethods,
-  mockBillingHistory,
-} from "@/services/mock/data/billing";
+import { mockPaymentMethods, mockBillingHistory } from "@/services/mock/data/billing";
 
 const cardIcons: Record<string, string> = {
   visa: "VISA",
@@ -36,9 +33,7 @@ export function UserBilling() {
 
   return (
     <div>
-      <h2 className="mb-5 text-xl font-bold text-discord-header-primary">
-        請求情報
-      </h2>
+      <h2 className="mb-5 text-xl font-bold text-discord-header-primary">請求情報</h2>
 
       {/* Payment methods */}
       <section className="mb-8">
@@ -58,14 +53,11 @@ export function UserBilling() {
                 <p className="text-sm font-medium text-discord-text-normal">
                   •••• •••• •••• {method.last4}
                   {method.isDefault && (
-                    <span className="ml-2 text-xs text-discord-text-muted">
-                      （デフォルト）
-                    </span>
+                    <span className="ml-2 text-xs text-discord-text-muted">（デフォルト）</span>
                   )}
                 </p>
                 <p className="text-xs text-discord-text-muted">
-                  有効期限: {method.expiresMonth.toString().padStart(2, "0")}/
-                  {method.expiresYear}
+                  有効期限: {method.expiresMonth.toString().padStart(2, "0")}/{method.expiresYear}
                 </p>
               </div>
               <button
@@ -90,9 +82,7 @@ export function UserBilling() {
 
       {/* Billing history */}
       <section className="mb-8">
-        <h3 className="mb-3 text-xs font-bold uppercase text-discord-header-secondary">
-          請求履歴
-        </h3>
+        <h3 className="mb-3 text-xs font-bold uppercase text-discord-header-secondary">請求履歴</h3>
         <div className="overflow-hidden rounded-lg bg-discord-bg-secondary">
           <table className="w-full text-left text-sm">
             <thead>
@@ -119,12 +109,8 @@ export function UserBilling() {
                     key={entry.id}
                     className="border-b border-discord-bg-tertiary last:border-b-0"
                   >
-                    <td className="px-4 py-2.5 text-discord-text-muted">
-                      {entry.date}
-                    </td>
-                    <td className="px-4 py-2.5 text-discord-text-normal">
-                      {entry.description}
-                    </td>
+                    <td className="px-4 py-2.5 text-discord-text-muted">{entry.date}</td>
+                    <td className="px-4 py-2.5 text-discord-text-normal">{entry.description}</td>
                     <td className="px-4 py-2.5 text-right text-discord-text-normal">
                       ¥{entry.amount.toLocaleString()}
                     </td>
@@ -132,7 +118,7 @@ export function UserBilling() {
                       <span
                         className={cn(
                           "inline-block rounded-full px-2 py-0.5 text-xs font-medium",
-                          status.className
+                          status.className,
                         )}
                       >
                         {status.label}
@@ -148,9 +134,7 @@ export function UserBilling() {
 
       {/* Gift section */}
       <section>
-        <h3 className="mb-3 text-xs font-bold uppercase text-discord-header-secondary">
-          ギフト
-        </h3>
+        <h3 className="mb-3 text-xs font-bold uppercase text-discord-header-secondary">ギフト</h3>
         <div className="flex flex-wrap items-center gap-3">
           <Button>Nitroをギフト</Button>
           <div className="flex items-center gap-2">

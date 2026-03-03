@@ -17,7 +17,7 @@ export function DragIndicator({
         "pointer-events-none absolute left-0 right-0 z-10 flex items-center transition-opacity duration-150",
         position === "top" ? "-top-px" : "-bottom-px",
         visible ? "opacity-100" : "opacity-0",
-        className
+        className,
       )}
     >
       <div className="h-2 w-2 rounded-full bg-discord-brand-blurple" />

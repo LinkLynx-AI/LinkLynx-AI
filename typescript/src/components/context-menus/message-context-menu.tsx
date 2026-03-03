@@ -1,19 +1,11 @@
 "use client";
 
-import {
-  ContextMenu,
-  MenuItem,
-  MenuSeparator,
-} from "@/components/ui/context-menu";
+import { ContextMenu, MenuItem, MenuSeparator } from "@/components/ui/context-menu";
 import { useUIStore } from "@/stores/ui-store";
 import { useAuthStore } from "@/stores/auth-store";
 import type { Message } from "@/types/message";
 
-export function MessageContextMenu({
-  data,
-}: {
-  data: { message: Message };
-}) {
+export function MessageContextMenu({ data }: { data: { message: Message } }) {
   const hideContextMenu = useUIStore((s) => s.hideContextMenu);
   const currentUser = useAuthStore((s) => s.currentUser);
 
@@ -25,9 +17,7 @@ export function MessageContextMenu({
   };
 
   const handleCopyLink = () => {
-    navigator.clipboard.writeText(
-      `/channels/${data.message.channelId}/${data.message.id}`
-    );
+    navigator.clipboard.writeText(`/channels/${data.message.channelId}/${data.message.id}`);
     hideContextMenu();
   };
 

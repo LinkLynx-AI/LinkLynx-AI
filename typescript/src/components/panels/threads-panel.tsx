@@ -28,11 +28,7 @@ export function ThreadsPanel() {
   return (
     <div className="space-y-1 p-3">
       {mockThreads.map((thread) => (
-        <ThreadCard
-          key={thread.id}
-          thread={thread}
-          onSelect={setSelectedThread}
-        />
+        <ThreadCard key={thread.id} thread={thread} onSelect={setSelectedThread} />
       ))}
     </div>
   );

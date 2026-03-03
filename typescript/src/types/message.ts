@@ -2,20 +2,20 @@ import type { User } from "./user";
 import type { ActionRow } from "./bot-components";
 
 export type MessageType =
-  | 0   // DEFAULT
-  | 1   // RECIPIENT_ADD
-  | 2   // RECIPIENT_REMOVE
-  | 3   // CALL
-  | 4   // CHANNEL_NAME_CHANGE
-  | 5   // CHANNEL_ICON_CHANGE
-  | 6   // CHANNEL_PINNED_MESSAGE
-  | 7   // USER_JOIN
-  | 8   // GUILD_BOOST
-  | 9   // GUILD_BOOST_TIER_1
-  | 10  // GUILD_BOOST_TIER_2
-  | 11  // GUILD_BOOST_TIER_3
-  | 19  // REPLY
-  | 20  // CHAT_INPUT_COMMAND
+  | 0 // DEFAULT
+  | 1 // RECIPIENT_ADD
+  | 2 // RECIPIENT_REMOVE
+  | 3 // CALL
+  | 4 // CHANNEL_NAME_CHANGE
+  | 5 // CHANNEL_ICON_CHANGE
+  | 6 // CHANNEL_PINNED_MESSAGE
+  | 7 // USER_JOIN
+  | 8 // GUILD_BOOST
+  | 9 // GUILD_BOOST_TIER_1
+  | 10 // GUILD_BOOST_TIER_2
+  | 11 // GUILD_BOOST_TIER_3
+  | 19 // REPLY
+  | 20 // CHAT_INPUT_COMMAND
   | 21; // THREAD_STARTER_MESSAGE
 
 export interface Message {

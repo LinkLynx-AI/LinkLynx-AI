@@ -20,21 +20,15 @@ export function ServerInvites({ serverId }: { serverId: string }) {
 
   return (
     <div>
-      <h2 className="mb-5 text-xl font-bold text-discord-header-primary">
-        招待
-      </h2>
+      <h2 className="mb-5 text-xl font-bold text-discord-header-primary">招待</h2>
 
       {invites.length === 0 ? (
         <div className="py-10 text-center">
-          <p className="text-sm text-discord-text-muted">
-            有効な招待はありません
-          </p>
+          <p className="text-sm text-discord-text-muted">有効な招待はありません</p>
         </div>
       ) : (
         <>
-          <div className="text-sm text-discord-text-muted mb-3">
-            {invites.length} 件の招待
-          </div>
+          <div className="text-sm text-discord-text-muted mb-3">{invites.length} 件の招待</div>
 
           {/* Header row */}
           <div className="flex items-center gap-3 px-3 py-2 text-xs font-bold uppercase text-discord-header-secondary border-b border-discord-divider">
@@ -69,11 +63,7 @@ export function ServerInvites({ serverId }: { serverId: string }) {
                   {formatExpiry(invite.expiresAt)}
                 </span>
                 <span className="w-[80px]">
-                  <Button
-                    variant="danger"
-                    size="sm"
-                    onClick={() => revokeInvite(invite.code)}
-                  >
+                  <Button variant="danger" size="sm" onClick={() => revokeInvite(invite.code)}>
                     取消
                   </Button>
                 </span>

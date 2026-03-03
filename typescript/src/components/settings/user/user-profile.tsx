@@ -28,10 +28,7 @@ export function UserProfile() {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [bannerUrl, setBannerUrl] = useState<string | null>(null);
 
-  const handleFileSelect = (
-    file: File,
-    target: "avatar" | "banner"
-  ) => {
+  const handleFileSelect = (file: File, target: "avatar" | "banner") => {
     const url = URL.createObjectURL(file);
     setCropImage({
       url,
@@ -55,9 +52,7 @@ export function UserProfile() {
 
   return (
     <div>
-      <h2 className="mb-5 text-xl font-bold text-discord-header-primary">
-        プロフィール
-      </h2>
+      <h2 className="mb-5 text-xl font-bold text-discord-header-primary">プロフィール</h2>
 
       <div className="flex gap-8">
         {/* Form */}
@@ -66,11 +61,7 @@ export function UserProfile() {
             <label className="mb-2 block text-xs font-bold uppercase text-discord-header-secondary">
               アバター
             </label>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => avatarInputRef.current?.click()}
-            >
+            <Button variant="secondary" size="sm" onClick={() => avatarInputRef.current?.click()}>
               アバターを変更
             </Button>
             <input
@@ -90,11 +81,7 @@ export function UserProfile() {
             <label className="mb-2 block text-xs font-bold uppercase text-discord-header-secondary">
               バナー
             </label>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => bannerInputRef.current?.click()}
-            >
+            <Button variant="secondary" size="sm" onClick={() => bannerInputRef.current?.click()}>
               バナーを変更
             </Button>
             <input
@@ -131,9 +118,7 @@ export function UserProfile() {
             <p
               className={cn(
                 "mt-1 text-right text-xs",
-                bio.length >= BIO_WARN
-                  ? "text-discord-brand-red"
-                  : "text-discord-text-muted"
+                bio.length >= BIO_WARN ? "text-discord-brand-red" : "text-discord-text-muted",
               )}
             >
               {bio.length}/{BIO_MAX}

@@ -78,9 +78,7 @@ export function ServerMembers({ serverId }: { serverId: string }) {
 
   return (
     <div>
-      <h2 className="mb-5 text-xl font-bold text-discord-header-primary">
-        メンバー
-      </h2>
+      <h2 className="mb-5 text-xl font-bold text-discord-header-primary">メンバー</h2>
 
       <div className="relative mb-4">
         <Search
@@ -96,9 +94,7 @@ export function ServerMembers({ serverId }: { serverId: string }) {
         />
       </div>
 
-      <div className="text-sm text-discord-text-muted mb-3">
-        メンバー — {filtered.length}
-      </div>
+      <div className="text-sm text-discord-text-muted mb-3">メンバー — {filtered.length}</div>
 
       <div>
         {filtered.map((member) => (

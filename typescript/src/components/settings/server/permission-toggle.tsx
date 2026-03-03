@@ -41,11 +41,7 @@ export function PermissionToggle({
     <div className="flex items-center justify-between border-b border-discord-divider py-3">
       <div className="flex-1 pr-4">
         <span className="text-sm text-discord-text-normal">{label}</span>
-        {description && (
-          <p className="mt-0.5 text-xs text-discord-text-muted">
-            {description}
-          </p>
-        )}
+        {description && <p className="mt-0.5 text-xs text-discord-text-muted">{description}</p>}
       </div>
       <div className="flex gap-0.5 rounded-[3px] bg-discord-bg-tertiary p-0.5">
         {(["allow", "inherit", "deny"] as const).map((state) => {
@@ -61,7 +57,7 @@ export function PermissionToggle({
                 "flex items-center gap-1 rounded-sm px-2 py-1 text-xs font-medium transition-colors",
                 isActive
                   ? cn(config.bg, config.text)
-                  : "text-discord-text-muted hover:text-discord-text-normal"
+                  : "text-discord-text-muted hover:text-discord-text-normal",
               )}
             >
               <Icon className="h-3 w-3" />

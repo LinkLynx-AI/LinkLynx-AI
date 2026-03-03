@@ -22,7 +22,7 @@ export function PublishButton({ onPublish }: { onPublish?: () => void }) {
         className={cn(
           "p-1.5 text-discord-interactive-normal",
           "hover:bg-discord-bg-mod-hover hover:text-discord-interactive-hover",
-          "rounded transition-colors"
+          "rounded transition-colors",
         )}
       >
         <Megaphone className="h-4 w-4" />

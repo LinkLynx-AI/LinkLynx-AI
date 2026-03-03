@@ -29,14 +29,12 @@ export function Input({
             : "focus:outline-2 focus:outline-discord-brand-blurple",
           disabled && "opacity-50 cursor-not-allowed",
           fullWidth ? "w-full" : "w-auto",
-          className
+          className,
         )}
         disabled={disabled}
         {...props}
       />
-      {error && (
-        <p className="mt-1 text-xs text-discord-brand-red">{error}</p>
-      )}
+      {error && <p className="mt-1 text-xs text-discord-brand-red">{error}</p>}
     </div>
   );
 }

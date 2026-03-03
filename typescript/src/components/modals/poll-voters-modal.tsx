@@ -66,7 +66,7 @@ export function PollVotersModal({
                 "flex items-center gap-2 px-3 py-2.5 text-left text-sm transition-colors",
                 selectedOption === option.id
                   ? "bg-discord-bg-mod-hover text-discord-text-normal"
-                  : "text-discord-text-muted hover:bg-discord-bg-mod-hover hover:text-discord-text-normal"
+                  : "text-discord-text-muted hover:bg-discord-bg-mod-hover hover:text-discord-text-normal",
               )}
             >
               {option.emoji && <span>{option.emoji}</span>}
@@ -86,14 +86,8 @@ export function PollVotersModal({
                 key={voter.id}
                 className="flex items-center gap-3 rounded-md px-2 py-1.5 hover:bg-discord-bg-mod-hover"
               >
-                <Avatar
-                  src={voter.avatar ?? undefined}
-                  alt={voter.displayName}
-                  size={32}
-                />
-                <span className="text-sm text-discord-text-normal">
-                  {voter.displayName}
-                </span>
+                <Avatar src={voter.avatar ?? undefined} alt={voter.displayName} size={32} />
+                <span className="text-sm text-discord-text-normal">{voter.displayName}</span>
               </div>
             ))}
           </div>

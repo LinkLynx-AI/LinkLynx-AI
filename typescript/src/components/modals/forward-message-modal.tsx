@@ -67,7 +67,7 @@ export function ForwardMessageModal({
     return destinations.filter(
       (d) =>
         d.name.toLowerCase().includes(lower) ||
-        (d.serverName && d.serverName.toLowerCase().includes(lower))
+        (d.serverName && d.serverName.toLowerCase().includes(lower)),
     );
   }, [destinations, search]);
 
@@ -108,11 +108,7 @@ export function ForwardMessageModal({
                 {dest.type === "channel" ? (
                   <Hash className="h-5 w-5 shrink-0 text-discord-channel-icon" />
                 ) : (
-                  <Avatar
-                    src={dest.avatar ?? undefined}
-                    alt={dest.name}
-                    size={32}
-                  />
+                  <Avatar src={dest.avatar ?? undefined} alt={dest.name} size={32} />
                 )}
                 <div className="min-w-0 flex-1">
                   <div className="truncate">{dest.name}</div>
@@ -130,7 +126,11 @@ export function ForwardMessageModal({
                   }`}
                 >
                   {selectedId === dest.id && (
-                    <svg viewBox="0 0 20 20" fill="currentColor" className="h-full w-full text-discord-brand-blurple">
+                    <svg
+                      viewBox="0 0 20 20"
+                      fill="currentColor"
+                      className="h-full w-full text-discord-brand-blurple"
+                    >
                       <path
                         fillRule="evenodd"
                         d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
@@ -160,9 +160,7 @@ export function ForwardMessageModal({
                 <div className="text-sm font-medium text-discord-header-primary">
                   {message.author.displayName}
                 </div>
-                <p className="text-sm text-discord-text-normal">
-                  {message.content}
-                </p>
+                <p className="text-sm text-discord-text-normal">{message.content}</p>
               </div>
             </div>
           </div>

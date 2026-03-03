@@ -1,10 +1,6 @@
 "use client";
 
-import {
-  ContextMenu,
-  MenuItem,
-  MenuSeparator,
-} from "@/components/ui/context-menu";
+import { ContextMenu, MenuItem, MenuSeparator } from "@/components/ui/context-menu";
 import { useUIStore } from "@/stores/ui-store";
 import type { Guild } from "@/types/server";
 

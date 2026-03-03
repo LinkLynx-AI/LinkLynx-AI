@@ -17,11 +17,7 @@ export function MessageEmbed({ embed }: { embed: Embed }) {
         {embed.author && (
           <div className="mb-1 flex items-center gap-2">
             {embed.author.iconUrl && (
-              <img
-                src={embed.author.iconUrl}
-                alt=""
-                className="h-6 w-6 rounded-full"
-              />
+              <img src={embed.author.iconUrl} alt="" className="h-6 w-6 rounded-full" />
             )}
             <span className="text-sm font-semibold text-discord-header-primary">
               {embed.author.url ? (
@@ -66,16 +62,9 @@ export function MessageEmbed({ embed }: { embed: Embed }) {
         {embed.fields && embed.fields.length > 0 && (
           <div className="mb-2 grid grid-cols-3 gap-2">
             {embed.fields.map((field, i) => (
-              <div
-                key={i}
-                className={cn(field.inline ? "col-span-1" : "col-span-3")}
-              >
-                <div className="text-xs font-semibold text-discord-text-muted">
-                  {field.name}
-                </div>
-                <div className="text-sm text-discord-text-normal">
-                  {field.value}
-                </div>
+              <div key={i} className={cn(field.inline ? "col-span-1" : "col-span-3")}>
+                <div className="text-xs font-semibold text-discord-text-muted">{field.name}</div>
+                <div className="text-sm text-discord-text-normal">{field.value}</div>
               </div>
             ))}
           </div>
@@ -83,22 +72,14 @@ export function MessageEmbed({ embed }: { embed: Embed }) {
 
         {embed.image && (
           <div className="mt-2">
-            <img
-              src={embed.image.url}
-              alt=""
-              className="max-h-[300px] max-w-full rounded"
-            />
+            <img src={embed.image.url} alt="" className="max-h-[300px] max-w-full rounded" />
           </div>
         )}
 
         {(embed.footer || embed.timestamp) && (
           <div className="mt-2 flex items-center gap-1 text-xs text-discord-text-muted">
             {embed.footer?.iconUrl && (
-              <img
-                src={embed.footer.iconUrl}
-                alt=""
-                className="h-5 w-5 rounded-full"
-              />
+              <img src={embed.footer.iconUrl} alt="" className="h-5 w-5 rounded-full" />
             )}
             {embed.footer?.text && <span>{embed.footer.text}</span>}
             {embed.footer?.text && embed.timestamp && <span> • </span>}
@@ -111,11 +92,7 @@ export function MessageEmbed({ embed }: { embed: Embed }) {
 
       {embed.thumbnail && (
         <div className="flex-shrink-0 p-4">
-          <img
-            src={embed.thumbnail.url}
-            alt=""
-            className="h-20 w-20 rounded object-cover"
-          />
+          <img src={embed.thumbnail.url} alt="" className="h-20 w-20 rounded object-cover" />
         </div>
       )}
     </div>

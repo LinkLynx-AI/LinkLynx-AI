@@ -40,9 +40,7 @@ export function ClipsGallery({
     return (
       <div className="flex flex-col items-center justify-center py-12">
         <Film className="mb-3 h-10 w-10 text-discord-text-muted" />
-        <p className="text-sm text-discord-text-muted">
-          クリップはまだありません
-        </p>
+        <p className="text-sm text-discord-text-muted">クリップはまだありません</p>
       </div>
     );
   }
@@ -72,7 +70,7 @@ export function ClipsGallery({
               onClick={() => onPlay?.(clip.id)}
               className={cn(
                 "absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition-opacity",
-                "group-hover:opacity-100"
+                "group-hover:opacity-100",
               )}
               aria-label="再生"
             >
@@ -86,9 +84,7 @@ export function ClipsGallery({
               <p className="truncate text-xs font-medium text-discord-text-normal">
                 {clip.channelName}
               </p>
-              <p className="text-[10px] text-discord-text-muted">
-                {clip.timestamp}
-              </p>
+              <p className="text-[10px] text-discord-text-muted">{clip.timestamp}</p>
             </div>
             <div className="flex shrink-0 items-center gap-0.5">
               <Tooltip content="共有" position="top">

@@ -41,7 +41,7 @@ export function Select({
         className={cn(
           "flex h-10 w-full items-center justify-between rounded-[3px] bg-discord-input-bg px-3 text-sm transition-colors",
           selected ? "text-discord-text-normal" : "text-discord-text-muted",
-          disabled && "opacity-50 cursor-not-allowed"
+          disabled && "opacity-50 cursor-not-allowed",
         )}
       >
         <span>{selected?.label ?? placeholder}</span>
@@ -66,7 +66,7 @@ export function Select({
               }}
               className={cn(
                 "flex w-full items-center px-3 py-2 text-sm text-discord-text-normal transition-colors hover:bg-discord-brand-blurple hover:text-white",
-                option.value === value && "bg-discord-bg-mod-selected"
+                option.value === value && "bg-discord-bg-mod-selected",
               )}
             >
               {option.label}

@@ -18,9 +18,7 @@ export function VoiceConnectionPanel() {
         <div className="min-w-0">
           <div className="flex items-center gap-1">
             <Signal className="h-4 w-4 shrink-0 text-discord-btn-success" />
-            <span className="text-sm font-medium text-discord-btn-success">
-              音声接続中
-            </span>
+            <span className="text-sm font-medium text-discord-btn-success">音声接続中</span>
           </div>
           <span className="block truncate text-xs text-discord-channels-default">
             {channel?.name ?? "..."}
@@ -30,7 +28,7 @@ export function VoiceConnectionPanel() {
           onClick={disconnect}
           className={cn(
             "flex h-8 w-8 items-center justify-center rounded",
-            "text-discord-channels-default hover:bg-discord-brand-red/20 hover:text-discord-brand-red"
+            "text-discord-channels-default hover:bg-discord-brand-red/20 hover:text-discord-brand-red",
           )}
         >
           <PhoneOff className="h-5 w-5" />

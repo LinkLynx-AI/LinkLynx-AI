@@ -39,11 +39,7 @@ export function Avatar({
   return (
     <div className={cn("relative inline-flex shrink-0", className)}>
       {src ? (
-        <img
-          src={src}
-          alt={alt}
-          className={cn("rounded-full object-cover", sizeMap[size])}
-        />
+        <img src={src} alt={alt} className={cn("rounded-full object-cover", sizeMap[size])} />
       ) : (
         <div
           className={cn(
@@ -53,7 +49,7 @@ export function Avatar({
             size === 32 && "text-xs",
             size === 40 && "text-sm",
             size === 80 && "text-2xl",
-            size === 128 && "text-4xl"
+            size === 128 && "text-4xl",
           )}
         >
           {alt.charAt(0).toUpperCase()}
@@ -64,7 +60,7 @@ export function Avatar({
           className={cn(
             "absolute bottom-0 right-0 rounded-full border-discord-bg-primary",
             statusDotSize[size],
-            statusColors[status]
+            statusColors[status],
           )}
         />
       )}

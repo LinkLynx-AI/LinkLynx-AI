@@ -1,22 +1,9 @@
 "use client";
 
-import {
-  Gem,
-  Rocket,
-  Code2,
-  Bug,
-  Sword,
-  Sparkles,
-  Scale,
-  Heart,
-  Terminal,
-} from "lucide-react";
+import { Gem, Rocket, Code2, Bug, Sword, Sparkles, Scale, Heart, Terminal } from "lucide-react";
 import type { UserBadge } from "@/types/user";
 
-const badgeConfig: Record<
-  UserBadge,
-  { icon: React.ElementType; label: string; color: string }
-> = {
+const badgeConfig: Record<UserBadge, { icon: React.ElementType; label: string; color: string }> = {
   nitro: { icon: Gem, label: "Nitro", color: "text-[#f47fff]" },
   boost: { icon: Rocket, label: "Server Booster", color: "text-[#f47fff]" },
   developer: {

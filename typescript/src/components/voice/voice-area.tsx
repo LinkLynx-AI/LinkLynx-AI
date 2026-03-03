@@ -21,13 +21,7 @@ function resolveUser(userId: string) {
   };
 }
 
-export function VoiceArea({
-  channelId,
-  channelName,
-}: {
-  channelId: string;
-  channelName: string;
-}) {
+export function VoiceArea({ channelId, channelName }: { channelId: string; channelName: string }) {
   const participants = useVoiceStore((s) => s.participants);
   const selfMuted = useVoiceStore((s) => s.selfMuted);
   const selfDeafened = useVoiceStore((s) => s.selfDeafened);
@@ -80,9 +74,7 @@ export function VoiceArea({
 
       {/* Header */}
       <div className="flex items-center gap-2 border-b border-discord-divider px-4 py-3">
-        <h2 className="text-base font-semibold text-discord-header-primary">
-          {channelName}
-        </h2>
+        <h2 className="text-base font-semibold text-discord-header-primary">{channelName}</h2>
         <div className="flex items-center gap-1 text-discord-text-muted">
           <Users className="h-4 w-4" />
           <span className="text-sm">{allParticipants.length}</span>
@@ -95,11 +87,7 @@ export function VoiceArea({
         <div className={cn("flex-1 overflow-y-auto p-4", showTextChat && "w-[70%]")}>
           <div className="grid auto-rows-max grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4">
             {allParticipants.map((p, i) => (
-              <VoiceParticipantTile
-                key={p.userId}
-                participant={p}
-                isCurrentUser={i === 0}
-              />
+              <VoiceParticipantTile key={p.userId} participant={p} isCurrentUser={i === 0} />
             ))}
           </div>
         </div>

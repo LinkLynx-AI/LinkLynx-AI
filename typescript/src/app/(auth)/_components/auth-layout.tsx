@@ -23,9 +23,7 @@ export function AuthLayout({
             L
           </div>
           <h1 className="text-2xl font-bold text-discord-header-primary">{title}</h1>
-          {description && (
-            <p className="mt-1 text-sm text-discord-text-muted">{description}</p>
-          )}
+          {description && <p className="mt-1 text-sm text-discord-text-muted">{description}</p>}
         </div>
 
         <div>{children}</div>

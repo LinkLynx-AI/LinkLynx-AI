@@ -9,13 +9,8 @@ export function useSendMessage() {
   const api = getAPIClient();
 
   return useMutation({
-    mutationFn: ({
-      channelId,
-      data,
-    }: {
-      channelId: string;
-      data: CreateMessageData;
-    }) => api.sendMessage(channelId, data),
+    mutationFn: ({ channelId, data }: { channelId: string; data: CreateMessageData }) =>
+      api.sendMessage(channelId, data),
     onSuccess: (_, { channelId }) => {
       queryClient.invalidateQueries({ queryKey: ["messages", channelId] });
     },

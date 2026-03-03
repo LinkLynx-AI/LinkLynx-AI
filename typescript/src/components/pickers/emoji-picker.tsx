@@ -27,7 +27,7 @@ export function EmojiPicker({ mode, onSelect, onClose, position }: EmojiPickerPr
       (e) =>
         e.name.toLowerCase().includes(lower) ||
         e.emoji.includes(search) ||
-        e.keywords?.some((k) => k.toLowerCase().includes(lower))
+        e.keywords?.some((k) => k.toLowerCase().includes(lower)),
     );
   }, [search]);
 
@@ -47,7 +47,7 @@ export function EmojiPicker({ mode, onSelect, onClose, position }: EmojiPickerPr
         onClose();
       }
     },
-    [onSelect, onClose, mode]
+    [onSelect, onClose, mode],
   );
 
   useEffect(() => {
@@ -87,7 +87,7 @@ export function EmojiPicker({ mode, onSelect, onClose, position }: EmojiPickerPr
         "z-50 flex w-[430px] flex-col rounded-lg",
         "bg-discord-bg-floating shadow-xl",
         "border border-discord-divider",
-        !position && "absolute bottom-full right-0 mb-2"
+        !position && "absolute bottom-full right-0 mb-2",
       )}
       style={{ height: 450, ...style }}
     >
@@ -103,7 +103,7 @@ export function EmojiPicker({ mode, onSelect, onClose, position }: EmojiPickerPr
             className={cn(
               "w-full rounded-md bg-discord-bg-tertiary py-1.5 pl-9 pr-8",
               "text-sm text-discord-text-normal placeholder:text-discord-text-muted",
-              "outline-none"
+              "outline-none",
             )}
           />
           {search && (
@@ -128,7 +128,7 @@ export function EmojiPicker({ mode, onSelect, onClose, position }: EmojiPickerPr
               "hover:bg-discord-bg-mod-hover rounded-t",
               activeCategory === cat.id
                 ? "border-b-2 border-discord-brand-blurple"
-                : "border-b-2 border-transparent"
+                : "border-b-2 border-transparent",
             )}
             title={cat.name}
           >
@@ -151,7 +151,7 @@ export function EmojiPicker({ mode, onSelect, onClose, position }: EmojiPickerPr
                   className={cn(
                     "flex h-8 w-8 items-center justify-center rounded",
                     "text-2xl leading-none",
-                    "hover:bg-discord-bg-mod-hover transition-colors cursor-pointer"
+                    "hover:bg-discord-bg-mod-hover transition-colors cursor-pointer",
                   )}
                 >
                   {item.emoji}
@@ -172,9 +172,7 @@ export function EmojiPicker({ mode, onSelect, onClose, position }: EmojiPickerPr
               <div key={cat.id} data-category={cat.id}>
                 <div className="sticky top-0 bg-discord-bg-floating px-1 py-1.5 text-xs font-semibold uppercase text-discord-text-muted">
                   {cat.name}
-                  {isExternal && (
-                    <Lock className="ml-1 inline h-3 w-3 text-discord-text-muted" />
-                  )}
+                  {isExternal && <Lock className="ml-1 inline h-3 w-3 text-discord-text-muted" />}
                 </div>
                 <div className="grid grid-cols-8 gap-0.5">
                   {emojis.map((item) => (
@@ -186,7 +184,7 @@ export function EmojiPicker({ mode, onSelect, onClose, position }: EmojiPickerPr
                       className={cn(
                         "flex h-8 w-8 items-center justify-center rounded",
                         "text-2xl leading-none",
-                        "hover:bg-discord-bg-mod-hover transition-colors cursor-pointer"
+                        "hover:bg-discord-bg-mod-hover transition-colors cursor-pointer",
                       )}
                     >
                       {item.emoji}

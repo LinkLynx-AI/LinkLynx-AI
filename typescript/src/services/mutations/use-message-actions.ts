@@ -8,13 +8,8 @@ export function usePinMessage() {
   const api = getAPIClient();
 
   return useMutation({
-    mutationFn: ({
-      channelId,
-      messageId,
-    }: {
-      channelId: string;
-      messageId: string;
-    }) => api.pinMessage(channelId, messageId),
+    mutationFn: ({ channelId, messageId }: { channelId: string; messageId: string }) =>
+      api.pinMessage(channelId, messageId),
     onSuccess: (_, { channelId }) => {
       queryClient.invalidateQueries({
         queryKey: ["pinned-messages", channelId],
@@ -29,13 +24,8 @@ export function useUnpinMessage() {
   const api = getAPIClient();
 
   return useMutation({
-    mutationFn: ({
-      channelId,
-      messageId,
-    }: {
-      channelId: string;
-      messageId: string;
-    }) => api.unpinMessage(channelId, messageId),
+    mutationFn: ({ channelId, messageId }: { channelId: string; messageId: string }) =>
+      api.unpinMessage(channelId, messageId),
     onSuccess: (_, { channelId }) => {
       queryClient.invalidateQueries({
         queryKey: ["pinned-messages", channelId],
@@ -50,13 +40,8 @@ export function useDeleteMessage() {
   const api = getAPIClient();
 
   return useMutation({
-    mutationFn: ({
-      channelId,
-      messageId,
-    }: {
-      channelId: string;
-      messageId: string;
-    }) => api.deleteMessage(channelId, messageId),
+    mutationFn: ({ channelId, messageId }: { channelId: string; messageId: string }) =>
+      api.deleteMessage(channelId, messageId),
     onSuccess: (_, { channelId }) => {
       queryClient.invalidateQueries({ queryKey: ["messages", channelId] });
     },

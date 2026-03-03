@@ -10,12 +10,7 @@ export { Modal, ModalHeader, ModalBody, ModalFooter } from "./modal";
 export { Divider } from "./divider";
 export { Skeleton } from "./skeleton";
 export { Spinner } from "./spinner";
-export {
-  ContextMenu,
-  MenuItem,
-  MenuSeparator,
-  MenuLabel,
-} from "./context-menu";
+export { ContextMenu, MenuItem, MenuSeparator, MenuLabel } from "./context-menu";
 export { Tabs } from "./tabs";
 export { Select } from "./select";
 export { ConnectionBanner } from "./connection-banner";

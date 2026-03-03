@@ -70,11 +70,7 @@ export function FormattingToolbar({
       const selected = content.substring(start, end);
 
       const newContent =
-        content.substring(0, start) +
-        prefix +
-        selected +
-        suffix +
-        content.substring(end);
+        content.substring(0, start) + prefix + selected + suffix + content.substring(end);
 
       setContent(newContent);
 
@@ -86,7 +82,7 @@ export function FormattingToolbar({
         textarea.setSelectionRange(cursorPos, cursorPos);
       });
     },
-    [textareaRef, content, setContent]
+    [textareaRef, content, setContent],
   );
 
   const handleHeadingSelect = useCallback(
@@ -94,7 +90,7 @@ export function FormattingToolbar({
       const prefix = "#".repeat(level) + " ";
       wrapSelection(prefix, "");
     },
-    [wrapSelection]
+    [wrapSelection],
   );
 
   const handleLinkInsert = useCallback(
@@ -105,8 +101,7 @@ export function FormattingToolbar({
 
       const start = textarea.selectionStart;
       const linkMarkdown = `[${displayText}](${url})`;
-      const newContent =
-        content.substring(0, start) + linkMarkdown + content.substring(start);
+      const newContent = content.substring(0, start) + linkMarkdown + content.substring(start);
 
       setContent(newContent);
       setShowLinkPopover(false);
@@ -117,7 +112,7 @@ export function FormattingToolbar({
         textarea.setSelectionRange(cursorPos, cursorPos);
       });
     },
-    [textareaRef, content, setContent]
+    [textareaRef, content, setContent],
   );
 
   const handleFormatClick = useCallback(
@@ -128,11 +123,15 @@ export function FormattingToolbar({
       }
       wrapSelection(btn.prefix, btn.suffix);
     },
-    [wrapSelection]
+    [wrapSelection],
   );
 
   return (
-    <div className="relative flex items-center gap-0.5 px-2 pt-1.5" role="toolbar" aria-label="テキスト書式">
+    <div
+      className="relative flex items-center gap-0.5 px-2 pt-1.5"
+      role="toolbar"
+      aria-label="テキスト書式"
+    >
       {/* Heading dropdown button */}
       <div className="relative">
         <Tooltip content="見出し" position="top">
@@ -144,7 +143,7 @@ export function FormattingToolbar({
               "rounded p-1 text-discord-interactive-normal",
               "hover:bg-discord-bg-mod-hover hover:text-discord-interactive-hover",
               "transition-colors",
-              showHeadingDropdown && "bg-discord-bg-mod-hover text-discord-interactive-hover"
+              showHeadingDropdown && "bg-discord-bg-mod-hover text-discord-interactive-hover",
             )}
           >
             <Heading1 className="h-4 w-4" />
@@ -173,17 +172,16 @@ export function FormattingToolbar({
                 "rounded p-1 text-discord-interactive-normal",
                 "hover:bg-discord-bg-mod-hover hover:text-discord-interactive-hover",
                 "transition-colors",
-                btn.label === "リンク" && showLinkPopover && "bg-discord-bg-mod-hover text-discord-interactive-hover"
+                btn.label === "リンク" &&
+                  showLinkPopover &&
+                  "bg-discord-bg-mod-hover text-discord-interactive-hover",
               )}
             >
               <btn.icon className="h-4 w-4" />
             </button>
           </Tooltip>
           {btn.label === "リンク" && showLinkPopover && (
-            <LinkPopover
-              onInsert={handleLinkInsert}
-              onClose={() => setShowLinkPopover(false)}
-            />
+            <LinkPopover onInsert={handleLinkInsert} onClose={() => setShowLinkPopover(false)} />
           )}
         </div>
       ))}
@@ -202,7 +200,7 @@ export function FormattingToolbar({
               "rounded p-1 text-discord-interactive-normal",
               "hover:bg-discord-bg-mod-hover hover:text-discord-interactive-hover",
               "transition-colors",
-              showPreview && "bg-discord-bg-mod-hover text-discord-brand"
+              showPreview && "bg-discord-bg-mod-hover text-discord-brand",
             )}
           >
             <Eye className="h-4 w-4" />

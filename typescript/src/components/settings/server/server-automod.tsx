@@ -4,10 +4,7 @@ import { useState } from "react";
 import { cn } from "@/lib/cn";
 import { Toggle } from "@/components/ui/toggle";
 import { Button } from "@/components/ui/button";
-import {
-  AutomodRuleEditor,
-  type AutoModRule,
-} from "./automod-rule-editor";
+import { AutomodRuleEditor, type AutoModRule } from "./automod-rule-editor";
 import { Plus, Pencil, Trash2, Shield } from "lucide-react";
 
 const initialRules: AutoModRule[] = [
@@ -28,10 +25,7 @@ const initialRules: AutoModRule[] = [
     eventType: "message_send",
     triggerType: "mention_spam",
     triggerMetadata: { mentionTotalLimit: 10 },
-    actions: [
-      { type: "block_message" },
-      { type: "timeout", metadata: { durationSeconds: 300 } },
-    ],
+    actions: [{ type: "block_message" }, { type: "timeout", metadata: { durationSeconds: 300 } }],
     exemptRoles: [],
     exemptChannels: [],
     enabled: true,
@@ -76,17 +70,13 @@ export function ServerAutomod({ serverId }: { serverId: string }) {
   };
 
   const handleToggleRule = (ruleId: string) => {
-    setRules((prev) =>
-      prev.map((r) => (r.id === ruleId ? { ...r, enabled: !r.enabled } : r))
-    );
+    setRules((prev) => prev.map((r) => (r.id === ruleId ? { ...r, enabled: !r.enabled } : r)));
   };
 
   if (creating || editingRule) {
     return (
       <div>
-        <h2 className="mb-5 text-xl font-bold text-discord-header-primary">
-          AutoMod
-        </h2>
+        <h2 className="mb-5 text-xl font-bold text-discord-header-primary">AutoMod</h2>
         <AutomodRuleEditor
           rule={editingRule ?? undefined}
           onSave={handleSaveRule}
@@ -101,9 +91,7 @@ export function ServerAutomod({ serverId }: { serverId: string }) {
 
   return (
     <div>
-      <h2 className="mb-5 text-xl font-bold text-discord-header-primary">
-        AutoMod
-      </h2>
+      <h2 className="mb-5 text-xl font-bold text-discord-header-primary">AutoMod</h2>
 
       {/* Custom Rules */}
       <section className="mb-8">
@@ -120,9 +108,7 @@ export function ServerAutomod({ serverId }: { serverId: string }) {
         {rules.length === 0 ? (
           <div className="flex flex-col items-center justify-center rounded-lg bg-discord-bg-secondary py-8 text-center">
             <Shield className="mb-2 h-8 w-8 text-discord-interactive-muted" />
-            <p className="text-sm text-discord-text-muted">
-              カスタムルールはまだありません
-            </p>
+            <p className="text-sm text-discord-text-muted">カスタムルールはまだありません</p>
           </div>
         ) : (
           <div className="space-y-2">
@@ -141,10 +127,7 @@ export function ServerAutomod({ serverId }: { serverId: string }) {
                     </span>
                   </div>
                 </div>
-                <Toggle
-                  checked={rule.enabled}
-                  onChange={() => handleToggleRule(rule.id)}
-                />
+                <Toggle checked={rule.enabled} onChange={() => handleToggleRule(rule.id)} />
                 <button
                   onClick={() => setEditingRule(rule)}
                   className="rounded p-1 text-discord-interactive-normal hover:text-discord-interactive-hover transition-colors"
@@ -203,13 +186,8 @@ export function ServerAutomod({ serverId }: { serverId: string }) {
           </div>
         </div>
         <div className="flex items-center justify-between max-w-[480px] border-b border-discord-divider py-3">
-          <span className="text-sm text-discord-text-normal">
-            重複メッセージ検出
-          </span>
-          <Toggle
-            checked={duplicateDetection}
-            onChange={setDuplicateDetection}
-          />
+          <span className="text-sm text-discord-text-normal">重複メッセージ検出</span>
+          <Toggle checked={duplicateDetection} onChange={setDuplicateDetection} />
         </div>
       </section>
 
@@ -220,21 +198,15 @@ export function ServerAutomod({ serverId }: { serverId: string }) {
         </h3>
         <div className="max-w-[480px]">
           <div className="flex items-center justify-between border-b border-discord-divider py-3">
-            <span className="text-sm text-discord-text-normal">
-              ヘイトスピーチ
-            </span>
+            <span className="text-sm text-discord-text-normal">ヘイトスピーチ</span>
             <Toggle checked={hateSpeech} onChange={setHateSpeech} />
           </div>
           <div className="flex items-center justify-between border-b border-discord-divider py-3">
-            <span className="text-sm text-discord-text-normal">
-              性的コンテンツ
-            </span>
+            <span className="text-sm text-discord-text-normal">性的コンテンツ</span>
             <Toggle checked={sexualContent} onChange={setSexualContent} />
           </div>
           <div className="flex items-center justify-between border-b border-discord-divider py-3">
-            <span className="text-sm text-discord-text-normal">
-              暴力的コンテンツ
-            </span>
+            <span className="text-sm text-discord-text-normal">暴力的コンテンツ</span>
             <Toggle checked={violentContent} onChange={setViolentContent} />
           </div>
         </div>
@@ -246,18 +218,16 @@ export function ServerAutomod({ serverId }: { serverId: string }) {
           アクション設定
         </h3>
         <div className="flex flex-col gap-2 max-w-[480px]">
-          {([
+          {[
             { value: "block" as const, label: "ブロック" },
             { value: "alert" as const, label: "アラート" },
             { value: "timeout" as const, label: "タイムアウト" },
-          ]).map((opt) => (
+          ].map((opt) => (
             <label
               key={opt.value}
               className={cn(
                 "flex items-center gap-3 rounded px-3 py-2 cursor-pointer transition-colors",
-                action === opt.value
-                  ? "bg-discord-bg-mod-active"
-                  : "hover:bg-discord-bg-mod-hover"
+                action === opt.value ? "bg-discord-bg-mod-active" : "hover:bg-discord-bg-mod-hover",
               )}
             >
               <input
@@ -268,9 +238,7 @@ export function ServerAutomod({ serverId }: { serverId: string }) {
                 onChange={() => setAction(opt.value)}
                 className="accent-discord-brand-blurple"
               />
-              <span className="text-sm text-discord-text-normal">
-                {opt.label}
-              </span>
+              <span className="text-sm text-discord-text-normal">{opt.label}</span>
             </label>
           ))}
         </div>

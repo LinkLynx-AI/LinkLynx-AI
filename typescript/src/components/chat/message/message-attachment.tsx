@@ -36,7 +36,7 @@ export function MessageAttachment({ attachment }: { attachment: Attachment }) {
           alt={attachment.filename}
           className={cn(
             "max-h-[300px] rounded",
-            attachment.spoiler && !spoilerRevealed && "blur-[44px]"
+            attachment.spoiler && !spoilerRevealed && "blur-[44px]",
           )}
           width={attachment.width ?? undefined}
           height={attachment.height ?? undefined}
@@ -57,9 +57,7 @@ export function MessageAttachment({ attachment }: { attachment: Attachment }) {
         >
           {attachment.filename}
         </a>
-        <span className="text-xs text-discord-text-muted">
-          {formatFileSize(attachment.size)}
-        </span>
+        <span className="text-xs text-discord-text-muted">{formatFileSize(attachment.size)}</span>
       </div>
       <a
         href={attachment.url}

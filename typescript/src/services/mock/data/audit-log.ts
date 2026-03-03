@@ -98,9 +98,7 @@ export const mockAuditLogEntries: AuditLogEntry[] = [
     userAvatar: null,
     actionType: "role_update",
     targetName: "Moderator",
-    changes: [
-      { key: "color", oldValue: "#3498db", newValue: "#2980b9" },
-    ],
+    changes: [{ key: "color", oldValue: "#3498db", newValue: "#2980b9" }],
     createdAt: "2025-11-28T20:10:00Z",
   },
   {

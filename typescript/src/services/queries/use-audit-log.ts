@@ -3,10 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { getAPIClient } from "@/services/api-client";
 
-export function useAuditLog(
-  serverId: string,
-  params?: { before?: string; limit?: number }
-) {
+export function useAuditLog(serverId: string, params?: { before?: string; limit?: number }) {
   const api = getAPIClient();
   return useQuery({
     queryKey: ["audit-log", serverId, params],

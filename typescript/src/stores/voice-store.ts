@@ -46,9 +46,30 @@ export const useVoiceStore = create<VoiceState>((set) => ({
       selfMuted: false,
       selfDeafened: false,
       participants: [
-        { userId: "100000000000000002", muted: false, deafened: false, speaking: false, cameraOn: false, screenSharing: false },
-        { userId: "100000000000000003", muted: true, deafened: false, speaking: false, cameraOn: false, screenSharing: false },
-        { userId: "100000000000000004", muted: false, deafened: false, speaking: true, cameraOn: false, screenSharing: false },
+        {
+          userId: "100000000000000002",
+          muted: false,
+          deafened: false,
+          speaking: false,
+          cameraOn: false,
+          screenSharing: false,
+        },
+        {
+          userId: "100000000000000003",
+          muted: true,
+          deafened: false,
+          speaking: false,
+          cameraOn: false,
+          screenSharing: false,
+        },
+        {
+          userId: "100000000000000004",
+          muted: false,
+          deafened: false,
+          speaking: true,
+          cameraOn: false,
+          screenSharing: false,
+        },
       ],
     }),
 
@@ -64,8 +85,7 @@ export const useVoiceStore = create<VoiceState>((set) => ({
       participants: [],
     }),
 
-  toggleMute: () =>
-    set((state) => ({ selfMuted: !state.selfMuted })),
+  toggleMute: () => set((state) => ({ selfMuted: !state.selfMuted })),
 
   toggleDeafen: () =>
     set((state) => ({
@@ -73,16 +93,12 @@ export const useVoiceStore = create<VoiceState>((set) => ({
       selfMuted: !state.selfDeafened ? true : state.selfMuted,
     })),
 
-  toggleCamera: () =>
-    set((state) => ({ cameraOn: !state.cameraOn })),
+  toggleCamera: () => set((state) => ({ cameraOn: !state.cameraOn })),
 
-  toggleScreenShare: () =>
-    set((state) => ({ screenSharing: !state.screenSharing })),
+  toggleScreenShare: () => set((state) => ({ screenSharing: !state.screenSharing })),
 
   setSpeaking: (userId, speaking) =>
     set((state) => ({
-      participants: state.participants.map((p) =>
-        p.userId === userId ? { ...p, speaking } : p
-      ),
+      participants: state.participants.map((p) => (p.userId === userId ? { ...p, speaking } : p)),
     })),
 }));

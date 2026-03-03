@@ -214,7 +214,12 @@ export const EMOJI_DATA: EmojiItem[] = [
   { emoji: "🎉", name: "お祝い", category: "symbols", keywords: ["party", "celebration"] },
 
   // Flags
-  { emoji: "🏁", name: "チェッカーフラッグ", category: "flags", keywords: ["checkered", "flag", "race"] },
+  {
+    emoji: "🏁",
+    name: "チェッカーフラッグ",
+    category: "flags",
+    keywords: ["checkered", "flag", "race"],
+  },
   { emoji: "🚩", name: "三角旗", category: "flags", keywords: ["flag", "red"] },
   { emoji: "🎌", name: "交差した旗", category: "flags", keywords: ["crossed flags"] },
   { emoji: "🏴", name: "黒旗", category: "flags", keywords: ["black flag"] },

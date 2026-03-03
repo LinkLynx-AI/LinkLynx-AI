@@ -58,9 +58,7 @@ export function ScreenSharePicker({
       <div className="flex w-[640px] max-w-[90vw] flex-col rounded-lg bg-discord-bg-primary shadow-2xl">
         {/* Header */}
         <div className="flex items-center justify-between px-4 pt-4 pb-2">
-          <h2 className="text-lg font-semibold text-discord-header-primary">
-            画面を共有
-          </h2>
+          <h2 className="text-lg font-semibold text-discord-header-primary">画面を共有</h2>
           <button
             onClick={onClose}
             className="flex h-8 w-8 items-center justify-center rounded text-discord-interactive-normal hover:text-discord-interactive-hover"
@@ -85,7 +83,7 @@ export function ScreenSharePicker({
                 "flex flex-col items-center gap-2 rounded-lg border-2 p-3 transition-colors",
                 selectedId === source.id
                   ? "border-discord-brand-blurple bg-discord-brand-blurple/10"
-                  : "border-transparent bg-discord-bg-secondary hover:bg-discord-bg-tertiary"
+                  : "border-transparent bg-discord-bg-secondary hover:bg-discord-bg-tertiary",
               )}
             >
               <div className="flex h-20 w-full items-center justify-center rounded bg-discord-bg-tertiary">
@@ -150,7 +148,7 @@ export function ScreenSharePicker({
               "rounded px-4 py-2 text-sm font-medium text-white transition-colors",
               selected
                 ? "bg-discord-brand-blurple hover:bg-discord-brand-blurple/80"
-                : "cursor-not-allowed bg-discord-brand-blurple/50"
+                : "cursor-not-allowed bg-discord-brand-blurple/50",
             )}
           >
             共有

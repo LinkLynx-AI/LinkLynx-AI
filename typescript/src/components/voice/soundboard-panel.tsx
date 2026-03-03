@@ -31,13 +31,11 @@ export function SoundboardPanel({ onClose }: { onClose: () => void }) {
     <div
       className={cn(
         "w-72 rounded-lg border border-discord-divider bg-discord-bg-floating shadow-xl",
-        "flex flex-col"
+        "flex flex-col",
       )}
     >
       <div className="flex items-center justify-between px-3 pt-3 pb-1">
-        <h3 className="text-sm font-semibold text-discord-header-primary">
-          サウンドボード
-        </h3>
+        <h3 className="text-sm font-semibold text-discord-header-primary">サウンドボード</h3>
         <button
           onClick={onClose}
           aria-label="閉じる"

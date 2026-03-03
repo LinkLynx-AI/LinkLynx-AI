@@ -29,7 +29,7 @@ export function MessageReactions({
             reaction.me
               ? "border border-discord-brand-blurple/40 bg-discord-brand-blurple/15 text-discord-text-normal"
               : "border border-discord-bg-accent/40 bg-discord-bg-secondary text-discord-text-normal",
-            "hover:bg-discord-bg-mod-hover"
+            "hover:bg-discord-bg-mod-hover",
           )}
         >
           <span>{reaction.emoji.name}</span>

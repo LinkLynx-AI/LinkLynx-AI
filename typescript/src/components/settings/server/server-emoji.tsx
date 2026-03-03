@@ -37,9 +37,7 @@ export function ServerEmoji({ serverId }: { serverId: string }) {
 
   function saveEdit(id: string) {
     if (editName.trim()) {
-      setEmojis((prev) =>
-        prev.map((e) => (e.id === id ? { ...e, name: editName.trim() } : e))
-      );
+      setEmojis((prev) => prev.map((e) => (e.id === id ? { ...e, name: editName.trim() } : e)));
     }
     setEditingId(null);
   }
@@ -53,9 +51,7 @@ export function ServerEmoji({ serverId }: { serverId: string }) {
   return (
     <div>
       <div className="mb-5 flex items-center justify-between">
-        <h2 className="text-xl font-bold text-discord-header-primary">
-          絵文字
-        </h2>
+        <h2 className="text-xl font-bold text-discord-header-primary">絵文字</h2>
         <Button>アップロード</Button>
       </div>
 
@@ -80,10 +76,7 @@ export function ServerEmoji({ serverId }: { serverId: string }) {
             className="group flex items-center gap-3 rounded px-3 py-2 hover:bg-discord-bg-mod-hover transition-colors"
           >
             {/* Emoji preview placeholder */}
-            <div
-              className="h-8 w-8 shrink-0 rounded"
-              style={{ backgroundColor: emoji.color }}
-            />
+            <div className="h-8 w-8 shrink-0 rounded" style={{ backgroundColor: emoji.color }} />
 
             {/* Name (editable) */}
             {editingId === emoji.id ? (
@@ -108,9 +101,7 @@ export function ServerEmoji({ serverId }: { serverId: string }) {
               </button>
             )}
 
-            <span className="flex-1 text-xs text-discord-text-muted">
-              {emoji.uploadedBy}
-            </span>
+            <span className="flex-1 text-xs text-discord-text-muted">{emoji.uploadedBy}</span>
 
             <button
               onClick={() => deleteEmoji(emoji.id)}

@@ -17,12 +17,10 @@ export function ThreadCard({
       onClick={() => onSelect(thread)}
       className={cn(
         "w-full rounded-lg p-3 text-left",
-        "hover:bg-discord-bg-mod-hover transition-colors cursor-pointer"
+        "hover:bg-discord-bg-mod-hover transition-colors cursor-pointer",
       )}
     >
-      <div className="font-semibold text-sm text-discord-header-primary">
-        {thread.name}
-      </div>
+      <div className="font-semibold text-sm text-discord-header-primary">{thread.name}</div>
       <p className="mt-1 truncate text-sm text-discord-text-muted">
         {thread.lastMessageAuthor}: {thread.lastMessagePreview}
       </p>

@@ -2,19 +2,13 @@
 
 import { cn } from "@/lib/cn";
 
-export function UserMention({
-  userId,
-  displayName,
-}: {
-  userId: string;
-  displayName?: string;
-}) {
+export function UserMention({ userId, displayName }: { userId: string; displayName?: string }) {
   return (
     <span
       className={cn(
         "cursor-pointer rounded-[3px] px-0.5",
         "bg-discord-mention-bg text-discord-text-link font-medium",
-        "hover:bg-discord-mention-hover-bg hover:text-white"
+        "hover:bg-discord-mention-hover-bg hover:text-white",
       )}
       role="button"
       tabIndex={0}
@@ -29,7 +23,7 @@ export function EveryoneMention() {
     <span
       className={cn(
         "rounded-[3px] px-0.5",
-        "bg-discord-mention-bg text-discord-text-link font-medium"
+        "bg-discord-mention-bg text-discord-text-link font-medium",
       )}
     >
       @everyone
@@ -42,7 +36,7 @@ export function HereMention() {
     <span
       className={cn(
         "rounded-[3px] px-0.5",
-        "bg-discord-mention-bg text-discord-text-link font-medium"
+        "bg-discord-mention-bg text-discord-text-link font-medium",
       )}
     >
       @here
@@ -62,7 +56,7 @@ export function ChannelMention({
       className={cn(
         "cursor-pointer rounded-[3px] px-0.5",
         "bg-discord-mention-bg text-discord-text-link font-medium",
-        "hover:bg-discord-mention-hover-bg hover:text-white"
+        "hover:bg-discord-mention-hover-bg hover:text-white",
       )}
       role="button"
       tabIndex={0}

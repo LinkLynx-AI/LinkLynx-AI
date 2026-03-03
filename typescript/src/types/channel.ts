@@ -1,13 +1,13 @@
 import type { User } from "./user";
 
 export type ChannelType =
-  | 0   // GUILD_TEXT
-  | 1   // DM
-  | 2   // GUILD_VOICE
-  | 3   // GROUP_DM
-  | 4   // GUILD_CATEGORY
-  | 5   // GUILD_ANNOUNCEMENT
-  | 13  // GUILD_STAGE_VOICE
+  | 0 // GUILD_TEXT
+  | 1 // DM
+  | 2 // GUILD_VOICE
+  | 3 // GROUP_DM
+  | 4 // GUILD_CATEGORY
+  | 5 // GUILD_ANNOUNCEMENT
+  | 13 // GUILD_STAGE_VOICE
   | 15; // GUILD_FORUM
 
 export interface PermissionOverwrite {

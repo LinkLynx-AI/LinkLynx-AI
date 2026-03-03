@@ -33,13 +33,28 @@ function hsvToHex(h: number, s: number, v: number): string {
   const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
   const m = vNorm - c;
 
-  let r = 0, g = 0, b = 0;
-  if (h < 60) { r = c; g = x; }
-  else if (h < 120) { r = x; g = c; }
-  else if (h < 180) { g = c; b = x; }
-  else if (h < 240) { g = x; b = c; }
-  else if (h < 300) { r = x; b = c; }
-  else { r = c; b = x; }
+  let r = 0,
+    g = 0,
+    b = 0;
+  if (h < 60) {
+    r = c;
+    g = x;
+  } else if (h < 120) {
+    r = x;
+    g = c;
+  } else if (h < 180) {
+    g = c;
+    b = x;
+  } else if (h < 240) {
+    g = x;
+    b = c;
+  } else if (h < 300) {
+    r = x;
+    b = c;
+  } else {
+    r = c;
+    b = x;
+  }
 
   const toHex = (n: number) =>
     Math.round((n + m) * 255)
@@ -81,7 +96,7 @@ export function RoleColorPicker({
       setHexInput(hex);
       onChange(hex);
     },
-    [hsv, onChange]
+    [hsv, onChange],
   );
 
   const updateFromHue = useCallback(
@@ -95,7 +110,7 @@ export function RoleColorPicker({
       setHexInput(hex);
       onChange(hex);
     },
-    [hsv, onChange]
+    [hsv, onChange],
   );
 
   useEffect(() => {
@@ -155,8 +170,7 @@ export function RoleColorPicker({
         ref={hueRef}
         className="relative mt-3 h-3 w-full cursor-pointer rounded"
         style={{
-          background:
-            "linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00)",
+          background: "linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00)",
         }}
         onMouseDown={(e) => {
           draggingHue.current = true;
@@ -181,7 +195,7 @@ export function RoleColorPicker({
             className={cn(
               "h-6 w-6 rounded-full transition-transform",
               value === color &&
-                "scale-110 ring-2 ring-white ring-offset-2 ring-offset-discord-bg-primary"
+                "scale-110 ring-2 ring-white ring-offset-2 ring-offset-discord-bg-primary",
             )}
             style={{ backgroundColor: color }}
             aria-label={color}

@@ -14,7 +14,7 @@ export function BotSelect({
   const isMulti = (component.maxValues ?? 1) > 1;
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<string[]>(
-    component.options.filter((o) => o.default).map((o) => o.value)
+    component.options.filter((o) => o.default).map((o) => o.value),
   );
   const ref = useRef<HTMLDivElement>(null);
 
@@ -61,10 +61,8 @@ export function BotSelect({
         disabled={component.disabled}
         className={cn(
           "flex w-full items-center justify-between rounded-[3px] bg-discord-input-bg px-3 py-2 text-sm transition-colors",
-          selected.length > 0
-            ? "text-discord-text-normal"
-            : "text-discord-text-muted",
-          component.disabled && "cursor-not-allowed opacity-50"
+          selected.length > 0 ? "text-discord-text-normal" : "text-discord-text-muted",
+          component.disabled && "cursor-not-allowed opacity-50",
         )}
       >
         <span className="truncate">{displayLabel()}</span>
@@ -73,10 +71,7 @@ export function BotSelect({
           height="18"
           viewBox="0 0 24 24"
           fill="currentColor"
-          className={cn(
-            "shrink-0 transition-transform",
-            open && "rotate-180"
-          )}
+          className={cn("shrink-0 transition-transform", open && "rotate-180")}
         >
           <path d="M7 10l5 5 5-5H7z" />
         </svg>
@@ -98,7 +93,7 @@ export function BotSelect({
                 className={cn(
                   "flex w-full items-center gap-2 px-3 py-2 text-sm transition-colors",
                   "text-discord-text-normal hover:bg-discord-brand-blurple hover:text-white",
-                  isSelected && "bg-discord-bg-mod-selected"
+                  isSelected && "bg-discord-bg-mod-selected",
                 )}
               >
                 {isMulti && (
@@ -107,16 +102,11 @@ export function BotSelect({
                       "flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border",
                       isSelected
                         ? "border-discord-brand-blurple bg-discord-brand-blurple"
-                        : "border-discord-text-muted"
+                        : "border-discord-text-muted",
                     )}
                   >
                     {isSelected && (
-                      <svg
-                        width="12"
-                        height="12"
-                        viewBox="0 0 24 24"
-                        fill="white"
-                      >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="white">
                         <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" />
                       </svg>
                     )}
@@ -128,9 +118,7 @@ export function BotSelect({
                     <span>{option.label}</span>
                   </div>
                   {option.description && (
-                    <div className="text-xs text-discord-text-muted">
-                      {option.description}
-                    </div>
+                    <div className="text-xs text-discord-text-muted">{option.description}</div>
                   )}
                 </div>
               </button>

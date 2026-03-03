@@ -17,22 +17,15 @@ interface MemberGroup {
   members: GuildMember[];
 }
 
-function groupMembersByRole(
-  members: GuildMember[],
-  roles: Role[]
-): MemberGroup[] {
+function groupMembersByRole(members: GuildMember[], roles: Role[]): MemberGroup[] {
   const roleMap = new Map(roles.map((r) => [r.id, r]));
-  const hoistRoles = roles
-    .filter((r) => r.hoist)
-    .sort((a, b) => b.position - a.position);
+  const hoistRoles = roles.filter((r) => r.hoist).sort((a, b) => b.position - a.position);
 
   const groups: Map<string, GuildMember[]> = new Map();
   const onlineUngrouped: GuildMember[] = [];
 
   for (const member of members) {
-    const highestHoist = hoistRoles.find((r) =>
-      member.roles.includes(r.id)
-    );
+    const highestHoist = hoistRoles.find((r) => member.roles.includes(r.id));
     if (highestHoist) {
       const existing = groups.get(highestHoist.id) ?? [];
       existing.push(member);
@@ -88,11 +81,7 @@ export function MemberList() {
     <aside className="flex w-60 shrink-0 flex-col bg-discord-bg-secondary">
       <div className="flex-1 overflow-y-auto px-2 pb-4" role="list">
         {groups.map((group) => (
-          <MemberCategory
-            key={group.role.id}
-            name={group.role.name}
-            count={group.members.length}
-          >
+          <MemberCategory key={group.role.id} name={group.role.name} count={group.members.length}>
             {group.members.map((member) => (
               <MemberItem
                 key={member.user.id}

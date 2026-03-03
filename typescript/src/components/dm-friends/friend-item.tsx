@@ -12,13 +12,7 @@ const statusText: Record<string, string> = {
   offline: "オフライン",
 };
 
-export function FriendItem({
-  user,
-  actions,
-}: {
-  user: User;
-  actions?: React.ReactNode;
-}) {
+export function FriendItem({ user, actions }: { user: User; actions?: React.ReactNode }) {
   return (
     <div className="group flex items-center gap-3 rounded-lg px-2.5 py-2 hover:bg-discord-bg-mod-hover cursor-pointer border-t border-discord-bg-mod-faint">
       <Avatar
@@ -28,9 +22,7 @@ export function FriendItem({
         status={user.status}
       />
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-discord-text-normal truncate">
-          {user.displayName}
-        </p>
+        <p className="text-sm font-medium text-discord-text-normal truncate">{user.displayName}</p>
         <p className="text-xs text-discord-text-muted truncate">
           {user.customStatus ?? statusText[user.status] ?? "オフライン"}
         </p>
@@ -42,7 +34,7 @@ export function FriendItem({
               className={cn(
                 "flex h-9 w-9 items-center justify-center rounded-full",
                 "bg-discord-bg-secondary text-discord-interactive-normal",
-                "hover:text-discord-interactive-hover"
+                "hover:text-discord-interactive-hover",
               )}
               aria-label="メッセージ"
             >
@@ -52,7 +44,7 @@ export function FriendItem({
               className={cn(
                 "flex h-9 w-9 items-center justify-center rounded-full",
                 "bg-discord-bg-secondary text-discord-interactive-normal",
-                "hover:text-discord-interactive-hover"
+                "hover:text-discord-interactive-hover",
               )}
               aria-label="通話"
             >

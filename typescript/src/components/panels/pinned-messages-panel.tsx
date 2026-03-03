@@ -61,7 +61,7 @@ export function PinnedMessagesPanel() {
             key={message.id}
             className={cn(
               "rounded-lg bg-discord-bg-tertiary p-3",
-              "hover:bg-discord-bg-mod-hover transition-colors"
+              "hover:bg-discord-bg-mod-hover transition-colors",
             )}
           >
             <div className="flex items-start gap-3">
@@ -84,17 +84,14 @@ export function PinnedMessagesPanel() {
                 </p>
                 <div className="mt-2 flex items-center gap-3">
                   <button
-                    className={cn(
-                      "text-xs font-medium text-discord-text-link",
-                      "hover:underline"
-                    )}
+                    className={cn("text-xs font-medium text-discord-text-link", "hover:underline")}
                   >
                     ジャンプ
                   </button>
                   <button
                     className={cn(
                       "text-xs font-medium text-discord-text-muted",
-                      "hover:text-discord-text-normal hover:underline"
+                      "hover:text-discord-text-normal hover:underline",
                     )}
                     onClick={() =>
                       openModal("pin-confirm", {

@@ -18,7 +18,7 @@ export function FilterChip({
     <span
       className={cn(
         "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm text-white",
-        color || "bg-discord-brand-blurple/20"
+        color || "bg-discord-brand-blurple/20",
       )}
     >
       {icon && <span className="shrink-0">{icon}</span>}

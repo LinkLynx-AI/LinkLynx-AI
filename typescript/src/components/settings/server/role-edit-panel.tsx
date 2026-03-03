@@ -28,26 +28,126 @@ interface PermissionDef {
 }
 
 const PERMISSION_DEFS: PermissionDef[] = [
-  { flag: PERMISSION_FLAGS.ADMINISTRATOR, label: "管理者", description: "すべての権限を持ち、チャンネル固有の権限を上書きします", category: "一般" },
-  { flag: PERMISSION_FLAGS.MANAGE_CHANNELS, label: "チャンネルの管理", description: "チャンネルの作成、編集、削除ができます", category: "一般" },
-  { flag: PERMISSION_FLAGS.MANAGE_GUILD, label: "サーバーの管理", description: "サーバー名やリージョンを変更できます", category: "一般" },
-  { flag: PERMISSION_FLAGS.MANAGE_ROLES, label: "ロールの管理", description: "ロールの作成、編集、削除ができます", category: "一般" },
-  { flag: PERMISSION_FLAGS.KICK_MEMBERS, label: "メンバーをキック", description: "メンバーをサーバーからキックできます", category: "一般" },
-  { flag: PERMISSION_FLAGS.BAN_MEMBERS, label: "メンバーをBAN", description: "メンバーをサーバーからBANできます", category: "一般" },
-  { flag: PERMISSION_FLAGS.VIEW_AUDIT_LOG, label: "監査ログの表示", description: "サーバーの監査ログを表示できます", category: "一般" },
-  { flag: PERMISSION_FLAGS.VIEW_CHANNEL, label: "チャンネルを見る", description: "チャンネルを閲覧できます", category: "テキスト" },
-  { flag: PERMISSION_FLAGS.SEND_MESSAGES, label: "メッセージを送信", description: "テキストチャンネルにメッセージを送信できます", category: "テキスト" },
-  { flag: PERMISSION_FLAGS.MANAGE_MESSAGES, label: "メッセージの管理", description: "他のメンバーのメッセージを削除、ピン留めできます", category: "テキスト" },
-  { flag: PERMISSION_FLAGS.EMBED_LINKS, label: "埋め込みリンク", description: "リンクのプレビューを送信できます", category: "テキスト" },
-  { flag: PERMISSION_FLAGS.ATTACH_FILES, label: "ファイルを添付", description: "メッセージにファイルを添付できます", category: "テキスト" },
-  { flag: PERMISSION_FLAGS.ADD_REACTIONS, label: "リアクションの追加", description: "メッセージにリアクションを追加できます", category: "テキスト" },
-  { flag: PERMISSION_FLAGS.READ_MESSAGE_HISTORY, label: "メッセージ履歴を読む", description: "過去のメッセージを読むことができます", category: "テキスト" },
-  { flag: PERMISSION_FLAGS.MENTION_EVERYONE, label: "@everyoneにメンション", description: "@everyone、@here、すべてのロールにメンションできます", category: "テキスト" },
-  { flag: PERMISSION_FLAGS.CONNECT, label: "接続", description: "ボイスチャンネルに接続できます", category: "ボイス" },
-  { flag: PERMISSION_FLAGS.SPEAK, label: "発言", description: "ボイスチャンネルで発言できます", category: "ボイス" },
-  { flag: PERMISSION_FLAGS.MUTE_MEMBERS, label: "メンバーをミュート", description: "メンバーのマイクをミュートできます", category: "ボイス" },
-  { flag: PERMISSION_FLAGS.DEAFEN_MEMBERS, label: "メンバーのスピーカーをミュート", description: "メンバーのスピーカーをオフにできます", category: "ボイス" },
-  { flag: PERMISSION_FLAGS.MOVE_MEMBERS, label: "メンバーを移動", description: "メンバーを他のボイスチャンネルに移動できます", category: "ボイス" },
+  {
+    flag: PERMISSION_FLAGS.ADMINISTRATOR,
+    label: "管理者",
+    description: "すべての権限を持ち、チャンネル固有の権限を上書きします",
+    category: "一般",
+  },
+  {
+    flag: PERMISSION_FLAGS.MANAGE_CHANNELS,
+    label: "チャンネルの管理",
+    description: "チャンネルの作成、編集、削除ができます",
+    category: "一般",
+  },
+  {
+    flag: PERMISSION_FLAGS.MANAGE_GUILD,
+    label: "サーバーの管理",
+    description: "サーバー名やリージョンを変更できます",
+    category: "一般",
+  },
+  {
+    flag: PERMISSION_FLAGS.MANAGE_ROLES,
+    label: "ロールの管理",
+    description: "ロールの作成、編集、削除ができます",
+    category: "一般",
+  },
+  {
+    flag: PERMISSION_FLAGS.KICK_MEMBERS,
+    label: "メンバーをキック",
+    description: "メンバーをサーバーからキックできます",
+    category: "一般",
+  },
+  {
+    flag: PERMISSION_FLAGS.BAN_MEMBERS,
+    label: "メンバーをBAN",
+    description: "メンバーをサーバーからBANできます",
+    category: "一般",
+  },
+  {
+    flag: PERMISSION_FLAGS.VIEW_AUDIT_LOG,
+    label: "監査ログの表示",
+    description: "サーバーの監査ログを表示できます",
+    category: "一般",
+  },
+  {
+    flag: PERMISSION_FLAGS.VIEW_CHANNEL,
+    label: "チャンネルを見る",
+    description: "チャンネルを閲覧できます",
+    category: "テキスト",
+  },
+  {
+    flag: PERMISSION_FLAGS.SEND_MESSAGES,
+    label: "メッセージを送信",
+    description: "テキストチャンネルにメッセージを送信できます",
+    category: "テキスト",
+  },
+  {
+    flag: PERMISSION_FLAGS.MANAGE_MESSAGES,
+    label: "メッセージの管理",
+    description: "他のメンバーのメッセージを削除、ピン留めできます",
+    category: "テキスト",
+  },
+  {
+    flag: PERMISSION_FLAGS.EMBED_LINKS,
+    label: "埋め込みリンク",
+    description: "リンクのプレビューを送信できます",
+    category: "テキスト",
+  },
+  {
+    flag: PERMISSION_FLAGS.ATTACH_FILES,
+    label: "ファイルを添付",
+    description: "メッセージにファイルを添付できます",
+    category: "テキスト",
+  },
+  {
+    flag: PERMISSION_FLAGS.ADD_REACTIONS,
+    label: "リアクションの追加",
+    description: "メッセージにリアクションを追加できます",
+    category: "テキスト",
+  },
+  {
+    flag: PERMISSION_FLAGS.READ_MESSAGE_HISTORY,
+    label: "メッセージ履歴を読む",
+    description: "過去のメッセージを読むことができます",
+    category: "テキスト",
+  },
+  {
+    flag: PERMISSION_FLAGS.MENTION_EVERYONE,
+    label: "@everyoneにメンション",
+    description: "@everyone、@here、すべてのロールにメンションできます",
+    category: "テキスト",
+  },
+  {
+    flag: PERMISSION_FLAGS.CONNECT,
+    label: "接続",
+    description: "ボイスチャンネルに接続できます",
+    category: "ボイス",
+  },
+  {
+    flag: PERMISSION_FLAGS.SPEAK,
+    label: "発言",
+    description: "ボイスチャンネルで発言できます",
+    category: "ボイス",
+  },
+  {
+    flag: PERMISSION_FLAGS.MUTE_MEMBERS,
+    label: "メンバーをミュート",
+    description: "メンバーのマイクをミュートできます",
+    category: "ボイス",
+  },
+  {
+    flag: PERMISSION_FLAGS.DEAFEN_MEMBERS,
+    label: "メンバーのスピーカーをミュート",
+    description: "メンバーのスピーカーをオフにできます",
+    category: "ボイス",
+  },
+  {
+    flag: PERMISSION_FLAGS.MOVE_MEMBERS,
+    label: "メンバーを移動",
+    description: "メンバーを他のボイスチャンネルに移動できます",
+    category: "ボイス",
+  },
 ];
 
 const MOCK_MEMBERS = [
@@ -109,7 +209,7 @@ export function RoleEditPanel({
   const categories = Array.from(new Set(PERMISSION_DEFS.map((p) => p.category)));
 
   const filteredMembers = MOCK_MEMBERS.filter((m) =>
-    m.username.toLowerCase().includes(memberSearch.toLowerCase())
+    m.username.toLowerCase().includes(memberSearch.toLowerCase()),
   );
 
   return (
@@ -152,9 +252,7 @@ export function RoleEditPanel({
 
           <div className="flex items-center justify-between py-2">
             <div>
-              <p className="text-sm text-discord-text-normal">
-                ロールをメンバーリストで分ける
-              </p>
+              <p className="text-sm text-discord-text-normal">ロールをメンバーリストで分ける</p>
               <p className="text-xs text-discord-text-muted">
                 このロールのメンバーをメンバーリストで別のグループとして表示します
               </p>
@@ -164,9 +262,7 @@ export function RoleEditPanel({
 
           <div className="flex items-center justify-between py-2">
             <div>
-              <p className="text-sm text-discord-text-normal">
-                このロールに@mentionを許可
-              </p>
+              <p className="text-sm text-discord-text-normal">このロールに@mentionを許可</p>
               <p className="text-xs text-discord-text-muted">
                 メンバーがこのロールに@mentionできるようになります
               </p>
@@ -180,9 +276,7 @@ export function RoleEditPanel({
         <div>
           {categories.map((cat) => (
             <div key={cat} className="mb-6">
-              <h4 className="mb-2 text-xs font-bold uppercase text-discord-text-muted">
-                {cat}
-              </h4>
+              <h4 className="mb-2 text-xs font-bold uppercase text-discord-text-muted">{cat}</h4>
               {PERMISSION_DEFS.filter((p) => p.category === cat).map((perm) => (
                 <PermissionToggle
                   key={perm.flag}
@@ -229,9 +323,7 @@ export function RoleEditPanel({
                   {member.avatar}
                 </div>
                 <div className="flex-1">
-                  <span className="text-sm text-discord-text-normal">
-                    {member.username}
-                  </span>
+                  <span className="text-sm text-discord-text-normal">{member.username}</span>
                   <span className="ml-1 text-xs text-discord-text-muted">
                     #{member.discriminator}
                   </span>
@@ -270,9 +362,7 @@ export function RoleEditPanel({
       {/* Save bar */}
       {hasChanges && (
         <div className="mt-6 flex items-center justify-end gap-3 rounded-lg bg-discord-bg-tertiary p-3">
-          <span className="mr-auto text-sm text-discord-text-normal">
-            変更が保存されていません
-          </span>
+          <span className="mr-auto text-sm text-discord-text-normal">変更が保存されていません</span>
           <Button
             variant="secondary"
             size="sm"

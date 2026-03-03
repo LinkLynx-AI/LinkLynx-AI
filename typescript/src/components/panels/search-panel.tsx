@@ -44,7 +44,7 @@ export function SearchPanel() {
             className={cn(
               "w-full rounded-md bg-discord-bg-tertiary py-1.5 pl-9 pr-3",
               "text-sm text-discord-text-normal placeholder:text-discord-text-muted",
-              "outline-none"
+              "outline-none",
             )}
           />
         </div>
@@ -60,7 +60,7 @@ export function SearchPanel() {
               "rounded px-2 py-0.5 text-xs",
               sortBy === "recent"
                 ? "bg-discord-bg-mod-hover text-discord-text-normal"
-                : "text-discord-text-muted hover:text-discord-text-normal"
+                : "text-discord-text-muted hover:text-discord-text-normal",
             )}
           >
             最新
@@ -71,7 +71,7 @@ export function SearchPanel() {
               "rounded px-2 py-0.5 text-xs",
               sortBy === "relevant"
                 ? "bg-discord-bg-mod-hover text-discord-text-normal"
-                : "text-discord-text-muted hover:text-discord-text-normal"
+                : "text-discord-text-muted hover:text-discord-text-normal",
             )}
           >
             関連性
@@ -97,7 +97,7 @@ export function SearchPanel() {
                 key={message.id}
                 className={cn(
                   "rounded-lg p-3",
-                  "hover:bg-discord-bg-mod-hover transition-colors cursor-pointer"
+                  "hover:bg-discord-bg-mod-hover transition-colors cursor-pointer",
                 )}
               >
                 <div className="flex items-start gap-3">

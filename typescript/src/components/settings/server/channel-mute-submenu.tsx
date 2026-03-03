@@ -15,10 +15,7 @@ interface ChannelMuteSubmenuProps {
   currentDuration?: number | null;
 }
 
-export function ChannelMuteSubmenu({
-  onSelect,
-  currentDuration,
-}: ChannelMuteSubmenuProps) {
+export function ChannelMuteSubmenu({ onSelect, currentDuration }: ChannelMuteSubmenuProps) {
   return (
     <div className="flex flex-col gap-1" role="radiogroup" aria-label="ミュート期間">
       {muteOptions.map((opt) => {
@@ -32,20 +29,16 @@ export function ChannelMuteSubmenu({
             className={cn(
               "flex items-center gap-3 rounded px-3 py-2 text-left text-sm",
               "hover:bg-discord-bg-mod-hover transition-colors",
-              isSelected && "bg-discord-bg-mod-selected"
+              isSelected && "bg-discord-bg-mod-selected",
             )}
           >
             <span
               className={cn(
                 "flex h-4 w-4 items-center justify-center rounded-full border-2",
-                isSelected
-                  ? "border-discord-brand-blurple"
-                  : "border-discord-interactive-normal"
+                isSelected ? "border-discord-brand-blurple" : "border-discord-interactive-normal",
               )}
             >
-              {isSelected && (
-                <span className="h-2 w-2 rounded-full bg-discord-brand-blurple" />
-              )}
+              {isSelected && <span className="h-2 w-2 rounded-full bg-discord-brand-blurple" />}
             </span>
             <span className="text-discord-text-normal">{opt.label}</span>
           </button>

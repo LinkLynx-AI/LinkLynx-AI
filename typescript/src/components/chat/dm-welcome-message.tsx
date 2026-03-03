@@ -10,12 +10,9 @@ export function DmWelcomeMessage({ recipient }: { recipient: User }) {
         size={80}
         className="mb-2"
       />
-      <h1 className="text-3xl font-bold text-discord-header-primary">
-        {recipient.displayName}
-      </h1>
+      <h1 className="text-3xl font-bold text-discord-header-primary">{recipient.displayName}</h1>
       <p className="mt-1 text-discord-text-muted">
-        これは @{recipient.displayName}{" "}
-        とのダイレクトメッセージの最初です。
+        これは @{recipient.displayName} とのダイレクトメッセージの最初です。
       </p>
     </div>
   );

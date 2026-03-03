@@ -22,15 +22,11 @@ export function ChannelHeader({
     <div className="flex h-12 items-center border-b border-discord-header-separator px-4">
       <div className="flex min-w-0 flex-1 items-center">
         <Hash className="mr-1.5 h-5 w-5 shrink-0 text-discord-channels-default" />
-        <span className="shrink-0 font-semibold text-discord-header-primary">
-          {channelName}
-        </span>
+        <span className="shrink-0 font-semibold text-discord-header-primary">{channelName}</span>
         {topic && (
           <>
             <div className="mx-2 h-6 w-px bg-discord-divider" />
-            <span className="truncate text-sm text-discord-header-secondary">
-              {topic}
-            </span>
+            <span className="truncate text-sm text-discord-header-secondary">{topic}</span>
           </>
         )}
       </div>
@@ -41,7 +37,7 @@ export function ChannelHeader({
             "transition-colors",
             activeRightPanel === "threads"
               ? "text-discord-interactive-active"
-              : "text-discord-interactive-normal hover:text-discord-interactive-hover"
+              : "text-discord-interactive-normal hover:text-discord-interactive-hover",
           )}
           aria-label="スレッド"
         >
@@ -53,7 +49,7 @@ export function ChannelHeader({
             "transition-colors",
             activeRightPanel === "pinned"
               ? "text-discord-interactive-active"
-              : "text-discord-interactive-normal hover:text-discord-interactive-hover"
+              : "text-discord-interactive-normal hover:text-discord-interactive-hover",
           )}
           aria-label="ピン留め"
         >
@@ -65,7 +61,7 @@ export function ChannelHeader({
             "transition-colors",
             activeRightPanel === "search"
               ? "text-discord-interactive-active"
-              : "text-discord-interactive-normal hover:text-discord-interactive-hover"
+              : "text-discord-interactive-normal hover:text-discord-interactive-hover",
           )}
           aria-label="検索"
         >
@@ -77,7 +73,7 @@ export function ChannelHeader({
             "transition-colors",
             activeRightPanel === "inbox"
               ? "text-discord-interactive-active"
-              : "text-discord-interactive-normal hover:text-discord-interactive-hover"
+              : "text-discord-interactive-normal hover:text-discord-interactive-hover",
           )}
           aria-label="受信トレイ"
         >
@@ -89,7 +85,7 @@ export function ChannelHeader({
             "transition-colors",
             memberListVisible
               ? "text-discord-interactive-active"
-              : "text-discord-interactive-normal hover:text-discord-interactive-hover"
+              : "text-discord-interactive-normal hover:text-discord-interactive-hover",
           )}
           aria-label="Toggle member list"
         >
@@ -98,7 +94,7 @@ export function ChannelHeader({
         <button
           className={cn(
             "text-discord-interactive-normal hover:text-discord-interactive-hover",
-            "transition-colors"
+            "transition-colors",
           )}
         >
           <Settings className="h-5 w-5" />

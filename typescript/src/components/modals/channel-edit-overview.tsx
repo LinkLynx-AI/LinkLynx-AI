@@ -16,11 +16,7 @@ const slowModeOptions = [
   { value: "60", label: "60秒" },
 ];
 
-export function ChannelEditOverview({
-  channelId,
-}: {
-  channelId?: string;
-}) {
+export function ChannelEditOverview({ channelId }: { channelId?: string }) {
   const [name, setName] = useState("general");
   const [topic, setTopic] = useState("");
   const [nsfw, setNsfw] = useState(false);
@@ -47,9 +43,7 @@ export function ChannelEditOverview({
       />
       <div className="flex items-center justify-between">
         <div>
-          <div className="text-sm font-medium text-discord-text-normal">
-            年齢制限チャンネル
-          </div>
+          <div className="text-sm font-medium text-discord-text-normal">年齢制限チャンネル</div>
           <div className="text-xs text-discord-text-muted">
             このチャンネルをNSFWに設定すると、年齢確認が必要になります
           </div>

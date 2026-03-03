@@ -22,10 +22,7 @@ const plans: {
     name: "Free",
     monthlyPrice: 0,
     yearlyPrice: 0,
-    features: [
-      "25MBアップロード",
-      "基本絵文字",
-    ],
+    features: ["25MBアップロード", "基本絵文字"],
   },
   {
     id: "basic",
@@ -44,13 +41,7 @@ const plans: {
     name: "Nitro",
     monthlyPrice: 1050,
     yearlyPrice: 10500,
-    features: [
-      "500MBアップロード",
-      "全機能",
-      "HD配信",
-      "2ブースト付き",
-      "アニメーションアバター",
-    ],
+    features: ["500MBアップロード", "全機能", "HD配信", "2ブースト付き", "アニメーションアバター"],
   },
 ];
 
@@ -58,16 +49,12 @@ export function UserNitro() {
   const [billingCycle, setBillingCycle] = useState<BillingCycle>("monthly");
 
   const yearlySavePercent = Math.round(
-    ((plans[2].monthlyPrice * 12 - plans[2].yearlyPrice) /
-      (plans[2].monthlyPrice * 12)) *
-      100
+    ((plans[2].monthlyPrice * 12 - plans[2].yearlyPrice) / (plans[2].monthlyPrice * 12)) * 100,
   );
 
   return (
     <div>
-      <h2 className="mb-5 text-xl font-bold text-discord-header-primary">
-        Nitro
-      </h2>
+      <h2 className="mb-5 text-xl font-bold text-discord-header-primary">Nitro</h2>
 
       {/* Billing toggle */}
       <div className="mb-6 flex items-center justify-center gap-3">
@@ -77,7 +64,7 @@ export function UserNitro() {
             "rounded-full px-4 py-1.5 text-sm font-medium transition-colors",
             billingCycle === "monthly"
               ? "bg-discord-brand-blurple text-white"
-              : "bg-discord-bg-secondary text-discord-text-muted hover:text-discord-text-normal"
+              : "bg-discord-bg-secondary text-discord-text-muted hover:text-discord-text-normal",
           )}
         >
           月額
@@ -88,7 +75,7 @@ export function UserNitro() {
             "flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-medium transition-colors",
             billingCycle === "yearly"
               ? "bg-discord-brand-blurple text-white"
-              : "bg-discord-bg-secondary text-discord-text-muted hover:text-discord-text-normal"
+              : "bg-discord-bg-secondary text-discord-text-muted hover:text-discord-text-normal",
           )}
         >
           年額
@@ -103,23 +90,17 @@ export function UserNitro() {
         {plans.map((plan) => {
           const isCurrent = plan.id === currentPlan;
           const price =
-            billingCycle === "monthly"
-              ? plan.monthlyPrice
-              : Math.round(plan.yearlyPrice / 12);
+            billingCycle === "monthly" ? plan.monthlyPrice : Math.round(plan.yearlyPrice / 12);
 
           return (
             <div
               key={plan.id}
               className={cn(
                 "flex flex-col rounded-lg border-2 bg-discord-bg-secondary p-5",
-                isCurrent
-                  ? "border-discord-brand-blurple"
-                  : "border-transparent"
+                isCurrent ? "border-discord-brand-blurple" : "border-transparent",
               )}
             >
-              <h3 className="text-lg font-bold text-discord-header-primary">
-                {plan.name}
-              </h3>
+              <h3 className="text-lg font-bold text-discord-header-primary">{plan.name}</h3>
               <div className="mt-2">
                 <span className="text-2xl font-bold text-discord-header-primary">
                   ¥{price.toLocaleString()}
@@ -137,9 +118,7 @@ export function UserNitro() {
                 {plan.features.map((feature) => (
                   <li key={feature} className="flex items-center gap-2">
                     <Check size={14} className="text-discord-status-online" />
-                    <span className="text-sm text-discord-text-normal">
-                      {feature}
-                    </span>
+                    <span className="text-sm text-discord-text-normal">{feature}</span>
                   </li>
                 ))}
               </ul>

@@ -30,7 +30,7 @@ export function ServerIcon({
       e.preventDefault();
       showContextMenu("server", { x: e.clientX, y: e.clientY }, { server });
     },
-    [server, showContextMenu]
+    [server, showContextMenu],
   );
 
   const pillState = isActive
@@ -56,29 +56,21 @@ export function ServerIcon({
           onContextMenu={handleContextMenu}
           className={cn(
             "relative flex h-12 w-12 items-center justify-center overflow-hidden transition-all duration-150",
-            isActive || isHovered
-              ? "rounded-[33%]"
-              : "rounded-full",
+            isActive || isHovered ? "rounded-[33%]" : "rounded-full",
             isMuted && "opacity-60",
             server.icon
               ? ""
               : isActive || isHovered
                 ? "bg-discord-brand-blurple text-white"
-                : "bg-discord-bg-primary text-discord-text-normal"
+                : "bg-discord-bg-primary text-discord-text-normal",
           )}
           onMouseEnter={() => setIsHovered(true)}
           onMouseLeave={() => setIsHovered(false)}
         >
           {server.icon ? (
-            <img
-              src={server.icon}
-              alt={server.name}
-              className="h-full w-full object-cover"
-            />
+            <img src={server.icon} alt={server.name} className="h-full w-full object-cover" />
           ) : (
-            <span className="text-sm font-medium select-none">
-              {initials}
-            </span>
+            <span className="text-sm font-medium select-none">{initials}</span>
           )}
           {mentionCount > 0 && (
             <Badge count={mentionCount} className="-bottom-1 -right-1 top-auto" />

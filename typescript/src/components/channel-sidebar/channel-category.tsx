@@ -21,7 +21,7 @@ export function ChannelCategory({
         className={cn(
           "group flex w-full items-center gap-0.5 px-0.5 pb-1",
           "text-category text-discord-channels-default",
-          "hover:text-discord-interactive-hover"
+          "hover:text-discord-interactive-hover",
         )}
       >
         {collapsed ? (

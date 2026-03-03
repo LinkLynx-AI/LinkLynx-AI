@@ -10,9 +10,7 @@ const MAX_VISIBLE = 5;
 export function ToastContainer() {
   const toasts = useUIStore((s) => s.toasts);
   const removeToast = useUIStore((s) => s.removeToast);
-  const timersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(
-    new Map()
-  );
+  const timersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
   const startTimer = useCallback(
     (id: string) => {
@@ -23,7 +21,7 @@ export function ToastContainer() {
       }, AUTO_DISMISS_MS);
       timersRef.current.set(id, timer);
     },
-    [removeToast]
+    [removeToast],
   );
 
   const pauseTimer = useCallback((id: string) => {
@@ -49,22 +47,14 @@ export function ToastContainer() {
   if (visibleToasts.length === 0) return null;
 
   return (
-    <div
-      className="fixed bottom-4 right-4 z-[9999] flex flex-col-reverse gap-2"
-      aria-live="polite"
-    >
+    <div className="fixed bottom-4 right-4 z-[9999] flex flex-col-reverse gap-2" aria-live="polite">
       {visibleToasts.map((toast) => (
         <div
           key={toast.id}
           onMouseEnter={() => pauseTimer(toast.id)}
           onMouseLeave={() => startTimer(toast.id)}
         >
-          <Toast
-            id={toast.id}
-            message={toast.message}
-            type={toast.type}
-            onDismiss={removeToast}
-          />
+          <Toast id={toast.id} message={toast.message} type={toast.type} onDismiss={removeToast} />
         </div>
       ))}
     </div>

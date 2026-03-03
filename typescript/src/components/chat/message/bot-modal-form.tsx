@@ -21,9 +21,7 @@ function TextInput({
     <div className="mb-4">
       <label className="mb-2 flex items-center gap-1 text-xs font-bold uppercase text-discord-header-secondary">
         {component.label}
-        {component.required && (
-          <span className="text-discord-btn-danger">*</span>
-        )}
+        {component.required && <span className="text-discord-btn-danger">*</span>}
       </label>
       {isShort ? (
         <input
@@ -35,7 +33,7 @@ function TextInput({
           className={cn(
             "w-full rounded-[3px] bg-discord-input-bg px-3 py-2 text-sm",
             "text-discord-text-normal placeholder:text-discord-text-muted",
-            "outline-none focus:ring-1 focus:ring-discord-brand-blurple"
+            "outline-none focus:ring-1 focus:ring-discord-brand-blurple",
           )}
         />
       ) : (
@@ -48,7 +46,7 @@ function TextInput({
           className={cn(
             "w-full resize-none rounded-[3px] bg-discord-input-bg px-3 py-2 text-sm",
             "text-discord-text-normal placeholder:text-discord-text-muted",
-            "outline-none focus:ring-1 focus:ring-discord-brand-blurple"
+            "outline-none focus:ring-1 focus:ring-discord-brand-blurple",
           )}
         />
       )}
@@ -78,7 +76,7 @@ export function BotModalFormDialog({
 
   const handleSubmit = () => {
     const requiredMissing = allInputs.some(
-      (input) => input.required && !values[input.customId]?.trim()
+      (input) => input.required && !values[input.customId]?.trim(),
     );
     if (requiredMissing) return;
 
@@ -95,9 +93,7 @@ export function BotModalFormDialog({
             key={input.customId}
             component={input}
             value={values[input.customId] ?? ""}
-            onChange={(val) =>
-              setValues((prev) => ({ ...prev, [input.customId]: val }))
-            }
+            onChange={(val) => setValues((prev) => ({ ...prev, [input.customId]: val }))}
           />
         ))}
       </ModalBody>

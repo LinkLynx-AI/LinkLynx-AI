@@ -22,7 +22,7 @@ export function WelcomeScreenModal({
   serverId?: string;
 }) {
   const [selectedChannels, setSelectedChannels] = useState<Set<string>>(
-    new Set(mockRecommendedChannels.map((c) => c.id))
+    new Set(mockRecommendedChannels.map((c) => c.id)),
   );
 
   const toggleChannel = (channelId: string) => {
@@ -44,9 +44,7 @@ export function WelcomeScreenModal({
         <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-2xl bg-discord-brand-blurple text-2xl font-bold text-white">
           S
         </div>
-        <h2 className="text-2xl font-bold text-discord-header-primary">
-          サーバーへようこそ！
-        </h2>
+        <h2 className="text-2xl font-bold text-discord-header-primary">サーバーへようこそ！</h2>
         <p className="mt-1 text-sm text-discord-text-muted">
           参加するチャンネルを選んで、コミュニティに参加しましょう。
         </p>
@@ -68,7 +66,7 @@ export function WelcomeScreenModal({
                   "flex items-start gap-3 rounded-lg border p-3 text-left transition-colors",
                   isSelected
                     ? "border-discord-brand-blurple bg-discord-brand-blurple/10"
-                    : "border-discord-divider bg-discord-bg-secondary hover:bg-discord-bg-mod-hover"
+                    : "border-discord-divider bg-discord-bg-secondary hover:bg-discord-bg-mod-hover",
                 )}
               >
                 <span className="mt-0.5 text-xl">{channel.emoji}</span>
@@ -76,16 +74,14 @@ export function WelcomeScreenModal({
                   <div className="text-sm font-medium text-discord-header-primary">
                     {channel.name}
                   </div>
-                  <div className="text-xs text-discord-text-muted">
-                    {channel.description}
-                  </div>
+                  <div className="text-xs text-discord-text-muted">{channel.description}</div>
                 </div>
                 <div
                   className={cn(
                     "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded",
                     isSelected
                       ? "bg-discord-brand-blurple text-white"
-                      : "border-2 border-discord-interactive-normal"
+                      : "border-2 border-discord-interactive-normal",
                   )}
                 >
                   {isSelected && <Check className="h-3.5 w-3.5" />}

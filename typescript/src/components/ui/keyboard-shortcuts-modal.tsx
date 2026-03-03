@@ -39,7 +39,7 @@ function Kbd({ children }: { children: React.ReactNode }) {
       className={cn(
         "inline-flex min-w-[24px] items-center justify-center rounded px-1.5 py-0.5",
         "bg-discord-bg-tertiary text-xs font-medium text-discord-text-normal",
-        "border border-discord-divider"
+        "border border-discord-divider",
       )}
     >
       {children}
@@ -47,13 +47,7 @@ function Kbd({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function KeyboardShortcutsModal({
-  open,
-  onClose,
-}: {
-  open: boolean;
-  onClose: () => void;
-}) {
+export function KeyboardShortcutsModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   return (
     <Modal open={open} onClose={onClose} className="max-w-md">
       <ModalHeader>キーボードショートカット</ModalHeader>
@@ -70,17 +64,11 @@ export function KeyboardShortcutsModal({
                     key={shortcut.description}
                     className="flex items-center justify-between py-1"
                   >
-                    <span className="text-sm text-discord-text-normal">
-                      {shortcut.description}
-                    </span>
+                    <span className="text-sm text-discord-text-normal">{shortcut.description}</span>
                     <div className="flex items-center gap-1">
                       {shortcut.keys.map((key, i) => (
                         <span key={i} className="flex items-center gap-1">
-                          {i > 0 && (
-                            <span className="text-xs text-discord-text-muted">
-                              +
-                            </span>
-                          )}
+                          {i > 0 && <span className="text-xs text-discord-text-muted">+</span>}
                           <Kbd>{key}</Kbd>
                         </span>
                       ))}

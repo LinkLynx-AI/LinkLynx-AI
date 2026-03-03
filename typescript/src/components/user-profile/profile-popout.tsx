@@ -47,23 +47,17 @@ export function ProfilePopout() {
   // Get member roles for this server
   const serverRoles = serverId ? (mockRoles[serverId] ?? []) : [];
   const memberData = serverId
-    ? (mockMembers[serverId] ?? []).find(
-        (m) => m.user.id === popout.userId
-      )
+    ? (mockMembers[serverId] ?? []).find((m) => m.user.id === popout.userId)
     : null;
   const memberRoleIds = memberData?.roles ?? [];
-  const memberRoles: Role[] = serverRoles.filter((r) =>
-    memberRoleIds.includes(r.id)
-  );
+  const memberRoles: Role[] = serverRoles.filter((r) => memberRoleIds.includes(r.id));
 
-  const bannerColor = profile.accentColor
-    ? numberToHex(profile.accentColor)
-    : "#5865f2";
+  const bannerColor = profile.accentColor ? numberToHex(profile.accentColor) : "#5865f2";
 
   // Clamp position to viewport
   const top = Math.min(
     Math.max(popout.position.y, 8),
-    typeof window !== "undefined" ? window.innerHeight - 450 : 300
+    typeof window !== "undefined" ? window.innerHeight - 450 : 300,
   );
   const left = Math.max(popout.position.x, 8);
 
@@ -105,13 +99,9 @@ export function ProfilePopout() {
               <div className="text-xl font-bold text-discord-header-primary">
                 {profile.displayName}
               </div>
-              <div className="text-sm text-discord-text-normal">
-                {profile.username}
-              </div>
+              <div className="text-sm text-discord-text-normal">{profile.username}</div>
             </div>
-            {profile.badges.length > 0 && (
-              <ProfileBadges badges={profile.badges} />
-            )}
+            {profile.badges.length > 0 && <ProfileBadges badges={profile.badges} />}
           </div>
 
           {profile.bio && (
@@ -121,9 +111,7 @@ export function ProfilePopout() {
                 <div className="mb-1 text-xs font-bold uppercase text-discord-header-primary">
                   About Me
                 </div>
-                <p className="text-sm text-discord-text-normal">
-                  {profile.bio}
-                </p>
+                <p className="text-sm text-discord-text-normal">{profile.bio}</p>
               </div>
             </>
           )}
@@ -168,9 +156,7 @@ function NoteSection() {
 
   return (
     <div>
-      <div className="mb-1 text-xs font-bold uppercase text-discord-header-primary">
-        ノート
-      </div>
+      <div className="mb-1 text-xs font-bold uppercase text-discord-header-primary">ノート</div>
       <textarea
         value={note}
         onChange={(e) => setNote(e.target.value)}

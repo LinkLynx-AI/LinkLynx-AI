@@ -9,9 +9,7 @@ export function WelcomeMessage({ channelName }: { channelName: string }) {
       <h1 className="text-3xl font-bold text-discord-header-primary">
         # {channelName} へようこそ！
       </h1>
-      <p className="mt-1 text-discord-text-muted">
-        ここが #{channelName} チャンネルの最初です。
-      </p>
+      <p className="mt-1 text-discord-text-muted">ここが #{channelName} チャンネルの最初です。</p>
     </div>
   );
 }

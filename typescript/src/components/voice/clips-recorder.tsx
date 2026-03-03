@@ -32,7 +32,7 @@ export function ClipsRecorder({
             "flex h-10 w-10 items-center justify-center rounded-full transition-colors",
             isRecording
               ? "bg-discord-btn-danger text-white"
-              : "bg-discord-bg-tertiary text-discord-interactive-normal hover:text-discord-interactive-hover"
+              : "bg-discord-bg-tertiary text-discord-interactive-normal hover:text-discord-interactive-hover",
           )}
           aria-label={isRecording ? "録画停止" : "クリップを録画"}
         >

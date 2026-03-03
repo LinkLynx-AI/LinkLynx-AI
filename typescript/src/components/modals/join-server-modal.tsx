@@ -13,8 +13,7 @@ export function JoinServerModal({ onClose }: { onClose: () => void }) {
     if (!inviteLink.trim()) return;
 
     const isValid =
-      inviteLink.startsWith("https://discord.gg/") ||
-      /^[a-zA-Z0-9]+$/.test(inviteLink.trim());
+      inviteLink.startsWith("https://discord.gg/") || /^[a-zA-Z0-9]+$/.test(inviteLink.trim());
 
     if (!isValid) {
       setError("招待リンクが無効です。もう一度お試しください。");

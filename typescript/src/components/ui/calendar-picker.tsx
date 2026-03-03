@@ -36,12 +36,8 @@ export function CalendarPicker({
   maxDate?: Date;
 }) {
   const today = new Date();
-  const [viewYear, setViewYear] = useState(
-    selectedDate?.getFullYear() ?? today.getFullYear()
-  );
-  const [viewMonth, setViewMonth] = useState(
-    selectedDate?.getMonth() ?? today.getMonth()
-  );
+  const [viewYear, setViewYear] = useState(selectedDate?.getFullYear() ?? today.getFullYear());
+  const [viewMonth, setViewMonth] = useState(selectedDate?.getMonth() ?? today.getMonth());
 
   const daysInMonth = getDaysInMonth(viewYear, viewMonth);
   const firstDay = getFirstDayOfMonth(viewYear, viewMonth);
@@ -113,10 +109,7 @@ export function CalendarPicker({
       {/* Day headers */}
       <div className="mb-1 grid grid-cols-7 text-center">
         {DAY_HEADERS.map((d) => (
-          <span
-            key={d}
-            className="text-xs font-medium text-discord-text-muted"
-          >
+          <span key={d} className="text-xs font-medium text-discord-text-muted">
             {d}
           </span>
         ))}
@@ -147,10 +140,7 @@ export function CalendarPicker({
                 isSelected &&
                   !disabled &&
                   "bg-discord-brand-blurple text-white hover:bg-discord-brand-blurple",
-                isToday &&
-                  !isSelected &&
-                  !disabled &&
-                  "ring-1 ring-discord-text-muted"
+                isToday && !isSelected && !disabled && "ring-1 ring-discord-text-muted",
               )}
             >
               {day}

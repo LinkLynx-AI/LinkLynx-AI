@@ -6,13 +6,7 @@ import { cn } from "@/lib/cn";
 import { useUIStore } from "@/stores/ui-store";
 import type { GuildMember } from "@/types/server";
 
-export function MemberItem({
-  member,
-  roleColor,
-}: {
-  member: GuildMember;
-  roleColor?: string;
-}) {
+export function MemberItem({ member, roleColor }: { member: GuildMember; roleColor?: string }) {
   const showProfilePopout = useUIStore((s) => s.showProfilePopout);
   const showContextMenu = useUIStore((s) => s.showContextMenu);
   const { user } = member;
@@ -29,7 +23,7 @@ export function MemberItem({
       e.preventDefault();
       showContextMenu("user", { x: e.clientX, y: e.clientY }, { user });
     },
-    [user, showContextMenu]
+    [user, showContextMenu],
   );
 
   return (
@@ -39,7 +33,7 @@ export function MemberItem({
       className={cn(
         "flex w-full items-center gap-3 rounded px-2 py-1 text-left",
         "hover:bg-discord-bg-mod-hover",
-        isOffline && "opacity-30"
+        isOffline && "opacity-30",
       )}
     >
       <Avatar

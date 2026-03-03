@@ -34,7 +34,7 @@ export function ChannelItem({
       e.preventDefault();
       showContextMenu("channel", { x: e.clientX, y: e.clientY }, { channel, serverId });
     },
-    [channel, serverId, showContextMenu]
+    [channel, serverId, showContextMenu],
   );
 
   return (
@@ -49,12 +49,11 @@ export function ChannelItem({
         // Hover
         "hover:bg-discord-bg-mod-hover hover:text-discord-interactive-hover",
         // Active
-        isActive &&
-          "bg-discord-bg-mod-selected text-discord-interactive-active font-medium",
+        isActive && "bg-discord-bg-mod-selected text-discord-interactive-active font-medium",
         // Unread (stronger text, bold) - only if not active
         !isActive && isUnread && "text-discord-text-normal font-medium",
         // Muted
-        !isActive && !isUnread && isMuted && "text-discord-interactive-muted"
+        !isActive && !isUnread && isMuted && "text-discord-interactive-muted",
       )}
     >
       <ChannelIcon type={channel.type} />
@@ -64,7 +63,7 @@ export function ChannelItem({
       <div
         className={cn(
           "ml-auto flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity",
-          "group-hover:opacity-100"
+          "group-hover:opacity-100",
         )}
       >
         <button

@@ -28,13 +28,7 @@ export type ModalType =
   | "server-template"
   | null;
 
-export type RightPanelType =
-  | "members"
-  | "threads"
-  | "search"
-  | "pinned"
-  | "inbox"
-  | null;
+export type RightPanelType = "members" | "threads" | "search" | "pinned" | "inbox" | null;
 
 interface Toast {
   id: string;
@@ -84,16 +78,9 @@ interface UIState {
   setActiveRightPanel: (panel: RightPanelType) => void;
   openModal: (type: ModalType, props?: Record<string, unknown>) => void;
   closeModal: () => void;
-  showContextMenu: (
-    type: string,
-    position: { x: number; y: number },
-    data: unknown
-  ) => void;
+  showContextMenu: (type: string, position: { x: number; y: number }, data: unknown) => void;
   hideContextMenu: () => void;
-  showProfilePopout: (
-    userId: string,
-    position: { x: number; y: number }
-  ) => void;
+  showProfilePopout: (userId: string, position: { x: number; y: number }) => void;
   hideProfilePopout: () => void;
   addToast: (toast: Omit<Toast, "id">) => void;
   removeToast: (id: string) => void;
@@ -113,8 +100,7 @@ export const useUIStore = create<UIState>((set) => ({
   profilePopout: null,
   toasts: [],
 
-  toggleMemberList: () =>
-    set((state) => ({ memberListVisible: !state.memberListVisible })),
+  toggleMemberList: () => set((state) => ({ memberListVisible: !state.memberListVisible })),
 
   setChannelSidebarWidth: (width) => set({ channelSidebarWidth: width }),
 
@@ -123,18 +109,15 @@ export const useUIStore = create<UIState>((set) => ({
       activeRightPanel: state.activeRightPanel === panel ? null : panel,
     })),
 
-  openModal: (type, props = {}) =>
-    set({ activeModal: type, modalProps: props }),
+  openModal: (type, props = {}) => set({ activeModal: type, modalProps: props }),
 
   closeModal: () => set({ activeModal: null, modalProps: {} }),
 
-  showContextMenu: (type, position, data) =>
-    set({ contextMenu: { type, position, data } }),
+  showContextMenu: (type, position, data) => set({ contextMenu: { type, position, data } }),
 
   hideContextMenu: () => set({ contextMenu: null }),
 
-  showProfilePopout: (userId, position) =>
-    set({ profilePopout: { userId, position } }),
+  showProfilePopout: (userId, position) => set({ profilePopout: { userId, position } }),
 
   hideProfilePopout: () => set({ profilePopout: null }),
 
@@ -148,9 +131,7 @@ export const useUIStore = create<UIState>((set) => ({
       toasts: state.toasts.filter((t) => t.id !== id),
     })),
 
-  toggleDeveloperMode: () =>
-    set((state) => ({ developerMode: !state.developerMode })),
+  toggleDeveloperMode: () => set((state) => ({ developerMode: !state.developerMode })),
 
-  toggleStreamerMode: () =>
-    set((state) => ({ streamerMode: !state.streamerMode })),
+  toggleStreamerMode: () => set((state) => ({ streamerMode: !state.streamerMode })),
 }));

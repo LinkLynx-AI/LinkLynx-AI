@@ -43,7 +43,7 @@ export function MessageActions({
       className={cn(
         "absolute -top-4 right-4 z-10",
         "flex items-center",
-        "rounded border border-discord-divider bg-discord-bg-primary shadow"
+        "rounded border border-discord-divider bg-discord-bg-primary shadow",
       )}
     >
       {/* Reaction button */}
@@ -54,7 +54,7 @@ export function MessageActions({
           className={cn(
             "p-1.5 text-discord-interactive-normal",
             "hover:bg-discord-bg-mod-hover hover:text-discord-interactive-hover",
-            "rounded transition-colors"
+            "rounded transition-colors",
           )}
         >
           <SmilePlus className="h-4 w-4" />
@@ -78,7 +78,7 @@ export function MessageActions({
           className={cn(
             "p-1.5 text-discord-interactive-normal",
             "hover:bg-discord-bg-mod-hover hover:text-discord-interactive-hover",
-            "rounded transition-colors"
+            "rounded transition-colors",
           )}
         >
           <Pencil className="h-4 w-4" />
@@ -91,7 +91,7 @@ export function MessageActions({
         className={cn(
           "p-1.5 text-discord-interactive-normal",
           "hover:bg-discord-bg-mod-hover hover:text-discord-interactive-hover",
-          "rounded transition-colors"
+          "rounded transition-colors",
         )}
       >
         <Reply className="h-4 w-4" />
@@ -104,7 +104,7 @@ export function MessageActions({
         className={cn(
           "p-1.5 text-discord-interactive-normal",
           "hover:bg-discord-bg-mod-hover hover:text-discord-interactive-hover",
-          "rounded transition-colors"
+          "rounded transition-colors",
         )}
       >
         <MessageSquare className="h-4 w-4" />
@@ -121,7 +121,7 @@ export function MessageActions({
         className={cn(
           "p-1.5 text-discord-interactive-normal",
           "hover:bg-discord-bg-mod-hover hover:text-discord-interactive-hover",
-          "rounded transition-colors"
+          "rounded transition-colors",
         )}
       >
         <MoreHorizontal className="h-4 w-4" />

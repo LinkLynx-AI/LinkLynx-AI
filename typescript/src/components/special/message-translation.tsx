@@ -23,7 +23,7 @@ export function MessageTranslation({
           "inline-flex items-center gap-1 text-xs transition-colors",
           showTranslation
             ? "text-discord-brand-blurple"
-            : "text-discord-text-muted hover:text-discord-text-normal"
+            : "text-discord-text-muted hover:text-discord-text-normal",
         )}
       >
         <Languages className="h-3 w-3" />

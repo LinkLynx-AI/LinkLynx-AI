@@ -21,11 +21,7 @@ export function ServerList() {
       <ServerListSeparator />
 
       {servers?.map((server) => (
-        <ServerIcon
-          key={server.id}
-          server={server}
-          isActive={activeServerId === server.id}
-        />
+        <ServerIcon key={server.id} server={server} isActive={activeServerId === server.id} />
       ))}
 
       <ServerListSeparator />

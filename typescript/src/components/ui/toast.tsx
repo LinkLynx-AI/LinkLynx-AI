@@ -39,7 +39,7 @@ export function Toast({
       className={cn(
         "flex items-center gap-3 rounded-lg border-l-4 bg-discord-bg-floating px-4 py-3 shadow-lg",
         borderColors[type],
-        "animate-slide-in-right"
+        "animate-slide-in-right",
       )}
       role="alert"
       onMouseEnter={(e) => e.currentTarget.setAttribute("data-hovered", "true")}

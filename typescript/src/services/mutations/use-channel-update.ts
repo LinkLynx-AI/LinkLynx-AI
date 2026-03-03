@@ -9,13 +9,8 @@ export function useUpdateChannel() {
   const api = getAPIClient();
 
   return useMutation({
-    mutationFn: ({
-      channelId,
-      data,
-    }: {
-      channelId: string;
-      data: Partial<Channel>;
-    }) => api.updateChannel(channelId, data),
+    mutationFn: ({ channelId, data }: { channelId: string; data: Partial<Channel> }) =>
+      api.updateChannel(channelId, data),
     onSuccess: (updatedChannel) => {
       if (updatedChannel.guildId) {
         queryClient.invalidateQueries({

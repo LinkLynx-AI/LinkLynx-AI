@@ -1,10 +1,6 @@
 "use client";
 
-export function TypingIndicator({
-  users,
-}: {
-  users: string[];
-}) {
+export function TypingIndicator({ users }: { users: string[] }) {
   if (users.length === 0) return null;
 
   const text =

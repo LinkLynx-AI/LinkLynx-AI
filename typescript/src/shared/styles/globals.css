@@ -151,11 +151,14 @@
 /* ===== Voice Ring Animation ===== */
 
 @keyframes voice-ring {
-  0%, 100% {
-    box-shadow: 0 0 0 3px #23A55A;
+  0%,
+  100% {
+    box-shadow: 0 0 0 3px #23a55a;
   }
   50% {
-    box-shadow: 0 0 0 5px #23A55A, 0 0 12px 2px rgba(35, 165, 90, 0.4);
+    box-shadow:
+      0 0 0 5px #23a55a,
+      0 0 12px 2px rgba(35, 165, 90, 0.4);
   }
 }
 
@@ -187,57 +190,57 @@
 
   /* Background Colors */
   --color-discord-bg-primary: #313338;
-  --color-discord-bg-secondary: #2B2D31;
-  --color-discord-bg-tertiary: #1E1F22;
+  --color-discord-bg-secondary: #2b2d31;
+  --color-discord-bg-tertiary: #1e1f22;
   --color-discord-bg-floating: #111214;
-  --color-discord-bg-accent: #4E5058;
+  --color-discord-bg-accent: #4e5058;
   --color-discord-bg-mod-hover: rgba(79, 84, 92, 0.16);
   --color-discord-bg-mod-active: rgba(79, 84, 92, 0.24);
   --color-discord-bg-mod-selected: rgba(79, 84, 92, 0.32);
 
   /* Text Colors */
-  --color-discord-text-normal: #DBDEE1;
-  --color-discord-text-muted: #949BA4;
-  --color-discord-text-link: #00A8FC;
-  --color-discord-header-primary: #F2F3F5;
-  --color-discord-header-secondary: #B5BAC1;
-  --color-discord-channels-default: #949BA4;
+  --color-discord-text-normal: #dbdee1;
+  --color-discord-text-muted: #949ba4;
+  --color-discord-text-link: #00a8fc;
+  --color-discord-header-primary: #f2f3f5;
+  --color-discord-header-secondary: #b5bac1;
+  --color-discord-channels-default: #949ba4;
 
   /* Interactive Colors */
-  --color-discord-interactive-normal: #B5BAC1;
-  --color-discord-interactive-hover: #DBDEE1;
-  --color-discord-interactive-active: #FFFFFF;
-  --color-discord-interactive-muted: #4E5058;
+  --color-discord-interactive-normal: #b5bac1;
+  --color-discord-interactive-hover: #dbdee1;
+  --color-discord-interactive-active: #ffffff;
+  --color-discord-interactive-muted: #4e5058;
 
   /* Brand Colors */
-  --color-discord-brand-blurple: #5865F2;
-  --color-discord-brand-green: #57F287;
-  --color-discord-brand-yellow: #FEE75C;
-  --color-discord-brand-fuchsia: #EB459E;
-  --color-discord-brand-red: #ED4245;
+  --color-discord-brand-blurple: #5865f2;
+  --color-discord-brand-green: #57f287;
+  --color-discord-brand-yellow: #fee75c;
+  --color-discord-brand-fuchsia: #eb459e;
+  --color-discord-brand-red: #ed4245;
 
   /* Button Colors */
-  --color-discord-btn-blurple-hover: #4752C4;
-  --color-discord-btn-blurple-active: #3C45A5;
-  --color-discord-btn-secondary-bg: #4E5058;
-  --color-discord-btn-secondary-hover: #6D6F78;
-  --color-discord-btn-secondary-active: #3C3E44;
-  --color-discord-btn-success: #23A55A;
-  --color-discord-btn-success-hover: #1A7D44;
-  --color-discord-btn-danger: #DA373C;
-  --color-discord-btn-danger-hover: #A12828;
+  --color-discord-btn-blurple-hover: #4752c4;
+  --color-discord-btn-blurple-active: #3c45a5;
+  --color-discord-btn-secondary-bg: #4e5058;
+  --color-discord-btn-secondary-hover: #6d6f78;
+  --color-discord-btn-secondary-active: #3c3e44;
+  --color-discord-btn-success: #23a55a;
+  --color-discord-btn-success-hover: #1a7d44;
+  --color-discord-btn-danger: #da373c;
+  --color-discord-btn-danger-hover: #a12828;
 
   /* Status Colors */
-  --color-discord-status-online: #23A55A;
-  --color-discord-status-idle: #F0B232;
-  --color-discord-status-dnd: #F23F43;
-  --color-discord-status-offline: #80848E;
+  --color-discord-status-online: #23a55a;
+  --color-discord-status-idle: #f0b232;
+  --color-discord-status-dnd: #f23f43;
+  --color-discord-status-offline: #80848e;
   --color-discord-status-streaming: #593695;
 
   /* Misc Colors */
-  --color-discord-divider: #3F4147;
-  --color-discord-input-bg: #383A40;
-  --color-discord-header-separator: #1F2023;
+  --color-discord-divider: #3f4147;
+  --color-discord-input-bg: #383a40;
+  --color-discord-header-separator: #1f2023;
   --color-discord-mention-bg: rgba(88, 101, 242, 0.3);
   --color-discord-mention-hover-bg: rgba(88, 101, 242, 0.5);
   --color-discord-scrollbar-thumb: #1a1b1e;

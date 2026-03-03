@@ -42,25 +42,19 @@ export function UserNotifications() {
 
   function handleServerSettingChange(serverId: string, value: string) {
     setServerSettings((prev) =>
-      prev.map((s) => (s.id === serverId ? { ...s, setting: value } : s))
+      prev.map((s) => (s.id === serverId ? { ...s, setting: value } : s)),
     );
   }
 
   return (
     <div className="pb-20">
-      <h2 className="mb-5 text-xl font-bold text-discord-header-primary">
-        通知
-      </h2>
+      <h2 className="mb-5 text-xl font-bold text-discord-header-primary">通知</h2>
 
       {/* Desktop Notifications */}
       <section className="mb-6 flex items-center justify-between">
         <div>
-          <h3 className="text-sm font-medium text-discord-text-normal">
-            デスクトップ通知
-          </h3>
-          <p className="text-xs text-discord-text-muted">
-            デスクトップにプッシュ通知を表示します
-          </p>
+          <h3 className="text-sm font-medium text-discord-text-normal">デスクトップ通知</h3>
+          <p className="text-xs text-discord-text-muted">デスクトップにプッシュ通知を表示します</p>
         </div>
         <Toggle checked={desktopNotifications} onChange={setDesktopNotifications} />
       </section>
@@ -68,12 +62,8 @@ export function UserNotifications() {
       {/* Message Sounds */}
       <section className="mb-8 flex items-center justify-between border-b border-discord-divider pb-8">
         <div>
-          <h3 className="text-sm font-medium text-discord-text-normal">
-            メッセージ通知音
-          </h3>
-          <p className="text-xs text-discord-text-muted">
-            メッセージ受信時にサウンドを再生します
-          </p>
+          <h3 className="text-sm font-medium text-discord-text-normal">メッセージ通知音</h3>
+          <p className="text-xs text-discord-text-muted">メッセージ受信時にサウンドを再生します</p>
         </div>
         <Toggle checked={messageSounds} onChange={setMessageSounds} />
       </section>
@@ -84,11 +74,11 @@ export function UserNotifications() {
           TTS (テキスト読み上げ)
         </h3>
         <div className="flex flex-col gap-2" role="radiogroup" aria-label="TTS設定">
-          {([
+          {[
             { id: "all" as const, label: "全てのメッセージ" },
             { id: "mentions" as const, label: "メンション時のみ" },
             { id: "disabled" as const, label: "無効" },
-          ]).map((opt) => (
+          ].map((opt) => (
             <button
               key={opt.id}
               role="radio"
@@ -101,7 +91,7 @@ export function UserNotifications() {
                   "flex h-5 w-5 items-center justify-center rounded-full border-2",
                   ttsMode === opt.id
                     ? "border-discord-brand-blurple"
-                    : "border-discord-interactive-normal"
+                    : "border-discord-interactive-normal",
                 )}
               >
                 {ttsMode === opt.id && (
@@ -117,9 +107,7 @@ export function UserNotifications() {
       {/* Suppress @everyone */}
       <section className="mb-8 flex items-center justify-between border-b border-discord-divider pb-8">
         <div>
-          <h3 className="text-sm font-medium text-discord-text-normal">
-            @everyone / @here を抑制
-          </h3>
+          <h3 className="text-sm font-medium text-discord-text-normal">@everyone / @here を抑制</h3>
           <p className="text-xs text-discord-text-muted">
             @everyone と @here のメンション通知を無効にします
           </p>
@@ -133,20 +121,17 @@ export function UserNotifications() {
           サウンド設定
         </h3>
         <div className="flex flex-col gap-3">
-          {([
+          {[
             { key: "message" as const, label: "メッセージ通知音" },
             { key: "connect" as const, label: "接続音" },
             { key: "disconnect" as const, label: "切断音" },
             { key: "incoming" as const, label: "着信音" },
             { key: "ptt" as const, label: "PTT起動/停止音" },
             { key: "stream" as const, label: "ストリーム開始音" },
-          ]).map((item) => (
+          ].map((item) => (
             <div key={item.key} className="flex items-center justify-between">
               <span className="text-sm text-discord-text-normal">{item.label}</span>
-              <Toggle
-                checked={sounds[item.key]}
-                onChange={() => handleSoundToggle(item.key)}
-              />
+              <Toggle checked={sounds[item.key]} onChange={() => handleSoundToggle(item.key)} />
             </div>
           ))}
         </div>
@@ -155,12 +140,8 @@ export function UserNotifications() {
       {/* Inline reply notifications */}
       <section className="mb-8 flex items-center justify-between border-b border-discord-divider pb-8">
         <div>
-          <h3 className="text-sm font-medium text-discord-text-normal">
-            インラインリプライ通知
-          </h3>
-          <p className="text-xs text-discord-text-muted">
-            リプライされた時に通知を受け取ります
-          </p>
+          <h3 className="text-sm font-medium text-discord-text-normal">インラインリプライ通知</h3>
+          <p className="text-xs text-discord-text-muted">リプライされた時に通知を受け取ります</p>
         </div>
         <Toggle checked={inlineReply} onChange={setInlineReply} />
       </section>
@@ -168,9 +149,7 @@ export function UserNotifications() {
       {/* Focus mode */}
       <section className="mb-8 flex items-center justify-between border-b border-discord-divider pb-8">
         <div>
-          <h3 className="text-sm font-medium text-discord-text-normal">
-            フォーカスモード
-          </h3>
+          <h3 className="text-sm font-medium text-discord-text-normal">フォーカスモード</h3>
           <p className="text-xs text-discord-text-muted">
             有効にするとすべての通知を一時的に無効にします
           </p>
@@ -189,9 +168,7 @@ export function UserNotifications() {
               key={server.id}
               className="flex items-center justify-between rounded-lg bg-discord-bg-secondary p-3"
             >
-              <span className="text-sm font-medium text-discord-text-normal">
-                {server.name}
-              </span>
+              <span className="text-sm font-medium text-discord-text-normal">{server.name}</span>
               <Select
                 options={notificationOptions}
                 value={server.setting}

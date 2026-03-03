@@ -18,7 +18,7 @@ export function NotificationItem({
       className={cn(
         "group relative flex items-start gap-3 px-4 py-3 transition-colors",
         "hover:bg-discord-bg-mod-hover",
-        !notification.read && "bg-discord-bg-secondary/50"
+        !notification.read && "bg-discord-bg-secondary/50",
       )}
     >
       {/* Unread indicator */}
@@ -40,14 +40,11 @@ export function NotificationItem({
             {notification.serverName && (
               <span className="font-medium">{notification.serverName}</span>
             )}
-            {notification.serverName && " > "}
-            #{notification.channelName}
+            {notification.serverName && " > "}#{notification.channelName}
           </p>
         )}
         {!notification.channelName && notification.serverName && (
-          <p className="text-xs text-discord-text-muted">
-            {notification.serverName}
-          </p>
+          <p className="text-xs text-discord-text-muted">{notification.serverName}</p>
         )}
         {!notification.channelName && !notification.serverName && (
           <p className="text-xs text-discord-text-muted">ダイレクトメッセージ</p>
@@ -72,7 +69,7 @@ export function NotificationItem({
           onClick={() => onMarkAsRead(notification.id)}
           className={cn(
             "shrink-0 rounded p-1 text-discord-interactive-normal opacity-0 transition-all",
-            "hover:text-discord-interactive-hover group-hover:opacity-100"
+            "hover:text-discord-interactive-hover group-hover:opacity-100",
           )}
           aria-label="既読にする"
         >

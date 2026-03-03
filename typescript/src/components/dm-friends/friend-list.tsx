@@ -31,9 +31,7 @@ export function FriendList({ activeTab }: { activeTab: string }) {
 
   return (
     <div className="flex-1 overflow-y-auto discord-scrollbar px-8 pt-4">
-      <p className="mb-2 text-xs font-semibold uppercase text-discord-channels-default">
-        {label}
-      </p>
+      <p className="mb-2 text-xs font-semibold uppercase text-discord-channels-default">{label}</p>
       {filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-discord-text-muted">
           <p className="text-sm">

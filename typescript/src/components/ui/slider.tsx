@@ -48,7 +48,7 @@ export function Slider({
           disabled={disabled}
           className={cn(
             "flex-1 accent-discord-brand-blurple",
-            disabled && "opacity-50 cursor-not-allowed"
+            disabled && "opacity-50 cursor-not-allowed",
           )}
           aria-label={label}
           aria-valuemin={min}

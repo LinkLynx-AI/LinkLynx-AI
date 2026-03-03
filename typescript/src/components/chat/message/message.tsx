@@ -46,7 +46,7 @@ function InlineEditForm({
         }
       }
     },
-    [editContent, content, onSave, onCancel]
+    [editContent, content, onSave, onCancel],
   );
 
   const handleInput = useCallback(() => {
@@ -72,23 +72,31 @@ function InlineEditForm({
           "w-full resize-none rounded-lg p-2",
           "bg-discord-input-bg text-base text-discord-text-normal",
           "outline-none",
-          "max-h-[300px] min-h-[40px]"
+          "max-h-[300px] min-h-[40px]",
         )}
       />
       <span className="mt-1 block text-xs text-discord-text-muted">
-        Escで<button onClick={onCancel} className="text-discord-link hover:underline">キャンセル</button> • Enterで<button onClick={() => { const trimmed = editContent.trim(); if (trimmed && trimmed !== content) onSave(trimmed); else onCancel(); }} className="text-discord-link hover:underline">保存</button>
+        Escで
+        <button onClick={onCancel} className="text-discord-link hover:underline">
+          キャンセル
+        </button>{" "}
+        • Enterで
+        <button
+          onClick={() => {
+            const trimmed = editContent.trim();
+            if (trimmed && trimmed !== content) onSave(trimmed);
+            else onCancel();
+          }}
+          className="text-discord-link hover:underline"
+        >
+          保存
+        </button>
       </span>
     </div>
   );
 }
 
-export function Message({
-  message,
-  isGrouped,
-}: {
-  message: MessageType;
-  isGrouped: boolean;
-}) {
+export function Message({ message, isGrouped }: { message: MessageType; isGrouped: boolean }) {
   const [hovered, setHovered] = useState(false);
   const [editing, setEditing] = useState(false);
   const [dismissed, setDismissed] = useState(false);
@@ -114,7 +122,7 @@ export function Message({
       });
       setEditing(false);
     },
-    [editMessage, message.channelId, message.id]
+    [editMessage, message.channelId, message.id],
   );
 
   const handleContextMenu = useCallback(
@@ -122,7 +130,7 @@ export function Message({
       e.preventDefault();
       showContextMenu("message", { x: e.clientX, y: e.clientY }, { message });
     },
-    [message, showContextMenu]
+    [message, showContextMenu],
   );
 
   const handleProfileClick = useCallback(
@@ -130,7 +138,7 @@ export function Message({
       const rect = e.currentTarget.getBoundingClientRect();
       showProfilePopout(message.author.id, { x: rect.right + 8, y: rect.top });
     },
-    [message.author.id, showProfilePopout]
+    [message.author.id, showProfilePopout],
   );
 
   if (ephemeral && dismissed) return null;
@@ -142,11 +150,7 @@ export function Message({
   const renderContent = () => {
     if (editing) {
       return (
-        <InlineEditForm
-          content={message.content}
-          onSave={saveEdit}
-          onCancel={cancelEditing}
-        />
+        <InlineEditForm content={message.content} onSave={saveEdit} onCancel={cancelEditing} />
       );
     }
 
@@ -165,18 +169,14 @@ export function Message({
       className={cn(
         "group relative px-4",
         isGrouped ? "py-0.5" : "mt-[1.0625rem] py-0.5",
-        hovered && "bg-discord-bg-mod-hover"
+        hovered && "bg-discord-bg-mod-hover",
       )}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       onContextMenu={handleContextMenu}
     >
       {hovered && !editing && (
-        <MessageActions
-          message={message}
-          channelId={message.channelId}
-          onEdit={startEditing}
-        />
+        <MessageActions message={message} channelId={message.channelId} onEdit={startEditing} />
       )}
 
       {message.referencedMessage && (
@@ -192,7 +192,7 @@ export function Message({
               "absolute left-0 w-[52px] text-right pr-3",
               "text-[11px] leading-[1.375rem] text-discord-text-muted",
               "opacity-0 select-none",
-              hovered && "opacity-100"
+              hovered && "opacity-100",
             )}
           >
             {formatShortTimestamp(message.timestamp)}
@@ -210,9 +210,7 @@ export function Message({
               {message.components && message.components.length > 0 && (
                 <BotComponents components={message.components} />
               )}
-              {ephemeral && (
-                <EphemeralBanner onDismiss={() => setDismissed(true)} />
-              )}
+              {ephemeral && <EphemeralBanner onDismiss={() => setDismissed(true)} />}
             </>
           )}
         </div>
@@ -251,9 +249,7 @@ export function Message({
                 {message.components && message.components.length > 0 && (
                   <BotComponents components={message.components} />
                 )}
-                {ephemeral && (
-                  <EphemeralBanner onDismiss={() => setDismissed(true)} />
-                )}
+                {ephemeral && <EphemeralBanner onDismiss={() => setDismissed(true)} />}
               </>
             )}
           </div>

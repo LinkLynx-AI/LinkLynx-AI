@@ -63,9 +63,7 @@ export function BotRoleSelect({
     if (selected.length === 0) {
       return component.placeholder ?? "ロールを選択";
     }
-    const names = selected
-      .map((id) => mockRoles.find((r) => r.id === id)?.name)
-      .filter(Boolean);
+    const names = selected.map((id) => mockRoles.find((r) => r.id === id)?.name).filter(Boolean);
     return names.join(", ");
   };
 
@@ -76,10 +74,8 @@ export function BotRoleSelect({
         disabled={component.disabled}
         className={cn(
           "flex w-full items-center justify-between rounded-[3px] bg-discord-input-bg px-3 py-2 text-sm transition-colors",
-          selected.length > 0
-            ? "text-discord-text-normal"
-            : "text-discord-text-muted",
-          component.disabled && "cursor-not-allowed opacity-50"
+          selected.length > 0 ? "text-discord-text-normal" : "text-discord-text-muted",
+          component.disabled && "cursor-not-allowed opacity-50",
         )}
       >
         <span className="truncate">{displayLabel()}</span>
@@ -94,10 +90,7 @@ export function BotRoleSelect({
             height="18"
             viewBox="0 0 24 24"
             fill="currentColor"
-            className={cn(
-              "shrink-0 transition-transform",
-              open && "rotate-180"
-            )}
+            className={cn("shrink-0 transition-transform", open && "rotate-180")}
           >
             <path d="M7 10l5 5 5-5H7z" />
           </svg>
@@ -120,7 +113,7 @@ export function BotRoleSelect({
                 className={cn(
                   "flex w-full items-center gap-2 px-3 py-2 text-sm transition-colors",
                   "text-discord-text-normal hover:bg-discord-brand-blurple hover:text-white",
-                  isSelected && "bg-discord-bg-mod-selected"
+                  isSelected && "bg-discord-bg-mod-selected",
                 )}
               >
                 {isMulti && (
@@ -129,16 +122,11 @@ export function BotRoleSelect({
                       "flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border",
                       isSelected
                         ? "border-discord-brand-blurple bg-discord-brand-blurple"
-                        : "border-discord-text-muted"
+                        : "border-discord-text-muted",
                     )}
                   >
                     {isSelected && (
-                      <svg
-                        width="12"
-                        height="12"
-                        viewBox="0 0 24 24"
-                        fill="white"
-                      >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="white">
                         <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" />
                       </svg>
                     )}

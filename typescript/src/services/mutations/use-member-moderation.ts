@@ -8,13 +8,8 @@ export function useKickMember() {
   const api = getAPIClient();
 
   return useMutation({
-    mutationFn: ({
-      serverId,
-      userId,
-    }: {
-      serverId: string;
-      userId: string;
-    }) => api.kickMember(serverId, userId),
+    mutationFn: ({ serverId, userId }: { serverId: string; userId: string }) =>
+      api.kickMember(serverId, userId),
     onSuccess: (_, { serverId }) => {
       queryClient.invalidateQueries({ queryKey: ["members", serverId] });
     },
@@ -35,7 +30,11 @@ export function useBanMember() {
       userId: string;
       deleteMessageDays?: number;
     }) =>
-      api.banMember(serverId, userId, deleteMessageDays != null ? { deleteMessageDays } : undefined),
+      api.banMember(
+        serverId,
+        userId,
+        deleteMessageDays != null ? { deleteMessageDays } : undefined,
+      ),
     onSuccess: (_, { serverId }) => {
       queryClient.invalidateQueries({ queryKey: ["members", serverId] });
     },

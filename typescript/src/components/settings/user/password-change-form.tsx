@@ -19,20 +19,13 @@ export function PasswordChangeForm({
   const passwordsMatch = newPassword === confirmPassword;
   const minLength = newPassword.length >= 8;
   const isValid =
-    currentPassword.length > 0 &&
-    minLength &&
-    passwordsMatch &&
-    confirmPassword.length > 0;
+    currentPassword.length > 0 && minLength && passwordsMatch && confirmPassword.length > 0;
 
   const confirmError =
-    confirmPassword.length > 0 && !passwordsMatch
-      ? "パスワードが一致しません"
-      : undefined;
+    confirmPassword.length > 0 && !passwordsMatch ? "パスワードが一致しません" : undefined;
 
   const newPasswordError =
-    newPassword.length > 0 && !minLength
-      ? "8文字以上で入力してください"
-      : undefined;
+    newPassword.length > 0 && !minLength ? "8文字以上で入力してください" : undefined;
 
   return (
     <div className="mt-4 space-y-4 rounded-lg bg-discord-bg-tertiary p-4">

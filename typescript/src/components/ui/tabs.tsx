@@ -23,7 +23,7 @@ export function Tabs({
             "relative pb-2.5 text-sm font-medium transition-colors",
             tab.id === activeTab
               ? "text-discord-interactive-active"
-              : "text-discord-interactive-normal hover:text-discord-interactive-hover"
+              : "text-discord-interactive-normal hover:text-discord-interactive-hover",
           )}
         >
           {tab.label}

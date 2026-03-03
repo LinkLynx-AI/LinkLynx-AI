@@ -23,8 +23,7 @@ function isSameDay(a: string, b: string): boolean {
 
 function shouldGroup(prev: MessageType, curr: MessageType): boolean {
   if (prev.author.id !== curr.author.id) return false;
-  const diff =
-    new Date(curr.timestamp).getTime() - new Date(prev.timestamp).getTime();
+  const diff = new Date(curr.timestamp).getTime() - new Date(prev.timestamp).getTime();
   if (diff > GROUPING_THRESHOLD_MS) return false;
   if (curr.referencedMessage) return false;
   // System messages should not be grouped
@@ -67,10 +66,7 @@ export function MessageList({
       <div
         ref={scrollRef}
         onScroll={handleScroll}
-        className={cn(
-          "discord-scrollbar absolute inset-0 overflow-y-auto",
-          "flex flex-col"
-        )}
+        className={cn("discord-scrollbar absolute inset-0 overflow-y-auto", "flex flex-col")}
       >
         <div className="mt-auto">
           <WelcomeMessage channelName={channelName} />
@@ -80,8 +76,7 @@ export function MessageList({
           {messages.map((message, index) => {
             const prev = index > 0 ? messages[index - 1] : null;
             const isGrouped = prev ? shouldGroup(prev, message) : false;
-            const needsDateSep =
-              prev && !isSameDay(prev.timestamp, message.timestamp);
+            const needsDateSep = prev && !isSameDay(prev.timestamp, message.timestamp);
 
             return (
               <div key={message.id}>

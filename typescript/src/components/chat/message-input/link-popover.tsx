@@ -36,7 +36,7 @@ export function LinkPopover({ onInsert, onClose }: LinkPopoverProps) {
       className={cn(
         "absolute bottom-full left-0 z-50 mb-2",
         "w-72 rounded-lg bg-discord-bg-floating p-3 shadow-xl",
-        "border border-discord-bg-mod-faint"
+        "border border-discord-bg-mod-faint",
       )}
     >
       <div className="flex flex-col gap-2">
@@ -54,7 +54,7 @@ export function LinkPopover({ onInsert, onClose }: LinkPopoverProps) {
             className={cn(
               "w-full rounded bg-discord-input-bg px-2.5 py-1.5 text-sm text-discord-text-normal",
               "placeholder:text-discord-text-muted outline-none",
-              "border border-discord-bg-mod-faint focus:border-discord-brand"
+              "border border-discord-bg-mod-faint focus:border-discord-brand",
             )}
           />
         </div>
@@ -71,7 +71,7 @@ export function LinkPopover({ onInsert, onClose }: LinkPopoverProps) {
             className={cn(
               "w-full rounded bg-discord-input-bg px-2.5 py-1.5 text-sm text-discord-text-normal",
               "placeholder:text-discord-text-muted outline-none",
-              "border border-discord-bg-mod-faint focus:border-discord-brand"
+              "border border-discord-bg-mod-faint focus:border-discord-brand",
             )}
           />
         </div>
@@ -81,7 +81,7 @@ export function LinkPopover({ onInsert, onClose }: LinkPopoverProps) {
             onClick={onClose}
             className={cn(
               "rounded px-3 py-1.5 text-sm",
-              "text-discord-text-normal hover:underline"
+              "text-discord-text-normal hover:underline",
             )}
           >
             キャンセル
@@ -93,7 +93,7 @@ export function LinkPopover({ onInsert, onClose }: LinkPopoverProps) {
             className={cn(
               "rounded bg-discord-brand px-3 py-1.5 text-sm font-medium text-white",
               "hover:bg-discord-brand-hover disabled:opacity-50 disabled:cursor-not-allowed",
-              "transition-colors"
+              "transition-colors",
             )}
           >
             挿入

@@ -30,17 +30,23 @@ const mockMutualServers = [
 
 // Mock mutual friends data
 const mockMutualFriends = [
-  { id: "100000000000000002", username: "hanako_design", displayName: "花子", avatar: null, status: "online" as const },
-  { id: "100000000000000003", username: "jiro_gamer", displayName: "次郎", avatar: null, status: "idle" as const },
+  {
+    id: "100000000000000002",
+    username: "hanako_design",
+    displayName: "花子",
+    avatar: null,
+    status: "online" as const,
+  },
+  {
+    id: "100000000000000003",
+    username: "jiro_gamer",
+    displayName: "次郎",
+    avatar: null,
+    status: "idle" as const,
+  },
 ];
 
-export function ProfileModal({
-  userId,
-  onClose,
-}: {
-  userId: string;
-  onClose: () => void;
-}) {
+export function ProfileModal({ userId, onClose }: { userId: string; onClose: () => void }) {
   const { data: profile } = useUserProfile(userId);
   const serverId = useGuildStore((s) => s.activeServerId);
   const [activeTab, setActiveTab] = useState("profile");
@@ -53,13 +59,9 @@ export function ProfileModal({
     ? (mockMembers[serverId] ?? []).find((m) => m.user.id === userId)
     : null;
   const memberRoleIds = memberData?.roles ?? [];
-  const memberRoles: Role[] = serverRoles.filter((r) =>
-    memberRoleIds.includes(r.id)
-  );
+  const memberRoles: Role[] = serverRoles.filter((r) => memberRoleIds.includes(r.id));
 
-  const bannerColor = profile.accentColor
-    ? numberToHex(profile.accentColor)
-    : "#5865f2";
+  const bannerColor = profile.accentColor ? numberToHex(profile.accentColor) : "#5865f2";
 
   return (
     <Modal open onClose={onClose} className="max-w-[600px] overflow-hidden p-0">
@@ -92,13 +94,9 @@ export function ProfileModal({
             <div className="text-2xl font-bold text-discord-header-primary">
               {profile.displayName}
             </div>
-            <div className="text-sm text-discord-text-muted">
-              {profile.username}
-            </div>
+            <div className="text-sm text-discord-text-muted">{profile.username}</div>
           </div>
-          {profile.badges.length > 0 && (
-            <ProfileBadges badges={profile.badges} />
-          )}
+          {profile.badges.length > 0 && <ProfileBadges badges={profile.badges} />}
         </div>
       </div>
 
@@ -154,9 +152,7 @@ export function ProfileModal({
                 <div className="flex h-8 w-8 items-center justify-center rounded-full bg-discord-bg-tertiary text-xs font-medium text-discord-text-normal">
                   {server.name.charAt(0)}
                 </div>
-                <span className="text-sm text-discord-text-normal">
-                  {server.name}
-                </span>
+                <span className="text-sm text-discord-text-normal">{server.name}</span>
               </div>
             ))}
           </div>
@@ -175,9 +171,7 @@ export function ProfileModal({
                   size={32}
                   status={friend.status}
                 />
-                <span className="text-sm text-discord-text-normal">
-                  {friend.displayName}
-                </span>
+                <span className="text-sm text-discord-text-normal">{friend.displayName}</span>
               </div>
             ))}
           </div>
@@ -186,9 +180,7 @@ export function ProfileModal({
 
       {/* Note section */}
       <div className="border-t border-discord-divider px-4 py-3">
-        <div className="mb-1 text-xs font-bold uppercase text-discord-header-secondary">
-          メモ
-        </div>
+        <div className="mb-1 text-xs font-bold uppercase text-discord-header-secondary">メモ</div>
         <textarea
           value={note}
           onChange={(e) => setNote(e.target.value)}

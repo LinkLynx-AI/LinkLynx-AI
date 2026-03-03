@@ -37,7 +37,7 @@ export function TwoFactorSetup({
         inputRefs.current[index + 1]?.focus();
       }
     },
-    [digits]
+    [digits],
   );
 
   const handleKeyDown = useCallback(
@@ -46,7 +46,7 @@ export function TwoFactorSetup({
         inputRefs.current[index - 1]?.focus();
       }
     },
-    [digits]
+    [digits],
   );
 
   const codeComplete = digits.every((d) => d.length === 1);
@@ -80,9 +80,7 @@ export function TwoFactorSetup({
             {s < 3 && (
               <div
                 className={`h-0.5 w-8 ${
-                  s < step
-                    ? "bg-discord-brand-blurple"
-                    : "bg-discord-bg-modifier-accent"
+                  s < step ? "bg-discord-brand-blurple" : "bg-discord-bg-modifier-accent"
                 }`}
               />
             )}
@@ -93,9 +91,7 @@ export function TwoFactorSetup({
       {/* Step 1: QR code */}
       {step === 1 && (
         <div className="text-center">
-          <h3 className="mb-2 text-lg font-bold text-discord-header-primary">
-            認証アプリを設定
-          </h3>
+          <h3 className="mb-2 text-lg font-bold text-discord-header-primary">認証アプリを設定</h3>
           <p className="mb-4 text-sm text-discord-text-muted">
             Google AuthenticatorやAuthyなどの認証アプリでこのQRコードをスキャンしてください。
           </p>
@@ -114,18 +110,14 @@ export function TwoFactorSetup({
               ))}
             </div>
           </div>
-          <p className="mt-4 text-xs text-discord-text-muted">
-            手動入力キー: ABCD-EFGH-IJKL-MNOP
-          </p>
+          <p className="mt-4 text-xs text-discord-text-muted">手動入力キー: ABCD-EFGH-IJKL-MNOP</p>
         </div>
       )}
 
       {/* Step 2: Code input */}
       {step === 2 && (
         <div className="text-center">
-          <h3 className="mb-2 text-lg font-bold text-discord-header-primary">
-            認証コードを入力
-          </h3>
+          <h3 className="mb-2 text-lg font-bold text-discord-header-primary">認証コードを入力</h3>
           <p className="mb-6 text-sm text-discord-text-muted">
             認証アプリに表示されている6桁のコードを入力してください。
           </p>
@@ -153,9 +145,7 @@ export function TwoFactorSetup({
       {/* Step 3: Backup codes */}
       {step === 3 && (
         <div className="text-center">
-          <h3 className="mb-2 text-lg font-bold text-discord-header-primary">
-            バックアップコード
-          </h3>
+          <h3 className="mb-2 text-lg font-bold text-discord-header-primary">バックアップコード</h3>
           <p className="mb-4 text-sm text-discord-text-muted">
             これらのコードは安全な場所に保管してください。認証アプリにアクセスできなくなった場合に使用できます。
           </p>
@@ -181,10 +171,7 @@ export function TwoFactorSetup({
 
       {/* Navigation */}
       <div className="mt-6 flex justify-between">
-        <Button
-          variant="link"
-          onClick={step === 1 ? onCancel : () => setStep(step - 1)}
-        >
+        <Button variant="link" onClick={step === 1 ? onCancel : () => setStep(step - 1)}>
           {step === 1 ? "キャンセル" : "戻る"}
         </Button>
         {step < 3 ? (

@@ -46,15 +46,12 @@ export function ConnectionBanner({
         "flex items-center justify-center gap-2 px-4 py-1.5 text-sm font-medium",
         config.bg,
         config.text,
-        className
+        className,
       )}
       role="alert"
       aria-live="polite"
     >
-      <Icon
-        className={cn("h-4 w-4", isAnimated && "animate-spin")}
-        aria-hidden="true"
-      />
+      <Icon className={cn("h-4 w-4", isAnimated && "animate-spin")} aria-hidden="true" />
       <span>{config.label}</span>
     </div>
   );

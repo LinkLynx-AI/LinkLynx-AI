@@ -34,7 +34,7 @@ export function computePermissions(
   basePermissions: number,
   overwrites: PermissionOverwrite[],
   roleIds: string[],
-  userId: string
+  userId: string,
 ): number {
   // Administrator bypasses all
   if (hasPermission(basePermissions, PermissionFlag.ADMINISTRATOR)) {

@@ -29,7 +29,7 @@ export function ImageCompressDialog({
       <div
         className={cn(
           "relative w-full max-w-sm rounded-lg bg-discord-bg-floating p-5 shadow-xl",
-          "border border-discord-bg-mod-faint"
+          "border border-discord-bg-mod-faint",
         )}
       >
         {/* Close button */}
@@ -39,7 +39,7 @@ export function ImageCompressDialog({
           className={cn(
             "absolute right-3 top-3 rounded p-1",
             "text-discord-interactive-normal hover:text-discord-interactive-hover",
-            "transition-colors"
+            "transition-colors",
           )}
           aria-label="閉じる"
         >
@@ -50,9 +50,7 @@ export function ImageCompressDialog({
           <ImageDown className="h-10 w-10 text-discord-brand" />
 
           <div className="text-center">
-            <h3 className="text-lg font-semibold text-discord-text-normal">
-              画像を圧縮しますか？
-            </h3>
+            <h3 className="text-lg font-semibold text-discord-text-normal">画像を圧縮しますか？</h3>
             <p className="mt-1 text-sm text-discord-text-muted">
               {filename} ({formatFileSize(originalSize)})
             </p>
@@ -69,7 +67,7 @@ export function ImageCompressDialog({
               className={cn(
                 "flex-1 rounded-md px-4 py-2 text-sm font-medium",
                 "bg-discord-bg-secondary text-discord-text-normal",
-                "hover:bg-discord-bg-mod-hover transition-colors"
+                "hover:bg-discord-bg-mod-hover transition-colors",
               )}
             >
               元のまま送信
@@ -80,7 +78,7 @@ export function ImageCompressDialog({
               className={cn(
                 "flex-1 rounded-md px-4 py-2 text-sm font-medium",
                 "bg-discord-brand text-white",
-                "hover:bg-discord-brand-hover transition-colors"
+                "hover:bg-discord-brand-hover transition-colors",
               )}
             >
               圧縮して送信

@@ -9,8 +9,7 @@ import { useVoiceStore } from "@/stores/voice-store";
 
 export function UserPanel() {
   const { currentUser, status, customStatus } = useAuthStore();
-  const { selfMuted, selfDeafened, toggleMute, toggleDeafen } =
-    useVoiceStore();
+  const { selfMuted, selfDeafened, toggleMute, toggleDeafen } = useVoiceStore();
 
   if (!currentUser) return null;
 
@@ -43,14 +42,10 @@ export function UserPanel() {
               "flex h-8 w-8 items-center justify-center rounded hover:bg-discord-bg-mod-hover",
               selfMuted
                 ? "text-discord-brand-red"
-                : "text-discord-interactive-normal hover:text-discord-interactive-hover"
+                : "text-discord-interactive-normal hover:text-discord-interactive-hover",
             )}
           >
-            {selfMuted ? (
-              <MicOff className="h-5 w-5" />
-            ) : (
-              <Mic className="h-5 w-5" />
-            )}
+            {selfMuted ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
           </button>
         </Tooltip>
 
@@ -64,7 +59,7 @@ export function UserPanel() {
               "flex h-8 w-8 items-center justify-center rounded hover:bg-discord-bg-mod-hover",
               selfDeafened
                 ? "text-discord-brand-red"
-                : "text-discord-interactive-normal hover:text-discord-interactive-hover"
+                : "text-discord-interactive-normal hover:text-discord-interactive-hover",
             )}
           >
             {selfDeafened ? (

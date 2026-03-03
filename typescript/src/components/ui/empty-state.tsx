@@ -48,33 +48,21 @@ export function EmptyState({
 
   return (
     <div
-      className={cn(
-        "flex flex-col items-center justify-center px-8 py-16 text-center",
-        className
-      )}
+      className={cn("flex flex-col items-center justify-center px-8 py-16 text-center", className)}
     >
-      {Icon && (
-        <Icon
-          className="mb-4 h-10 w-10 text-discord-text-muted"
-          aria-hidden="true"
-        />
-      )}
+      {Icon && <Icon className="mb-4 h-10 w-10 text-discord-text-muted" aria-hidden="true" />}
       {displayTitle && (
-        <h3 className="text-base font-semibold text-discord-header-primary">
-          {displayTitle}
-        </h3>
+        <h3 className="text-base font-semibold text-discord-header-primary">{displayTitle}</h3>
       )}
       {displayDescription && (
-        <p className="mt-1 max-w-xs text-sm text-discord-text-muted">
-          {displayDescription}
-        </p>
+        <p className="mt-1 max-w-xs text-sm text-discord-text-muted">{displayDescription}</p>
       )}
       {action && (
         <button
           onClick={action.onClick}
           className={cn(
             "mt-4 rounded-md bg-discord-brand-blurple px-4 py-2 text-sm font-medium text-white",
-            "hover:bg-discord-brand-blurple-hover transition-colors"
+            "hover:bg-discord-brand-blurple-hover transition-colors",
           )}
         >
           {action.label}

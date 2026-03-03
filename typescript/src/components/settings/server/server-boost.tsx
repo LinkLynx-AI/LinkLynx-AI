@@ -18,22 +18,13 @@ const perks = [
     tier: 1,
     label: "ティア 1",
     boosts: 2,
-    items: [
-      "絵文字50→100スロット",
-      "音質128kbps",
-      "カスタム招待背景",
-    ],
+    items: ["絵文字50→100スロット", "音質128kbps", "カスタム招待背景"],
   },
   {
     tier: 2,
     label: "ティア 2",
     boosts: 7,
-    items: [
-      "絵文字50→150スロット",
-      "音質256kbps",
-      "サーバーバナー",
-      "50MBアップロード",
-    ],
+    items: ["絵文字50→150スロット", "音質256kbps", "サーバーバナー", "50MBアップロード"],
   },
   {
     tier: 3,
@@ -84,9 +75,7 @@ export function ServerBoost({ serverId }: { serverId: string }) {
 
   return (
     <div>
-      <h2 className="mb-5 text-xl font-bold text-discord-header-primary">
-        サーバーブースト
-      </h2>
+      <h2 className="mb-5 text-xl font-bold text-discord-header-primary">サーバーブースト</h2>
 
       {/* Current tier */}
       <div className="mb-6 flex items-center gap-4">
@@ -94,12 +83,8 @@ export function ServerBoost({ serverId }: { serverId: string }) {
           <span className="text-3xl font-bold text-white">{currentTier}</span>
         </div>
         <div>
-          <p className="text-lg font-bold text-discord-header-primary">
-            ティア {currentTier}
-          </p>
-          <p className="text-sm text-discord-text-muted">
-            {currentBoosts} ブースト
-          </p>
+          <p className="text-lg font-bold text-discord-header-primary">ティア {currentTier}</p>
+          <p className="text-sm text-discord-text-muted">{currentBoosts} ブースト</p>
         </div>
       </div>
 
@@ -112,14 +97,10 @@ export function ServerBoost({ serverId }: { serverId: string }) {
               const segmentWidth = ((t.boosts - prevBoosts) / maxBoosts) * 100;
               const segmentFill = Math.max(
                 0,
-                Math.min(1, (currentBoosts - prevBoosts) / (t.boosts - prevBoosts))
+                Math.min(1, (currentBoosts - prevBoosts) / (t.boosts - prevBoosts)),
               );
               return (
-                <div
-                  key={t.tier}
-                  className="relative h-full"
-                  style={{ width: `${segmentWidth}%` }}
-                >
+                <div key={t.tier} className="relative h-full" style={{ width: `${segmentWidth}%` }}>
                   <div
                     className={cn("h-full transition-all", tierColors[t.tier as 1 | 2 | 3])}
                     style={{ width: `${segmentFill * 100}%` }}
@@ -178,7 +159,7 @@ export function ServerBoost({ serverId }: { serverId: string }) {
                       "px-4 py-3 text-center font-semibold",
                       currentTier >= p.tier
                         ? "text-discord-header-primary"
-                        : "text-discord-text-muted"
+                        : "text-discord-text-muted",
                     )}
                   >
                     {p.label}
@@ -189,9 +170,7 @@ export function ServerBoost({ serverId }: { serverId: string }) {
             <tbody>
               {comparisonFeatures.map((feature) => (
                 <tr key={feature.label} className="border-b border-discord-divider last:border-0">
-                  <td className="px-4 py-2.5 text-discord-text-normal">
-                    {feature.label}
-                  </td>
+                  <td className="px-4 py-2.5 text-discord-text-normal">{feature.label}</td>
                   {feature.values.map((val, i) => (
                     <td key={i} className="px-4 py-2.5 text-center">
                       {typeof val === "boolean" ? (
@@ -202,7 +181,7 @@ export function ServerBoost({ serverId }: { serverId: string }) {
                               "mx-auto",
                               currentTier >= i + 1
                                 ? "text-discord-status-online"
-                                : "text-discord-text-muted"
+                                : "text-discord-text-muted",
                             )}
                           />
                         ) : (
@@ -213,7 +192,7 @@ export function ServerBoost({ serverId }: { serverId: string }) {
                           className={cn(
                             currentTier >= i + 1
                               ? "text-discord-text-normal"
-                              : "text-discord-text-muted"
+                              : "text-discord-text-muted",
                           )}
                         >
                           {val}
@@ -230,9 +209,7 @@ export function ServerBoost({ serverId }: { serverId: string }) {
 
       {/* Perks */}
       <section className="mb-8">
-        <h3 className="mb-3 text-xs font-bold uppercase text-discord-header-secondary">
-          特典
-        </h3>
+        <h3 className="mb-3 text-xs font-bold uppercase text-discord-header-secondary">特典</h3>
         <div className="space-y-4">
           {perks.map((perkGroup) => (
             <div key={perkGroup.tier} className="rounded-lg bg-discord-bg-secondary p-4">
@@ -247,17 +224,13 @@ export function ServerBoost({ serverId }: { serverId: string }) {
                       <Check
                         size={16}
                         className={cn(
-                          unlocked
-                            ? "text-discord-status-online"
-                            : "text-discord-text-muted"
+                          unlocked ? "text-discord-status-online" : "text-discord-text-muted",
                         )}
                       />
                       <span
                         className={cn(
                           "text-sm",
-                          unlocked
-                            ? "text-discord-text-normal"
-                            : "text-discord-text-muted"
+                          unlocked ? "text-discord-text-normal" : "text-discord-text-muted",
                         )}
                       >
                         {item}
@@ -286,9 +259,7 @@ export function ServerBoost({ serverId }: { serverId: string }) {
               <span className="flex-1 text-sm font-medium text-discord-text-normal">
                 {booster.name}
               </span>
-              <span className="text-xs text-discord-text-muted">
-                {booster.date}
-              </span>
+              <span className="text-xs text-discord-text-muted">{booster.date}</span>
             </div>
           ))}
         </div>

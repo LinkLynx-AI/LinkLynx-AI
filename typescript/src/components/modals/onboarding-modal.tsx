@@ -29,13 +29,7 @@ const SUGGESTED_CHANNELS = [
   { id: "5", name: "プログラミング", description: "コードについて語ろう" },
 ];
 
-export function OnboardingModal({
-  onClose,
-  serverId,
-}: {
-  onClose: () => void;
-  serverId?: string;
-}) {
+export function OnboardingModal({ onClose, serverId }: { onClose: () => void; serverId?: string }) {
   const [step, setStep] = useState(0);
   const [rulesScrolledToBottom, setRulesScrolledToBottom] = useState(false);
   const [interests, setInterests] = useState<Set<string>>(new Set());
@@ -75,7 +69,7 @@ export function OnboardingModal({
                 ? "bg-discord-brand-blurple"
                 : i < step
                   ? "bg-discord-brand-blurple/50"
-                  : "bg-discord-bg-tertiary"
+                  : "bg-discord-bg-tertiary",
             )}
           />
         ))}
@@ -110,26 +104,14 @@ export function OnboardingModal({
             戻る
           </Button>
         )}
-        {step === 0 && (
-          <Button onClick={next}>
-            始める
-          </Button>
-        )}
+        {step === 0 && <Button onClick={next}>始める</Button>}
         {step === 1 && (
           <Button onClick={next} disabled={!rulesScrolledToBottom}>
             同意する
           </Button>
         )}
-        {step === 2 && (
-          <Button onClick={next}>
-            次へ
-          </Button>
-        )}
-        {step === 3 && (
-          <Button onClick={onClose}>
-            完了
-          </Button>
-        )}
+        {step === 2 && <Button onClick={next}>次へ</Button>}
+        {step === 3 && <Button onClick={onClose}>完了</Button>}
       </ModalFooter>
     </Modal>
   );
@@ -141,9 +123,7 @@ function StepWelcome({ serverId }: { serverId?: string }) {
       <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-discord-brand-blurple text-2xl font-bold text-white">
         {serverId ? serverId.charAt(0).toUpperCase() : "S"}
       </div>
-      <h2 className="text-2xl font-bold text-discord-header-primary">
-        サーバーへようこそ!
-      </h2>
+      <h2 className="text-2xl font-bold text-discord-header-primary">サーバーへようこそ!</h2>
       <p className="mt-2 text-sm text-discord-text-muted">
         このサーバーに参加するための簡単なセットアップを行います。
       </p>
@@ -162,9 +142,7 @@ function StepRules({
 }) {
   return (
     <div>
-      <h2 className="mb-4 text-xl font-bold text-discord-header-primary">
-        サーバールール
-      </h2>
+      <h2 className="mb-4 text-xl font-bold text-discord-header-primary">サーバールール</h2>
       <p className="mb-4 text-sm text-discord-text-muted">
         このサーバーを利用するには、以下のルールに同意してください。
       </p>
@@ -178,9 +156,7 @@ function StepRules({
             <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-discord-brand-blurple text-xs font-bold text-white">
               {i + 1}
             </div>
-            <p className="text-sm leading-relaxed text-discord-text-normal">
-              {rule}
-            </p>
+            <p className="text-sm leading-relaxed text-discord-text-normal">{rule}</p>
           </div>
         ))}
       </div>
@@ -225,10 +201,7 @@ function StepAboutYou({
               key={option}
               className="flex cursor-pointer items-center gap-3 rounded-md px-2 py-1.5 hover:bg-discord-bg-mod-hover"
             >
-              <Checkbox
-                checked={interests.has(option)}
-                onChange={() => onToggleInterest(option)}
-              />
+              <Checkbox checked={interests.has(option)} onChange={() => onToggleInterest(option)} />
               <span className="text-sm text-discord-text-normal">{option}</span>
             </label>
           ))}
@@ -246,10 +219,7 @@ function StepAboutYou({
               key={option}
               className="flex cursor-pointer items-center gap-3 rounded-md px-2 py-1.5 hover:bg-discord-bg-mod-hover"
             >
-              <Checkbox
-                checked={experience === option}
-                onChange={() => onSetExperience(option)}
-              />
+              <Checkbox checked={experience === option} onChange={() => onSetExperience(option)} />
               <span className="text-sm text-discord-text-normal">{option}</span>
             </label>
           ))}
@@ -286,9 +256,7 @@ function StepComplete() {
       <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-discord-status-online text-3xl">
         <Check className="h-8 w-8 text-white" />
       </div>
-      <h2 className="text-2xl font-bold text-discord-header-primary">
-        完了!
-      </h2>
+      <h2 className="text-2xl font-bold text-discord-header-primary">完了!</h2>
       <p className="mt-2 text-sm text-discord-text-muted">
         セットアップが完了しました。以下のチャンネルがおすすめです。
       </p>
@@ -300,12 +268,8 @@ function StepComplete() {
           >
             <Hash className="h-4 w-4 shrink-0 text-discord-channel-icon" />
             <div className="min-w-0 flex-1">
-              <div className="text-sm font-medium text-discord-header-primary">
-                {channel.name}
-              </div>
-              <div className="text-xs text-discord-text-muted">
-                {channel.description}
-              </div>
+              <div className="text-sm font-medium text-discord-header-primary">{channel.name}</div>
+              <div className="text-xs text-discord-text-muted">{channel.description}</div>
             </div>
           </div>
         ))}

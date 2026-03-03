@@ -5,13 +5,7 @@ import { ChevronRight } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { ContextMenu } from "@/components/ui/context-menu";
 
-export function SubMenu({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
+export function SubMenu({ label, children }: { label: string; children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const itemRef = useRef<HTMLDivElement>(null);
@@ -35,7 +29,7 @@ export function SubMenu({
       <button
         className={cn(
           "mx-1.5 flex w-[calc(100%-12px)] items-center rounded-sm px-2 py-1.5 text-sm text-left transition-colors",
-          "text-discord-interactive-normal hover:bg-discord-brand-blurple hover:text-white"
+          "text-discord-interactive-normal hover:bg-discord-brand-blurple hover:text-white",
         )}
         role="menuitem"
       >

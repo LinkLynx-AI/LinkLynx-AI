@@ -9,13 +9,8 @@ export function useCreateChannel() {
   const api = getAPIClient();
 
   return useMutation({
-    mutationFn: ({
-      serverId,
-      data,
-    }: {
-      serverId: string;
-      data: CreateChannelData;
-    }) => api.createChannel(serverId, data),
+    mutationFn: ({ serverId, data }: { serverId: string; data: CreateChannelData }) =>
+      api.createChannel(serverId, data),
     onSuccess: (_, { serverId }) => {
       queryClient.invalidateQueries({ queryKey: ["channels", serverId] });
     },

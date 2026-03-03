@@ -14,13 +14,7 @@ const SORT_OPTIONS = [
   { value: "createdAt", label: "作成日" },
 ];
 
-export function ForumView({
-  channelId,
-  channelName,
-}: {
-  channelId: string;
-  channelName: string;
-}) {
+export function ForumView({ channelId, channelName }: { channelId: string; channelName: string }) {
   const [showCreatePost, setShowCreatePost] = useState(false);
   const [sortBy, setSortBy] = useState("lastActivity");
   const [viewMode, setViewMode] = useState<"list" | "gallery">("list");
@@ -30,9 +24,7 @@ export function ForumView({
     let posts = [...MOCK_FORUM_POSTS];
 
     if (activeTagId) {
-      posts = posts.filter((post) =>
-        post.tags.some((tag) => tag.id === activeTagId)
-      );
+      posts = posts.filter((post) => post.tags.some((tag) => tag.id === activeTagId));
     }
 
     posts.sort((a, b) => {
@@ -50,14 +42,9 @@ export function ForumView({
       <div className="flex h-12 shrink-0 items-center justify-between border-b border-discord-header-separator px-4 shadow-sm">
         <div className="flex items-center gap-2">
           <Hash className="h-5 w-5 text-discord-channel-icon" />
-          <h1 className="font-semibold text-discord-header-primary">
-            {channelName}
-          </h1>
+          <h1 className="font-semibold text-discord-header-primary">{channelName}</h1>
         </div>
-        <Button
-          size="sm"
-          onClick={() => setShowCreatePost(true)}
-        >
+        <Button size="sm" onClick={() => setShowCreatePost(true)}>
           <Plus className="mr-1.5 h-4 w-4" />
           新しい投稿を作成
         </Button>
@@ -65,12 +52,7 @@ export function ForumView({
 
       {/* Toolbar */}
       <div className="flex items-center gap-3 border-b border-discord-divider px-4 py-2">
-        <Select
-          options={SORT_OPTIONS}
-          value={sortBy}
-          onChange={setSortBy}
-          className="w-52"
-        />
+        <Select options={SORT_OPTIONS} value={sortBy} onChange={setSortBy} className="w-52" />
 
         <div className="flex items-center rounded-md bg-discord-bg-tertiary p-0.5">
           <button
@@ -79,7 +61,7 @@ export function ForumView({
               "rounded p-1.5 transition-colors",
               viewMode === "list"
                 ? "bg-discord-bg-mod-selected text-discord-interactive-active"
-                : "text-discord-interactive-normal hover:text-discord-interactive-hover"
+                : "text-discord-interactive-normal hover:text-discord-interactive-hover",
             )}
             aria-label="リスト表示"
           >
@@ -91,7 +73,7 @@ export function ForumView({
               "rounded p-1.5 transition-colors",
               viewMode === "gallery"
                 ? "bg-discord-bg-mod-selected text-discord-interactive-active"
-                : "text-discord-interactive-normal hover:text-discord-interactive-hover"
+                : "text-discord-interactive-normal hover:text-discord-interactive-hover",
             )}
             aria-label="ギャラリー表示"
           >
@@ -103,14 +85,10 @@ export function ForumView({
           {FORUM_TAGS.map((tag) => (
             <button
               key={tag.id}
-              onClick={() =>
-                setActiveTagId((prev) => (prev === tag.id ? null : tag.id))
-              }
+              onClick={() => setActiveTagId((prev) => (prev === tag.id ? null : tag.id))}
               className={cn(
                 "shrink-0 rounded-full px-3 py-1 text-xs font-medium transition-colors",
-                activeTagId === tag.id
-                  ? "ring-2 ring-white/30"
-                  : "opacity-60 hover:opacity-100"
+                activeTagId === tag.id ? "ring-2 ring-white/30" : "opacity-60 hover:opacity-100",
               )}
               style={{
                 backgroundColor: tag.color + "33",
@@ -127,10 +105,7 @@ export function ForumView({
       <div className="flex-1 overflow-y-auto p-4">
         {showCreatePost && (
           <div className="mb-4">
-            <ForumCreatePost
-              tags={FORUM_TAGS}
-              onClose={() => setShowCreatePost(false)}
-            />
+            <ForumCreatePost tags={FORUM_TAGS} onClose={() => setShowCreatePost(false)} />
           </div>
         )}
 

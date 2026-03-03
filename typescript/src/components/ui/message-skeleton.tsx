@@ -3,10 +3,7 @@ import { Skeleton } from "./skeleton";
 
 export function MessageSkeleton({ className }: { className?: string }) {
   return (
-    <div
-      className={cn("flex gap-4 px-4 py-2", className)}
-      aria-hidden="true"
-    >
+    <div className={cn("flex gap-4 px-4 py-2", className)} aria-hidden="true">
       <Skeleton width={40} height={40} rounded />
       <div className="flex-1 space-y-2 pt-0.5">
         <div className="flex items-center gap-2">

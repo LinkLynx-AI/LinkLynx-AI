@@ -71,7 +71,7 @@ export function MessageInput({
         handleSubmit();
       }
     },
-    [handleSubmit]
+    [handleSubmit],
   );
 
   const handleInput = useCallback(() => {
@@ -81,38 +81,29 @@ export function MessageInput({
     el.style.height = `${Math.min(el.scrollHeight, 300)}px`;
   }, []);
 
-  const handleEmojiSelect = useCallback(
-    (emoji: string) => {
-      setContent((prev) => prev + emoji);
-      setShowEmojiPicker(false);
-      textareaRef.current?.focus();
-    },
-    []
-  );
+  const handleEmojiSelect = useCallback((emoji: string) => {
+    setContent((prev) => prev + emoji);
+    setShowEmojiPicker(false);
+    textareaRef.current?.focus();
+  }, []);
 
-  const handleContentChange = useCallback(
-    (newContent: string) => {
-      setContent(newContent);
-      if (newContent.startsWith("/")) {
-        setShowSlashCommands(true);
-        setSlashFilter(newContent.slice(1));
-      } else {
-        setShowSlashCommands(false);
-        setSlashFilter("");
-      }
-    },
-    []
-  );
-
-  const handleSlashSelect = useCallback(
-    (command: SlashCommand) => {
-      setContent(`/${command.name} `);
+  const handleContentChange = useCallback((newContent: string) => {
+    setContent(newContent);
+    if (newContent.startsWith("/")) {
+      setShowSlashCommands(true);
+      setSlashFilter(newContent.slice(1));
+    } else {
       setShowSlashCommands(false);
       setSlashFilter("");
-      textareaRef.current?.focus();
-    },
-    []
-  );
+    }
+  }, []);
+
+  const handleSlashSelect = useCallback((command: SlashCommand) => {
+    setContent(`/${command.name} `);
+    setShowSlashCommands(false);
+    setSlashFilter("");
+    textareaRef.current?.focus();
+  }, []);
 
   const handlePaste = useCallback((e: ClipboardEvent<HTMLTextAreaElement>) => {
     const items = e.clipboardData?.items;
@@ -146,7 +137,7 @@ export function MessageInput({
 
   const handleToggleSpoiler = useCallback((index: number) => {
     setPendingFiles((prev) =>
-      prev.map((f, i) => (i === index ? { ...f, isSpoiler: !f.isSpoiler } : f))
+      prev.map((f, i) => (i === index ? { ...f, isSpoiler: !f.isSpoiler } : f)),
     );
   }, []);
 
@@ -167,11 +158,7 @@ export function MessageInput({
 
   return (
     <div className="px-4 pb-6">
-      <div
-        className={cn(
-          "relative flex flex-col rounded-lg bg-discord-input-bg"
-        )}
-      >
+      <div className={cn("relative flex flex-col rounded-lg bg-discord-input-bg")}>
         {showSlashCommands && (
           <SlashCommandPopup
             commands={mockSlashCommands}
@@ -215,7 +202,7 @@ export function MessageInput({
             className={cn(
               "shrink-0 p-2.5",
               "text-discord-interactive-normal hover:text-discord-interactive-hover",
-              "transition-colors"
+              "transition-colors",
             )}
             onClick={() => fileInputRef.current?.click()}
             type="button"
@@ -239,7 +226,7 @@ export function MessageInput({
               "max-h-[300px] min-h-[24px] flex-1 resize-none",
               "bg-transparent py-2.5 text-base text-discord-text-normal",
               "placeholder:text-discord-text-muted",
-              "outline-none"
+              "outline-none",
             )}
           />
 
@@ -247,7 +234,7 @@ export function MessageInput({
             className={cn(
               "shrink-0 p-2.5",
               "text-discord-interactive-normal hover:text-discord-interactive-hover",
-              "transition-colors"
+              "transition-colors",
             )}
             title="GIF"
           >
@@ -258,7 +245,7 @@ export function MessageInput({
             className={cn(
               "shrink-0 p-2.5",
               "text-discord-interactive-normal hover:text-discord-interactive-hover",
-              "transition-colors"
+              "transition-colors",
             )}
             title="スタンプ"
           >
@@ -272,7 +259,7 @@ export function MessageInput({
               className={cn(
                 "shrink-0 p-2.5",
                 "text-discord-interactive-normal hover:text-discord-interactive-hover",
-                "transition-colors"
+                "transition-colors",
               )}
               title="絵文字"
             >

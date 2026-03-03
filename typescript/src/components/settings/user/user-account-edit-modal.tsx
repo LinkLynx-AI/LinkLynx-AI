@@ -28,8 +28,7 @@ export function UserAccountEditModal({
   const needsPassword = field === "email" || field === "phone";
   const label = fieldLabels[field];
 
-  const canSave =
-    newValue.trim().length > 0 && (!needsPassword || password.length > 0);
+  const canSave = newValue.trim().length > 0 && (!needsPassword || password.length > 0);
 
   const handleSave = () => {
     if (!canSave) return;

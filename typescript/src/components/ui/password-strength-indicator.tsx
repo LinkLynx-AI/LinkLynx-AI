@@ -28,11 +28,7 @@ function getStrength(password: string): {
   return { level: 1, label: "弱い", color: "bg-discord-brand-red" };
 }
 
-export function PasswordStrengthIndicator({
-  password,
-}: {
-  password: string;
-}) {
+export function PasswordStrengthIndicator({ password }: { password: string }) {
   const { level, label, color } = getStrength(password);
 
   if (level === 0) return null;
@@ -45,7 +41,7 @@ export function PasswordStrengthIndicator({
             key={segment}
             className={cn(
               "h-1 flex-1 rounded-full transition-colors",
-              segment <= level ? color : "bg-discord-bg-modifier-accent"
+              segment <= level ? color : "bg-discord-bg-modifier-accent",
             )}
           />
         ))}
@@ -59,7 +55,7 @@ export function PasswordStrengthIndicator({
               ? "text-orange-500"
               : level === 3
                 ? "text-yellow-500"
-                : "text-discord-brand-green"
+                : "text-discord-brand-green",
         )}
       >
         {label}

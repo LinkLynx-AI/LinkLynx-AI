@@ -22,10 +22,7 @@ export function MemberCategory({
         className="flex w-full items-center px-2 pt-6 pb-1 text-xs font-semibold uppercase tracking-wide text-discord-channels-default hover:text-discord-interactive-hover"
       >
         <ChevronDown
-          className={cn(
-            "mr-0.5 h-3 w-3 transition-transform",
-            collapsed && "-rotate-90"
-          )}
+          className={cn("mr-0.5 h-3 w-3 transition-transform", collapsed && "-rotate-90")}
         />
         <span className="truncate">{name}</span>
         <span className="ml-auto">{count}</span>

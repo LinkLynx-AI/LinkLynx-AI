@@ -56,14 +56,10 @@ export function KeybindRecorder({
         isRecording
           ? "border border-discord-brand-blurple animate-pulse text-discord-text-normal"
           : "border border-discord-interactive-muted text-discord-text-muted hover:border-discord-interactive-normal",
-        className
+        className,
       )}
     >
-      <span>
-        {isRecording
-          ? "キーを押してください..."
-          : value || "未設定"}
-      </span>
+      <span>{isRecording ? "キーを押してください..." : value || "未設定"}</span>
       {value && !isRecording && onClear && (
         <button
           onClick={(e) => {

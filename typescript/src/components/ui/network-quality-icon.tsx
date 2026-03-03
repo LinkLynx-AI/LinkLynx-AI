@@ -35,7 +35,7 @@ export function NetworkQualityIcon({
           className={cn(
             "w-1 rounded-sm",
             height,
-            i < activeBars ? color : "bg-discord-text-muted/30"
+            i < activeBars ? color : "bg-discord-text-muted/30",
           )}
         />
       ))}

@@ -47,13 +47,8 @@ export function useDeleteRole() {
   const api = getAPIClient();
 
   return useMutation({
-    mutationFn: ({
-      serverId,
-      roleId,
-    }: {
-      serverId: string;
-      roleId: string;
-    }) => api.deleteRole(serverId, roleId),
+    mutationFn: ({ serverId, roleId }: { serverId: string; roleId: string }) =>
+      api.deleteRole(serverId, roleId),
     onSuccess: (_, { serverId }) => {
       queryClient.invalidateQueries({ queryKey: ["roles", serverId] });
     },

@@ -13,11 +13,7 @@ const TABS = [
   { id: "mentions", label: "メンション" },
 ];
 
-export function NotificationInbox({
-  onClose,
-}: {
-  onClose?: () => void;
-}) {
+export function NotificationInbox({ onClose }: { onClose?: () => void }) {
   const [activeTab, setActiveTab] = useState("for-you");
   const [notifications, setNotifications] = useState(MOCK_NOTIFICATIONS);
 
@@ -33,9 +29,7 @@ export function NotificationInbox({
   }, [activeTab, notifications]);
 
   const markAsRead = useCallback((id: string) => {
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, read: true } : n))
-    );
+    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
   }, []);
 
   const markAllAsRead = useCallback(() => {
@@ -45,12 +39,7 @@ export function NotificationInbox({
   const hasUnread = notifications.some((n) => !n.read);
 
   return (
-    <div
-      className={cn(
-        "flex h-full flex-col",
-        "bg-discord-bg-secondary"
-      )}
-    >
+    <div className={cn("flex h-full flex-col", "bg-discord-bg-secondary")}>
       {/* Header */}
       <div className="flex h-12 shrink-0 items-center justify-between border-b border-discord-header-separator px-4">
         <h2 className="font-semibold text-discord-header-primary">受信トレイ</h2>
@@ -60,7 +49,7 @@ export function NotificationInbox({
               onClick={markAllAsRead}
               className={cn(
                 "rounded p-1 text-discord-interactive-normal",
-                "hover:text-discord-interactive-hover transition-colors"
+                "hover:text-discord-interactive-hover transition-colors",
               )}
               aria-label="全て既読にする"
               title="全て既読にする"
@@ -73,7 +62,7 @@ export function NotificationInbox({
               onClick={onClose}
               className={cn(
                 "rounded p-1 text-discord-interactive-normal",
-                "hover:text-discord-interactive-hover transition-colors"
+                "hover:text-discord-interactive-hover transition-colors",
               )}
               aria-label="閉じる"
             >

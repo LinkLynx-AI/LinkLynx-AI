@@ -31,9 +31,7 @@ export const useGuildStore = create<GuildState>((set) => ({
   setActiveServer: (serverId) =>
     set((state) => ({
       activeServerId: serverId,
-      activeChannelId: serverId
-        ? state.lastChannelPerServer[serverId] ?? null
-        : null,
+      activeChannelId: serverId ? (state.lastChannelPerServer[serverId] ?? null) : null,
     })),
 
   setActiveChannel: (channelId) =>
@@ -49,8 +47,7 @@ export const useGuildStore = create<GuildState>((set) => ({
 
   toggleCategory: (serverId, categoryId) =>
     set((state) => {
-      const serverCategories =
-        state.collapsedCategories[serverId] ?? new Set<string>();
+      const serverCategories = state.collapsedCategories[serverId] ?? new Set<string>();
       const newCategories = new Set(serverCategories);
       if (newCategories.has(categoryId)) {
         newCategories.delete(categoryId);

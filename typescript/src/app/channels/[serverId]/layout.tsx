@@ -16,9 +16,7 @@ export default async function ServerLayout({
     <>
       <ServerSync serverId={serverId} />
       <ChannelSidebar />
-      <main className="flex flex-1 flex-col min-w-0 bg-discord-bg-primary">
-        {children}
-      </main>
+      <main className="flex flex-1 flex-col min-w-0 bg-discord-bg-primary">{children}</main>
       <RightPanelContainer />
       <MemberListPanel />
     </>

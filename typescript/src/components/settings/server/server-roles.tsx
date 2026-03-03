@@ -61,7 +61,7 @@ export function ServerRoles({ serverId }: { serverId: string }) {
                 "group flex w-full items-center gap-2 rounded px-2 py-2 text-sm transition-colors",
                 role.id === selectedRoleId
                   ? "bg-discord-bg-mod-active text-discord-interactive-active"
-                  : "text-discord-interactive-normal hover:bg-discord-bg-mod-hover"
+                  : "text-discord-interactive-normal hover:bg-discord-bg-mod-hover",
               )}
             >
               <GripVertical className="h-4 w-4 shrink-0 text-discord-text-muted opacity-0 group-hover:opacity-100" />
@@ -70,12 +70,8 @@ export function ServerRoles({ serverId }: { serverId: string }) {
                 style={{ backgroundColor: role.color }}
               />
               <span className="flex-1 truncate text-left">{role.name}</span>
-              {role.hoist && (
-                <Shield className="h-3 w-3 shrink-0 text-discord-text-muted" />
-              )}
-              <span className="text-xs text-discord-text-muted">
-                {role.memberCount}
-              </span>
+              {role.hoist && <Shield className="h-3 w-3 shrink-0 text-discord-text-muted" />}
+              <span className="text-xs text-discord-text-muted">{role.memberCount}</span>
             </button>
           ))}
         </div>

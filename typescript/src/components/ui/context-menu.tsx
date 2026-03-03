@@ -11,10 +11,7 @@ export function ContextMenu({
 }) {
   return (
     <div
-      className={cn(
-        "min-w-[188px] rounded-lg bg-discord-bg-floating py-1.5 shadow-xl",
-        className
-      )}
+      className={cn("min-w-[188px] rounded-lg bg-discord-bg-floating py-1.5 shadow-xl", className)}
       role="menu"
     >
       {children}
@@ -43,7 +40,7 @@ export function MenuItem({
           ? "text-discord-brand-red hover:bg-discord-brand-red hover:text-white"
           : "text-discord-interactive-normal hover:bg-discord-brand-blurple hover:text-white",
         disabled && "opacity-50 cursor-not-allowed pointer-events-none",
-        className
+        className,
       )}
       role="menuitem"
       disabled={disabled}
@@ -66,12 +63,7 @@ export function MenuLabel({
   className?: string;
 }) {
   return (
-    <div
-      className={cn(
-        "px-2 py-1 text-xs font-bold uppercase text-discord-text-muted",
-        className
-      )}
-    >
+    <div className={cn("px-2 py-1 text-xs font-bold uppercase text-discord-text-muted", className)}>
       {children}
     </div>
   );

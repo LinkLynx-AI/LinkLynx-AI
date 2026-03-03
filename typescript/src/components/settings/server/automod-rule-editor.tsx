@@ -75,40 +75,28 @@ export function AutomodRuleEditor({
 }) {
   const [name, setName] = useState(rule?.name ?? "");
   const [triggerType, setTriggerType] = useState<AutoModRule["triggerType"]>(
-    rule?.triggerType ?? "keyword"
+    rule?.triggerType ?? "keyword",
   );
-  const [keywords, setKeywords] = useState(
-    rule?.triggerMetadata.keywordFilter?.join("\n") ?? ""
-  );
+  const [keywords, setKeywords] = useState(rule?.triggerMetadata.keywordFilter?.join("\n") ?? "");
   const [regexPatterns, setRegexPatterns] = useState(
-    rule?.triggerMetadata.regexPatterns?.join("\n") ?? ""
+    rule?.triggerMetadata.regexPatterns?.join("\n") ?? "",
   );
-  const [mentionLimit, setMentionLimit] = useState(
-    rule?.triggerMetadata.mentionTotalLimit ?? 5
-  );
+  const [mentionLimit, setMentionLimit] = useState(rule?.triggerMetadata.mentionTotalLimit ?? 5);
   const [blockMessage, setBlockMessage] = useState(
-    rule?.actions.some((a) => a.type === "block_message") ?? true
+    rule?.actions.some((a) => a.type === "block_message") ?? true,
   );
   const [sendAlert, setSendAlert] = useState(
-    rule?.actions.some((a) => a.type === "send_alert_message") ?? false
+    rule?.actions.some((a) => a.type === "send_alert_message") ?? false,
   );
   const [alertChannel, setAlertChannel] = useState(
-    rule?.actions.find((a) => a.type === "send_alert_message")?.metadata
-      ?.channelId ?? "ch-mod"
+    rule?.actions.find((a) => a.type === "send_alert_message")?.metadata?.channelId ?? "ch-mod",
   );
-  const [timeout, setTimeout_] = useState(
-    rule?.actions.some((a) => a.type === "timeout") ?? false
-  );
+  const [timeout, setTimeout_] = useState(rule?.actions.some((a) => a.type === "timeout") ?? false);
   const [timeoutDuration, setTimeoutDuration] = useState(
-    String(
-      rule?.actions.find((a) => a.type === "timeout")?.metadata
-        ?.durationSeconds ?? 60
-    )
+    String(rule?.actions.find((a) => a.type === "timeout")?.metadata?.durationSeconds ?? 60),
   );
   const [exemptRole, setExemptRole] = useState(rule?.exemptRoles?.[0] ?? "");
-  const [exemptChannel, setExemptChannel] = useState(
-    rule?.exemptChannels?.[0] ?? ""
-  );
+  const [exemptChannel, setExemptChannel] = useState(rule?.exemptChannels?.[0] ?? "");
   const [enabled, setEnabled] = useState(rule?.enabled ?? true);
 
   const handleSave = () => {
@@ -244,16 +232,12 @@ export function AutomodRuleEditor({
         </h4>
         <div className="max-w-[480px] space-y-3">
           <div className="flex items-center justify-between rounded bg-discord-bg-secondary px-3 py-2">
-            <span className="text-sm text-discord-text-normal">
-              メッセージをブロック
-            </span>
+            <span className="text-sm text-discord-text-normal">メッセージをブロック</span>
             <Toggle checked={blockMessage} onChange={setBlockMessage} />
           </div>
           <div className="space-y-2">
             <div className="flex items-center justify-between rounded bg-discord-bg-secondary px-3 py-2">
-              <span className="text-sm text-discord-text-normal">
-                アラートを送信
-              </span>
+              <span className="text-sm text-discord-text-normal">アラートを送信</span>
               <Toggle checked={sendAlert} onChange={setSendAlert} />
             </div>
             {sendAlert && (
@@ -269,9 +253,7 @@ export function AutomodRuleEditor({
           </div>
           <div className="space-y-2">
             <div className="flex items-center justify-between rounded bg-discord-bg-secondary px-3 py-2">
-              <span className="text-sm text-discord-text-normal">
-                タイムアウト
-              </span>
+              <span className="text-sm text-discord-text-normal">タイムアウト</span>
               <Toggle checked={timeout} onChange={setTimeout_} />
             </div>
             {timeout && (
@@ -290,14 +272,10 @@ export function AutomodRuleEditor({
 
       {/* Exemptions */}
       <section>
-        <h4 className="mb-3 text-xs font-bold uppercase text-discord-header-secondary">
-          除外設定
-        </h4>
+        <h4 className="mb-3 text-xs font-bold uppercase text-discord-header-secondary">除外設定</h4>
         <div className="max-w-[480px] space-y-4">
           <div>
-            <label className="mb-2 block text-xs text-discord-text-muted">
-              除外ロール
-            </label>
+            <label className="mb-2 block text-xs text-discord-text-muted">除外ロール</label>
             <Select
               options={[{ value: "", label: "なし" }, ...roleOptions]}
               value={exemptRole}
@@ -306,14 +284,9 @@ export function AutomodRuleEditor({
             />
           </div>
           <div>
-            <label className="mb-2 block text-xs text-discord-text-muted">
-              除外チャンネル
-            </label>
+            <label className="mb-2 block text-xs text-discord-text-muted">除外チャンネル</label>
             <Select
-              options={[
-                { value: "", label: "なし" },
-                ...channelExemptOptions,
-              ]}
+              options={[{ value: "", label: "なし" }, ...channelExemptOptions]}
               value={exemptChannel}
               onChange={setExemptChannel}
               className="w-full max-w-[320px]"
@@ -324,9 +297,7 @@ export function AutomodRuleEditor({
 
       {/* Enable/Disable */}
       <div className="flex items-center justify-between max-w-[480px] rounded bg-discord-bg-secondary px-3 py-3">
-        <span className="text-sm font-medium text-discord-text-normal">
-          ルールを有効にする
-        </span>
+        <span className="text-sm font-medium text-discord-text-normal">ルールを有効にする</span>
         <Toggle checked={enabled} onChange={setEnabled} />
       </div>
 

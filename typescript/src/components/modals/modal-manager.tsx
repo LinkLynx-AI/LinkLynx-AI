@@ -100,12 +100,7 @@ export function ModalManager() {
         />
       );
     case "user-profile":
-      return (
-        <ProfileModal
-          userId={modalProps.userId as string}
-          onClose={closeModal}
-        />
-      );
+      return <ProfileModal userId={modalProps.userId as string} onClose={closeModal} />;
     case "status-settings":
       return <StatusSettingsModal onClose={closeModal} />;
     case "forward-message":
@@ -125,12 +120,7 @@ export function ModalManager() {
     case "keyboard-shortcuts":
       return <KeyboardShortcutsModal open onClose={closeModal} />;
     case "external-link":
-      return (
-        <ExternalLinkModal
-          onClose={closeModal}
-          url={(modalProps.url as string) ?? ""}
-        />
-      );
+      return <ExternalLinkModal onClose={closeModal} url={(modalProps.url as string) ?? ""} />;
     case "nsfw-warning":
       return (
         <NsfwWarningModal

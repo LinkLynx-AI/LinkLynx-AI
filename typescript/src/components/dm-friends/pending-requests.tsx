@@ -1,10 +1,7 @@
 "use client";
 
 import { useFriends } from "@/services/queries/use-friends";
-import {
-  useAcceptFriendRequest,
-  useRemoveFriend,
-} from "@/services/mutations/use-friend-actions";
+import { useAcceptFriendRequest, useRemoveFriend } from "@/services/mutations/use-friend-actions";
 import { Avatar } from "@/components/ui/avatar";
 import { Check, X } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -44,9 +41,7 @@ export function PendingRequests() {
                 <p className="text-sm font-medium text-discord-text-normal truncate">
                   {rel.user.displayName}
                 </p>
-                <p className="text-xs text-discord-text-muted">
-                  フレンドリクエストが届いています
-                </p>
+                <p className="text-xs text-discord-text-muted">フレンドリクエストが届いています</p>
               </div>
               <div className="flex items-center gap-2">
                 <button
@@ -54,7 +49,7 @@ export function PendingRequests() {
                   className={cn(
                     "flex h-9 w-9 items-center justify-center rounded-full",
                     "bg-discord-bg-secondary text-discord-status-online",
-                    "hover:text-white"
+                    "hover:text-white",
                   )}
                   aria-label="承認"
                 >
@@ -65,7 +60,7 @@ export function PendingRequests() {
                   className={cn(
                     "flex h-9 w-9 items-center justify-center rounded-full",
                     "bg-discord-bg-secondary text-discord-status-dnd",
-                    "hover:text-white"
+                    "hover:text-white",
                   )}
                   aria-label="拒否"
                 >
@@ -89,9 +84,7 @@ export function PendingRequests() {
                 <p className="text-sm font-medium text-discord-text-normal truncate">
                   {rel.user.displayName}
                 </p>
-                <p className="text-xs text-discord-text-muted">
-                  フレンドリクエストを送信しました
-                </p>
+                <p className="text-xs text-discord-text-muted">フレンドリクエストを送信しました</p>
               </div>
               <div className="flex items-center gap-2">
                 <button
@@ -99,7 +92,7 @@ export function PendingRequests() {
                   className={cn(
                     "flex h-9 w-9 items-center justify-center rounded-full",
                     "bg-discord-bg-secondary text-discord-status-dnd",
-                    "hover:text-white"
+                    "hover:text-white",
                   )}
                   aria-label="キャンセル"
                 >

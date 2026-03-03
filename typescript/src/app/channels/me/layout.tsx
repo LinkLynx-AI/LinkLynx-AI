@@ -9,11 +9,7 @@ import { Users } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/cn";
 
-export default function DMLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function DMLayout({ children }: { children: React.ReactNode }) {
   // DM mode: no server selected
   useSyncServerId(null);
 
@@ -41,7 +37,7 @@ export default function DMLayout({
               "mx-2 mb-1 flex items-center gap-3 rounded px-2.5 py-1.5 cursor-pointer",
               isFriendsActive
                 ? "bg-discord-bg-mod-selected text-discord-interactive-active"
-                : "text-discord-interactive-normal hover:bg-discord-bg-mod-hover hover:text-discord-interactive-hover"
+                : "text-discord-interactive-normal hover:bg-discord-bg-mod-hover hover:text-discord-interactive-hover",
             )}
           >
             <Users className="h-6 w-6" />
@@ -73,9 +69,7 @@ export default function DMLayout({
                   href={`/channels/me/${dm.id}`}
                   className={cn(
                     "mx-2 flex items-center gap-3 rounded px-2 py-1.5 cursor-pointer group",
-                    isActive
-                      ? "bg-discord-bg-mod-selected"
-                      : "hover:bg-discord-bg-mod-hover"
+                    isActive ? "bg-discord-bg-mod-selected" : "hover:bg-discord-bg-mod-hover",
                   )}
                 >
                   <Avatar
@@ -89,7 +83,7 @@ export default function DMLayout({
                       "flex-1 truncate text-base",
                       isActive
                         ? "text-discord-interactive-active"
-                        : "text-discord-channels-default group-hover:text-discord-interactive-hover"
+                        : "text-discord-channels-default group-hover:text-discord-interactive-hover",
                     )}
                   >
                     {recipient.displayName}
@@ -105,9 +99,7 @@ export default function DMLayout({
       </aside>
 
       {/* Content */}
-      <main className="flex flex-1 flex-col min-w-0 bg-discord-bg-primary">
-        {children}
-      </main>
+      <main className="flex flex-1 flex-col min-w-0 bg-discord-bg-primary">{children}</main>
     </>
   );
 }

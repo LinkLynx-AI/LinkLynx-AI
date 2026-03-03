@@ -26,7 +26,7 @@ export function CallScreen({
             "absolute inset-0 rounded-full",
             type === "incoming"
               ? "animate-ping bg-discord-btn-success/30"
-              : "animate-ping bg-discord-brand-blurple/30"
+              : "animate-ping bg-discord-brand-blurple/30",
           )}
           style={{ animationDuration: "2s" }}
         />
@@ -35,20 +35,14 @@ export function CallScreen({
             "absolute -inset-2 rounded-full",
             type === "incoming"
               ? "animate-pulse bg-discord-btn-success/20"
-              : "animate-pulse bg-discord-brand-blurple/20"
+              : "animate-pulse bg-discord-brand-blurple/20",
           )}
         />
-        <Avatar
-          src={callerAvatar}
-          alt={callerName}
-          size={80}
-        />
+        <Avatar src={callerAvatar} alt={callerName} size={80} />
       </div>
 
       {/* Caller name */}
-      <h2 className="mb-2 text-xl font-semibold text-discord-header-primary">
-        {callerName}
-      </h2>
+      <h2 className="mb-2 text-xl font-semibold text-discord-header-primary">{callerName}</h2>
 
       {/* Status text */}
       <p className="mb-8 text-sm text-discord-text-muted">

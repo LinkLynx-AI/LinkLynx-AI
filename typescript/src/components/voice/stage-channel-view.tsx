@@ -34,7 +34,13 @@ const MOCK_SPEAKERS: StageParticipant[] = [
 const MOCK_AUDIENCE: StageParticipant[] = [
   { userId: "100000000000000001", displayName: "太郎", avatar: null, speaking: false, muted: true },
   { userId: "100000000000000003", displayName: "次郎", avatar: null, speaking: false, muted: true },
-  { userId: "100000000000000005", displayName: "Ken Bot", avatar: null, speaking: false, muted: true },
+  {
+    userId: "100000000000000005",
+    displayName: "Ken Bot",
+    avatar: null,
+    speaking: false,
+    muted: true,
+  },
   { userId: "100000000000000006", displayName: "ゆき", avatar: null, speaking: false, muted: true },
   { userId: "audience-5", displayName: "みか", avatar: null, speaking: false, muted: true },
 ];
@@ -53,9 +59,7 @@ export function StageChannelView({
     <div className="flex h-full flex-col bg-discord-bg-tertiary">
       {/* Header */}
       <div className="border-b border-discord-divider px-4 py-3">
-        <h2 className="text-base font-semibold text-discord-header-primary">
-          {channelName}
-        </h2>
+        <h2 className="text-base font-semibold text-discord-header-primary">{channelName}</h2>
       </div>
 
       <div className="flex-1 overflow-y-auto p-4">
@@ -74,15 +78,10 @@ export function StageChannelView({
                   <div
                     className={cn(
                       "rounded-full",
-                      speaker.speaking &&
-                        "animate-voice-ring shadow-[0_0_0_3px_#23A55A]"
+                      speaker.speaking && "animate-voice-ring shadow-[0_0_0_3px_#23A55A]",
                     )}
                   >
-                    <Avatar
-                      src={speaker.avatar ?? undefined}
-                      alt={speaker.displayName}
-                      size={80}
-                    />
+                    <Avatar src={speaker.avatar ?? undefined} alt={speaker.displayName} size={80} />
                   </div>
                   {speaker.muted && (
                     <span className="absolute bottom-0 right-0 flex h-6 w-6 items-center justify-center rounded-full bg-discord-btn-danger">
@@ -91,12 +90,8 @@ export function StageChannelView({
                   )}
                 </div>
                 <div className="flex items-center gap-1.5">
-                  {speaker.speaking && (
-                    <Mic className="h-3.5 w-3.5 text-discord-status-online" />
-                  )}
-                  <span className="text-sm text-discord-text-normal">
-                    {speaker.displayName}
-                  </span>
+                  {speaker.speaking && <Mic className="h-3.5 w-3.5 text-discord-status-online" />}
+                  <span className="text-sm text-discord-text-normal">{speaker.displayName}</span>
                 </div>
               </div>
             ))}
@@ -114,14 +109,8 @@ export function StageChannelView({
                 key={member.userId}
                 className="flex items-center gap-2 rounded-lg bg-discord-bg-secondary px-3 py-2"
               >
-                <Avatar
-                  src={member.avatar ?? undefined}
-                  alt={member.displayName}
-                  size={32}
-                />
-                <span className="text-sm text-discord-text-normal">
-                  {member.displayName}
-                </span>
+                <Avatar src={member.avatar ?? undefined} alt={member.displayName} size={32} />
+                <span className="text-sm text-discord-text-normal">{member.displayName}</span>
               </div>
             ))}
           </div>
@@ -136,7 +125,7 @@ export function StageChannelView({
             "flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition-colors",
             handRaised
               ? "bg-discord-brand-blurple text-white"
-              : "bg-discord-bg-secondary text-discord-text-normal hover:bg-discord-bg-mod-hover"
+              : "bg-discord-bg-secondary text-discord-text-normal hover:bg-discord-bg-mod-hover",
           )}
         >
           <Hand className="h-4 w-4" />

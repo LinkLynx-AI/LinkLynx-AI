@@ -10,9 +10,19 @@ import { useCreateChannel } from "@/services/mutations/use-channel-actions";
 import { cn } from "@/lib/cn";
 
 const channelTypes = [
-  { type: 0 as const, label: "テキスト", icon: Hash, description: "メッセージや画像、GIFなどを送信できます" },
+  {
+    type: 0 as const,
+    label: "テキスト",
+    icon: Hash,
+    description: "メッセージや画像、GIFなどを送信できます",
+  },
   { type: 2 as const, label: "ボイス", icon: Volume2, description: "音声や画面共有ができます" },
-  { type: 15 as const, label: "フォーラム", icon: MessageSquare, description: "トピックごとに整理されたディスカッション" },
+  {
+    type: 15 as const,
+    label: "フォーラム",
+    icon: MessageSquare,
+    description: "トピックごとに整理されたディスカッション",
+  },
 ];
 
 export function CreateChannelModal({
@@ -31,7 +41,7 @@ export function CreateChannelModal({
     if (!channelName.trim() || !serverId) return;
     createChannel.mutate(
       { serverId, data: { name: channelName.trim(), type: channelType } },
-      { onSuccess: onClose }
+      { onSuccess: onClose },
     );
   };
 
@@ -55,19 +65,15 @@ export function CreateChannelModal({
                       "flex w-full items-center gap-3 rounded-[3px] px-3 py-2.5 text-left transition-colors",
                       channelType === ct.type
                         ? "bg-discord-bg-mod-selected"
-                        : "bg-discord-bg-secondary hover:bg-discord-bg-mod-hover"
+                        : "bg-discord-bg-secondary hover:bg-discord-bg-mod-hover",
                     )}
                   >
                     <div className="flex h-10 w-10 items-center justify-center rounded-full bg-discord-bg-tertiary">
                       <Icon className="h-5 w-5 text-discord-interactive-normal" />
                     </div>
                     <div>
-                      <div className="font-medium text-discord-text-normal">
-                        {ct.label}
-                      </div>
-                      <div className="text-xs text-discord-text-muted">
-                        {ct.description}
-                      </div>
+                      <div className="font-medium text-discord-text-normal">{ct.label}</div>
+                      <div className="text-xs text-discord-text-muted">{ct.description}</div>
                     </div>
                   </button>
                 );

@@ -14,7 +14,7 @@ export function DiscoverButton() {
           "flex h-12 w-12 items-center justify-center transition-all duration-150",
           isHovered
             ? "rounded-[33%] bg-discord-brand-green text-white"
-            : "rounded-full bg-discord-bg-primary text-discord-brand-green"
+            : "rounded-full bg-discord-bg-primary text-discord-brand-green",
         )}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}

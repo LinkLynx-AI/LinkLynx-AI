@@ -5,10 +5,24 @@ describe("usePresenceStore", () => {
   beforeEach(() => {
     usePresenceStore.setState({
       presences: {
-        "100000000000000001": { status: "online", customStatus: "Working on Discord UI", activities: [{ name: "Visual Studio Code", type: "playing" }] },
-        "100000000000000002": { status: "idle", activities: [{ name: "Spotify", type: "listening", details: "Chill Vibes", state: "Lo-Fi Beats" }] },
+        "100000000000000001": {
+          status: "online",
+          customStatus: "Working on Discord UI",
+          activities: [{ name: "Visual Studio Code", type: "playing" }],
+        },
+        "100000000000000002": {
+          status: "idle",
+          activities: [
+            { name: "Spotify", type: "listening", details: "Chill Vibes", state: "Lo-Fi Beats" },
+          ],
+        },
         "100000000000000003": { status: "dnd", customStatus: "Do not disturb" },
-        "100000000000000004": { status: "online", activities: [{ name: "Valorant", type: "playing", details: "Competitive", state: "Ascent" }] },
+        "100000000000000004": {
+          status: "online",
+          activities: [
+            { name: "Valorant", type: "playing", details: "Competitive", state: "Ascent" },
+          ],
+        },
         "100000000000000005": { status: "offline" },
       },
     });

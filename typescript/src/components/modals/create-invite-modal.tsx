@@ -51,11 +51,9 @@ export function CreateInviteModal({
   useEffect(() => {
     if (!channelId) return;
     const api = getAPIClient();
-    api
-      .createInvite(channelId, { maxAge: Number(maxAge) })
-      .then((invite) => {
-        setInviteLink(`https://discord.gg/${invite.code}`);
-      });
+    api.createInvite(channelId, { maxAge: Number(maxAge) }).then((invite) => {
+      setInviteLink(`https://discord.gg/${invite.code}`);
+    });
   }, [channelId, maxAge]);
 
   const handleCopy = async () => {
@@ -71,7 +69,7 @@ export function CreateInviteModal({
   const filteredFriends = friendUsers.filter(
     (u) =>
       u.displayName?.toLowerCase().includes(friendSearch.toLowerCase()) ||
-      u.username.toLowerCase().includes(friendSearch.toLowerCase())
+      u.username.toLowerCase().includes(friendSearch.toLowerCase()),
   );
 
   return (
@@ -135,28 +133,18 @@ export function CreateInviteModal({
             <p className="mb-2 text-xs font-bold uppercase text-discord-header-secondary">
               有効期限
             </p>
-            <Select
-              options={expiryOptions}
-              value={maxAge}
-              onChange={setMaxAge}
-            />
+            <Select options={expiryOptions} value={maxAge} onChange={setMaxAge} />
           </div>
 
           <div>
             <p className="mb-2 text-xs font-bold uppercase text-discord-header-secondary">
               使用回数上限
             </p>
-            <Select
-              options={maxUsesOptions}
-              value={maxUses}
-              onChange={setMaxUses}
-            />
+            <Select options={maxUsesOptions} value={maxUses} onChange={setMaxUses} />
           </div>
 
           <div className="flex items-center justify-between">
-            <span className="text-sm text-discord-text-normal">
-              一時メンバーとして招待
-            </span>
+            <span className="text-sm text-discord-text-normal">一時メンバーとして招待</span>
             <Toggle checked={temporary} onChange={setTemporary} />
           </div>
 

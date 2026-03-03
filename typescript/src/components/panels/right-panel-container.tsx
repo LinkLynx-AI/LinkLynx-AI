@@ -29,7 +29,7 @@ export function RightPanelContainer() {
     <div
       className={cn(
         "flex h-full w-[420px] shrink-0 flex-col",
-        "border-l border-discord-divider bg-discord-bg-secondary"
+        "border-l border-discord-divider bg-discord-bg-secondary",
       )}
     >
       {/* Header */}
@@ -39,7 +39,7 @@ export function RightPanelContainer() {
           onClick={() => setActiveRightPanel(null)}
           className={cn(
             "rounded p-1 text-discord-interactive-normal",
-            "hover:text-discord-interactive-hover transition-colors"
+            "hover:text-discord-interactive-hover transition-colors",
           )}
           aria-label="パネルを閉じる"
         >

@@ -5,13 +5,7 @@ import { Modal, ModalHeader, ModalBody, ModalFooter } from "@/components/ui/moda
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 
-export function ExternalLinkModal({
-  url,
-  onClose,
-}: {
-  url: string;
-  onClose: () => void;
-}) {
+export function ExternalLinkModal({ url, onClose }: { url: string; onClose: () => void }) {
   const [trustDomain, setTrustDomain] = useState(false);
 
   let domain = "";
@@ -40,9 +34,7 @@ export function ExternalLinkModal({
         </div>
         <label className="flex items-center gap-2">
           <Checkbox checked={trustDomain} onChange={setTrustDomain} />
-          <span className="text-sm text-discord-text-normal">
-            {domain} を信頼する
-          </span>
+          <span className="text-sm text-discord-text-normal">{domain} を信頼する</span>
         </label>
       </ModalBody>
       <ModalFooter>

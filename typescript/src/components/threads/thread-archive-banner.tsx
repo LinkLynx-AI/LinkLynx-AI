@@ -28,9 +28,7 @@ export function ThreadArchiveBanner({
     <div
       className={cn(
         "mx-4 mb-2 flex items-center justify-between rounded-lg px-4 py-2.5",
-        isLocked
-          ? "bg-discord-bg-secondary"
-          : "bg-yellow-500/10 text-yellow-400"
+        isLocked ? "bg-discord-bg-secondary" : "bg-yellow-500/10 text-yellow-400",
       )}
       data-testid="thread-archive-banner"
     >
@@ -47,7 +45,7 @@ export function ThreadArchiveBanner({
               ? "text-discord-text-muted"
               : isLocked
                 ? "text-discord-text-muted"
-                : ""
+                : "",
           )}
         >
           {getMessage()}

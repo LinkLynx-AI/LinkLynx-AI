@@ -42,9 +42,7 @@ export function UserVoiceVideo() {
 
   return (
     <div className="pb-20">
-      <h2 className="mb-5 text-xl font-bold text-discord-header-primary">
-        音声・ビデオ
-      </h2>
+      <h2 className="mb-5 text-xl font-bold text-discord-header-primary">音声・ビデオ</h2>
 
       {/* Input Device */}
       <section className="mb-6">
@@ -119,11 +117,11 @@ export function UserVoiceVideo() {
           ノイズ抑制
         </h3>
         <div className="flex gap-4" role="radiogroup" aria-label="ノイズ抑制">
-          {([
+          {[
             { id: "krisp" as const, label: "Krisp", desc: "高品質ノイズ抑制" },
             { id: "standard" as const, label: "標準", desc: "基本的なノイズ抑制" },
             { id: "none" as const, label: "なし", desc: "ノイズ抑制を無効化" },
-          ]).map((opt) => (
+          ].map((opt) => (
             <button
               key={opt.id}
               role="radio"
@@ -133,15 +131,11 @@ export function UserVoiceVideo() {
                 "flex flex-1 flex-col rounded-lg border-2 p-3 text-left transition-colors",
                 noiseSuppression === opt.id
                   ? "border-discord-brand-blurple"
-                  : "border-discord-interactive-muted hover:border-discord-interactive-normal"
+                  : "border-discord-interactive-muted hover:border-discord-interactive-normal",
               )}
             >
-              <span className="text-sm font-medium text-discord-text-normal">
-                {opt.label}
-              </span>
-              <span className="mt-1 text-xs text-discord-text-muted">
-                {opt.desc}
-              </span>
+              <span className="text-sm font-medium text-discord-text-normal">{opt.label}</span>
+              <span className="mt-1 text-xs text-discord-text-muted">{opt.desc}</span>
             </button>
           ))}
         </div>
@@ -150,12 +144,8 @@ export function UserVoiceVideo() {
       {/* Echo Cancellation */}
       <section className="mb-6 flex items-center justify-between">
         <div>
-          <h3 className="text-sm font-medium text-discord-text-normal">
-            エコーキャンセル
-          </h3>
-          <p className="text-xs text-discord-text-muted">
-            エコーやハウリングを自動的に低減します
-          </p>
+          <h3 className="text-sm font-medium text-discord-text-normal">エコーキャンセル</h3>
+          <p className="text-xs text-discord-text-muted">エコーやハウリングを自動的に低減します</p>
         </div>
         <Toggle checked={echoCancellation} onChange={setEchoCancellation} />
       </section>
@@ -164,9 +154,7 @@ export function UserVoiceVideo() {
       <section className="mb-8 border-b border-discord-divider pb-8">
         <div className="mb-3 flex items-center justify-between">
           <div>
-            <h3 className="text-sm font-medium text-discord-text-normal">
-              Push-to-Talk
-            </h3>
+            <h3 className="text-sm font-medium text-discord-text-normal">Push-to-Talk</h3>
             <p className="text-xs text-discord-text-muted">
               キーを押している間だけマイクが有効になります
             </p>
@@ -176,20 +164,14 @@ export function UserVoiceVideo() {
         {pushToTalk && (
           <div className="mt-3 flex items-center gap-3">
             <span className="text-sm text-discord-text-muted">ショートカット:</span>
-            <KeybindRecorder
-              value={pttKey}
-              onChange={setPttKey}
-              onClear={() => setPttKey("")}
-            />
+            <KeybindRecorder value={pttKey} onChange={setPttKey} onClear={() => setPttKey("")} />
           </div>
         )}
       </section>
 
       {/* Camera */}
       <section className="mb-6">
-        <h3 className="mb-2 text-xs font-bold uppercase text-discord-header-secondary">
-          カメラ
-        </h3>
+        <h3 className="mb-2 text-xs font-bold uppercase text-discord-header-secondary">カメラ</h3>
         <Select
           options={cameraDevices}
           value={camera}

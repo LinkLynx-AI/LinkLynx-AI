@@ -18,7 +18,7 @@ export function Spinner({
       className={cn(
         "animate-spin rounded-full border-2 border-discord-text-muted border-t-discord-brand-blurple",
         sizeMap[size],
-        className
+        className,
       )}
       role="status"
       aria-label="Loading"

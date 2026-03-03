@@ -51,16 +51,14 @@ export function SplashScreen({
         </div>
       </div>
 
-      <p className="mb-6 text-sm text-discord-text-muted">
-        {clampedProgress}%
-      </p>
+      <p className="mb-6 text-sm text-discord-text-muted">{clampedProgress}%</p>
 
       {/* Rotating tip */}
       {tips.length > 0 && (
         <p
           className={cn(
             "max-w-md text-center text-sm text-discord-text-muted",
-            "transition-opacity duration-500"
+            "transition-opacity duration-500",
           )}
         >
           {tips[tipIndex]}

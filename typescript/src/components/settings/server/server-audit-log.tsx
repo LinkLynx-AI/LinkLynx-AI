@@ -62,10 +62,7 @@ export function ServerAuditLog({ serverId }: { serverId: string }) {
     if (!matchesFilter(entry, filter)) return false;
     if (search) {
       const q = search.toLowerCase();
-      return (
-        entry.username.toLowerCase().includes(q) ||
-        entry.targetName.toLowerCase().includes(q)
-      );
+      return entry.username.toLowerCase().includes(q) || entry.targetName.toLowerCase().includes(q);
     }
     return true;
   });
@@ -81,9 +78,7 @@ export function ServerAuditLog({ serverId }: { serverId: string }) {
 
   return (
     <div>
-      <h2 className="mb-5 text-xl font-bold text-discord-header-primary">
-        監査ログ
-      </h2>
+      <h2 className="mb-5 text-xl font-bold text-discord-header-primary">監査ログ</h2>
 
       <div className="mb-4 flex gap-3">
         <div className="relative flex-1">
@@ -112,9 +107,7 @@ export function ServerAuditLog({ serverId }: { serverId: string }) {
         </select>
       </div>
 
-      <div className="text-sm text-discord-text-muted mb-3">
-        {filtered.length} 件のログ
-      </div>
+      <div className="text-sm text-discord-text-muted mb-3">{filtered.length} 件のログ</div>
 
       <div>
         {filtered.map((entry) => {
@@ -122,34 +115,26 @@ export function ServerAuditLog({ serverId }: { serverId: string }) {
           const hasDetails = entry.changes || entry.reason;
 
           return (
-            <div
-              key={entry.id}
-              className="border-b border-discord-divider"
-            >
+            <div key={entry.id} className="border-b border-discord-divider">
               <button
                 onClick={() => hasDetails && toggleExpand(entry.id)}
                 className={cn(
                   "flex w-full items-center gap-3 px-3 py-3 text-left transition-colors",
-                  hasDetails && "cursor-pointer hover:bg-discord-bg-mod-hover"
+                  hasDetails && "cursor-pointer hover:bg-discord-bg-mod-hover",
                 )}
               >
-                <Avatar
-                  src={entry.userAvatar ?? undefined}
-                  alt={entry.username}
-                  size={32}
-                />
+                <Avatar src={entry.userAvatar ?? undefined} alt={entry.username} size={32} />
                 <div className="flex-1 min-w-0">
                   <span className="text-sm font-medium text-discord-text-normal">
                     {entry.username}
                   </span>
-                  <span className="text-sm text-discord-text-muted">
-                    {" "}が{" "}
-                  </span>
+                  <span className="text-sm text-discord-text-muted"> が </span>
                   <span className="text-sm font-medium text-discord-text-normal">
                     {entry.targetName}
                   </span>
                   <span className="text-sm text-discord-text-muted">
-                    {" "}を{actionTypeLabels[entry.actionType]}
+                    {" "}
+                    を{actionTypeLabels[entry.actionType]}
                   </span>
                 </div>
                 <span className="shrink-0 text-xs text-discord-text-muted">
@@ -157,11 +142,7 @@ export function ServerAuditLog({ serverId }: { serverId: string }) {
                 </span>
                 {hasDetails && (
                   <span className="shrink-0 text-discord-text-muted">
-                    {isExpanded ? (
-                      <ChevronDown size={16} />
-                    ) : (
-                      <ChevronRight size={16} />
-                    )}
+                    {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                   </span>
                 )}
               </button>
@@ -169,20 +150,13 @@ export function ServerAuditLog({ serverId }: { serverId: string }) {
               {isExpanded && hasDetails && (
                 <div className="ml-[52px] pb-3 pr-3">
                   {entry.reason && (
-                    <p className="text-xs text-discord-text-muted mb-2">
-                      理由: {entry.reason}
-                    </p>
+                    <p className="text-xs text-discord-text-muted mb-2">理由: {entry.reason}</p>
                   )}
                   {entry.changes && (
                     <div className="rounded bg-discord-bg-secondary p-2">
                       {entry.changes.map((change, i) => (
-                        <div
-                          key={i}
-                          className="flex items-center gap-2 text-xs py-1"
-                        >
-                          <span className="font-medium text-discord-text-muted">
-                            {change.key}:
-                          </span>
+                        <div key={i} className="flex items-center gap-2 text-xs py-1">
+                          <span className="font-medium text-discord-text-muted">{change.key}:</span>
                           <span className="text-discord-btn-danger line-through">
                             {change.oldValue || "(なし)"}
                           </span>

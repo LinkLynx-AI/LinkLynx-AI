@@ -27,11 +27,7 @@ const mockWebhooks: WebhookItem[] = [
   },
 ];
 
-export function ChannelEditIntegrations({
-  channelId,
-}: {
-  channelId?: string;
-}) {
+export function ChannelEditIntegrations({ channelId }: { channelId?: string }) {
   const [webhooks, setWebhooks] = useState<WebhookItem[]>(mockWebhooks);
   const [followEnabled, setFollowEnabled] = useState(false);
 
@@ -48,9 +44,7 @@ export function ChannelEditIntegrations({
       {/* Webhooks section */}
       <div>
         <div className="mb-3 flex items-center justify-between">
-          <h3 className="text-xs font-bold uppercase text-discord-header-secondary">
-            Webhook
-          </h3>
+          <h3 className="text-xs font-bold uppercase text-discord-header-secondary">Webhook</h3>
           <Button size="sm" variant="primary">
             <Plus className="mr-1 h-3.5 w-3.5" />
             新規作成
@@ -71,12 +65,8 @@ export function ChannelEditIntegrations({
                   <Webhook className="h-4 w-4 text-discord-interactive-normal" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="text-sm font-medium text-discord-text-normal">
-                    {webhook.name}
-                  </div>
-                  <div className="truncate text-xs text-discord-text-muted">
-                    {webhook.url}
-                  </div>
+                  <div className="text-sm font-medium text-discord-text-normal">{webhook.name}</div>
+                  <div className="truncate text-xs text-discord-text-muted">{webhook.url}</div>
                 </div>
                 <div className="flex items-center gap-1">
                   <button

@@ -32,16 +32,14 @@ export function UserVolumeSlider({
         onClick={onMute}
         className={cn(
           "flex h-6 w-6 shrink-0 items-center justify-center rounded text-discord-interactive-normal transition-colors hover:text-discord-interactive-hover",
-          isMuted && "text-discord-btn-danger"
+          isMuted && "text-discord-btn-danger",
         )}
         aria-label={isMuted ? `${displayName}のミュートを解除` : `${displayName}をミュート`}
       >
         <Icon className="h-4 w-4" />
       </button>
 
-      <span className="w-20 truncate text-sm text-discord-text-normal">
-        {displayName}
-      </span>
+      <span className="w-20 truncate text-sm text-discord-text-normal">{displayName}</span>
 
       <input
         type="range"

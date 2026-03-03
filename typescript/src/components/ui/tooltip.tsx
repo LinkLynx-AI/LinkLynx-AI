@@ -34,17 +34,13 @@ export function Tooltip({
   };
 
   return (
-    <div
-      className={cn("relative inline-flex", className)}
-      onMouseEnter={show}
-      onMouseLeave={hide}
-    >
+    <div className={cn("relative inline-flex", className)} onMouseEnter={show} onMouseLeave={hide}>
       {children}
       {visible && (
         <div
           className={cn(
             "pointer-events-none absolute z-50 whitespace-nowrap rounded bg-discord-bg-floating px-3 py-1.5 text-sm text-discord-text-normal shadow-lg",
-            positions[position]
+            positions[position],
           )}
           role="tooltip"
         >

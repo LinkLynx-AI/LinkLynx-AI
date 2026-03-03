@@ -55,9 +55,7 @@ const serverNav: NavSection[] = [
   },
   {
     label: "コミュニティ",
-    items: [
-      { id: "analytics", label: "サーバーインサイト" },
-    ],
+    items: [{ id: "analytics", label: "サーバーインサイト" }],
   },
 ];
 
@@ -113,7 +111,7 @@ export function SettingsLayout({
     (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     },
-    [onClose]
+    [onClose],
   );
 
   useEffect(() => {
@@ -187,9 +185,7 @@ export function SettingsLayout({
           )}
           {nav.map((section, si) => (
             <div key={si}>
-              {si > 0 && (
-                <div className="mx-2.5 my-2 h-px bg-discord-divider" />
-              )}
+              {si > 0 && <div className="mx-2.5 my-2 h-px bg-discord-divider" />}
               {section.label && (
                 <div className="mb-1.5 px-2.5 text-xs font-bold uppercase text-discord-text-muted">
                   {section.label}
@@ -203,7 +199,7 @@ export function SettingsLayout({
                     "mb-0.5 flex w-full items-center rounded px-2.5 py-1.5 text-sm font-medium transition-colors",
                     activePage === item.id
                       ? "bg-discord-bg-mod-active text-discord-interactive-active"
-                      : "text-discord-interactive-normal hover:bg-discord-bg-mod-hover hover:text-discord-interactive-hover"
+                      : "text-discord-interactive-normal hover:bg-discord-bg-mod-hover hover:text-discord-interactive-hover",
                   )}
                 >
                   {item.label}
@@ -216,9 +212,7 @@ export function SettingsLayout({
 
       {/* Content */}
       <div className="flex flex-[1.6]">
-        <div className="w-full max-w-[740px] py-[60px] pr-2 pl-10">
-          {renderContent()}
-        </div>
+        <div className="w-full max-w-[740px] py-[60px] pr-2 pl-10">{renderContent()}</div>
 
         {/* Close button area */}
         <div className="relative pt-[60px] pl-5">

@@ -33,7 +33,7 @@ export function FriendsPage() {
                 "rounded px-2 py-0.5 text-sm font-medium",
                 activeTab === tab
                   ? "bg-discord-bg-mod-selected text-discord-interactive-active"
-                  : "text-discord-interactive-normal hover:bg-discord-bg-mod-hover hover:text-discord-interactive-hover"
+                  : "text-discord-interactive-normal hover:bg-discord-bg-mod-hover hover:text-discord-interactive-hover",
               )}
             >
               {tab}
@@ -45,7 +45,7 @@ export function FriendsPage() {
               "rounded px-2 py-0.5 text-sm font-medium",
               activeTab === "フレンドに追加"
                 ? "bg-transparent text-discord-brand-green"
-                : "bg-discord-brand-green text-white"
+                : "bg-discord-brand-green text-white",
             )}
           >
             フレンドに追加

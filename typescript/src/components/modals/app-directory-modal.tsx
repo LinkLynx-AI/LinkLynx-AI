@@ -14,15 +14,69 @@ interface AppInfo {
 }
 
 const mockApps: AppInfo[] = [
-  { id: "1", name: "MEE6", description: "レベリング、モデレーション、カスタムコマンド", color: "#7289da", category: "人気" },
-  { id: "2", name: "Dyno", description: "高機能モデレーションとカスタムコマンド", color: "#f04747", category: "人気" },
-  { id: "3", name: "Carl-bot", description: "リアクションロール、ログ、自動モデレーション", color: "#ff9b00", category: "モデレーション" },
-  { id: "4", name: "ProBot", description: "ウェルカム画像、レベリング、保護", color: "#ff73fa", category: "人気" },
-  { id: "5", name: "YAGPDB", description: "汎用ボットでカスタムコマンドに対応", color: "#43b581", category: "ユーティリティ" },
-  { id: "6", name: "Arcane", description: "レベリングとリーダーボード", color: "#7c3aed", category: "ゲーム" },
-  { id: "7", name: "Dank Memer", description: "ミームコマンドとカレンシーゲーム", color: "#4ade80", category: "ゲーム" },
-  { id: "8", name: "AutoMod+", description: "高度な自動モデレーション設定", color: "#ef4444", category: "モデレーション" },
-  { id: "9", name: "MusicBot", description: "高品質な音楽再生ボット", color: "#3b82f6", category: "新着" },
+  {
+    id: "1",
+    name: "MEE6",
+    description: "レベリング、モデレーション、カスタムコマンド",
+    color: "#7289da",
+    category: "人気",
+  },
+  {
+    id: "2",
+    name: "Dyno",
+    description: "高機能モデレーションとカスタムコマンド",
+    color: "#f04747",
+    category: "人気",
+  },
+  {
+    id: "3",
+    name: "Carl-bot",
+    description: "リアクションロール、ログ、自動モデレーション",
+    color: "#ff9b00",
+    category: "モデレーション",
+  },
+  {
+    id: "4",
+    name: "ProBot",
+    description: "ウェルカム画像、レベリング、保護",
+    color: "#ff73fa",
+    category: "人気",
+  },
+  {
+    id: "5",
+    name: "YAGPDB",
+    description: "汎用ボットでカスタムコマンドに対応",
+    color: "#43b581",
+    category: "ユーティリティ",
+  },
+  {
+    id: "6",
+    name: "Arcane",
+    description: "レベリングとリーダーボード",
+    color: "#7c3aed",
+    category: "ゲーム",
+  },
+  {
+    id: "7",
+    name: "Dank Memer",
+    description: "ミームコマンドとカレンシーゲーム",
+    color: "#4ade80",
+    category: "ゲーム",
+  },
+  {
+    id: "8",
+    name: "AutoMod+",
+    description: "高度な自動モデレーション設定",
+    color: "#ef4444",
+    category: "モデレーション",
+  },
+  {
+    id: "9",
+    name: "MusicBot",
+    description: "高品質な音楽再生ボット",
+    color: "#3b82f6",
+    category: "新着",
+  },
 ];
 
 const categories = ["すべて", "人気", "新着", "ゲーム", "モデレーション", "ユーティリティ"];
@@ -36,8 +90,7 @@ export function AppDirectoryModal({ onClose }: { onClose: () => void }) {
       searchQuery === "" ||
       app.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       app.description.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory =
-      activeCategory === "すべて" || app.category === activeCategory;
+    const matchesCategory = activeCategory === "すべて" || app.category === activeCategory;
     return matchesSearch && matchesCategory;
   });
 
@@ -46,9 +99,7 @@ export function AppDirectoryModal({ onClose }: { onClose: () => void }) {
       <div className="flex flex-col" style={{ height: "80vh", maxHeight: 600 }}>
         {/* Header */}
         <div className="border-b border-discord-divider px-6 pt-6 pb-4">
-          <h2 className="mb-4 text-xl font-bold text-discord-header-primary">
-            App Directory
-          </h2>
+          <h2 className="mb-4 text-xl font-bold text-discord-header-primary">App Directory</h2>
 
           {/* Search */}
           <div className="relative">
@@ -80,7 +131,7 @@ export function AppDirectoryModal({ onClose }: { onClose: () => void }) {
                   "shrink-0 rounded-full px-3 py-1 text-xs font-medium transition-colors",
                   activeCategory === cat
                     ? "bg-discord-brand-blurple text-white"
-                    : "bg-discord-bg-secondary text-discord-text-muted hover:bg-discord-bg-mod-hover hover:text-discord-text-normal"
+                    : "bg-discord-bg-secondary text-discord-text-muted hover:bg-discord-bg-mod-hover hover:text-discord-text-normal",
                 )}
               >
                 {cat}
@@ -93,9 +144,7 @@ export function AppDirectoryModal({ onClose }: { onClose: () => void }) {
         <div className="flex-1 overflow-y-auto p-6">
           {filteredApps.length === 0 ? (
             <div className="flex h-full items-center justify-center">
-              <p className="text-sm text-discord-text-muted">
-                アプリが見つかりませんでした
-              </p>
+              <p className="text-sm text-discord-text-muted">アプリが見つかりませんでした</p>
             </div>
           ) : (
             <div className="grid grid-cols-3 gap-4">

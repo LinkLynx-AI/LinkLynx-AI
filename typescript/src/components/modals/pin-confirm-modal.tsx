@@ -30,9 +30,7 @@ export function PinConfirmModal({
   return (
     <Modal open onClose={onClose} className="max-w-[440px]">
       <ModalHeader>
-        {isPin
-          ? "このメッセージをピン留めしますか？"
-          : "このメッセージのピン留めを解除しますか？"}
+        {isPin ? "このメッセージをピン留めしますか？" : "このメッセージのピン留めを解除しますか？"}
       </ModalHeader>
       <ModalBody>
         {/* Message preview */}
@@ -43,12 +41,8 @@ export function PinConfirmModal({
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex items-baseline gap-2">
-                <span className="text-sm font-medium text-discord-header-primary">
-                  ユーザー
-                </span>
-                <span className="text-xs text-discord-text-muted">
-                  今日 12:00
-                </span>
+                <span className="text-sm font-medium text-discord-header-primary">ユーザー</span>
+                <span className="text-xs text-discord-text-muted">今日 12:00</span>
               </div>
               <p className="mt-1 text-sm text-discord-text-normal">
                 ピン留めされるメッセージのプレビュー
@@ -66,18 +60,14 @@ export function PinConfirmModal({
         {isPin && !isAtLimit && isNearLimit && (
           <div className="mt-3 flex items-start gap-2 rounded-md bg-yellow-500/10 px-3 py-2">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-yellow-500" />
-            <p className="text-sm text-yellow-500">
-              ピン留めメッセージが上限(50)に近づいています
-            </p>
+            <p className="text-sm text-yellow-500">ピン留めメッセージが上限(50)に近づいています</p>
           </div>
         )}
 
         {isPin && isAtLimit && (
           <div className="mt-3 flex items-start gap-2 rounded-md bg-red-500/10 px-3 py-2">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-500" />
-            <p className="text-sm text-red-500">
-              ピン留めメッセージが上限に達しています
-            </p>
+            <p className="text-sm text-red-500">ピン留めメッセージが上限に達しています</p>
           </div>
         )}
       </ModalBody>

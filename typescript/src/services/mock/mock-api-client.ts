@@ -85,10 +85,7 @@ export class MockAPIClient implements APIClient {
     return guild;
   }
 
-  async updateServer(
-    serverId: string,
-    data: Partial<Guild>
-  ): Promise<Guild> {
+  async updateServer(serverId: string, data: Partial<Guild>): Promise<Guild> {
     await this.simulateDelay();
     const idx = mockServers.findIndex((s) => s.id === serverId);
     if (idx === -1) throw new Error("Server not found");
@@ -123,10 +120,7 @@ export class MockAPIClient implements APIClient {
     throw new Error("Channel not found");
   }
 
-  async createChannel(
-    serverId: string,
-    data: CreateChannelData
-  ): Promise<Channel> {
+  async createChannel(serverId: string, data: CreateChannelData): Promise<Channel> {
     await this.simulateDelay();
     const channel: Channel = {
       id: this.generateId(),
@@ -134,7 +128,7 @@ export class MockAPIClient implements APIClient {
       guildId: serverId,
       name: data.name,
       topic: data.topic ?? null,
-      position: (mockChannels[serverId]?.length ?? 0),
+      position: mockChannels[serverId]?.length ?? 0,
       parentId: data.parentId ?? null,
       nsfw: false,
       rateLimitPerUser: 0,
@@ -145,10 +139,7 @@ export class MockAPIClient implements APIClient {
     return channel;
   }
 
-  async updateChannel(
-    channelId: string,
-    data: Partial<Channel>
-  ): Promise<Channel> {
+  async updateChannel(channelId: string, data: Partial<Channel>): Promise<Channel> {
     await this.simulateDelay();
     for (const channels of Object.values(mockChannels)) {
       const idx = channels.findIndex((c) => c.id === channelId);
@@ -174,7 +165,7 @@ export class MockAPIClient implements APIClient {
   // Messages
   async getMessages(
     channelId: string,
-    params?: { before?: string; after?: string; limit?: number }
+    params?: { before?: string; after?: string; limit?: number },
   ): Promise<Message[]> {
     await this.simulateDelay();
     const messages = mockMessages[channelId] ?? [];
@@ -190,10 +181,7 @@ export class MockAPIClient implements APIClient {
     return msg;
   }
 
-  async sendMessage(
-    channelId: string,
-    data: CreateMessageData
-  ): Promise<Message> {
+  async sendMessage(channelId: string, data: CreateMessageData): Promise<Message> {
     await this.simulateDelay();
     const message: Message = {
       id: this.generateId(),
@@ -216,11 +204,7 @@ export class MockAPIClient implements APIClient {
     return message;
   }
 
-  async editMessage(
-    channelId: string,
-    messageId: string,
-    data: EditMessageData
-  ): Promise<Message> {
+  async editMessage(channelId: string, messageId: string, data: EditMessageData): Promise<Message> {
     await this.simulateDelay();
     const messages = mockMessages[channelId] ?? [];
     const idx = messages.findIndex((m) => m.id === messageId);
@@ -247,26 +231,18 @@ export class MockAPIClient implements APIClient {
   }
 
   // Reactions
-  async addReaction(
-    _channelId: string,
-    _messageId: string,
-    _emoji: string
-  ): Promise<void> {
+  async addReaction(_channelId: string, _messageId: string, _emoji: string): Promise<void> {
     await this.simulateDelay();
   }
 
-  async removeReaction(
-    _channelId: string,
-    _messageId: string,
-    _emoji: string
-  ): Promise<void> {
+  async removeReaction(_channelId: string, _messageId: string, _emoji: string): Promise<void> {
     await this.simulateDelay();
   }
 
   // Members
   async getMembers(
     serverId: string,
-    _params?: { limit?: number; after?: string }
+    _params?: { limit?: number; after?: string },
   ): Promise<GuildMember[]> {
     await this.simulateDelay();
     return mockMembers[serverId] ?? [];
@@ -316,7 +292,8 @@ export class MockAPIClient implements APIClient {
     await this.simulateDelay();
     const user = mockUsers.find((u) => u.username === username);
     if (!user) throw new Error("ユーザーが見つかりませんでした。ユーザー名を確認してください。");
-    if (user.id === mockCurrentUser.id) throw new Error("自分自身にフレンドリクエストは送れません。");
+    if (user.id === mockCurrentUser.id)
+      throw new Error("自分自身にフレンドリクエストは送れません。");
     const existing = mockFriendships.find((r) => r.user.id === user.id);
     if (existing) throw new Error("既にフレンドリクエストを送信済みです。");
     mockFriendships.push({
@@ -328,9 +305,7 @@ export class MockAPIClient implements APIClient {
 
   async acceptFriendRequest(userId: string): Promise<void> {
     await this.simulateDelay();
-    const idx = mockFriendships.findIndex(
-      (r) => r.user.id === userId && r.type === 3
-    );
+    const idx = mockFriendships.findIndex((r) => r.user.id === userId && r.type === 3);
     if (idx === -1) throw new Error("Friend request not found");
     mockFriendships[idx] = { ...mockFriendships[idx], type: 1 };
   }
@@ -374,10 +349,7 @@ export class MockAPIClient implements APIClient {
   }
 
   // Invites
-  async createInvite(
-    channelId: string,
-    _data: CreateInviteData
-  ): Promise<Invite> {
+  async createInvite(channelId: string, _data: CreateInviteData): Promise<Invite> {
     await this.simulateDelay();
     return {
       code: "abc123",
@@ -422,7 +394,7 @@ export class MockAPIClient implements APIClient {
 
   async createRole(
     _serverId: string,
-    data: { name: string; color?: string; permissions?: number }
+    data: { name: string; color?: string; permissions?: number },
   ): Promise<Role> {
     await this.simulateDelay();
     return {
@@ -437,11 +409,7 @@ export class MockAPIClient implements APIClient {
     };
   }
 
-  async updateRole(
-    _serverId: string,
-    roleId: string,
-    data: Partial<Role>
-  ): Promise<Role> {
+  async updateRole(_serverId: string, roleId: string, data: Partial<Role>): Promise<Role> {
     await this.simulateDelay();
     const role = mockRolesData.find((r) => r.id === roleId);
     if (!role) throw new Error("Role not found");
@@ -452,10 +420,7 @@ export class MockAPIClient implements APIClient {
     await this.simulateDelay();
   }
 
-  async reorderRoles(
-    _serverId: string,
-    _roles: { id: string; position: number }[]
-  ): Promise<void> {
+  async reorderRoles(_serverId: string, _roles: { id: string; position: number }[]): Promise<void> {
     await this.simulateDelay();
   }
 
@@ -473,7 +438,7 @@ export class MockAPIClient implements APIClient {
 
   async createWebhook(
     channelId: string,
-    data: { name: string; avatar?: string }
+    data: { name: string; avatar?: string },
   ): Promise<Webhook> {
     await this.simulateDelay();
     return {
@@ -491,21 +456,19 @@ export class MockAPIClient implements APIClient {
   // Audit Log
   async getAuditLog(
     _serverId: string,
-    params?: { before?: string; limit?: number }
+    params?: { before?: string; limit?: number },
   ): Promise<AuditLogEntry[]> {
     await this.simulateDelay();
     const limit = params?.limit ?? 50;
-    const entries: AuditLogEntry[] = mockAuditLogEntries
-      .slice(0, limit)
-      .map((e) => ({
-        id: e.id,
-        actionType: 0,
-        userId: e.userId,
-        targetId: undefined,
-        changes: e.changes as Record<string, unknown>[] | undefined,
-        reason: e.reason,
-        createdAt: e.createdAt,
-      }));
+    const entries: AuditLogEntry[] = mockAuditLogEntries.slice(0, limit).map((e) => ({
+      id: e.id,
+      actionType: 0,
+      userId: e.userId,
+      targetId: undefined,
+      changes: e.changes as Record<string, unknown>[] | undefined,
+      reason: e.reason,
+      createdAt: e.createdAt,
+    }));
     return entries;
   }
 
@@ -532,24 +495,16 @@ export class MockAPIClient implements APIClient {
   async banMember(
     _serverId: string,
     _userId: string,
-    _data?: { deleteMessageDays?: number }
+    _data?: { deleteMessageDays?: number },
   ): Promise<void> {
     await this.simulateDelay();
   }
 
-  async timeoutMember(
-    _serverId: string,
-    _userId: string,
-    _until: string | null
-  ): Promise<void> {
+  async timeoutMember(_serverId: string, _userId: string, _until: string | null): Promise<void> {
     await this.simulateDelay();
   }
 
-  async updateMemberNickname(
-    _serverId: string,
-    _userId: string,
-    _nickname: string
-  ): Promise<void> {
+  async updateMemberNickname(_serverId: string, _userId: string, _nickname: string): Promise<void> {
     await this.simulateDelay();
   }
 
@@ -559,16 +514,11 @@ export class MockAPIClient implements APIClient {
   }
 
   // Search
-  async searchMessages(
-    _serverId: string,
-    params: SearchParams
-  ): Promise<SearchResult> {
+  async searchMessages(_serverId: string, params: SearchParams): Promise<SearchResult> {
     await this.simulateDelay();
     const allMessages = Object.values(mockMessages).flat();
     const filtered = params.content
-      ? allMessages.filter((m) =>
-          m.content.toLowerCase().includes(params.content!.toLowerCase())
-        )
+      ? allMessages.filter((m) => m.content.toLowerCase().includes(params.content!.toLowerCase()))
       : allMessages;
     return {
       messages: filtered.map((m) => [m]),

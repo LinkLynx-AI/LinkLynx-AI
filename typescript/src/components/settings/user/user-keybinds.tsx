@@ -38,15 +38,11 @@ export function UserKeybinds() {
 
   function findConflicts(key: string, excludeId?: string): string[] {
     if (!key) return [];
-    return keybinds
-      .filter((kb) => kb.key === key && kb.id !== excludeId)
-      .map((kb) => kb.action);
+    return keybinds.filter((kb) => kb.key === key && kb.id !== excludeId).map((kb) => kb.action);
   }
 
   function handleKeyChange(id: string, key: string) {
-    setKeybinds((prev) =>
-      prev.map((kb) => (kb.id === id ? { ...kb, key } : kb))
-    );
+    setKeybinds((prev) => prev.map((kb) => (kb.id === id ? { ...kb, key } : kb)));
     setEditingId(null);
   }
 
@@ -86,9 +82,7 @@ export function UserKeybinds() {
 
   return (
     <div className="pb-20">
-      <h2 className="mb-5 text-xl font-bold text-discord-header-primary">
-        キーバインド
-      </h2>
+      <h2 className="mb-5 text-xl font-bold text-discord-header-primary">キーバインド</h2>
 
       <div className="mb-4">
         <Button onClick={handleAddKeybind}>
@@ -107,9 +101,7 @@ export function UserKeybinds() {
           <span className="text-xs font-bold uppercase text-discord-header-secondary">
             ショートカット
           </span>
-          <span className="text-xs font-bold uppercase text-discord-header-secondary">
-            操作
-          </span>
+          <span className="text-xs font-bold uppercase text-discord-header-secondary">操作</span>
         </div>
 
         {/* Rows */}
@@ -120,12 +112,10 @@ export function UserKeybinds() {
               <div
                 className={cn(
                   "grid grid-cols-[1fr_1fr_80px] items-center gap-4 border-t border-discord-divider px-4 py-3",
-                  conflicts && "bg-discord-brand-red/10"
+                  conflicts && "bg-discord-brand-red/10",
                 )}
               >
-                <span className="text-sm text-discord-text-normal">
-                  {kb.action}
-                </span>
+                <span className="text-sm text-discord-text-normal">{kb.action}</span>
                 <div>
                   {editingId === kb.id ? (
                     <KeybindRecorder
@@ -137,9 +127,7 @@ export function UserKeybinds() {
                     <span
                       className={cn(
                         "inline-block rounded bg-discord-bg-tertiary px-3 py-1.5 text-sm",
-                        kb.key
-                          ? "text-discord-text-normal"
-                          : "text-discord-text-muted"
+                        kb.key ? "text-discord-text-normal" : "text-discord-text-muted",
                       )}
                     >
                       {kb.key || "未設定"}
@@ -148,9 +136,7 @@ export function UserKeybinds() {
                 </div>
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() =>
-                      setEditingId(editingId === kb.id ? null : kb.id)
-                    }
+                    onClick={() => setEditingId(editingId === kb.id ? null : kb.id)}
                     className="flex h-8 w-8 items-center justify-center rounded text-discord-interactive-normal hover:text-discord-interactive-hover"
                     aria-label="編集"
                   >

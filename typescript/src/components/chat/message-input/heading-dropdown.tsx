@@ -33,7 +33,7 @@ export function HeadingDropdown({ onSelect, onClose }: HeadingDropdownProps) {
       className={cn(
         "absolute bottom-full left-0 z-50 mb-2",
         "w-48 rounded-lg bg-discord-bg-floating py-1.5 shadow-xl",
-        "border border-discord-bg-mod-faint"
+        "border border-discord-bg-mod-faint",
       )}
     >
       {HEADINGS.map(({ level, label, className }) => (
@@ -47,7 +47,7 @@ export function HeadingDropdown({ onSelect, onClose }: HeadingDropdownProps) {
           className={cn(
             "w-full px-3 py-1.5 text-left text-discord-text-normal",
             "hover:bg-discord-bg-mod-hover transition-colors",
-            className
+            className,
           )}
         >
           {label}

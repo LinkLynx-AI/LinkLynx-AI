@@ -35,7 +35,7 @@ export function Modal({
       <div
         className={cn(
           "relative max-w-lg w-full rounded-lg bg-discord-bg-primary shadow-xl",
-          className
+          className,
         )}
       >
         <button
@@ -62,9 +62,7 @@ export function ModalHeader({
 }) {
   return (
     <div className={cn("px-4 pt-4 pb-0", className)}>
-      <h2 className="text-xl font-bold text-discord-header-primary">
-        {children}
-      </h2>
+      <h2 className="text-xl font-bold text-discord-header-primary">{children}</h2>
     </div>
   );
 }
@@ -90,7 +88,7 @@ export function ModalFooter({
     <div
       className={cn(
         "flex justify-end gap-2 rounded-b-lg bg-discord-bg-secondary px-4 py-4",
-        className
+        className,
       )}
     >
       {children}

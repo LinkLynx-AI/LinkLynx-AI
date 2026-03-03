@@ -3,13 +3,7 @@
 import { useState } from "react";
 import { cn } from "@/lib/cn";
 
-export function CodeBlock({
-  language,
-  content,
-}: {
-  language: string;
-  content: string;
-}) {
+export function CodeBlock({ language, content }: { language: string; content: string }) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
@@ -27,7 +21,7 @@ export function CodeBlock({
             onClick={handleCopy}
             className={cn(
               "text-xs text-discord-text-muted hover:text-discord-text-normal",
-              copied && "text-discord-brand-green"
+              copied && "text-discord-brand-green",
             )}
           >
             {copied ? "コピーしました!" : "コピー"}
@@ -39,16 +33,14 @@ export function CodeBlock({
           onClick={handleCopy}
           className={cn(
             "absolute right-2 top-2 text-xs text-discord-text-muted hover:text-discord-text-normal",
-            copied && "text-discord-brand-green"
+            copied && "text-discord-brand-green",
           )}
         >
           {copied ? "コピーしました!" : "コピー"}
         </button>
       )}
       <pre className="overflow-x-auto p-3">
-        <code className="text-sm leading-[1.125rem] text-discord-header-secondary">
-          {content}
-        </code>
+        <code className="text-sm leading-[1.125rem] text-discord-header-secondary">{content}</code>
       </pre>
     </div>
   );

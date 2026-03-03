@@ -66,7 +66,7 @@ export function QuickSwitcherModal({ onClose }: { onClose: () => void }) {
       router.push(item.href);
       onClose();
     },
-    [router, onClose]
+    [router, onClose],
   );
 
   useEffect(() => {
@@ -149,7 +149,7 @@ export function QuickSwitcherModal({ onClose }: { onClose: () => void }) {
                             "flex w-full items-center gap-3 rounded px-2 py-1.5 text-left text-sm transition-colors",
                             globalIndex === selectedIndex
                               ? "bg-discord-bg-mod-selected text-white"
-                              : "text-discord-text-normal hover:bg-discord-bg-mod-hover"
+                              : "text-discord-text-normal hover:bg-discord-bg-mod-hover",
                           )}
                         >
                           <div className="flex h-8 w-8 items-center justify-center rounded-full bg-discord-bg-tertiary text-xs font-bold text-discord-text-normal">
@@ -181,9 +181,8 @@ export function QuickSwitcherModal({ onClose }: { onClose: () => void }) {
           )}
         </div>
         <div className="border-t border-discord-border-subtle px-4 py-2 text-xs text-discord-text-muted">
-          <span className="font-mono">ESC</span> で閉じる ・{" "}
-          <span className="font-mono">↑↓</span> で移動 ・{" "}
-          <span className="font-mono">Enter</span> で選択
+          <span className="font-mono">ESC</span> で閉じる ・ <span className="font-mono">↑↓</span>{" "}
+          で移動 ・ <span className="font-mono">Enter</span> で選択
         </div>
       </div>
     </div>

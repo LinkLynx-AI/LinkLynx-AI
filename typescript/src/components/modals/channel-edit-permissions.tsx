@@ -30,15 +30,9 @@ const defaultPermissions: PermissionOverride[] = [
   { id: "manage_members", label: "メンバーを管理", state: "inherit" },
 ];
 
-export function ChannelEditPermissions({
-  channelId,
-}: {
-  channelId?: string;
-}) {
+export function ChannelEditPermissions({ channelId }: { channelId?: string }) {
   const [selectedRole, setSelectedRole] = useState<string>("everyone");
-  const [permissions, setPermissions] = useState<
-    Record<string, PermissionOverride[]>
-  >(() => {
+  const [permissions, setPermissions] = useState<Record<string, PermissionOverride[]>>(() => {
     const map: Record<string, PermissionOverride[]> = {};
     for (const role of mockRoles) {
       map[role.id] = defaultPermissions.map((p) => ({ ...p }));
@@ -55,12 +49,7 @@ export function ChannelEditPermissions({
         ...prev,
         [selectedRole]: rolePerms.map((p) => {
           if (p.id !== permId) return p;
-          const next =
-            p.state === "inherit"
-              ? "allow"
-              : p.state === "allow"
-                ? "deny"
-                : "inherit";
+          const next = p.state === "inherit" ? "allow" : p.state === "allow" ? "deny" : "inherit";
           return { ...p, state: next };
         }),
       };
@@ -87,7 +76,7 @@ export function ChannelEditPermissions({
               "flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm transition-colors",
               selectedRole === role.id
                 ? "bg-discord-bg-mod-selected text-discord-text-normal"
-                : "text-discord-interactive-normal hover:bg-discord-bg-mod-hover hover:text-discord-interactive-hover"
+                : "text-discord-interactive-normal hover:bg-discord-bg-mod-hover hover:text-discord-interactive-hover",
             )}
           >
             {role.id === "everyone" ? (
@@ -113,26 +102,17 @@ export function ChannelEditPermissions({
             key={perm.id}
             className="flex items-center justify-between rounded bg-discord-bg-secondary px-3 py-2"
           >
-            <span className="text-sm text-discord-text-normal">
-              {perm.label}
-            </span>
+            <span className="text-sm text-discord-text-normal">{perm.label}</span>
             <button
               onClick={() => cycleState(perm.id)}
               className={cn(
                 "rounded px-3 py-1 text-xs font-medium transition-colors",
-                perm.state === "allow" &&
-                  "bg-discord-brand-green/20 text-discord-brand-green",
-                perm.state === "deny" &&
-                  "bg-discord-brand-red/20 text-discord-brand-red",
-                perm.state === "inherit" &&
-                  "bg-discord-bg-tertiary text-discord-text-muted"
+                perm.state === "allow" && "bg-discord-brand-green/20 text-discord-brand-green",
+                perm.state === "deny" && "bg-discord-brand-red/20 text-discord-brand-red",
+                perm.state === "inherit" && "bg-discord-bg-tertiary text-discord-text-muted",
               )}
             >
-              {perm.state === "allow"
-                ? "許可"
-                : perm.state === "deny"
-                  ? "拒否"
-                  : "継承"}
+              {perm.state === "allow" ? "許可" : perm.state === "deny" ? "拒否" : "継承"}
             </button>
           </div>
         ))}

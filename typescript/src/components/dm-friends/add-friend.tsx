@@ -35,7 +35,7 @@ export function AddFriend() {
             ? "border-discord-status-online"
             : sendRequest.isError
               ? "border-discord-status-dnd"
-              : "border-discord-input-border bg-discord-bg-tertiary"
+              : "border-discord-input-border bg-discord-bg-tertiary",
         )}
       >
         <input
@@ -54,7 +54,7 @@ export function AddFriend() {
           className={cn(
             "rounded px-4 py-1.5 text-sm font-medium text-white",
             "bg-discord-brand-blurple hover:bg-discord-brand-blurple-hover",
-            "disabled:cursor-not-allowed disabled:opacity-50"
+            "disabled:cursor-not-allowed disabled:opacity-50",
           )}
         >
           フレンドリクエストを送信

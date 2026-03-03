@@ -41,7 +41,7 @@ export function FilePreviewCard({
     <div
       className={cn(
         "relative flex w-[120px] shrink-0 flex-col overflow-hidden rounded-lg",
-        "border border-discord-bg-mod-faint bg-discord-bg-secondary"
+        "border border-discord-bg-mod-faint bg-discord-bg-secondary",
       )}
     >
       {/* Preview area */}
@@ -50,10 +50,7 @@ export function FilePreviewCard({
           <img
             src={file.previewUrl}
             alt={altText || file.name}
-            className={cn(
-              "h-full w-full object-cover",
-              isSpoiler && "blur-xl"
-            )}
+            className={cn("h-full w-full object-cover", isSpoiler && "blur-xl")}
           />
         ) : (
           <File className="h-8 w-8 text-discord-text-muted" />
@@ -73,7 +70,7 @@ export function FilePreviewCard({
           className={cn(
             "absolute right-1 top-1 rounded-full bg-discord-bg-floating p-0.5",
             "text-discord-interactive-normal hover:text-discord-danger",
-            "transition-colors"
+            "transition-colors",
           )}
           aria-label="ファイルを削除"
         >
@@ -89,7 +86,7 @@ export function FilePreviewCard({
               "absolute left-1 top-1 rounded-full bg-discord-bg-floating p-0.5",
               "text-discord-interactive-normal hover:text-discord-interactive-hover",
               "transition-colors",
-              isSpoiler && "text-discord-brand"
+              isSpoiler && "text-discord-brand",
             )}
             aria-label={isSpoiler ? "スポイラー解除" : "スポイラーにする"}
           >
@@ -103,9 +100,7 @@ export function FilePreviewCard({
         <span className="truncate text-xs text-discord-text-normal" title={file.name}>
           {file.name}
         </span>
-        <span className="text-[10px] text-discord-text-muted">
-          {formatFileSize(file.size)}
-        </span>
+        <span className="text-[10px] text-discord-text-muted">{formatFileSize(file.size)}</span>
 
         {/* Alt text input for images */}
         {isImage && onAltTextChange && (
@@ -119,7 +114,7 @@ export function FilePreviewCard({
               className={cn(
                 "min-w-0 flex-1 rounded bg-discord-input-bg px-1 py-0.5",
                 "text-[10px] text-discord-text-normal outline-none",
-                "placeholder:text-discord-text-muted"
+                "placeholder:text-discord-text-muted",
               )}
             />
           </div>

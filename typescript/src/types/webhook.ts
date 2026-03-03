@@ -20,6 +20,4 @@ export interface WebhookCreateData {
   channelId: string;
 }
 
-export type WebhookUpdateData = Partial<
-  Pick<Webhook, "name" | "avatar" | "channelId">
->;
+export type WebhookUpdateData = Partial<Pick<Webhook, "name" | "avatar" | "channelId">>;

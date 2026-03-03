@@ -15,7 +15,5 @@ export default function DMConversationPage({
   const recipient = channel?.recipients?.[0];
   const displayName = recipient?.displayName ?? "DM";
 
-  return (
-    <ChatArea channelId={conversationId} channelName={displayName} />
-  );
+  return <ChatArea channelId={conversationId} channelName={displayName} />;
 }

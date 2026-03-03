@@ -51,15 +51,11 @@ export function UserAppearance() {
 
   return (
     <div className="pb-20">
-      <h2 className="mb-5 text-xl font-bold text-discord-header-primary">
-        外観
-      </h2>
+      <h2 className="mb-5 text-xl font-bold text-discord-header-primary">外観</h2>
 
       {/* Theme selection */}
       <section className="mb-8">
-        <h3 className="mb-3 text-xs font-bold uppercase text-discord-header-secondary">
-          テーマ
-        </h3>
+        <h3 className="mb-3 text-xs font-bold uppercase text-discord-header-secondary">テーマ</h3>
         <div className="grid grid-cols-4 gap-4" role="radiogroup" aria-label="テーマ">
           {themes.map((t) => (
             <button
@@ -71,7 +67,7 @@ export function UserAppearance() {
                 "flex flex-col overflow-hidden rounded-lg border-2 transition-colors",
                 theme === t.id
                   ? "border-discord-brand-blurple"
-                  : "border-transparent hover:border-discord-interactive-muted"
+                  : "border-transparent hover:border-discord-interactive-muted",
               )}
             >
               {/* Mini preview */}
@@ -94,16 +90,14 @@ export function UserAppearance() {
                     "flex h-5 w-5 items-center justify-center rounded-full border-2",
                     theme === t.id
                       ? "border-discord-brand-blurple"
-                      : "border-discord-interactive-normal"
+                      : "border-discord-interactive-normal",
                   )}
                 >
                   {theme === t.id && (
                     <span className="h-2.5 w-2.5 rounded-full bg-discord-brand-blurple" />
                   )}
                 </span>
-                <span className="text-sm font-medium text-discord-text-normal">
-                  {t.label}
-                </span>
+                <span className="text-sm font-medium text-discord-text-normal">{t.label}</span>
               </div>
             </button>
           ))}
@@ -116,10 +110,10 @@ export function UserAppearance() {
           メッセージの表示
         </h3>
         <div className="flex gap-4" role="radiogroup" aria-label="メッセージの表示">
-          {([
+          {[
             { id: "cozy" as const, label: "心地よい" },
             { id: "compact" as const, label: "コンパクト" },
-          ]).map((d) => (
+          ].map((d) => (
             <button
               key={d.id}
               role="radio"
@@ -129,7 +123,7 @@ export function UserAppearance() {
                 "flex items-center gap-2 rounded-lg border-2 px-4 py-3 transition-colors",
                 messageDisplay === d.id
                   ? "border-discord-brand-blurple"
-                  : "border-discord-interactive-muted hover:border-discord-interactive-normal"
+                  : "border-discord-interactive-muted hover:border-discord-interactive-normal",
               )}
             >
               <span
@@ -137,16 +131,14 @@ export function UserAppearance() {
                   "flex h-5 w-5 items-center justify-center rounded-full border-2",
                   messageDisplay === d.id
                     ? "border-discord-brand-blurple"
-                    : "border-discord-interactive-normal"
+                    : "border-discord-interactive-normal",
                 )}
               >
                 {messageDisplay === d.id && (
                   <span className="h-2.5 w-2.5 rounded-full bg-discord-brand-blurple" />
                 )}
               </span>
-              <span className="text-sm font-medium text-discord-text-normal">
-                {d.label}
-              </span>
+              <span className="text-sm font-medium text-discord-text-normal">{d.label}</span>
             </button>
           ))}
         </div>
@@ -193,9 +185,7 @@ export function UserAppearance() {
             aria-label="ズームレベル"
           />
           <span className="text-xs text-discord-text-muted">200%</span>
-          <span className="min-w-[40px] text-right text-sm text-discord-text-normal">
-            {zoom}%
-          </span>
+          <span className="min-w-[40px] text-right text-sm text-discord-text-normal">{zoom}%</span>
         </div>
       </section>
 

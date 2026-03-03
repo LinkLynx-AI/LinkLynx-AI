@@ -56,7 +56,7 @@ export function ServerFolder({
           <button
             className={cn(
               "flex h-12 w-12 items-center justify-center rounded-full transition-all duration-150",
-              "bg-discord-bg-primary hover:rounded-[33%]"
+              "bg-discord-bg-primary hover:rounded-[33%]",
             )}
             onClick={() => toggleFolder(folder.id)}
           >
@@ -77,11 +77,7 @@ export function ServerFolder({
 
           {/* Server icons inside folder */}
           {folder.servers.map((server) => (
-            <ServerIcon
-              key={server.id}
-              server={server}
-              isActive={activeServerId === server.id}
-            />
+            <ServerIcon key={server.id} server={server} isActive={activeServerId === server.id} />
           ))}
         </div>
       </div>
@@ -95,7 +91,7 @@ export function ServerFolder({
         <button
           className={cn(
             "relative flex h-12 w-12 items-center justify-center overflow-hidden transition-all duration-150",
-            isHovered ? "rounded-[33%]" : "rounded-full"
+            isHovered ? "rounded-[33%]" : "rounded-full",
           )}
           style={{ backgroundColor: `${folder.color}66` }}
           onClick={() => toggleFolder(folder.id)}

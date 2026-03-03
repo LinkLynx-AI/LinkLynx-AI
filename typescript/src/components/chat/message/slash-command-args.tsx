@@ -37,17 +37,13 @@ function OptionInput({
         className={cn(
           "w-20 rounded bg-discord-bg-tertiary px-2 py-1 text-sm",
           "text-discord-text-normal placeholder:text-discord-text-muted outline-none",
-          "border border-transparent focus:border-discord-brand-blurple"
+          "border border-transparent focus:border-discord-brand-blurple",
         )}
       />
     );
   }
 
-  if (
-    option.type === "user" ||
-    option.type === "channel" ||
-    option.type === "role"
-  ) {
+  if (option.type === "user" || option.type === "channel" || option.type === "role") {
     const placeholderMap = {
       user: "@ユーザー",
       channel: "#チャンネル",
@@ -62,7 +58,7 @@ function OptionInput({
         className={cn(
           "w-28 rounded bg-discord-bg-tertiary px-2 py-1 text-sm",
           "text-discord-text-normal placeholder:text-discord-text-muted outline-none",
-          "border border-transparent focus:border-discord-brand-blurple"
+          "border border-transparent focus:border-discord-brand-blurple",
         )}
       />
     );
@@ -78,7 +74,7 @@ function OptionInput({
       className={cn(
         "w-32 rounded bg-discord-bg-tertiary px-2 py-1 text-sm",
         "text-discord-text-normal placeholder:text-discord-text-muted outline-none",
-        "border border-transparent focus:border-discord-brand-blurple"
+        "border border-transparent focus:border-discord-brand-blurple",
       )}
     />
   );
@@ -103,9 +99,7 @@ export function SlashCommandArgs({
   }, []);
 
   const handleSubmit = useCallback(() => {
-    const missingRequired = options.filter(
-      (opt) => opt.required && !args[opt.name]?.trim()
-    );
+    const missingRequired = options.filter((opt) => opt.required && !args[opt.name]?.trim());
     if (missingRequired.length > 0) return;
     onSubmit(args);
   }, [args, options, onSubmit]);
@@ -138,9 +132,7 @@ export function SlashCommandArgs({
         <div key={option.name} className="flex items-center gap-1">
           <span className="text-xs text-discord-text-muted">
             {option.name}
-            {option.required && (
-              <span className="ml-0.5 text-discord-btn-danger">*</span>
-            )}
+            {option.required && <span className="ml-0.5 text-discord-btn-danger">*</span>}
           </span>
           <OptionInput
             option={option}

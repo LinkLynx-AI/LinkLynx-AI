@@ -28,7 +28,7 @@ export function VoiceChannel({
           "text-[15px] transition-colors",
           "text-discord-channels-default",
           "hover:bg-discord-bg-mod-hover hover:text-discord-interactive-hover",
-          isConnectedHere && "text-discord-interactive-active"
+          isConnectedHere && "text-discord-interactive-active",
         )}
       >
         <Volume2 className="h-5 w-5 shrink-0 opacity-70" />
@@ -37,7 +37,7 @@ export function VoiceChannel({
         <div
           className={cn(
             "ml-auto flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity",
-            "group-hover:opacity-100"
+            "group-hover:opacity-100",
           )}
         >
           <span

@@ -2,10 +2,8 @@ import type { Message } from "@/types/message";
 import { mockUsers } from "./users";
 
 const now = new Date();
-const hoursAgo = (h: number) =>
-  new Date(now.getTime() - h * 60 * 60 * 1000).toISOString();
-const minutesAgo = (m: number) =>
-  new Date(now.getTime() - m * 60 * 1000).toISOString();
+const hoursAgo = (h: number) => new Date(now.getTime() - h * 60 * 60 * 1000).toISOString();
+const minutesAgo = (m: number) => new Date(now.getTime() - m * 60 * 1000).toISOString();
 
 export const mockMessages: Record<string, Message[]> = {
   // #雑談 channel
@@ -23,9 +21,7 @@ export const mockMessages: Record<string, Message[]> = {
       mentions: [],
       attachments: [],
       embeds: [],
-      reactions: [
-        { emoji: { id: null, name: "👋", animated: false }, count: 3, me: true },
-      ],
+      reactions: [{ emoji: { id: null, name: "👋", animated: false }, count: 3, me: true }],
       referencedMessage: null,
     },
     {
@@ -57,9 +53,7 @@ export const mockMessages: Record<string, Message[]> = {
       mentions: [],
       attachments: [],
       embeds: [],
-      reactions: [
-        { emoji: { id: null, name: "🎮", animated: false }, count: 2, me: false },
-      ],
+      reactions: [{ emoji: { id: null, name: "🎮", animated: false }, count: 2, me: false }],
       referencedMessage: null,
     },
     {
@@ -106,9 +100,7 @@ export const mockMessages: Record<string, Message[]> = {
       mentions: [],
       attachments: [],
       embeds: [],
-      reactions: [
-        { emoji: { id: null, name: "👍", animated: false }, count: 2, me: false },
-      ],
+      reactions: [{ emoji: { id: null, name: "👍", animated: false }, count: 2, me: false }],
       referencedMessage: null,
     },
     {
@@ -187,7 +179,7 @@ export const mockMessages: Record<string, Message[]> = {
       channelId: "400000000000000002",
       author: mockUsers[1],
       content:
-        "コンポーネントのスタイル修正しました。変更点はこちら:\n```typescript\nexport function Button({ variant = \"primary\" }: ButtonProps) {\n  return (\n    <button className={cn(\"px-4 py-2 rounded\", variants[variant])}>\n      {children}\n    </button>\n  );\n}\n```\n||ネタバレ: 次のスプリントで大幅リファクタリングします||",
+        'コンポーネントのスタイル修正しました。変更点はこちら:\n```typescript\nexport function Button({ variant = "primary" }: ButtonProps) {\n  return (\n    <button className={cn("px-4 py-2 rounded", variants[variant])}>\n      {children}\n    </button>\n  );\n}\n```\n||ネタバレ: 次のスプリントで大幅リファクタリングします||',
       timestamp: minutesAgo(3),
       editedTimestamp: null,
       type: 0,
@@ -310,9 +302,7 @@ export const mockMessages: Record<string, Message[]> = {
       mentions: [],
       attachments: [],
       embeds: [],
-      reactions: [
-        { emoji: { id: null, name: "🚀", animated: false }, count: 3, me: false },
-      ],
+      reactions: [{ emoji: { id: null, name: "🚀", animated: false }, count: 3, me: false }],
       referencedMessage: null,
     },
   ],

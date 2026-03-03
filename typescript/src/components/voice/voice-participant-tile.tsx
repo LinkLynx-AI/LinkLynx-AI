@@ -37,9 +37,7 @@ export function VoiceParticipantTile({
         onContextMenu={onContextMenu}
       >
         <div className="relative flex h-[120px] w-full items-center justify-center rounded-md bg-gradient-to-br from-discord-brand-blurple/30 to-discord-brand-blurple/10">
-          <span className="text-sm text-discord-text-muted">
-            {displayName}の画面
-          </span>
+          <span className="text-sm text-discord-text-muted">{displayName}の画面</span>
           <span className="absolute bottom-1.5 left-1.5 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-white">
             画面共有中
           </span>
@@ -74,14 +72,10 @@ export function VoiceParticipantTile({
         <div
           className={cn(
             "rounded-full transition-shadow duration-200",
-            speaking && "shadow-[0_0_0_3px_#23A55A] animate-voice-ring"
+            speaking && "shadow-[0_0_0_3px_#23A55A] animate-voice-ring",
           )}
         >
-          <Avatar
-            src={avatar ?? undefined}
-            alt={displayName}
-            size={80}
-          />
+          <Avatar src={avatar ?? undefined} alt={displayName} size={80} />
         </div>
         {serverDeafened ? (
           <span className="absolute bottom-0 right-0 flex h-6 w-6 items-center justify-center rounded-full bg-discord-btn-danger">

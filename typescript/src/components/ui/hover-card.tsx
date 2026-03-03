@@ -36,17 +36,13 @@ export function HoverCard({
   };
 
   return (
-    <div
-      className={cn("relative inline-flex", className)}
-      onMouseEnter={show}
-      onMouseLeave={hide}
-    >
+    <div className={cn("relative inline-flex", className)} onMouseEnter={show} onMouseLeave={hide}>
       {children}
       {visible && (
         <div
           className={cn(
             "absolute left-full top-0 z-50 ml-2 w-72 rounded-lg bg-discord-bg-floating shadow-xl",
-            "animate-in fade-in-0 zoom-in-95 duration-100"
+            "animate-in fade-in-0 zoom-in-95 duration-100",
           )}
         >
           {/* Banner */}
@@ -69,14 +65,10 @@ export function HoverCard({
             <h4 className="text-lg font-bold text-discord-header-primary">
               {user.displayName ?? user.username}
             </h4>
-            <p className="text-sm text-discord-text-normal">
-              {user.username}
-            </p>
+            <p className="text-sm text-discord-text-normal">{user.username}</p>
 
             {user.customStatus && (
-              <p className="mt-2 text-sm text-discord-text-normal">
-                {user.customStatus}
-              </p>
+              <p className="mt-2 text-sm text-discord-text-normal">{user.customStatus}</p>
             )}
 
             {user.roles && user.roles.length > 0 && (

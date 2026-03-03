@@ -44,31 +44,20 @@ function highlightText(text: string, query: string) {
   const parts = text.split(regex);
   return parts.map((part, i) =>
     regex.test(part) ? (
-      <mark
-        key={i}
-        className="bg-yellow-500/30 text-discord-text-normal rounded-sm"
-      >
+      <mark key={i} className="bg-yellow-500/30 text-discord-text-normal rounded-sm">
         {part}
       </mark>
     ) : (
       part
-    )
+    ),
   );
 }
 
-export function ThreadSearch({
-  threadId,
-  onClose,
-}: {
-  threadId: string;
-  onClose: () => void;
-}) {
+export function ThreadSearch({ threadId, onClose }: { threadId: string; onClose: () => void }) {
   const [query, setQuery] = useState("");
 
   const results = query.trim()
-    ? mockSearchResults.filter((r) =>
-        r.content.toLowerCase().includes(query.toLowerCase())
-      )
+    ? mockSearchResults.filter((r) => r.content.toLowerCase().includes(query.toLowerCase()))
     : [];
 
   return (
@@ -102,22 +91,16 @@ export function ThreadSearch({
                 key={result.messageId}
                 className={cn(
                   "flex w-full items-start gap-2 rounded px-3 py-2 text-left",
-                  "hover:bg-discord-bg-mod-hover transition-colors"
+                  "hover:bg-discord-bg-mod-hover transition-colors",
                 )}
               >
-                <Avatar
-                  src={result.authorAvatar ?? undefined}
-                  alt={result.authorName}
-                  size={16}
-                />
+                <Avatar src={result.authorAvatar ?? undefined} alt={result.authorName} size={16} />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-baseline gap-2">
                     <span className="text-xs font-medium text-discord-header-primary">
                       {result.authorName}
                     </span>
-                    <span className="text-xs text-discord-text-muted">
-                      {result.timestamp}
-                    </span>
+                    <span className="text-xs text-discord-text-muted">{result.timestamp}</span>
                   </div>
                   <p className="text-sm text-discord-text-normal">
                     {highlightText(result.content, query)}

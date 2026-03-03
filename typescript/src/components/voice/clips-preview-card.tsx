@@ -46,9 +46,7 @@ export function ClipsPreviewCard({
 
       {/* Actions */}
       <div className="flex items-center justify-between px-2 py-1.5">
-        <span className="text-xs text-discord-text-muted">
-          {clip.timestamp}
-        </span>
+        <span className="text-xs text-discord-text-muted">{clip.timestamp}</span>
         <div className="flex items-center gap-1">
           <Tooltip content="保存" position="top">
             <button

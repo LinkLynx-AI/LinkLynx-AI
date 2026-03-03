@@ -38,7 +38,7 @@ export function ThreadMembersPopout({
   }, [onClose]);
 
   const filtered = members.filter((m) =>
-    m.displayName.toLowerCase().includes(search.toLowerCase())
+    m.displayName.toLowerCase().includes(search.toLowerCase()),
   );
 
   return (
@@ -46,7 +46,7 @@ export function ThreadMembersPopout({
       ref={ref}
       className={cn(
         "absolute right-0 top-full z-50 mt-1 w-[280px]",
-        "rounded-lg bg-discord-bg-floating shadow-xl"
+        "rounded-lg bg-discord-bg-floating shadow-xl",
       )}
     >
       {/* Header */}
@@ -84,11 +84,7 @@ export function ThreadMembersPopout({
             key={member.userId}
             className="group flex items-center gap-2 rounded px-2 py-1.5 hover:bg-discord-bg-mod-hover"
           >
-            <Avatar
-              src={member.avatar ?? undefined}
-              alt={member.displayName}
-              size={32}
-            />
+            <Avatar src={member.avatar ?? undefined} alt={member.displayName} size={32} />
             <span className="min-w-0 flex-1 truncate text-sm text-discord-text-normal">
               {member.displayName}
             </span>
@@ -118,7 +114,7 @@ export function ThreadMembersPopout({
             className={cn(
               "flex w-full items-center justify-center gap-2 rounded py-2",
               "bg-discord-brand-blurple text-sm font-medium text-white",
-              "hover:bg-discord-btn-blurple-hover transition-colors"
+              "hover:bg-discord-btn-blurple-hover transition-colors",
             )}
           >
             <UserPlus className="h-4 w-4" />

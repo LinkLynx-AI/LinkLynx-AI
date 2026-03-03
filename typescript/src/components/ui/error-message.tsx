@@ -14,16 +14,11 @@ export function ErrorMessage({
 }) {
   return (
     <div className={cn("flex items-start gap-2 px-4 py-1", className)}>
-      <AlertCircle
-        className="mt-0.5 h-4 w-4 shrink-0 text-discord-status-dnd"
-        aria-hidden="true"
-      />
+      <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-discord-status-dnd" aria-hidden="true" />
       <div className="min-w-0 flex-1">
         <p className="text-sm text-discord-status-dnd">{content}</p>
         <div className="mt-1 flex items-center gap-3">
-          <span className="text-xs text-discord-status-dnd">
-            メッセージの送信に失敗しました
-          </span>
+          <span className="text-xs text-discord-status-dnd">メッセージの送信に失敗しました</span>
           {onRetry && (
             <button
               onClick={onRetry}

@@ -86,7 +86,7 @@ export function ReactionDetailModal({
               "flex items-center gap-2 px-3 py-2 text-sm transition-colors",
               selectedEmoji === null
                 ? "bg-discord-bg-mod-hover text-discord-text-normal"
-                : "text-discord-text-muted hover:bg-discord-bg-mod-hover hover:text-discord-text-normal"
+                : "text-discord-text-muted hover:bg-discord-bg-mod-hover hover:text-discord-text-normal",
             )}
           >
             <span>すべて</span>
@@ -100,7 +100,7 @@ export function ReactionDetailModal({
                 "flex items-center gap-2 px-3 py-2 text-sm transition-colors",
                 selectedEmoji === tab.emoji
                   ? "bg-discord-bg-mod-hover text-discord-text-normal"
-                  : "text-discord-text-muted hover:bg-discord-bg-mod-hover hover:text-discord-text-normal"
+                  : "text-discord-text-muted hover:bg-discord-bg-mod-hover hover:text-discord-text-normal",
               )}
             >
               <span>{tab.emoji}</span>
@@ -117,14 +117,8 @@ export function ReactionDetailModal({
                 key={user.id}
                 className="flex items-center gap-3 rounded-md px-2 py-1.5 hover:bg-discord-bg-mod-hover"
               >
-                <Avatar
-                  src={user.avatar ?? undefined}
-                  alt={user.displayName}
-                  size={32}
-                />
-                <span className="text-sm text-discord-text-normal">
-                  {user.displayName}
-                </span>
+                <Avatar src={user.avatar ?? undefined} alt={user.displayName} size={32} />
+                <span className="text-sm text-discord-text-normal">{user.displayName}</span>
               </div>
             ))}
           </div>

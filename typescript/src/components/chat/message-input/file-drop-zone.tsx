@@ -57,7 +57,7 @@ export function FileDropZone({
         }
       }
     },
-    [channelId, openModal, onFilesDropped]
+    [channelId, openModal, onFilesDropped],
   );
 
   return (
@@ -76,7 +76,7 @@ export function FileDropZone({
             "flex flex-col items-center justify-center gap-4",
             "bg-discord-brand/20 backdrop-blur-sm",
             "border-2 border-dashed border-discord-brand",
-            "rounded-lg"
+            "rounded-lg",
           )}
         >
           <Upload className="h-12 w-12 text-discord-brand" />

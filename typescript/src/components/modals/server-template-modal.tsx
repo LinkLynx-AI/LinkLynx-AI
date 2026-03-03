@@ -33,17 +33,12 @@ const mockChannelTree = [
   },
 ];
 
-export function ServerTemplateModal({
-  onClose,
-}: {
-  onClose: () => void;
-  serverId?: string;
-}) {
+export function ServerTemplateModal({ onClose }: { onClose: () => void; serverId?: string }) {
   const [view, setView] = useState<"create" | "preview">("create");
   const [templateName, setTemplateName] = useState("");
   const [description, setDescription] = useState("");
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(
-    new Set(mockChannelTree.map((c) => c.id))
+    new Set(mockChannelTree.map((c) => c.id)),
   );
 
   const toggleCategory = (id: string) => {
@@ -70,7 +65,7 @@ export function ServerTemplateModal({
             "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
             view === "create"
               ? "bg-discord-bg-mod-hover text-discord-text-normal"
-              : "text-discord-text-muted hover:text-discord-text-normal"
+              : "text-discord-text-muted hover:text-discord-text-normal",
           )}
         >
           テンプレートを作成
@@ -81,7 +76,7 @@ export function ServerTemplateModal({
             "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
             view === "preview"
               ? "bg-discord-bg-mod-hover text-discord-text-normal"
-              : "text-discord-text-muted hover:text-discord-text-normal"
+              : "text-discord-text-muted hover:text-discord-text-normal",
           )}
         >
           プレビュー

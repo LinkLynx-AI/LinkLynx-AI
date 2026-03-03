@@ -43,9 +43,7 @@ export function CreateServerModal({ onClose }: { onClose: () => void }) {
       {step === 1 && (
         <>
           <div className="px-4 pt-6 pb-0 text-center">
-            <h2 className="text-2xl font-bold text-discord-header-primary">
-              サーバーを作成
-            </h2>
+            <h2 className="text-2xl font-bold text-discord-header-primary">サーバーを作成</h2>
             <p className="mt-2 text-sm text-discord-header-secondary">
               サーバーは、あなたとフレンドが交流する場所です。自分だけのサーバーを作って会話を始めましょう。
             </p>
@@ -60,9 +58,7 @@ export function CreateServerModal({ onClose }: { onClose: () => void }) {
                 >
                   <div className="flex items-center gap-3">
                     <span className="text-2xl">{template.emoji}</span>
-                    <span className="font-medium text-discord-text-normal">
-                      {template.label}
-                    </span>
+                    <span className="font-medium text-discord-text-normal">{template.label}</span>
                   </div>
                   <ChevronRight className="h-5 w-5 text-discord-interactive-normal" />
                 </button>
@@ -73,11 +69,7 @@ export function CreateServerModal({ onClose }: { onClose: () => void }) {
             <p className="text-xl font-bold text-discord-header-primary">
               すでに招待を持っていますか？
             </p>
-            <Button
-              variant="secondary"
-              className="w-full"
-              onClick={onClose}
-            >
+            <Button variant="secondary" className="w-full" onClick={onClose}>
               参加する
             </Button>
           </ModalFooter>
@@ -103,12 +95,8 @@ export function CreateServerModal({ onClose }: { onClose: () => void }) {
                   className="flex items-center justify-between rounded-lg border border-discord-border-subtle px-4 py-4 text-left transition-colors hover:bg-discord-bg-mod-hover"
                 >
                   <div>
-                    <div className="font-medium text-discord-text-normal">
-                      {purpose.label}
-                    </div>
-                    <div className="text-sm text-discord-text-muted">
-                      {purpose.description}
-                    </div>
+                    <div className="font-medium text-discord-text-normal">{purpose.label}</div>
+                    <div className="text-sm text-discord-text-muted">{purpose.description}</div>
                   </div>
                   <ChevronRight className="h-5 w-5 text-discord-interactive-normal" />
                 </button>
@@ -137,9 +125,7 @@ export function CreateServerModal({ onClose }: { onClose: () => void }) {
             <div className="flex flex-col items-center gap-4">
               <button className="flex h-20 w-20 flex-col items-center justify-center gap-1 rounded-full border-2 border-dashed border-discord-interactive-normal text-discord-interactive-normal transition-colors hover:border-discord-interactive-hover hover:text-discord-interactive-hover">
                 <Camera className="h-6 w-6" />
-                <span className="text-[10px] font-bold uppercase">
-                  アップロード
-                </span>
+                <span className="text-[10px] font-bold uppercase">アップロード</span>
               </button>
               <Input
                 label="サーバー名"
@@ -153,10 +139,7 @@ export function CreateServerModal({ onClose }: { onClose: () => void }) {
             <Button variant="link" onClick={() => setStep(2)}>
               戻る
             </Button>
-            <Button
-              disabled={!serverName.trim()}
-              onClick={handleCreate}
-            >
+            <Button disabled={!serverName.trim()} onClick={handleCreate}>
               作成
             </Button>
           </ModalFooter>

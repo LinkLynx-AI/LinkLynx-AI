@@ -51,29 +51,23 @@ function WebhookItem({
           {webhook.name.charAt(0).toUpperCase()}
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-discord-text-normal truncate">
-            {webhook.name}
-          </p>
+          <p className="text-sm font-medium text-discord-text-normal truncate">{webhook.name}</p>
           <p className="text-xs text-discord-text-muted">
-            #{webhook.channelName} ・ 作成日: {new Date(webhook.createdAt).toLocaleDateString("ja-JP")}
+            #{webhook.channelName} ・ 作成日:{" "}
+            {new Date(webhook.createdAt).toLocaleDateString("ja-JP")}
           </p>
         </div>
         <ChevronDown
           className={cn(
             "h-4 w-4 text-discord-interactive-normal transition-transform",
-            expanded && "rotate-180"
+            expanded && "rotate-180",
           )}
         />
       </button>
 
       {expanded && (
         <div className="border-t border-discord-divider px-4 pb-4 pt-3 space-y-4">
-          <Input
-            label="名前"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            fullWidth
-          />
+          <Input label="名前" value={name} onChange={(e) => setName(e.target.value)} fullWidth />
           <div>
             <label className="mb-2 block text-xs font-bold uppercase text-discord-header-secondary">
               チャンネル
@@ -111,11 +105,7 @@ function WebhookItem({
             <Button variant="success" size="sm">
               変更を保存
             </Button>
-            <Button
-              variant="danger"
-              size="sm"
-              onClick={() => onDelete(webhook.id)}
-            >
+            <Button variant="danger" size="sm" onClick={() => onDelete(webhook.id)}>
               <Trash2 className="h-4 w-4 mr-1" />
               削除
             </Button>
@@ -150,9 +140,7 @@ export function ServerWebhooks({ serverId }: { serverId: string }) {
   return (
     <div>
       <div className="mb-5 flex items-center justify-between">
-        <h2 className="text-xl font-bold text-discord-header-primary">
-          Webhook
-        </h2>
+        <h2 className="text-xl font-bold text-discord-header-primary">Webhook</h2>
         <Button onClick={handleCreate}>新しいWebhookを作成</Button>
       </div>
 
@@ -162,19 +150,13 @@ export function ServerWebhooks({ serverId }: { serverId: string }) {
 
       <div className="space-y-2">
         {webhooks.map((webhook) => (
-          <WebhookItem
-            key={webhook.id}
-            webhook={webhook}
-            onDelete={handleDelete}
-          />
+          <WebhookItem key={webhook.id} webhook={webhook} onDelete={handleDelete} />
         ))}
       </div>
 
       {webhooks.length === 0 && (
         <div className="flex flex-col items-center justify-center py-12 text-center">
-          <p className="text-sm text-discord-text-muted">
-            Webhookはまだありません
-          </p>
+          <p className="text-sm text-discord-text-muted">Webhookはまだありません</p>
         </div>
       )}
     </div>
