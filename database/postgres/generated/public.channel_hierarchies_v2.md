@@ -20,9 +20,9 @@
 
 | Name | Type | Definition |
 | ---- | ---- | ---------- |
+| chk_ch_hier_v2_thread_parent_msg | CHECK | CHECK ((((hierarchy_kind = 'thread'::channel_hierarchy_kind) AND (parent_message_id IS NOT NULL)) OR ((hierarchy_kind = 'category_child'::channel_hierarchy_kind) AND (parent_message_id IS NULL)))) |
 | chk_channel_hierarchies_v2_not_self | CHECK | CHECK ((child_channel_id <> parent_channel_id)) |
 | chk_channel_hierarchies_v2_position_non_negative | CHECK | CHECK (("position" >= 0)) |
-| chk_channel_hierarchies_v2_thread_parent_message | CHECK | CHECK ((((hierarchy_kind = 'thread'::channel_hierarchy_kind) AND (parent_message_id IS NOT NULL)) OR ((hierarchy_kind = 'category_child'::channel_hierarchy_kind) AND (parent_message_id IS NULL)))) |
 | channel_hierarchies_v2_guild_id_fkey | FOREIGN KEY | FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE |
 | channel_hierarchies_v2_child_channel_id_fkey | FOREIGN KEY | FOREIGN KEY (child_channel_id) REFERENCES channels(id) ON DELETE CASCADE |
 | channel_hierarchies_v2_parent_channel_id_fkey | FOREIGN KEY | FOREIGN KEY (parent_channel_id) REFERENCES channels(id) ON DELETE CASCADE |

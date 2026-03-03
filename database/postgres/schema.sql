@@ -104,7 +104,7 @@ BEGIN
   WHERE id = NEW.child_channel_id;
 
   IF child_guild_id IS NULL OR child_type <> 'guild_text' THEN
-    RAISE EXCEPTION 'channel_hierarchies_v2.child_channel_id must reference channels.type=guild_text with non-null guild_id';
+    RAISE EXCEPTION 'child channel must be guild_text with guild_id';
   END IF;
 
   SELECT guild_id, type
@@ -113,11 +113,11 @@ BEGIN
   WHERE id = NEW.parent_channel_id;
 
   IF parent_guild_id IS NULL OR parent_type <> 'guild_text' THEN
-    RAISE EXCEPTION 'channel_hierarchies_v2.parent_channel_id must reference channels.type=guild_text with non-null guild_id';
+    RAISE EXCEPTION 'parent channel must be guild_text with guild_id';
   END IF;
 
   IF child_guild_id <> parent_guild_id OR child_guild_id <> NEW.guild_id THEN
-    RAISE EXCEPTION 'channel_hierarchies_v2 guild scope mismatch between child/parent/guild_id';
+    RAISE EXCEPTION 'hierarchy guild scope mismatch';
   END IF;
 
   RETURN NEW;
@@ -307,9 +307,9 @@ CREATE TABLE public.channel_hierarchies_v2 (
     archived_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chk_ch_hier_v2_thread_parent_msg CHECK ((((hierarchy_kind = 'thread'::public.channel_hierarchy_kind) AND (parent_message_id IS NOT NULL)) OR ((hierarchy_kind = 'category_child'::public.channel_hierarchy_kind) AND (parent_message_id IS NULL)))),
     CONSTRAINT chk_channel_hierarchies_v2_not_self CHECK ((child_channel_id <> parent_channel_id)),
-    CONSTRAINT chk_channel_hierarchies_v2_position_non_negative CHECK (("position" >= 0)),
-    CONSTRAINT chk_channel_hierarchies_v2_thread_parent_message CHECK ((((hierarchy_kind = 'thread'::public.channel_hierarchy_kind) AND (parent_message_id IS NOT NULL)) OR ((hierarchy_kind = 'category_child'::public.channel_hierarchy_kind) AND (parent_message_id IS NULL))))
+    CONSTRAINT chk_channel_hierarchies_v2_position_non_negative CHECK (("position" >= 0))
 );
 
 

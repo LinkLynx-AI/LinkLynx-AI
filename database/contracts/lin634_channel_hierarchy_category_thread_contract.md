@@ -62,6 +62,7 @@ This keeps DM channel data out of hierarchy and prevents cross-guild references.
 
 - `parent_message_id` は Scylla SoR 上の message identifier 参照であり、Postgres FKは張らない。
 - 理由: メッセージ本文SoRは `database/scylla/*.cql` 側に存在するため。
+- アプリケーション層の write-path では、対象 `parent_message_id` が指定 `parent_channel_id` 上に存在することを検証してから `channel_hierarchies_v2` へ書き込む。
 
 ## 5. Validation
 

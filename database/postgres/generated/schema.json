@@ -2130,6 +2130,17 @@
       ],
       "constraints": [
         {
+          "name": "chk_ch_hier_v2_thread_parent_msg",
+          "type": "CHECK",
+          "def": "CHECK ((((hierarchy_kind = 'thread'::channel_hierarchy_kind) AND (parent_message_id IS NOT NULL)) OR ((hierarchy_kind = 'category_child'::channel_hierarchy_kind) AND (parent_message_id IS NULL))))",
+          "table": "public.channel_hierarchies_v2",
+          "referenced_table": "",
+          "columns": [
+            "hierarchy_kind",
+            "parent_message_id"
+          ]
+        },
+        {
           "name": "chk_channel_hierarchies_v2_not_self",
           "type": "CHECK",
           "def": "CHECK ((child_channel_id \u003c\u003e parent_channel_id))",
@@ -2148,17 +2159,6 @@
           "referenced_table": "",
           "columns": [
             "position"
-          ]
-        },
-        {
-          "name": "chk_channel_hierarchies_v2_thread_parent_message",
-          "type": "CHECK",
-          "def": "CHECK ((((hierarchy_kind = 'thread'::channel_hierarchy_kind) AND (parent_message_id IS NOT NULL)) OR ((hierarchy_kind = 'category_child'::channel_hierarchy_kind) AND (parent_message_id IS NULL))))",
-          "table": "public.channel_hierarchies_v2",
-          "referenced_table": "",
-          "columns": [
-            "hierarchy_kind",
-            "parent_message_id"
           ]
         },
         {
