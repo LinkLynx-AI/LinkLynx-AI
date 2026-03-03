@@ -422,6 +422,50 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn ws_ticket_store_keeps_previous_valid_ticket_when_new_ticket_issued() {
+        let store = WsTicketStore::default();
+        let first_principal = AuthenticatedPrincipal {
+            principal_id: PrincipalId(2001),
+            firebase_uid: "u-2001".to_owned(),
+            expires_at_epoch: unix_timestamp_seconds() + 300,
+        };
+        let second_principal = AuthenticatedPrincipal {
+            principal_id: PrincipalId(2002),
+            firebase_uid: "u-2002".to_owned(),
+            expires_at_epoch: unix_timestamp_seconds() + 300,
+        };
+
+        let first = store
+            .issue_ticket(first_principal.clone(), Duration::from_secs(60))
+            .await;
+        let second = store
+            .issue_ticket(second_principal.clone(), Duration::from_secs(60))
+            .await;
+
+        let consumed_first = store.consume_ticket(&first.ticket).await.unwrap();
+        let consumed_second = store.consume_ticket(&second.ticket).await.unwrap();
+
+        assert_eq!(consumed_first.principal_id, first_principal.principal_id);
+        assert_eq!(consumed_second.principal_id, second_principal.principal_id);
+    }
+
+    #[tokio::test]
+    async fn ws_ticket_store_returns_expired_for_expired_ticket() {
+        let store = WsTicketStore::default();
+        let principal = AuthenticatedPrincipal {
+            principal_id: PrincipalId(2003),
+            firebase_uid: "u-2003".to_owned(),
+            expires_at_epoch: unix_timestamp_seconds() + 300,
+        };
+
+        let issued = store.issue_ticket(principal, Duration::from_secs(1)).await;
+        tokio::time::sleep(Duration::from_millis(1_100)).await;
+
+        let error = store.consume_ticket(&issued.ticket).await.unwrap_err();
+        assert_eq!(error, WsTicketConsumeError::Expired);
+    }
+
+    #[tokio::test]
     async fn fixed_window_rate_limiter_blocks_after_limit() {
         let limiter = FixedWindowRateLimiter::new(2, Duration::from_secs(60));
         assert!(limiter.check_and_record("k-1").await);

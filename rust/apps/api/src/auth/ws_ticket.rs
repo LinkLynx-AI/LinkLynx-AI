@@ -39,14 +39,15 @@ impl WsTicketStore {
         principal: AuthenticatedPrincipal,
         ttl: Duration,
     ) -> IssuedWsTicket {
+        let now_epoch = unix_timestamp_seconds();
         let ticket = format!(
             "{}{}",
             Uuid::new_v4().as_simple(),
             Uuid::new_v4().as_simple()
         );
         let hashed_ticket = hash_ws_ticket(&ticket);
-        let expires_at_epoch = unix_timestamp_seconds().saturating_add(ttl.as_secs());
-        self.cleanup_expired_entries(expires_at_epoch).await;
+        let expires_at_epoch = now_epoch.saturating_add(ttl.as_secs());
+        self.cleanup_expired_entries(now_epoch).await;
 
         let mut active = self.active_tickets.lock().await;
         active.insert(
@@ -72,14 +73,15 @@ impl WsTicketStore {
         ticket: &str,
     ) -> Result<AuthenticatedPrincipal, WsTicketConsumeError> {
         let now_epoch = unix_timestamp_seconds();
-        self.cleanup_expired_entries(now_epoch).await;
-
         let hashed_ticket = hash_ws_ticket(ticket);
 
         {
-            let consumed = self.consumed_tickets.lock().await;
-            if consumed.contains_key(&hashed_ticket) {
-                return Err(WsTicketConsumeError::AlreadyUsed);
+            let mut consumed = self.consumed_tickets.lock().await;
+            if let Some(expires_at_epoch) = consumed.get(&hashed_ticket).copied() {
+                if expires_at_epoch > now_epoch {
+                    return Err(WsTicketConsumeError::AlreadyUsed);
+                }
+                consumed.remove(&hashed_ticket);
             }
         }
 

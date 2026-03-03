@@ -28,3 +28,11 @@
 ## 検証
 - `make rust-lint`: passed
 - `make validate`: failed（TypeScriptテスト段で Node 22.4 / ESM要件不一致由来の既知環境エラー）
+- `NODE_OPTIONS=--experimental-require-module make validate`: passed
+
+## 追加修正（review反映）
+- `WsTicketStore::issue_ticket` の有効期限クリーンアップ基準を `expires_at_epoch` ではなく現在時刻基準へ修正し、先行発行チケットが誤削除される不具合を解消。
+- `WsTicketStore::consume_ticket` で `consumed_tickets` の期限切れエントリを都度掃除しつつ、期限内再利用のみ `AlreadyUsed` として判定。
+- 回帰テストを追加:
+  - 新規チケット発行後も先行有効チケットが消えないこと
+  - 期限切れチケットが `Invalid` ではなく `Expired` で返ること
