@@ -106,31 +106,31 @@ export function LoginForm({ returnTo, reason }: LoginFormProps) {
         void handleSubmit(event);
       }}
     >
-      <label className="block space-y-2">
-        <span className="text-xs font-medium uppercase tracking-[0.15em] text-[var(--llx-header-secondary)]">
-          Email
-        </span>
+      <div className="space-y-2">
+        <label className="block text-xs font-bold uppercase tracking-wider text-discord-header-secondary">
+          メールアドレス <span className="text-discord-brand-red">*</span>
+        </label>
         <input
           type="email"
           value={form.email}
           onChange={(event) => updateForm("email", event.target.value)}
           autoComplete="email"
-          className="w-full rounded-md border border-[var(--llx-divider)] bg-[var(--llx-bg-secondary)] px-3 py-2 text-sm text-[var(--llx-text-primary)] outline-none transition focus:border-[var(--llx-brand-blurple)]"
+          className="w-full rounded bg-discord-input-bg px-3 py-2.5 text-sm text-discord-text-normal outline-none ring-0 transition focus:ring-2 focus:ring-discord-brand-blurple"
         />
-      </label>
+      </div>
 
-      <label className="block space-y-2">
-        <span className="text-xs font-medium uppercase tracking-[0.15em] text-[var(--llx-header-secondary)]">
-          Password
-        </span>
+      <div className="space-y-2">
+        <label className="block text-xs font-bold uppercase tracking-wider text-discord-header-secondary">
+          パスワード <span className="text-discord-brand-red">*</span>
+        </label>
         <input
           type="password"
           value={form.password}
           onChange={(event) => updateForm("password", event.target.value)}
           autoComplete="current-password"
-          className="w-full rounded-md border border-[var(--llx-divider)] bg-[var(--llx-bg-secondary)] px-3 py-2 text-sm text-[var(--llx-text-primary)] outline-none transition focus:border-[var(--llx-brand-blurple)]"
+          className="w-full rounded bg-discord-input-bg px-3 py-2.5 text-sm text-discord-text-normal outline-none ring-0 transition focus:ring-2 focus:ring-discord-brand-blurple"
         />
-      </label>
+      </div>
 
       {reasonMessage === null ? null : (
         <p className="rounded-md border border-amber-300/40 bg-amber-300/10 px-3 py-2 text-sm text-amber-200">
@@ -147,7 +147,7 @@ export function LoginForm({ returnTo, reason }: LoginFormProps) {
       <button
         type="submit"
         disabled={isSubmitting}
-        className="inline-flex w-full items-center justify-center rounded-md bg-[var(--llx-brand-blurple)] px-4 py-2 text-sm font-medium text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+        className="mt-2 w-full rounded bg-discord-brand-blurple px-4 py-3 text-sm font-medium text-white transition hover:bg-discord-btn-blurple-hover disabled:cursor-not-allowed disabled:opacity-50"
       >
         {isSubmitting ? "ログイン中..." : "ログイン"}
       </button>

@@ -1,7 +1,7 @@
-import { createUiGateway } from "@/entities";
-import { normalizeReturnToPath, parseLoginRedirectReason } from "@/shared/config";
 import { AuthRoutePreview } from "@/app/(auth)/_components/auth-route-preview";
+import { createUiGateway } from "@/entities";
 import { LoginForm } from "@/features";
+import { normalizeReturnToPath, parseLoginRedirectReason } from "@/shared/config";
 
 type SearchParamsObject = Record<string, string | string[] | undefined>;
 
