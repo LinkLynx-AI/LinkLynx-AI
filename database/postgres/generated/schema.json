@@ -1862,6 +1862,169 @@
           "def": "CREATE TRIGGER trg_enforce_channel_role_overrides_v2_scope BEFORE INSERT OR UPDATE ON public.channel_role_permission_overrides_v2 FOR EACH ROW EXECUTE FUNCTION enforce_channel_role_overrides_v2_scope()"
         }
       ]
+    },
+    {
+      "name": "public.channel_user_permission_overrides_v2",
+      "type": "BASE TABLE",
+      "columns": [
+        {
+          "name": "channel_id",
+          "type": "bigint",
+          "nullable": false
+        },
+        {
+          "name": "guild_id",
+          "type": "bigint",
+          "nullable": false
+        },
+        {
+          "name": "user_id",
+          "type": "bigint",
+          "nullable": false
+        },
+        {
+          "name": "can_view",
+          "type": "boolean",
+          "nullable": true,
+          "comment": "NULL はロール既定値を継承、TRUE/FALSE はユーザー単位で明示上書き。"
+        },
+        {
+          "name": "can_post",
+          "type": "boolean",
+          "nullable": true,
+          "comment": "NULL はロール既定値を継承、TRUE/FALSE はユーザー単位で明示上書き。"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default": "now()"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default": "now()"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "channel_user_permission_overrides_v2_pkey",
+          "def": "CREATE UNIQUE INDEX channel_user_permission_overrides_v2_pkey ON public.channel_user_permission_overrides_v2 USING btree (channel_id, user_id)",
+          "table": "public.channel_user_permission_overrides_v2",
+          "columns": [
+            "channel_id",
+            "user_id"
+          ]
+        },
+        {
+          "name": "idx_channel_user_overrides_v2_user",
+          "def": "CREATE INDEX idx_channel_user_overrides_v2_user ON public.channel_user_permission_overrides_v2 USING btree (user_id, guild_id)",
+          "table": "public.channel_user_permission_overrides_v2",
+          "columns": [
+            "user_id",
+            "guild_id"
+          ]
+        }
+      ],
+      "constraints": [
+        {
+          "name": "channel_user_permission_overrides_v2_guild_id_user_id_fkey",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (guild_id, user_id) REFERENCES guild_members(guild_id, user_id) ON DELETE CASCADE",
+          "table": "public.channel_user_permission_overrides_v2",
+          "referenced_table": "guild_members",
+          "columns": [
+            "guild_id",
+            "user_id"
+          ],
+          "referenced_columns": [
+            "guild_id",
+            "user_id"
+          ]
+        },
+        {
+          "name": "channel_user_permission_overrides_v2_channel_id_fkey",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (channel_id) REFERENCES channels(id) ON DELETE CASCADE",
+          "table": "public.channel_user_permission_overrides_v2",
+          "referenced_table": "channels",
+          "columns": [
+            "channel_id"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "channel_user_permission_overrides_v2_pkey",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (channel_id, user_id)",
+          "table": "public.channel_user_permission_overrides_v2",
+          "referenced_table": "",
+          "columns": [
+            "channel_id",
+            "user_id"
+          ]
+        }
+      ],
+      "triggers": [
+        {
+          "name": "trg_enforce_channel_user_overrides_v2_scope",
+          "def": "CREATE TRIGGER trg_enforce_channel_user_overrides_v2_scope BEFORE INSERT OR UPDATE ON public.channel_user_permission_overrides_v2 FOR EACH ROW EXECUTE FUNCTION enforce_channel_user_overrides_v2_scope()"
+        }
+      ]
+    },
+    {
+      "name": "public.channel_permission_overrides_subject_v2",
+      "type": "VIEW",
+      "columns": [
+        {
+          "name": "channel_id",
+          "type": "bigint",
+          "nullable": true
+        },
+        {
+          "name": "guild_id",
+          "type": "bigint",
+          "nullable": true
+        },
+        {
+          "name": "subject_type",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "subject_id",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "can_view",
+          "type": "boolean",
+          "nullable": true
+        },
+        {
+          "name": "can_post",
+          "type": "boolean",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": true
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "nullable": true
+        }
+      ],
+      "def": "CREATE VIEW channel_permission_overrides_subject_v2 AS (\n SELECT channel_role_permission_overrides_v2.channel_id,\n    channel_role_permission_overrides_v2.guild_id,\n    'role'::text AS subject_type,\n    channel_role_permission_overrides_v2.role_key AS subject_id,\n    channel_role_permission_overrides_v2.can_view,\n    channel_role_permission_overrides_v2.can_post,\n    channel_role_permission_overrides_v2.created_at,\n    channel_role_permission_overrides_v2.updated_at\n   FROM channel_role_permission_overrides_v2\nUNION ALL\n SELECT channel_user_permission_overrides_v2.channel_id,\n    channel_user_permission_overrides_v2.guild_id,\n    'user'::text AS subject_type,\n    (channel_user_permission_overrides_v2.user_id)::text AS subject_id,\n    channel_user_permission_overrides_v2.can_view,\n    channel_user_permission_overrides_v2.can_post,\n    channel_user_permission_overrides_v2.created_at,\n    channel_user_permission_overrides_v2.updated_at\n   FROM channel_user_permission_overrides_v2\n)",
+      "referenced_tables": [
+        "public.channel_role_permission_overrides_v2",
+        "public.channel_user_permission_overrides_v2"
+      ]
     }
   ],
   "relations": [
@@ -2264,6 +2427,34 @@
       ],
       "parent_cardinality": "exactly_one",
       "def": "FOREIGN KEY (guild_id, role_key) REFERENCES guild_roles_v2(guild_id, role_key) ON DELETE CASCADE"
+    },
+    {
+      "table": "public.channel_user_permission_overrides_v2",
+      "columns": [
+        "guild_id",
+        "user_id"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "public.guild_members",
+      "parent_columns": [
+        "guild_id",
+        "user_id"
+      ],
+      "parent_cardinality": "exactly_one",
+      "def": "FOREIGN KEY (guild_id, user_id) REFERENCES guild_members(guild_id, user_id) ON DELETE CASCADE"
+    },
+    {
+      "table": "public.channel_user_permission_overrides_v2",
+      "columns": [
+        "channel_id"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "public.channels",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "exactly_one",
+      "def": "FOREIGN KEY (channel_id) REFERENCES channels(id) ON DELETE CASCADE"
     }
   ],
   "functions": [
@@ -2305,6 +2496,12 @@
     },
     {
       "name": "public.enforce_channel_role_overrides_v2_scope",
+      "return_type": "trigger",
+      "arguments": "",
+      "type": "FUNCTION"
+    },
+    {
+      "name": "public.enforce_channel_user_overrides_v2_scope",
       "return_type": "trigger",
       "arguments": "",
       "type": "FUNCTION"

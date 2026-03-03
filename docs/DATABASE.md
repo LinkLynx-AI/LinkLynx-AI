@@ -1,6 +1,6 @@
 # DATABASE.md
 
-最終更新: 2026-02-28
+最終更新: 2026-03-03
 
 このドキュメントは、リポジトリ内の定義ファイルを基準にした「現在のDB状態」をまとめたものです。
 実行中のDBインスタンスを直接参照したスナップショットではありません。
@@ -27,6 +27,7 @@
 6. `0006_lin621_remove_local_auth_assets`
 7. `0007_lin622_users_id_sequence_for_provisioning`
 8. `0008_lin632_arbitrary_roles_spicedb_prep`
+9. `0009_lin633_channel_user_overrides_spicedb`
 
 ### 2.1 型（ENUM）
 
@@ -52,6 +53,7 @@
 - `guild_roles_v2`
 - `guild_member_roles_v2`
 - `channel_role_permission_overrides_v2`
+- `channel_user_permission_overrides_v2`
 - `channel_reads`
 - `channel_last_message`
 - `audit_logs`
@@ -67,6 +69,7 @@
 - `dm_pairs` は `user_low < user_high` 制約と `channel_id` 一意制約で DM 1対1 を保証
 - `guild_roles` + `guild_member_roles` + `channel_permission_overrides` でロール/権限上書き
 - `guild_roles_v2` + `guild_member_roles_v2` + `channel_role_permission_overrides_v2` は LIN-632 で導入された任意ロール移行モデル（v0との併存）
+- `channel_user_permission_overrides_v2` は LIN-633 で導入されたユーザー単位の tri-state override で、`channel_role_permission_overrides_v2` と併存する
 - `channel_reads` は `(channel_id, user_id)` を主キーとして既読位置管理
 - `channel_last_message` はチャネル最新メッセージの参照を保持
 - `audit_logs` は監査イベント記録
@@ -95,6 +98,7 @@
 - `idx_channels_guild`（`type='guild_text'` 条件付き）
 - `idx_dm_participants_user`
 - `idx_invites_guild`, `idx_invites_expires`
+- `idx_channel_user_overrides_v2_user`
 - `idx_channel_reads_user`
 - `idx_channel_last_message_time`
 - `idx_audit_guild_time`
@@ -138,6 +142,12 @@ The source of truth for auth-schema gap correction between legacy Notion design 
 The source of truth for arbitrary-role migration model and Postgres -> SpiceDB tuple mapping is:
 
 - `database/contracts/lin632_spicedb_role_model_migration_contract.md`
+
+### 2.12 Channel User Override / SpiceDB Mapping Contract (LIN-633)
+
+The source of truth for channel-level user override (tri-state), evaluation precedence, and role/user override -> SpiceDB tuple conversion is:
+
+- `database/contracts/lin633_channel_user_override_spicedb_contract.md`
 
 ## 3. ScyllaDB の現在状態
 
@@ -206,3 +216,5 @@ The source of truth for Scylla operations (SoR boundary, partition review criter
   - `database/contracts/lin631_notion_auth_schema_gap_correction.md`
 - LIN-632 arbitrary role / SpiceDB migration contract:
   - `database/contracts/lin632_spicedb_role_model_migration_contract.md`
+- LIN-633 channel user override / SpiceDB mapping contract:
+  - `database/contracts/lin633_channel_user_override_spicedb_contract.md`
