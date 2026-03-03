@@ -12,6 +12,7 @@ mod tests {
         ChannelSummary, CreatedChannel, CreatedGuild, GuildChannelError, GuildChannelService,
         GuildSummary,
     };
+    use profile::{ProfileError, ProfilePatchInput, ProfileService, ProfileSettings};
     use axum::{body::to_bytes, http::StatusCode};
     use linklynx_shared::PrincipalId;
     use tower::ServiceExt;
@@ -23,6 +24,8 @@ mod tests {
     struct StaticDenyAuthorizer;
     struct StaticUnavailableAuthorizer;
     struct StaticGuildChannelService;
+    struct StaticProfileService;
+    struct StaticUnavailableProfileService;
 
     #[async_trait]
     impl TokenVerifier for StaticTokenVerifier {
@@ -161,11 +164,122 @@ mod tests {
         }
     }
 
+    #[async_trait]
+    impl ProfileService for StaticProfileService {
+        async fn get_profile(&self, principal_id: PrincipalId) -> Result<ProfileSettings, ProfileError> {
+            if principal_id.0 != 1001 {
+                return Err(ProfileError::not_found("user_not_found"));
+            }
+
+            Ok(ProfileSettings {
+                display_name: "Alice".to_owned(),
+                status_text: Some("Ready".to_owned()),
+                avatar_key: Some("avatars/alice.png".to_owned()),
+            })
+        }
+
+        async fn update_profile(
+            &self,
+            principal_id: PrincipalId,
+            patch: ProfilePatchInput,
+        ) -> Result<ProfileSettings, ProfileError> {
+            if principal_id.0 != 1001 {
+                return Err(ProfileError::not_found("user_not_found"));
+            }
+
+            if patch.is_empty() {
+                return Err(ProfileError::validation("profile_patch_empty"));
+            }
+
+            let mut profile = ProfileSettings {
+                display_name: "Alice".to_owned(),
+                status_text: Some("Ready".to_owned()),
+                avatar_key: Some("avatars/alice.png".to_owned()),
+            };
+
+            if let Some(display_name) = patch.display_name {
+                let normalized = display_name.trim();
+                if normalized.is_empty() || normalized.chars().count() > 32 {
+                    return Err(ProfileError::validation("display_name_invalid"));
+                }
+                profile.display_name = normalized.to_owned();
+            }
+
+            if let Some(status_text) = patch.status_text {
+                profile.status_text = status_text.and_then(|value| {
+                    let trimmed = value.trim().to_owned();
+                    if trimmed.is_empty() {
+                        None
+                    } else {
+                        Some(trimmed)
+                    }
+                });
+            }
+
+            if let Some(avatar_key) = patch.avatar_key {
+                let normalized = avatar_key.and_then(|value| {
+                    let trimmed = value.trim().to_owned();
+                    if trimmed.is_empty() {
+                        None
+                    } else {
+                        Some(trimmed)
+                    }
+                });
+
+                if let Some(value) = &normalized {
+                    let valid_format = value.bytes().all(|byte| {
+                        byte.is_ascii_alphanumeric() || matches!(byte, b'/' | b'_' | b'-' | b'.')
+                    });
+                    if !valid_format {
+                        return Err(ProfileError::validation("avatar_key_invalid_format"));
+                    }
+                }
+
+                profile.avatar_key = normalized;
+            }
+
+            Ok(profile)
+        }
+    }
+
+    #[async_trait]
+    impl ProfileService for StaticUnavailableProfileService {
+        async fn get_profile(
+            &self,
+            _principal_id: PrincipalId,
+        ) -> Result<ProfileSettings, ProfileError> {
+            Err(ProfileError::dependency_unavailable(
+                "profile_store_temporarily_unavailable",
+            ))
+        }
+
+        async fn update_profile(
+            &self,
+            _principal_id: PrincipalId,
+            _patch: ProfilePatchInput,
+        ) -> Result<ProfileSettings, ProfileError> {
+            Err(ProfileError::dependency_unavailable(
+                "profile_store_temporarily_unavailable",
+            ))
+        }
+    }
+
     async fn app_for_test() -> Router {
-        app_for_test_with_authorizer(Arc::new(StaticAllowAllAuthorizer)).await
+        app_for_test_with_authorizer_and_profile(
+            Arc::new(StaticAllowAllAuthorizer),
+            Arc::new(StaticProfileService),
+        )
+        .await
     }
 
     async fn app_for_test_with_authorizer(authorizer: Arc<dyn Authorizer>) -> Router {
+        app_for_test_with_authorizer_and_profile(authorizer, Arc::new(StaticProfileService)).await
+    }
+
+    async fn app_for_test_with_authorizer_and_profile(
+        authorizer: Arc<dyn Authorizer>,
+        profile_service: Arc<dyn ProfileService>,
+    ) -> Router {
         let metrics = Arc::new(AuthMetrics::default());
         let verifier: Arc<dyn TokenVerifier> = Arc::new(StaticTokenVerifier);
 
@@ -188,6 +302,7 @@ mod tests {
             auth_service,
             authorizer,
             guild_channel_service: Arc::new(StaticGuildChannelService),
+            profile_service,
             ws_reauth_grace: Duration::from_secs(30),
         };
 
@@ -551,6 +666,208 @@ mod tests {
         let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
         assert_eq!(json["channel"]["guild_id"], 2001);
         assert_eq!(json["channel"]["name"], "release");
+    }
+
+    #[tokio::test]
+    async fn get_my_profile_returns_profile() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/users/me/profile")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["profile"]["display_name"], "Alice");
+        assert_eq!(json["profile"]["status_text"], "Ready");
+        assert_eq!(json["profile"]["avatar_key"], "avatars/alice.png");
+    }
+
+    #[tokio::test]
+    async fn patch_my_profile_updates_display_name() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("PATCH")
+                    .uri("/users/me/profile")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"display_name":"  New Name  "}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["profile"]["display_name"], "New Name");
+    }
+
+    #[tokio::test]
+    async fn patch_my_profile_clears_status_text_with_blank_input() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("PATCH")
+                    .uri("/users/me/profile")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"status_text":"   "}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["profile"]["status_text"], serde_json::Value::Null);
+    }
+
+    #[tokio::test]
+    async fn patch_my_profile_rejects_empty_payload() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("PATCH")
+                    .uri("/users/me/profile")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "VALIDATION_ERROR");
+    }
+
+    #[tokio::test]
+    async fn patch_my_profile_rejects_invalid_avatar_key_format() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("PATCH")
+                    .uri("/users/me/profile")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"avatar_key":"bad key"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "VALIDATION_ERROR");
+    }
+
+    #[tokio::test]
+    async fn patch_my_profile_rejects_null_display_name() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("PATCH")
+                    .uri("/users/me/profile")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"display_name":null,"status_text":"hello"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "VALIDATION_ERROR");
+    }
+
+    #[tokio::test]
+    async fn get_my_profile_returns_not_found_for_missing_user() {
+        let app = app_for_test().await;
+        let token = format!("u-unknown:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/users/me/profile")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "USER_NOT_FOUND");
+    }
+
+    #[tokio::test]
+    async fn get_my_profile_returns_unavailable_when_dependency_unavailable() {
+        let app = app_for_test_with_authorizer_and_profile(
+            Arc::new(StaticAllowAllAuthorizer),
+            Arc::new(StaticUnavailableProfileService),
+        )
+        .await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/users/me/profile")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("x-request-id", "profile-unavailable-test")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "PROFILE_UNAVAILABLE");
+        assert_eq!(json["request_id"], "profile-unavailable-test");
     }
 
     #[test]
