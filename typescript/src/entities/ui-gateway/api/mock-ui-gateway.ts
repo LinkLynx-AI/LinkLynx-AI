@@ -14,7 +14,7 @@ import type {
 const AUTH_ROUTE_CONTENT: Record<AuthRouteKind, AuthRouteContent> = {
   login: {
     title: "ログイン",
-    description: "未実装の認証処理を想定した導線プレビューです。",
+    description: "Firebase ログインの動作確認と導線遷移を行う画面です。",
     links: [
       { label: "新規登録へ", href: APP_ROUTES.register },
       { label: "メール確認へ", href: APP_ROUTES.verifyEmail },
@@ -25,7 +25,7 @@ const AUTH_ROUTE_CONTENT: Record<AuthRouteKind, AuthRouteContent> = {
   },
   register: {
     title: "新規登録",
-    description: "登録フォームのUI先行レビュー用ページです。",
+    description: "Firebase へ新規登録し、確認メール導線へ進む画面です。",
     links: [
       { label: "ログインへ", href: APP_ROUTES.login },
       { label: "メール確認へ", href: APP_ROUTES.verifyEmail },
@@ -35,7 +35,7 @@ const AUTH_ROUTE_CONTENT: Record<AuthRouteKind, AuthRouteContent> = {
   },
   "verify-email": {
     title: "メール確認",
-    description: "確認メール送信後の状態を想定した画面プレビューです。",
+    description: "確認メールの再送と確認状態更新を行う画面です。",
     links: [
       { label: "ログインへ", href: APP_ROUTES.login },
       { label: "パスワード再設定へ", href: APP_ROUTES.passwordReset },
@@ -45,7 +45,7 @@ const AUTH_ROUTE_CONTENT: Record<AuthRouteKind, AuthRouteContent> = {
   },
   "password-reset": {
     title: "パスワード再設定",
-    description: "パスワード再設定フローの表示確認用プレビューです。",
+    description: "Firebase にパスワード再設定メール送信を依頼する画面です。",
     links: [
       { label: "ログインへ戻る", href: APP_ROUTES.login },
       { label: "新規登録へ", href: APP_ROUTES.register },
