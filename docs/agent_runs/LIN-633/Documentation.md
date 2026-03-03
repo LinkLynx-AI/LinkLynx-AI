@@ -38,6 +38,6 @@
 - branch: `codex/LIN-633-channel-user-override-spicedb`
 - reviewer gate: unavailable (manual self-review fallback)
 - UI gate: skipped (UI changesなし)
-- PR: pending
+- PR: https://github.com/LinkLynx-AI/LinkLynx-AI/pull/986
 - planned PR base branch: `codex/LIN-632-spicedb-role-model-migration`
 - merge policy: stacked PR (`LIN-632` -> `main`)
