@@ -2244,6 +2244,120 @@
           ]
         }
       ]
+    },
+    {
+      "name": "public.message_reactions_v2",
+      "type": "BASE TABLE",
+      "columns": [
+        {
+          "name": "message_id",
+          "type": "bigint",
+          "nullable": false
+        },
+        {
+          "name": "channel_id",
+          "type": "bigint",
+          "nullable": false
+        },
+        {
+          "name": "emoji",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "user_id",
+          "type": "bigint",
+          "nullable": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default": "now()"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "message_reactions_v2_pkey",
+          "def": "CREATE UNIQUE INDEX message_reactions_v2_pkey ON public.message_reactions_v2 USING btree (message_id, emoji, user_id)",
+          "table": "public.message_reactions_v2",
+          "columns": [
+            "message_id",
+            "emoji",
+            "user_id"
+          ]
+        },
+        {
+          "name": "idx_msg_reactions_v2_msg_emoji_created",
+          "def": "CREATE INDEX idx_msg_reactions_v2_msg_emoji_created ON public.message_reactions_v2 USING btree (message_id, emoji, created_at DESC)",
+          "table": "public.message_reactions_v2",
+          "columns": [
+            "message_id",
+            "emoji",
+            "created_at"
+          ]
+        }
+      ],
+      "constraints": [
+        {
+          "name": "chk_msg_reactions_v2_emoji_len",
+          "type": "CHECK",
+          "def": "CHECK ((length(emoji) \u003c= 128))",
+          "table": "public.message_reactions_v2",
+          "referenced_table": "",
+          "columns": [
+            "emoji"
+          ]
+        },
+        {
+          "name": "chk_msg_reactions_v2_emoji_non_empty",
+          "type": "CHECK",
+          "def": "CHECK ((length(emoji) \u003e 0))",
+          "table": "public.message_reactions_v2",
+          "referenced_table": "",
+          "columns": [
+            "emoji"
+          ]
+        },
+        {
+          "name": "message_reactions_v2_user_id_fkey",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE",
+          "table": "public.message_reactions_v2",
+          "referenced_table": "users",
+          "columns": [
+            "user_id"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "message_reactions_v2_channel_id_fkey",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (channel_id) REFERENCES channels(id) ON DELETE CASCADE",
+          "table": "public.message_reactions_v2",
+          "referenced_table": "channels",
+          "columns": [
+            "channel_id"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "message_reactions_v2_pkey",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (message_id, emoji, user_id)",
+          "table": "public.message_reactions_v2",
+          "referenced_table": "",
+          "columns": [
+            "message_id",
+            "emoji",
+            "user_id"
+          ]
+        }
+      ]
     }
   ],
   "relations": [
@@ -2699,6 +2813,32 @@
     },
     {
       "table": "public.channel_pins_v2",
+      "columns": [
+        "channel_id"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "public.channels",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "exactly_one",
+      "def": "FOREIGN KEY (channel_id) REFERENCES channels(id) ON DELETE CASCADE"
+    },
+    {
+      "table": "public.message_reactions_v2",
+      "columns": [
+        "user_id"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "public.users",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "exactly_one",
+      "def": "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE"
+    },
+    {
+      "table": "public.message_reactions_v2",
       "columns": [
         "channel_id"
       ],

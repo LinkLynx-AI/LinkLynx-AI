@@ -506,6 +506,18 @@ CREATE TABLE public.invites (
 
 
 
+CREATE TABLE public.message_reactions_v2 (
+    message_id bigint NOT NULL,
+    channel_id bigint NOT NULL,
+    emoji text NOT NULL,
+    user_id bigint NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chk_msg_reactions_v2_emoji_len CHECK ((length(emoji) <= 128)),
+    CONSTRAINT chk_msg_reactions_v2_emoji_non_empty CHECK ((length(emoji) > 0))
+);
+
+
+
 CREATE TABLE public.message_references_v2 (
     message_id bigint NOT NULL,
     channel_id bigint NOT NULL,
@@ -656,6 +668,11 @@ ALTER TABLE ONLY public.invites
 
 
 
+ALTER TABLE ONLY public.message_reactions_v2
+    ADD CONSTRAINT message_reactions_v2_pkey PRIMARY KEY (message_id, emoji, user_id);
+
+
+
 ALTER TABLE ONLY public.message_references_v2
     ADD CONSTRAINT message_references_v2_pkey PRIMARY KEY (message_id);
 
@@ -746,6 +763,10 @@ CREATE INDEX idx_invites_expires ON public.invites USING btree (expires_at) WHER
 
 
 CREATE INDEX idx_invites_guild ON public.invites USING btree (guild_id);
+
+
+
+CREATE INDEX idx_msg_reactions_v2_msg_emoji_created ON public.message_reactions_v2 USING btree (message_id, emoji, created_at DESC);
 
 
 
@@ -956,6 +977,16 @@ ALTER TABLE ONLY public.invites
 
 ALTER TABLE ONLY public.invites
     ADD CONSTRAINT invites_guild_id_fkey FOREIGN KEY (guild_id) REFERENCES public.guilds(id) ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY public.message_reactions_v2
+    ADD CONSTRAINT message_reactions_v2_channel_id_fkey FOREIGN KEY (channel_id) REFERENCES public.channels(id) ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY public.message_reactions_v2
+    ADD CONSTRAINT message_reactions_v2_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
 
 
 

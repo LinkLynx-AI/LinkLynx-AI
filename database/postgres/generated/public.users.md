@@ -6,7 +6,7 @@
 
 | Name | Type | Default | Nullable | Children | Parents | Comment |
 | ---- | ---- | ------- | -------- | -------- | ------- | ------- |
-| id | bigint | nextval('users_id_seq'::regclass) | false | [public.guilds](public.guilds.md) [public.guild_members](public.guild_members.md) [public.invites](public.invites.md) [public.invite_uses](public.invite_uses.md) [public.channels](public.channels.md) [public.dm_participants](public.dm_participants.md) [public.dm_pairs](public.dm_pairs.md) [public.channel_reads](public.channel_reads.md) [public.audit_logs](public.audit_logs.md) [public.auth_identities](public.auth_identities.md) [public.guild_member_roles_v2](public.guild_member_roles_v2.md) [public.channel_pins_v2](public.channel_pins_v2.md) |  |  |
+| id | bigint | nextval('users_id_seq'::regclass) | false | [public.guilds](public.guilds.md) [public.guild_members](public.guild_members.md) [public.invites](public.invites.md) [public.invite_uses](public.invite_uses.md) [public.channels](public.channels.md) [public.dm_participants](public.dm_participants.md) [public.dm_pairs](public.dm_pairs.md) [public.channel_reads](public.channel_reads.md) [public.audit_logs](public.audit_logs.md) [public.auth_identities](public.auth_identities.md) [public.guild_member_roles_v2](public.guild_member_roles_v2.md) [public.channel_pins_v2](public.channel_pins_v2.md) [public.message_reactions_v2](public.message_reactions_v2.md) |  |  |
 | email | text |  | false |  |  |  |
 | display_name | text |  | false |  |  |  |
 | avatar_key | text |  | true |  |  |  |

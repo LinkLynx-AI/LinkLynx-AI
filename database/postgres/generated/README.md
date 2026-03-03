@@ -25,6 +25,7 @@
 | [public.channel_hierarchies_v2](public.channel_hierarchies_v2.md) | 9 |  | BASE TABLE |
 | [public.message_references_v2](public.message_references_v2.md) | 4 |  | BASE TABLE |
 | [public.channel_pins_v2](public.channel_pins_v2.md) | 7 |  | BASE TABLE |
+| [public.message_reactions_v2](public.message_reactions_v2.md) | 5 |  | BASE TABLE |
 
 ## Stored procedures and functions
 
