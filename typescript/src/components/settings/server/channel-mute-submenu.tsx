@@ -10,10 +10,10 @@ const muteOptions = [
   { label: "ミュート解除まで", duration: null },
 ] as const;
 
-interface ChannelMuteSubmenuProps {
+type ChannelMuteSubmenuProps = {
   onSelect: (duration: number | null) => void;
   currentDuration?: number | null;
-}
+};
 
 export function ChannelMuteSubmenu({ onSelect, currentDuration }: ChannelMuteSubmenuProps) {
   return (

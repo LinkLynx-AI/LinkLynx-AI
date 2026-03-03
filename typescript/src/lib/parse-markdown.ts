@@ -89,10 +89,10 @@ export function parseDiscordMarkdown(input: string): MarkdownNode[] {
 }
 
 // Inline parsing patterns, ordered by priority
-interface InlinePattern {
+type InlinePattern = {
   regex: RegExp;
   parse: (match: RegExpMatchArray) => { node: MarkdownNode; consumed: number };
-}
+};
 
 const INLINE_PATTERNS: InlinePattern[] = [
   // Inline code (highest priority - no nesting)

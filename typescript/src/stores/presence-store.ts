@@ -2,27 +2,27 @@ import { create } from "zustand";
 
 export type ActivityType = "playing" | "streaming" | "listening" | "watching" | "competing";
 
-export interface Activity {
+export type Activity = {
   name: string;
   type: ActivityType;
   details?: string;
   state?: string;
-}
+};
 
-export interface UserPresence {
+export type UserPresence = {
   status: "online" | "idle" | "dnd" | "offline";
   customStatus?: string;
   activities?: Activity[];
-}
+};
 
-interface PresenceState {
+type PresenceState = {
   presences: Record<string, UserPresence>;
 
   setPresence: (userId: string, presence: UserPresence) => void;
   removePresence: (userId: string) => void;
   getPresence: (userId: string) => UserPresence | undefined;
   bulkSetPresences: (presences: Record<string, UserPresence>) => void;
-}
+};
 
 const initialPresences: Record<string, UserPresence> = {
   "100000000000000001": {

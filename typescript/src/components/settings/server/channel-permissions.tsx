@@ -6,11 +6,11 @@ import { PermissionToggle } from "./permission-toggle";
 
 type PermissionState = "allow" | "deny" | "inherit";
 
-interface ChannelPermDef {
+type ChannelPermDef = {
   id: string;
   label: string;
   description: string;
-}
+};
 
 const CHANNEL_PERMISSIONS: ChannelPermDef[] = [
   { id: "view_channel", label: "チャンネルを見る", description: "このチャンネルを閲覧できます" },

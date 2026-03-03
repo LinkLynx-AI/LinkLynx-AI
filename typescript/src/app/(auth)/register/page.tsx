@@ -1,5 +1,5 @@
 import { AuthLayout } from "@/app/(auth)/_components/auth-layout";
-import { RegisterForm } from "@/features/auth-flow/ui/register-form";
+import { RegisterForm } from "@/features/auth-flow";
 import { APP_ROUTES } from "@/shared/config";
 
 export default function RegisterPage() {

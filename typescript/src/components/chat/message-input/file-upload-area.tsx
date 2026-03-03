@@ -3,21 +3,21 @@
 import { cn } from "@/lib/cn";
 import { FilePreviewCard } from "./file-preview-card";
 
-export interface FileItem {
+export type FileItem = {
   id: string;
   name: string;
   size: number;
   type: string;
   previewUrl?: string;
   isSpoiler?: boolean;
-}
+};
 
-interface FileUploadAreaProps {
+type FileUploadAreaProps = {
   files: FileItem[];
   onRemove: (index: number) => void;
   onReorder?: (from: number, to: number) => void;
   onToggleSpoiler?: (index: number) => void;
-}
+};
 
 export function FileUploadArea({ files, onRemove, onToggleSpoiler }: FileUploadAreaProps) {
   if (files.length === 0) return null;

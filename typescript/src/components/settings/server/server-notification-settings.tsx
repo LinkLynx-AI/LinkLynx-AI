@@ -13,11 +13,11 @@ const notificationOptions = [
   { value: "nothing", label: "通知なし" },
 ];
 
-interface ServerNotificationSettingsProps {
+type ServerNotificationSettingsProps = {
   serverId: string;
   serverName: string;
   onClose: () => void;
-}
+};
 
 export function ServerNotificationSettings({
   serverId,

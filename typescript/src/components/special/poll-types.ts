@@ -1,4 +1,4 @@
-export interface PollData {
+export type PollData = {
   id: string;
   question: string;
   options: PollOption[];
@@ -6,12 +6,12 @@ export interface PollData {
   expiresAt: string | null;
   expired: boolean;
   multiSelect: boolean;
-}
+};
 
-export interface PollOption {
+export type PollOption = {
   id: string;
   text: string;
   votes: number;
   voted: boolean;
   emoji?: string;
-}
+};

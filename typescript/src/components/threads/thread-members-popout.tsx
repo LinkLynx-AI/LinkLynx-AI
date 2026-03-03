@@ -5,11 +5,11 @@ import { cn } from "@/lib/cn";
 import { X, UserPlus, Search } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 
-export interface ThreadMember {
+export type ThreadMember = {
   userId: string;
   displayName: string;
   avatar: string | null;
-}
+};
 
 export function ThreadMembersPopout({
   threadId,

@@ -4,17 +4,17 @@ import { useState } from "react";
 import { Plus, Shield, Users } from "lucide-react";
 import { cn } from "@/lib/cn";
 
-interface Role {
+type Role = {
   id: string;
   name: string;
   color?: string;
-}
+};
 
-interface PermissionOverride {
+type PermissionOverride = {
   id: string;
   label: string;
   state: "allow" | "deny" | "inherit";
-}
+};
 
 const mockRoles: Role[] = [
   { id: "everyone", name: "@everyone" },

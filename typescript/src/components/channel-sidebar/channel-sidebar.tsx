@@ -12,10 +12,10 @@ import { UserPanel } from "./user-panel";
 import { VoiceConnectionPanel } from "./voice-connection-panel";
 import type { Channel } from "@/types/channel";
 
-interface CategoryGroup {
+type CategoryGroup = {
   category: Channel | null;
   channels: Channel[];
-}
+};
 
 function groupChannelsByCategory(channels: Channel[]): CategoryGroup[] {
   const categories = channels.filter((c) => c.type === 4).sort((a, b) => a.position - b.position);

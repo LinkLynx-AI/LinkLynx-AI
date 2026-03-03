@@ -5,11 +5,11 @@ import { Monitor, AppWindow, X } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Tabs } from "@/components/ui/tabs";
 
-interface ScreenSource {
+type ScreenSource = {
   type: "screen" | "window";
   id: string;
   name: string;
-}
+};
 
 const mockScreens: ScreenSource[] = [
   { type: "screen", id: "screen-1", name: "画面 1" },

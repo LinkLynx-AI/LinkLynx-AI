@@ -4,11 +4,11 @@ import { useState, useRef, useEffect } from "react";
 import { cn } from "@/lib/cn";
 import type { RoleSelectComponent } from "@/types/bot-components";
 
-interface MockRole {
+type MockRole = {
   id: string;
   name: string;
   color: string;
-}
+};
 
 const mockRoles: MockRole[] = [
   { id: "role-admin", name: "Admin", color: "#ed4245" },

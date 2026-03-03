@@ -7,11 +7,11 @@ import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { KeybindRecorder } from "@/components/ui/keybind-recorder";
 
-interface Keybind {
+type Keybind = {
   id: string;
   action: string;
   key: string;
-}
+};
 
 const actionOptions = [
   { value: "push-to-talk", label: "Push-to-Talk" },

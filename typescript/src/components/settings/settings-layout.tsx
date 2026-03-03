@@ -24,10 +24,10 @@ import { UserNotifications } from "./user/user-notifications";
 import { UserKeybinds } from "./user/user-keybinds";
 import { UserAccessibility } from "./user/user-accessibility";
 
-interface NavSection {
+type NavSection = {
   label?: string;
   items: { id: string; label: string }[];
-}
+};
 
 const serverNav: NavSection[] = [
   {

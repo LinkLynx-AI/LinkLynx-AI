@@ -5,18 +5,18 @@ import { Button } from "@/components/ui/button";
 import { Toggle } from "@/components/ui/toggle";
 import { Unlink } from "lucide-react";
 
-interface Service {
+type Service = {
   id: string;
   name: string;
   color: string;
-}
+};
 
-interface ConnectedAccount {
+type ConnectedAccount = {
   serviceId: string;
   serviceName: string;
   username: string;
   visible: boolean;
-}
+};
 
 const SERVICES: Service[] = [
   { id: "spotify", name: "Spotify", color: "#1DB954" },

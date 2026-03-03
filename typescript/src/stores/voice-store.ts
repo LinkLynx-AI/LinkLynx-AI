@@ -1,15 +1,15 @@
 import { create } from "zustand";
 
-interface VoiceParticipant {
+type VoiceParticipant = {
   userId: string;
   muted: boolean;
   deafened: boolean;
   speaking: boolean;
   cameraOn: boolean;
   screenSharing: boolean;
-}
+};
 
-interface VoiceState {
+type VoiceState = {
   connected: boolean;
   channelId: string | null;
   serverId: string | null;
@@ -26,7 +26,7 @@ interface VoiceState {
   toggleCamera: () => void;
   toggleScreenShare: () => void;
   setSpeaking: (userId: string, speaking: boolean) => void;
-}
+};
 
 export const useVoiceStore = create<VoiceState>((set) => ({
   connected: false,

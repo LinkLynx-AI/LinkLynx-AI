@@ -5,14 +5,14 @@ import { Button } from "@/components/ui/button";
 import { Avatar } from "@/components/ui/avatar";
 import { ExternalLink, Shield, Trash2, Bot } from "lucide-react";
 
-interface BotData {
+type BotData = {
   id: string;
   name: string;
   avatar: string | null;
   description: string;
   permissions: string[];
   addedAt: string;
-}
+};
 
 const mockBots: BotData[] = [
   {

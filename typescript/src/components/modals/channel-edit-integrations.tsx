@@ -5,12 +5,12 @@ import { Webhook, Plus, Copy, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Toggle } from "@/components/ui/toggle";
 
-interface WebhookItem {
+type WebhookItem = {
   id: string;
   name: string;
   avatar: string | null;
   url: string;
-}
+};
 
 const mockWebhooks: WebhookItem[] = [
   {

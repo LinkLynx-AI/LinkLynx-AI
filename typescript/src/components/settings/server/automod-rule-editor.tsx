@@ -7,15 +7,15 @@ import { Select } from "@/components/ui/select";
 import { Toggle } from "@/components/ui/toggle";
 import { Button } from "@/components/ui/button";
 
-export interface AutoModAction {
+export type AutoModAction = {
   type: "block_message" | "send_alert_message" | "timeout";
   metadata?: {
     channelId?: string;
     durationSeconds?: number;
   };
-}
+};
 
-export interface AutoModRule {
+export type AutoModRule = {
   id: string;
   name: string;
   eventType: "message_send";
@@ -29,7 +29,7 @@ export interface AutoModRule {
   exemptRoles?: string[];
   exemptChannels?: string[];
   enabled: boolean;
-}
+};
 
 const triggerTypeOptions = [
   { value: "keyword", label: "キーワードフィルタ" },

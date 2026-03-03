@@ -9,7 +9,7 @@ import type {
   EditMessageData,
 } from "@/types";
 
-export interface SearchParams {
+export type SearchParams = {
   content?: string;
   authorId?: string;
   channelId?: string;
@@ -18,40 +18,40 @@ export interface SearchParams {
   after?: string;
   limit?: number;
   offset?: number;
-}
+};
 
-export interface SearchResult {
+export type SearchResult = {
   messages: Message[][];
   totalResults: number;
-}
+};
 
-export interface CreateGuildData {
+export type CreateGuildData = {
   name: string;
   icon?: string;
-}
+};
 
-export interface CreateChannelData {
+export type CreateChannelData = {
   name: string;
   type: number;
   parentId?: string;
   topic?: string;
-}
+};
 
-export interface CreateInviteData {
+export type CreateInviteData = {
   maxAge?: number;
   maxUses?: number;
-}
+};
 
-export interface Invite {
+export type Invite = {
   code: string;
   guild: Guild;
   channel: Channel;
   expiresAt: string | null;
   uses: number;
   maxUses: number;
-}
+};
 
-export interface Role {
+export type Role = {
   id: string;
   name: string;
   color: string;
@@ -60,17 +60,17 @@ export interface Role {
   hoist: boolean;
   mentionable: boolean;
   memberCount: number;
-}
+};
 
-export interface Webhook {
+export type Webhook = {
   id: string;
   name: string;
   channelId: string;
   avatar: string | null;
   token?: string;
-}
+};
 
-export interface AuditLogEntry {
+export type AuditLogEntry = {
   id: string;
   actionType: number;
   userId: string;
@@ -78,17 +78,17 @@ export interface AuditLogEntry {
   changes?: Record<string, unknown>[];
   reason?: string;
   createdAt: string;
-}
+};
 
 export type RelationshipType = 1 | 2 | 3 | 4; // friend | blocked | incoming | outgoing
 
-export interface Relationship {
+export type Relationship = {
   id: string;
   type: RelationshipType;
   user: User;
-}
+};
 
-export interface APIClient {
+export type APIClient = {
   // Auth
   getCurrentUser(): Promise<User>;
 
@@ -183,7 +183,7 @@ export interface APIClient {
 
   // Search
   searchMessages(serverId: string, params: SearchParams): Promise<SearchResult>;
-}
+};
 
 // Singleton instance
 let apiInstance: APIClient | undefined;

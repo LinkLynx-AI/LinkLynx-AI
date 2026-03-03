@@ -1,5 +1,5 @@
 import { AuthLayout } from "@/app/(auth)/_components/auth-layout";
-import { LoginForm } from "@/features/auth-flow/ui/login-form";
+import { LoginForm } from "@/features/auth-flow";
 import { APP_ROUTES } from "@/shared/config";
 
 export default function LoginPage() {

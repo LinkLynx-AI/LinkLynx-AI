@@ -18,7 +18,7 @@ export type MessageType =
   | 20 // CHAT_INPUT_COMMAND
   | 21; // THREAD_STARTER_MESSAGE
 
-export interface Message {
+export type Message = {
   id: string;
   channelId: string;
   author: User;
@@ -35,9 +35,9 @@ export interface Message {
   referencedMessage: Message | null;
   components?: ActionRow[];
   flags?: number;
-}
+};
 
-export interface Attachment {
+export type Attachment = {
   id: string;
   filename: string;
   size: number;
@@ -47,9 +47,9 @@ export interface Attachment {
   width: number | null;
   height: number | null;
   spoiler: boolean;
-}
+};
 
-export interface Embed {
+export type Embed = {
   title?: string;
   description?: string;
   url?: string;
@@ -67,38 +67,38 @@ export interface Embed {
   };
   fields?: EmbedField[];
   timestamp?: string;
-}
+};
 
-export interface EmbedMedia {
+export type EmbedMedia = {
   url: string;
   width?: number;
   height?: number;
-}
+};
 
-export interface EmbedField {
+export type EmbedField = {
   name: string;
   value: string;
   inline?: boolean;
-}
+};
 
-export interface Reaction {
+export type Reaction = {
   emoji: ReactionEmoji;
   count: number;
   me: boolean;
-}
+};
 
-export interface ReactionEmoji {
+export type ReactionEmoji = {
   id: string | null;
   name: string;
   animated: boolean;
-}
+};
 
-export interface CreateMessageData {
+export type CreateMessageData = {
   content: string;
   referencedMessageId?: string;
   attachments?: File[];
-}
+};
 
-export interface EditMessageData {
+export type EditMessageData = {
   content: string;
-}
+};

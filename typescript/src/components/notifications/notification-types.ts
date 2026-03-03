@@ -1,4 +1,4 @@
-export interface NotificationData {
+export type NotificationData = {
   id: string;
   type: "message" | "mention" | "reply" | "friend_request";
   serverId?: string;
@@ -10,4 +10,4 @@ export interface NotificationData {
   content: string;
   timestamp: string;
   read: boolean;
-}
+};

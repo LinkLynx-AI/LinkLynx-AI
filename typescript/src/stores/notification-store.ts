@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-interface NotificationState {
+type NotificationState = {
   unreads: Record<string, number>;
   mentions: Record<string, number>;
   mutedChannels: string[];
@@ -16,7 +16,7 @@ interface NotificationState {
   getUnreadCount: (channelId: string) => number;
   getMentionCount: (channelId: string) => number;
   isChannelMuted: (channelId: string) => boolean;
-}
+};
 
 export const useNotificationStore = create<NotificationState>((set, get) => ({
   unreads: {},

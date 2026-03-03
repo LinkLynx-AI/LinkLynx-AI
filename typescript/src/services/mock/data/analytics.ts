@@ -1,16 +1,16 @@
-export interface DailyStats {
+export type DailyStats = {
   date: string; // YYYY-MM-DD
   totalMembers: number;
   activeMembers: number;
   newMembers: number;
   messageCount: number;
-}
+};
 
-export interface ChannelActivity {
+export type ChannelActivity = {
   channelId: string;
   channelName: string;
   messageCount: number;
-}
+};
 
 function generateDailyStats(): DailyStats[] {
   const stats: DailyStats[] = [];

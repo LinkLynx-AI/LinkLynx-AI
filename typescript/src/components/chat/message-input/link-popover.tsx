@@ -3,10 +3,10 @@
 import { useState, useRef, useEffect } from "react";
 import { cn } from "@/lib/cn";
 
-interface LinkPopoverProps {
+type LinkPopoverProps = {
   onInsert: (url: string, text: string) => void;
   onClose: () => void;
-}
+};
 
 export function LinkPopover({ onInsert, onClose }: LinkPopoverProps) {
   const [url, setUrl] = useState("");

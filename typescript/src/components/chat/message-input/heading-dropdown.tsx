@@ -3,10 +3,10 @@
 import { useEffect, useRef } from "react";
 import { cn } from "@/lib/cn";
 
-interface HeadingDropdownProps {
+type HeadingDropdownProps = {
   onSelect: (level: 1 | 2 | 3) => void;
   onClose: () => void;
-}
+};
 
 const HEADINGS = [
   { level: 1 as const, label: "見出し1", className: "text-xl font-bold" },

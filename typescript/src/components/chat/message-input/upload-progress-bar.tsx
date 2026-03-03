@@ -3,11 +3,11 @@
 import { X } from "lucide-react";
 import { cn } from "@/lib/cn";
 
-interface UploadProgressBarProps {
+type UploadProgressBarProps = {
   filename: string;
   progress: number;
   onCancel?: () => void;
-}
+};
 
 export function UploadProgressBar({ filename, progress, onCancel }: UploadProgressBarProps) {
   const clampedProgress = Math.min(100, Math.max(0, progress));

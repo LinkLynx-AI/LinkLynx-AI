@@ -1,6 +1,6 @@
 import type { User } from "./user";
 
-export interface Guild {
+export type Guild = {
   id: string;
   name: string;
   icon: string | null;
@@ -11,7 +11,7 @@ export interface Guild {
   boostCount: number;
   features: GuildFeature[];
   description: string | null;
-}
+};
 
 export type GuildFeature =
   | "COMMUNITY"
@@ -22,15 +22,15 @@ export type GuildFeature =
   | "ANIMATED_ICON"
   | "BANNER";
 
-export interface GuildMember {
+export type GuildMember = {
   user: User;
   nick: string | null;
   roles: string[];
   joinedAt: string;
   avatar: string | null;
-}
+};
 
-export interface Role {
+export type Role = {
   id: string;
   name: string;
   color: number;
@@ -39,4 +39,4 @@ export interface Role {
   mentionable: boolean;
   hoist: boolean;
   memberCount: number;
-}
+};

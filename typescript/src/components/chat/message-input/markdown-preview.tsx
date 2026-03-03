@@ -3,10 +3,10 @@
 import { useMemo } from "react";
 import { cn } from "@/lib/cn";
 
-interface MarkdownPreviewProps {
+type MarkdownPreviewProps = {
   content: string;
   visible: boolean;
-}
+};
 
 function renderMarkdown(text: string): string {
   if (!text.trim()) return '<span class="text-discord-text-muted">プレビューなし</span>';

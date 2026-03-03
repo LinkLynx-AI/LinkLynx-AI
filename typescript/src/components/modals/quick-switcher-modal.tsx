@@ -7,14 +7,14 @@ import { useDMChannels } from "@/services/queries/use-channels";
 import { cn } from "@/lib/cn";
 import { useRouter } from "next/navigation";
 
-interface SearchResultItem {
+type SearchResultItem = {
   id: string;
   type: "server" | "channel" | "dm";
   name: string;
   extra?: string;
   icon?: string | null;
   href: string;
-}
+};
 
 export function QuickSwitcherModal({ onClose }: { onClose: () => void }) {
   const [query, setQuery] = useState("");

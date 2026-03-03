@@ -9,12 +9,12 @@ function formatDuration(seconds: number) {
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
-export interface ClipData {
+export type ClipData = {
   id: string;
   duration: number;
   timestamp: string;
   thumbnailUrl?: string;
-}
+};
 
 export function ClipsPreviewCard({
   clip,

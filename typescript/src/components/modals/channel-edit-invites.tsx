@@ -4,14 +4,14 @@ import { useState } from "react";
 import { Trash2, Link } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-interface Invite {
+type Invite = {
   id: string;
   code: string;
   creator: string;
   uses: number;
   maxUses: number | null;
   expiresAt: string | null;
-}
+};
 
 const mockInvites: Invite[] = [
   {

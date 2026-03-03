@@ -1,4 +1,4 @@
-export interface ThreadData {
+export type ThreadData = {
   id: string;
   name: string;
   parentChannelId: string;
@@ -12,4 +12,4 @@ export interface ThreadData {
   archived: boolean;
   locked: boolean;
   ownerId: string;
-}
+};

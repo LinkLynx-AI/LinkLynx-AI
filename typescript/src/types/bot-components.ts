@@ -1,6 +1,6 @@
 export type ButtonStyle = "primary" | "secondary" | "success" | "danger" | "link";
 
-export interface ButtonComponent {
+export type ButtonComponent = {
   type: 2;
   style: ButtonStyle;
   label?: string;
@@ -8,17 +8,17 @@ export interface ButtonComponent {
   customId?: string;
   url?: string;
   disabled?: boolean;
-}
+};
 
-export interface SelectOption {
+export type SelectOption = {
   label: string;
   value: string;
   description?: string;
   emoji?: { id: string | null; name: string; animated: boolean };
   default?: boolean;
-}
+};
 
-export interface SelectMenuComponent {
+export type SelectMenuComponent = {
   type: 3;
   customId: string;
   placeholder?: string;
@@ -26,9 +26,9 @@ export interface SelectMenuComponent {
   minValues?: number;
   maxValues?: number;
   disabled?: boolean;
-}
+};
 
-export interface TextInputComponent {
+export type TextInputComponent = {
   type: 4;
   customId: string;
   style: "short" | "paragraph";
@@ -38,29 +38,29 @@ export interface TextInputComponent {
   required?: boolean;
   minLength?: number;
   maxLength?: number;
-}
+};
 
 export type SelectMenuType = 3 | 5 | 6 | 7 | 8;
 
-export interface UserSelectComponent {
+export type UserSelectComponent = {
   type: 5;
   customId: string;
   placeholder?: string;
   minValues?: number;
   maxValues?: number;
   disabled?: boolean;
-}
+};
 
-export interface RoleSelectComponent {
+export type RoleSelectComponent = {
   type: 6;
   customId: string;
   placeholder?: string;
   minValues?: number;
   maxValues?: number;
   disabled?: boolean;
-}
+};
 
-export interface ChannelSelectComponent {
+export type ChannelSelectComponent = {
   type: 8;
   customId: string;
   placeholder?: string;
@@ -68,9 +68,9 @@ export interface ChannelSelectComponent {
   minValues?: number;
   maxValues?: number;
   disabled?: boolean;
-}
+};
 
-export interface ActionRow {
+export type ActionRow = {
   type: 1;
   components: (
     | ButtonComponent
@@ -79,29 +79,29 @@ export interface ActionRow {
     | RoleSelectComponent
     | ChannelSelectComponent
   )[];
-}
+};
 
-export interface BotModalForm {
+export type BotModalForm = {
   customId: string;
   title: string;
   components: {
     type: 1;
     components: TextInputComponent[];
   }[];
-}
+};
 
-export interface SlashCommand {
+export type SlashCommand = {
   id: string;
   name: string;
   description: string;
   botName: string;
   botAvatar?: string;
   options?: SlashCommandOption[];
-}
+};
 
-export interface SlashCommandOption {
+export type SlashCommandOption = {
   name: string;
   description: string;
   type: "string" | "integer" | "boolean" | "user" | "channel" | "role";
   required?: boolean;
-}
+};

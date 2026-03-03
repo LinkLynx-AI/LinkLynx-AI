@@ -1,5 +1,5 @@
 import { AuthLayout } from "@/app/(auth)/_components/auth-layout";
-import { VerifyEmailPanel } from "@/features/auth-flow/ui/verify-email-panel";
+import { VerifyEmailPanel } from "@/features/auth-flow";
 
 type SearchParamsObject = Record<string, string | string[] | undefined>;
 

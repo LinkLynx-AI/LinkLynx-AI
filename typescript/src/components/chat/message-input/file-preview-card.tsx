@@ -3,7 +3,7 @@
 import { X, File, EyeOff, Image } from "lucide-react";
 import { cn } from "@/lib/cn";
 
-interface FilePreviewCardProps {
+type FilePreviewCardProps = {
   file: {
     name: string;
     size: number;
@@ -15,7 +15,7 @@ interface FilePreviewCardProps {
   isSpoiler?: boolean;
   altText?: string;
   onAltTextChange?: (text: string) => void;
-}
+};
 
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;

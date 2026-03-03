@@ -2,7 +2,7 @@ import { create } from "zustand";
 
 export type ThemeMode = "dark" | "light" | "system";
 
-interface SettingsState {
+type SettingsState = {
   theme: ThemeMode;
   compactMode: boolean;
   fontSize: number;
@@ -20,7 +20,7 @@ interface SettingsState {
   toggle24HourTime: () => void;
   toggleReducedMotion: () => void;
   toggleHighContrast: () => void;
-}
+};
 
 export const useSettingsStore = create<SettingsState>((set) => ({
   theme: "dark",

@@ -3,10 +3,10 @@
 import { Lock } from "lucide-react";
 import { cn } from "@/lib/cn";
 
-interface NitroGateProps {
+type NitroGateProps = {
   feature: string;
   children: React.ReactNode;
-}
+};
 
 export function NitroGate({ feature, children }: NitroGateProps) {
   return (

@@ -1,19 +1,19 @@
-export interface PaymentMethod {
+export type PaymentMethod = {
   id: string;
   type: "visa" | "mastercard" | "paypal";
   last4: string;
   expiresMonth: number;
   expiresYear: number;
   isDefault: boolean;
-}
+};
 
-export interface BillingHistoryEntry {
+export type BillingHistoryEntry = {
   id: string;
   date: string;
   description: string;
   amount: number; // in yen
   status: "paid" | "pending" | "failed";
-}
+};
 
 export const mockPaymentMethods: PaymentMethod[] = [
   {

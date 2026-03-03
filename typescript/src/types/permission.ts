@@ -19,12 +19,12 @@ export const PermissionFlag = {
   MANAGE_ROLES: 1 << 28,
 } as const;
 
-export interface PermissionOverwrite {
+export type PermissionOverwrite = {
   id: string;
   type: "role" | "member";
   allow: number;
   deny: number;
-}
+};
 
 export function hasPermission(permissions: number, flag: number): boolean {
   return (permissions & flag) === flag;

@@ -5,11 +5,11 @@ import { Modal } from "@/components/ui/modal";
 import { Avatar } from "@/components/ui/avatar";
 import { cn } from "@/lib/cn";
 
-interface MockVoter {
+type MockVoter = {
   id: string;
   displayName: string;
   avatar: string | null;
-}
+};
 
 const mockPollOptions = [
   { id: "opt1", text: "オプション A", emoji: "🅰️", votes: 8 },

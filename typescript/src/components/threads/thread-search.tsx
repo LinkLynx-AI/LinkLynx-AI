@@ -6,13 +6,13 @@ import { Search, X } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { mockUsers } from "@/services/mock/data/users";
 
-interface SearchResult {
+type SearchResult = {
   messageId: string;
   content: string;
   authorName: string;
   authorAvatar: string | null;
   timestamp: string;
-}
+};
 
 const mockSearchResults: SearchResult[] = [
   {

@@ -1,9 +1,9 @@
-export interface EmojiItem {
+export type EmojiItem = {
   emoji: string;
   name: string;
   category: string;
   keywords?: string[];
-}
+};
 
 export const EMOJI_CATEGORIES = [
   { id: "recent", name: "最近使った絵文字", icon: "🕐" },

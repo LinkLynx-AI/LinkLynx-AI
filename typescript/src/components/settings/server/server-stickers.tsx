@@ -4,12 +4,12 @@ import { useState } from "react";
 import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-interface ServerSticker {
+type ServerSticker = {
   id: string;
   name: string;
   description: string;
   color: string;
-}
+};
 
 const initialStickers: ServerSticker[] = [
   { id: "s1", name: "wave", description: "手を振る挨拶", color: "#3498db" },

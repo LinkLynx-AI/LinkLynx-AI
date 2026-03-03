@@ -6,13 +6,13 @@ import { cn } from "@/lib/cn";
 import { Avatar } from "@/components/ui/avatar";
 import { useVoiceStore } from "@/stores/voice-store";
 
-interface StageParticipant {
+type StageParticipant = {
   userId: string;
   displayName: string;
   avatar: string | null;
   speaking: boolean;
   muted: boolean;
-}
+};
 
 const MOCK_SPEAKERS: StageParticipant[] = [
   {

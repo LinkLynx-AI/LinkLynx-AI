@@ -7,11 +7,11 @@ import type { User } from "@/types/user";
 import { UserMention, ChannelMention, EveryoneMention, HereMention } from "./mention";
 import { CodeBlock } from "./code-block";
 
-interface MessageContentProps {
+type MessageContentProps = {
   content: string;
   mentions?: User[];
   channelNames?: Record<string, string>;
-}
+};
 
 export function MessageContent({ content, mentions = [], channelNames = {} }: MessageContentProps) {
   const nodes = parseDiscordMarkdown(content);

@@ -30,24 +30,24 @@ export type ModalType =
 
 export type RightPanelType = "members" | "threads" | "search" | "pinned" | "inbox" | null;
 
-interface Toast {
+type Toast = {
   id: string;
   message: string;
   type: "info" | "success" | "error";
-}
+};
 
-interface ContextMenuState {
+type ContextMenuState = {
   type: string;
   position: { x: number; y: number };
   data: unknown;
-}
+};
 
-interface ProfilePopoutState {
+type ProfilePopoutState = {
   userId: string;
   position: { x: number; y: number };
-}
+};
 
-interface UIState {
+type UIState = {
   // Sidebar visibility
   memberListVisible: boolean;
   channelSidebarWidth: number;
@@ -86,7 +86,7 @@ interface UIState {
   removeToast: (id: string) => void;
   toggleDeveloperMode: () => void;
   toggleStreamerMode: () => void;
-}
+};
 
 export const useUIStore = create<UIState>((set) => ({
   memberListVisible: true,

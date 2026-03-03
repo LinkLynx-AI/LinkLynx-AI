@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import type { User, UserStatus } from "@/types/user";
 
-interface AuthState {
+type AuthState = {
   currentUser: User | null;
   status: UserStatus;
   customStatus: string | null;
@@ -9,7 +9,7 @@ interface AuthState {
   setCurrentUser: (user: User) => void;
   setStatus: (status: UserStatus) => void;
   setCustomStatus: (text: string | null) => void;
-}
+};
 
 export const useAuthStore = create<AuthState>((set) => ({
   currentUser: null,

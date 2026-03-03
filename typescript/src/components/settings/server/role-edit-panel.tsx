@@ -20,12 +20,12 @@ const TABS = [
   { id: "links", label: "リンク" },
 ];
 
-interface PermissionDef {
+type PermissionDef = {
   flag: number;
   label: string;
   description: string;
   category: string;
-}
+};
 
 const PERMISSION_DEFS: PermissionDef[] = [
   {

@@ -4,7 +4,7 @@ import { MicOff, HeadphoneOff } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Avatar } from "@/components/ui/avatar";
 
-interface VoiceParticipantData {
+type VoiceParticipantData = {
   userId: string;
   muted: boolean;
   deafened: boolean;
@@ -13,7 +13,7 @@ interface VoiceParticipantData {
   screenSharing: boolean;
   displayName: string;
   avatar: string | null;
-}
+};
 
 export function VoiceParticipantTile({
   participant,

@@ -1,4 +1,4 @@
-export interface Webhook {
+export type Webhook = {
   id: string;
   type: 1 | 2 | 3;
   guildId: string;
@@ -12,12 +12,12 @@ export interface Webhook {
     username: string;
     avatar: string | null;
   };
-}
+};
 
-export interface WebhookCreateData {
+export type WebhookCreateData = {
   name: string;
   avatar?: string;
   channelId: string;
-}
+};
 
 export type WebhookUpdateData = Partial<Pick<Webhook, "name" | "avatar" | "channelId">>;

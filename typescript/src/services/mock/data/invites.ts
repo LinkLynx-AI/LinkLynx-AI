@@ -1,4 +1,4 @@
-export interface Invite {
+export type Invite = {
   code: string;
   channelName: string;
   creatorUsername: string;
@@ -7,7 +7,7 @@ export interface Invite {
   maxUses: number | null;
   expiresAt: string | null;
   createdAt: string;
-}
+};
 
 export const mockInvites: Invite[] = [
   {

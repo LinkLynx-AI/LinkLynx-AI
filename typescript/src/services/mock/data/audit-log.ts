@@ -1,4 +1,4 @@
-export interface AuditLogEntry {
+export type AuditLogEntry = {
   id: string;
   userId: string;
   username: string;
@@ -18,7 +18,7 @@ export interface AuditLogEntry {
   reason?: string;
   changes?: { key: string; oldValue: string; newValue: string }[];
   createdAt: string;
-}
+};
 
 export const mockAuditLogEntries: AuditLogEntry[] = [
   {

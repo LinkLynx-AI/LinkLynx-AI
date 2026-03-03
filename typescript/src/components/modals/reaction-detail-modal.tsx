@@ -5,11 +5,11 @@ import { Modal } from "@/components/ui/modal";
 import { Avatar } from "@/components/ui/avatar";
 import { cn } from "@/lib/cn";
 
-interface MockUser {
+type MockUser = {
   id: string;
   displayName: string;
   avatar: string | null;
-}
+};
 
 const mockReactionUsers: Record<string, MockUser[]> = {
   "👍": [

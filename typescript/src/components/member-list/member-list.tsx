@@ -12,10 +12,10 @@ function numberToHex(color: number): string {
   return `#${color.toString(16).padStart(6, "0")}`;
 }
 
-interface MemberGroup {
+type MemberGroup = {
   role: Role;
   members: GuildMember[];
-}
+};
 
 function groupMembersByRole(members: GuildMember[], roles: Role[]): MemberGroup[] {
   const roleMap = new Map(roles.map((r) => [r.id, r]));

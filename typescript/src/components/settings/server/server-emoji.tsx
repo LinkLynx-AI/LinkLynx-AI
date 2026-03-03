@@ -5,12 +5,12 @@ import { Trash2 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 
-interface ServerEmojiItem {
+type ServerEmojiItem = {
   id: string;
   name: string;
   color: string;
   uploadedBy: string;
-}
+};
 
 const initialEmojis: ServerEmojiItem[] = [
   { id: "e1", name: "pepe_happy", color: "#2ecc71", uploadedBy: "alice" },

@@ -9,12 +9,12 @@ import { ServerIcon } from "./server-icon";
 import { useGuildStore } from "@/stores/guild-store";
 import type { Guild } from "@/types/server";
 
-export interface ServerFolderData {
+export type ServerFolderData = {
   id: string;
   name: string;
   color: string;
   servers: Guild[];
-}
+};
 
 export function ServerFolder({
   folder,

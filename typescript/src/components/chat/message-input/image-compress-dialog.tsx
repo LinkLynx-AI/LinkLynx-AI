@@ -3,13 +3,13 @@
 import { cn } from "@/lib/cn";
 import { ImageDown, X } from "lucide-react";
 
-interface ImageCompressDialogProps {
+type ImageCompressDialogProps = {
   filename: string;
   originalSize: number;
   onCompress: () => void;
   onKeepOriginal: () => void;
   onClose: () => void;
-}
+};
 
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;

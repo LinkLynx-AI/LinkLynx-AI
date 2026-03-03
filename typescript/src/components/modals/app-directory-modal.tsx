@@ -5,13 +5,13 @@ import { Search, X } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { cn } from "@/lib/cn";
 
-interface AppInfo {
+type AppInfo = {
   id: string;
   name: string;
   description: string;
   color: string;
   category: string;
-}
+};
 
 const mockApps: AppInfo[] = [
   {

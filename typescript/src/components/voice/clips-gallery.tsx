@@ -4,13 +4,13 @@ import { Play, Share2, Trash2, Film } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Tooltip } from "@/components/ui/tooltip";
 
-export interface ClipItem {
+export type ClipItem = {
   id: string;
   duration: number;
   timestamp: string;
   thumbnailUrl?: string;
   channelName: string;
-}
+};
 
 function formatDuration(seconds: number) {
   const m = Math.floor(seconds / 60);

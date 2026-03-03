@@ -1,5 +1,5 @@
 import { AuthLayout } from "@/app/(auth)/_components/auth-layout";
-import { PasswordResetForm } from "@/features/auth-flow/ui/password-reset-form";
+import { PasswordResetForm } from "@/features/auth-flow";
 import { APP_ROUTES } from "@/shared/config";
 
 export default function PasswordResetPage() {

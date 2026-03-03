@@ -5,12 +5,12 @@ import { cn } from "@/lib/cn";
 import { Hash, Volume2 } from "lucide-react";
 import type { ChannelSelectComponent } from "@/types/bot-components";
 
-interface MockChannel {
+type MockChannel = {
   id: string;
   name: string;
   type: number; // 0 = text, 2 = voice
   category: string;
-}
+};
 
 const mockChannels: MockChannel[] = [
   { id: "ch-1", name: "一般", type: 0, category: "テキストチャンネル" },

@@ -5,13 +5,13 @@ import { Search } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 
-interface BannedUser {
+type BannedUser = {
   id: string;
   username: string;
   displayName: string;
   avatar: string | null;
   reason: string;
-}
+};
 
 const initialBans: BannedUser[] = [
   {

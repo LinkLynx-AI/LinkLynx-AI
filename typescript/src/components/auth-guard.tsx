@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { useAuthSession } from "@/entities/auth/ui/auth-provider";
+import { useAuthSession } from "@/entities/auth";
 import { APP_ROUTES } from "@/shared/config";
 
 type AuthGuardProps = {

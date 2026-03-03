@@ -4,14 +4,14 @@ import { useState } from "react";
 import { Send } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 
-interface VoiceChatMessage {
+type VoiceChatMessage = {
   id: string;
   userId: string;
   displayName: string;
   avatar?: string;
   content: string;
   timestamp: string;
-}
+};
 
 const mockMessages: VoiceChatMessage[] = [
   {

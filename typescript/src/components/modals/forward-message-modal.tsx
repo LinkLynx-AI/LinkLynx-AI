@@ -9,13 +9,13 @@ import { useServers } from "@/services/queries/use-servers";
 import { useDMChannels } from "@/services/queries/use-channels";
 import type { Message } from "@/types/message";
 
-interface ForwardDestination {
+type ForwardDestination = {
   id: string;
   type: "channel" | "dm";
   name: string;
   serverName?: string;
   avatar?: string | null;
-}
+};
 
 export function ForwardMessageModal({
   onClose,

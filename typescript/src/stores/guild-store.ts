@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-interface GuildState {
+type GuildState = {
   // Currently selected server (null = DM view)
   activeServerId: string | null;
   activeChannelId: string | null;
@@ -19,7 +19,7 @@ interface GuildState {
   setActiveChannel: (channelId: string) => void;
   toggleCategory: (serverId: string, categoryId: string) => void;
   toggleFolder: (folderId: string) => void;
-}
+};
 
 export const useGuildStore = create<GuildState>((set) => ({
   activeServerId: null,

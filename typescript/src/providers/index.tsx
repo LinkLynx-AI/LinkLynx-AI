@@ -2,7 +2,7 @@
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState } from "react";
-import { AuthProvider } from "@/entities/auth/ui/auth-provider";
+import { AuthProvider } from "@/entities/auth";
 import { AuthBridge } from "./auth-bridge";
 
 export function Providers({ children }: { children: React.ReactNode }) {

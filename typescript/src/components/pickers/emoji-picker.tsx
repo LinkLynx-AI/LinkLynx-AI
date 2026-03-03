@@ -6,12 +6,12 @@ import { cn } from "@/lib/cn";
 import { NitroGate } from "@/components/ui/nitro-gate";
 import { EMOJI_CATEGORIES, EMOJI_DATA, type EmojiCategoryId } from "./emoji-data";
 
-interface EmojiPickerProps {
+type EmojiPickerProps = {
   mode: "input" | "reaction";
   onSelect: (emoji: string) => void;
   onClose: () => void;
   position?: { x: number; y: number };
-}
+};
 
 export function EmojiPicker({ mode, onSelect, onClose, position }: EmojiPickerProps) {
   const [search, setSearch] = useState("");

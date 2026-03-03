@@ -21,20 +21,20 @@ import { Tooltip } from "@/components/ui/tooltip";
 import { HeadingDropdown } from "./heading-dropdown";
 import { LinkPopover } from "./link-popover";
 
-interface FormattingToolbarProps {
+type FormattingToolbarProps = {
   textareaRef: RefObject<HTMLTextAreaElement | null>;
   content: string;
   setContent: (s: string) => void;
   onTogglePreview?: () => void;
   showPreview?: boolean;
-}
+};
 
-interface FormatButton {
+type FormatButton = {
   icon: React.ElementType;
   label: string;
   prefix: string;
   suffix: string;
-}
+};
 
 const FORMAT_BUTTONS: FormatButton[] = [
   { icon: Bold, label: "太字", prefix: "**", suffix: "**" },

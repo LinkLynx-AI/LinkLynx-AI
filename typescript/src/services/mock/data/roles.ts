@@ -23,7 +23,7 @@ export const PERMISSION_FLAGS = {
   MANAGE_ROLES: 1 << 28,
 } as const;
 
-export interface MockRole {
+export type MockRole = {
   id: string;
   name: string;
   color: string;
@@ -32,7 +32,7 @@ export interface MockRole {
   hoist: boolean;
   mentionable: boolean;
   memberCount: number;
-}
+};
 
 const ALL_PERMISSIONS =
   PERMISSION_FLAGS.ADMINISTRATOR |

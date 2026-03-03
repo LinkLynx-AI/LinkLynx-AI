@@ -1,14 +1,14 @@
-export interface Sound {
+export type Sound = {
   id: string;
   name: string;
   emoji: string;
   duration: number;
   favorite: boolean;
   category: string;
-}
+};
 
-export interface SoundCategory {
+export type SoundCategory = {
   id: string;
   name: string;
   sounds: Sound[];
-}
+};

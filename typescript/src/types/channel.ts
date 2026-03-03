@@ -10,14 +10,14 @@ export type ChannelType =
   | 13 // GUILD_STAGE_VOICE
   | 15; // GUILD_FORUM
 
-export interface PermissionOverwrite {
+export type PermissionOverwrite = {
   id: string;
   type: "role" | "member";
   allow: number;
   deny: number;
-}
+};
 
-export interface Channel {
+export type Channel = {
   id: string;
   type: ChannelType;
   guildId?: string;
@@ -32,11 +32,11 @@ export interface Channel {
   lastMessageId: string | null;
   slowModeInterval?: number;
   permissionOverwrites?: PermissionOverwrite[];
-}
+};
 
-export interface ChannelCategory {
+export type ChannelCategory = {
   id: string;
   name: string;
   position: number;
   channels: Channel[];
-}
+};

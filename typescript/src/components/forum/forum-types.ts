@@ -1,4 +1,4 @@
-export interface ForumPost {
+export type ForumPost = {
   id: string;
   title: string;
   content: string;
@@ -10,10 +10,10 @@ export interface ForumPost {
   pinned: boolean;
   locked: boolean;
   image?: string;
-}
+};
 
-export interface ForumTag {
+export type ForumTag = {
   id: string;
   name: string;
   color: string;
-}
+};

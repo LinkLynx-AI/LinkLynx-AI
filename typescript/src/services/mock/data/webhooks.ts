@@ -1,4 +1,4 @@
-export interface WebhookData {
+export type WebhookData = {
   id: string;
   name: string;
   channelId: string;
@@ -7,7 +7,7 @@ export interface WebhookData {
   token: string;
   createdAt: string;
   lastUsed: string | null;
-}
+};
 
 export const mockWebhooks: WebhookData[] = [
   {

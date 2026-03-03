@@ -1,6 +1,6 @@
 export type UserStatus = "online" | "idle" | "dnd" | "offline";
 
-export interface User {
+export type User = {
   id: string;
   username: string;
   displayName: string;
@@ -8,15 +8,15 @@ export interface User {
   status: UserStatus;
   customStatus: string | null;
   bot: boolean;
-}
+};
 
-export interface UserProfile extends User {
+export type UserProfile = {
   banner: string | null;
   bio: string | null;
   accentColor: number | null;
   badges: UserBadge[];
   createdAt: string;
-}
+} & User;
 
 export type UserBadge =
   | "nitro"
