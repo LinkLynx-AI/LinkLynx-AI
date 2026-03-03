@@ -363,6 +363,7 @@ CREATE TABLE public.guild_roles_v2 (
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     source_level public.role_level,
     CONSTRAINT chk_guild_roles_v2_name_non_empty CHECK ((length(name) > 0)),
+    CONSTRAINT chk_guild_roles_v2_role_key_format CHECK ((role_key ~ '^[a-z0-9_]{1,64}$'::text)),
     CONSTRAINT chk_guild_roles_v2_role_key_non_empty CHECK ((length(role_key) > 0))
 );
 

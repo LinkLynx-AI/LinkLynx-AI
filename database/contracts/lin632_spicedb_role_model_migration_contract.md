@@ -27,6 +27,9 @@ Out of scope:
 
 - PK: `(guild_id, role_key)`
 - 任意 `role_key` を許可し、`priority` で評価順を定義する。
+- `role_key` naming rule:
+  - regex: `^[a-z0-9_]{1,64}$`
+  - lowercase英数字と`_`のみを許可し、guild内で一意に扱う。
 - 標準操作権限を `allow_view` / `allow_post` / `allow_manage` で保持する。
 - `source_level` は v0 (`role_level`) からの移行痕跡を保持する。
 
@@ -35,6 +38,7 @@ Out of scope:
 - PK: `(guild_id, user_id, role_key)`
 - 1 member に複数 role を割り当て可能。
 - `guild_members` と `guild_roles_v2` をFKで参照する。
+- `assigned_by` は `ON DELETE SET NULL` とし、割当履歴は残しつつ削除済みactorを参照不能にする（監査互換のため）。
 
 ### 1.3 `channel_role_permission_overrides_v2`
 
@@ -104,6 +108,12 @@ Note:
 - 本Issueでは v0テーブルを削除しない。
 - 既存 `role_level` モデルは移行期間のSoRとして残す。
 - 破壊的変更は後続Issueで明示的に段階実施する。
+- retained permission-related columns/tables in this phase:
+  - `guild_roles.level`
+  - `guild_member_roles.level`
+  - `channel_permission_overrides.level/can_view/can_post`
+  - reason: rollback safety と dual-write整合性のため（Phase 2/3完了まで保持）。
+- deletion candidates are tracked as post-cutover work, not in LIN-632 scope.
 
 ## 5. Validation
 
@@ -123,4 +133,3 @@ SELECT count(*) FROM guild_roles_v2 WHERE source_level IS NOT NULL;
 SELECT count(*) FROM guild_member_roles;
 SELECT count(*) FROM guild_member_roles_v2 WHERE role_key IN ('owner','admin','member');
 ```
-

@@ -13,6 +13,7 @@ CREATE TABLE guild_roles_v2 (
 
   PRIMARY KEY (guild_id, role_key),
   CONSTRAINT chk_guild_roles_v2_role_key_non_empty CHECK (length(role_key) > 0),
+  CONSTRAINT chk_guild_roles_v2_role_key_format CHECK (role_key ~ '^[a-z0-9_]{1,64}$'),
   CONSTRAINT chk_guild_roles_v2_name_non_empty CHECK (length(name) > 0)
 );
 

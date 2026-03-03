@@ -1595,6 +1595,16 @@
           ]
         },
         {
+          "name": "chk_guild_roles_v2_role_key_format",
+          "type": "CHECK",
+          "def": "CHECK ((role_key ~ '^[a-z0-9_]{1,64}$'::text))",
+          "table": "public.guild_roles_v2",
+          "referenced_table": "",
+          "columns": [
+            "role_key"
+          ]
+        },
+        {
           "name": "chk_guild_roles_v2_role_key_non_empty",
           "type": "CHECK",
           "def": "CHECK ((length(role_key) \u003e 0))",

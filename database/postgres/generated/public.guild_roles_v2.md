@@ -23,6 +23,7 @@
 | Name | Type | Definition |
 | ---- | ---- | ---------- |
 | chk_guild_roles_v2_name_non_empty | CHECK | CHECK ((length(name) > 0)) |
+| chk_guild_roles_v2_role_key_format | CHECK | CHECK ((role_key ~ '^[a-z0-9_]{1,64}$'::text)) |
 | chk_guild_roles_v2_role_key_non_empty | CHECK | CHECK ((length(role_key) > 0)) |
 | guild_roles_v2_guild_id_fkey | FOREIGN KEY | FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE |
 | guild_roles_v2_pkey | PRIMARY KEY | PRIMARY KEY (guild_id, role_key) |
