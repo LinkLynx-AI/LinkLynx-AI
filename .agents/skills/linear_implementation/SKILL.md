@@ -6,7 +6,7 @@ description: Implement linklinx-AI Linear issues with one issue equals one PR de
 # linear-implementation
 
 ## 0. Critical Merge Policy
-- For child issues, PR base branch must be the parent issue branch.
+- For child issues, PR base branch must be the parent issue branch, except when section 3.2 applies.
 - If PR base branch is `main`, do not auto-merge.
 - Mark PR ready for human review and stop.
 - Include a review checklist in PR body for human approval.
@@ -71,6 +71,14 @@ When the initial request is already a smallest executable unit (single task and 
 3. Open one PR from the current branch to `main`.
 4. Follow `main` merge policy: do not auto-merge, mark ready for human review, and stop.
 
+## 3.2 Child Issue Handling from Start
+When the initial request is already a child issue and no instruction is given to run the parent issue flow:
+1. Treat it as a single-issue run with one issue equals one PR.
+2. Use a dedicated branch for that child issue.
+3. Open one PR from the child-issue branch to `main`.
+4. Follow `main` merge policy: do not auto-merge, mark ready for human review, and stop.
+5. Do not start sibling child issues unless explicitly requested.
+
 ## 4. Persistent Memory Files Required
 Create and maintain the following files during long runs.
 - `Prompt.md` for fixed goals, non-goals, done conditions
@@ -90,7 +98,7 @@ The following flow is mandatory per child issue and must be executed in this ord
 3. Run review agents (`reviewer`, `reviewer_ui_guard`, and `reviewer_ui` when required).
 4. If review/validation gate is not passed, run sub-agents again and repeat from implementation.
 5. For non-trivial changes, run the runtime smoke gate (`make dev` startup/access check and Playwright behavior check).
-6. Open PR from child-issue branch to the parent branch and merge according to policy (or to `main` when section 3.1 applies).
+6. Open PR from child-issue branch to the parent branch and merge according to policy (or to `main` when section 3.1 or 3.2 applies).
 7. Start the next child issue only after the current child issue is merged and evidence is recorded.
 
 For each child issue execute the same loop.
@@ -181,7 +189,7 @@ When a run is resumed after interruption:
 
 For sequential issue runs:
 - Open and merge one PR per issue.
-- For child issues, open PRs with the parent issue branch as the base branch.
+- For child issues, open PRs with the parent issue branch as the base branch, except when section 3.2 applies.
 - For non-`main` base branches, enable auto-merge only after reviewer sub-agent approval (via final meta review pass) and required validations pass.
 - For `main` base branch, require human approval before merge.
 - Rebase or branch from latest base before starting next issue.
