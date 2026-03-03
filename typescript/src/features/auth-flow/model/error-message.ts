@@ -1,4 +1,4 @@
-import type { AuthActionError } from "@/entities";
+import type { AuthActionError, PrincipalProvisionError } from "@/entities";
 
 export const PASSWORD_RESET_COMPLETION_MESSAGE =
   "メールアドレスが登録されている場合、パスワード再設定メールを送信しました。";
@@ -61,5 +61,43 @@ export function getVerifyEmailErrorMessage(error: AuthActionError): string {
       return "ネットワークエラーが発生しました。接続を確認して再試行してください。";
     default:
       return "メール確認処理に失敗しました。時間をおいて再試行してください。";
+  }
+}
+
+function appendRequestIdSuffix(message: string, requestId: string | null): string {
+  if (requestId === null) {
+    return message;
+  }
+
+  return `${message} (request_id: ${requestId})`;
+}
+
+/**
+ * principal 自動作成導線の失敗を表示文言へ変換する。
+ */
+export function getPrincipalProvisionErrorMessage(error: PrincipalProvisionError): string {
+  switch (error.code) {
+    case "unauthenticated":
+      return "セッションが無効です。再度ログインしてください。";
+    case "email-not-verified":
+      return "メール確認が未完了です。確認後に再試行してください。";
+    case "principal-not-mapped":
+      return appendRequestIdSuffix(
+        "アカウント初期化に失敗しました。時間をおいて再試行してください。",
+        error.requestId,
+      );
+    case "auth-unavailable":
+      return appendRequestIdSuffix(
+        "認証基盤が一時的に利用できません。時間をおいて再試行してください。",
+        error.requestId,
+      );
+    case "network-request-failed":
+      return "ネットワークエラーが発生しました。接続を確認して再試行してください。";
+    case "unexpected-response":
+    case "unknown":
+      return appendRequestIdSuffix(
+        "アカウント初期化で予期しないエラーが発生しました。時間をおいて再試行してください。",
+        error.requestId,
+      );
   }
 }

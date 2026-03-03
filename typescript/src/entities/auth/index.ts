@@ -2,6 +2,9 @@ export type {
   AuthActionError,
   AuthActionErrorCode,
   AuthActionResult,
+  PrincipalProvisionError,
+  PrincipalProvisionErrorCode,
+  PrincipalProvisionResult,
   AuthSession,
   AuthSessionContextValue,
   AuthSessionStatus,
@@ -9,6 +12,7 @@ export type {
   AuthUser,
 } from "./model";
 export {
+  ensurePrincipalProvisionedForCurrentUser,
   loginWithEmailAndPassword,
   registerWithEmailAndPassword,
   reloadCurrentAuthUser,

@@ -97,6 +97,14 @@ mod tests {
         app_with_state(state)
     }
 
+    async fn parse_principal_id_from_response(response: Response) -> i64 {
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        json["principal_id"].as_i64().unwrap()
+    }
+
     #[tokio::test]
     async fn root_returns_server_name() {
         let app = app_for_test().await;
@@ -138,7 +146,7 @@ mod tests {
         let response = app
             .oneshot(
                 Request::builder()
-                    .uri("/v1/protected/ping")
+                    .uri("/protected/ping")
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -155,7 +163,7 @@ mod tests {
         let response = app
             .oneshot(
                 Request::builder()
-                    .uri("/v1/protected/ping")
+                    .uri("/protected/ping")
                     .header("authorization", format!("Bearer {token}"))
                     .header("x-request-id", "test-req-id")
                     .body(Body::empty())
@@ -180,18 +188,72 @@ mod tests {
     async fn protected_endpoint_provisions_missing_mapping() {
         let app = app_for_test().await;
         let token = format!("u-unknown:{}", unix_timestamp_seconds() + 300);
-        let response = app
+        let first_response = app
+            .clone()
             .oneshot(
                 Request::builder()
-                    .uri("/v1/protected/ping")
+                    .uri("/protected/ping")
                     .header("authorization", format!("Bearer {token}"))
                     .body(Body::empty())
                     .unwrap(),
             )
             .await
             .unwrap();
+        assert_eq!(first_response.status(), StatusCode::OK);
+        let first_principal_id = parse_principal_id_from_response(first_response).await;
 
-        assert_eq!(response.status(), StatusCode::OK);
+        let second_response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/protected/ping")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(second_response.status(), StatusCode::OK);
+        let second_principal_id = parse_principal_id_from_response(second_response).await;
+
+        assert_eq!(first_principal_id, second_principal_id);
+    }
+
+    #[tokio::test]
+    async fn protected_endpoint_concurrent_retry_reuses_same_principal() {
+        let app = app_for_test().await;
+        let token = format!("u-concurrent:{}", unix_timestamp_seconds() + 300);
+
+        let mut handles = Vec::new();
+        for _ in 0..6 {
+            let app_clone = app.clone();
+            let token_clone = token.clone();
+            handles.push(tokio::spawn(async move {
+                app_clone
+                    .oneshot(
+                        Request::builder()
+                            .uri("/protected/ping")
+                            .header("authorization", format!("Bearer {token_clone}"))
+                            .body(Body::empty())
+                            .unwrap(),
+                    )
+                    .await
+                    .unwrap()
+            }));
+        }
+
+        let mut principal_ids = Vec::new();
+        for handle in handles {
+            let response = handle.await.unwrap();
+            assert_eq!(response.status(), StatusCode::OK);
+            principal_ids.push(parse_principal_id_from_response(response).await);
+        }
+
+        let expected = principal_ids.first().copied().unwrap();
+        assert!(
+            principal_ids.iter().all(|principal_id| *principal_id == expected),
+            "all concurrent retries must resolve to the same principal_id"
+        );
     }
 
     #[tokio::test]
@@ -201,7 +263,7 @@ mod tests {
         let response = app
             .oneshot(
                 Request::builder()
-                    .uri("/v1/protected/ping")
+                    .uri("/protected/ping")
                     .header("authorization", format!("Bearer {token}"))
                     .header("x-request-id", "authz-denied-test")
                     .body(Body::empty())
@@ -226,7 +288,7 @@ mod tests {
         let response = app
             .oneshot(
                 Request::builder()
-                    .uri("/v1/protected/ping")
+                    .uri("/protected/ping")
                     .header("authorization", format!("Bearer {token}"))
                     .header("x-request-id", "authz-unavailable-test")
                     .body(Body::empty())

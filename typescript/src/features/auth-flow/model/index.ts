@@ -25,6 +25,7 @@ export function buildVerifyEmailRoute(params: { email: string | null; sent?: boo
 
 export {
   getLoginErrorMessage,
+  getPrincipalProvisionErrorMessage,
   getRegisterErrorMessage,
   getVerifyEmailErrorMessage,
   PASSWORD_RESET_COMPLETION_MESSAGE,
