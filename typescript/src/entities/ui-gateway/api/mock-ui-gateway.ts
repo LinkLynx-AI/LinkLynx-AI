@@ -62,9 +62,17 @@ const SETTINGS_SHELL_NAVIGATION: SettingsShellNavigation = {
 };
 
 const CHANNELS_ME_CONTENT: MessagePreviewContent = {
-  title: "@me",
-  description: "利用可能な機能を確認するための画面です。",
-  quickActions: [],
+  title: "@me ダッシュボード",
+  description:
+    "保護ルートの表示プレビューです。`?state=loading|empty|error|readonly|disabled` または `?guard=unauthenticated|forbidden|not-found|service-unavailable` を付与して状態を確認できます。",
+  quickActions: [
+    { label: "loading", href: `${APP_ROUTES.channels.me}?state=loading` },
+    { label: "unauthenticated", href: `${APP_ROUTES.channels.me}?guard=unauthenticated` },
+    {
+      label: "service-unavailable",
+      href: `${APP_ROUTES.channels.me}?guard=service-unavailable`,
+    },
+  ],
 };
 
 const PROFILE_SETTINGS_CONTENT: MessagePreviewContent = {

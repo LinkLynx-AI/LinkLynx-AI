@@ -1,5 +1,6 @@
 mod auth;
 mod authz;
+mod guild_channel;
 
 use std::{
     env,
@@ -20,14 +21,19 @@ use authz::{
 use axum::{
     body::Body,
     extract::{
+        rejection::JsonRejection,
         ws::{CloseFrame, Message, WebSocket, WebSocketUpgrade},
-        Extension, State,
+        Extension, Path, State,
     },
-    http::{HeaderMap, Request},
+    http::{HeaderMap, Request, StatusCode},
     middleware::{self, Next},
     response::{IntoResponse, Response},
     routing::get,
     Json, Router,
+};
+use guild_channel::{
+    build_runtime_guild_channel_service, guild_channel_error_response, GuildChannelError,
+    GuildChannelService,
 };
 use serde::{Deserialize, Serialize};
 use tower_http::cors::{Any, CorsLayer};
@@ -37,6 +43,7 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 pub(crate) struct AppState {
     auth_service: Arc<AuthService>,
     authorizer: Arc<dyn Authorizer>,
+    guild_channel_service: Arc<dyn GuildChannelService>,
     ws_reauth_grace: Duration,
 }
 
@@ -83,6 +90,7 @@ fn build_runtime_state() -> AppState {
     let metrics = Arc::new(AuthMetrics::default());
     let auth_service = Arc::new(build_runtime_auth_service(Arc::clone(&metrics)));
     let authorizer = build_runtime_authorizer();
+    let guild_channel_service = build_runtime_guild_channel_service();
     let ws_reauth_grace = Duration::from_secs(
         env::var("WS_REAUTH_GRACE_SECONDS")
             .ok()
@@ -93,6 +101,7 @@ fn build_runtime_state() -> AppState {
     AppState {
         auth_service,
         authorizer,
+        guild_channel_service,
         ws_reauth_grace,
     }
 }

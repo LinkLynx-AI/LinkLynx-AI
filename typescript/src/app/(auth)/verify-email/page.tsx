@@ -1,5 +1,7 @@
-import { AuthLayout } from "@/app/(auth)/_components/auth-layout";
-import { VerifyEmailPanel } from "@/features/auth-flow";
+import { createUiGateway } from "@/entities";
+import { normalizeReturnToPath } from "@/shared/config";
+import { AuthRoutePreview } from "@/app/(auth)/_components/auth-route-preview";
+import { VerifyEmailPanel } from "@/features";
 
 type SearchParamsObject = Record<string, string | string[] | undefined>;
 
@@ -14,16 +16,18 @@ function toSingleValue(value: string | string[] | undefined): string | null {
 }
 
 export default async function VerifyEmailPage({ searchParams }: VerifyEmailPageProps) {
-  const resolved = await Promise.resolve(searchParams ?? {});
-  const initialEmail = toSingleValue(resolved.email);
-  const initialSent = toSingleValue(resolved.sent);
+  const uiGateway = createUiGateway();
+  const [content, resolvedSearchParams] = await Promise.all([
+    uiGateway.auth.getRouteContent("verify-email"),
+    Promise.resolve(searchParams ?? {}),
+  ]);
+  const initialEmail = toSingleValue(resolvedSearchParams.email);
+  const initialSent = toSingleValue(resolvedSearchParams.sent);
+  const returnTo = normalizeReturnToPath(toSingleValue(resolvedSearchParams.returnTo));
 
   return (
-    <AuthLayout
-      title="メールを確認してください"
-      description="登録したメールアドレスに確認リンクを送りました"
-    >
-      <VerifyEmailPanel initialEmail={initialEmail} initialSent={initialSent} />
-    </AuthLayout>
+    <AuthRoutePreview {...content}>
+      <VerifyEmailPanel initialEmail={initialEmail} initialSent={initialSent} returnTo={returnTo} />
+    </AuthRoutePreview>
   );
 }

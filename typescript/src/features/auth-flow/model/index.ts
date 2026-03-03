@@ -1,11 +1,16 @@
-import { APP_ROUTES } from "@/shared/config";
+import { APP_ROUTES, normalizeReturnToPath } from "@/shared/config";
 
 /**
  * verify-email 画面の遷移URLを構築する。
  */
-export function buildVerifyEmailRoute(params: { email: string | null; sent?: boolean }): string {
+export function buildVerifyEmailRoute(params: {
+  email: string | null;
+  sent?: boolean;
+  returnTo?: string | null;
+}): string {
   const query = new URLSearchParams();
   const normalizedEmail = params.email?.trim() ?? "";
+  const normalizedReturnToPath = normalizeReturnToPath(params.returnTo);
 
   if (normalizedEmail.length > 0) {
     query.set("email", normalizedEmail);
@@ -13,6 +18,10 @@ export function buildVerifyEmailRoute(params: { email: string | null; sent?: boo
 
   if (params.sent !== undefined) {
     query.set("sent", params.sent ? "1" : "0");
+  }
+
+  if (normalizedReturnToPath !== null) {
+    query.set("returnTo", normalizedReturnToPath);
   }
 
   const queryString = query.toString();
@@ -25,6 +34,7 @@ export function buildVerifyEmailRoute(params: { email: string | null; sent?: boo
 
 export {
   getLoginErrorMessage,
+  getPrincipalProvisionErrorMessage,
   getRegisterErrorMessage,
   getVerifyEmailErrorMessage,
   PASSWORD_RESET_COMPLETION_MESSAGE,

@@ -151,6 +151,9 @@ ts-install: ## 依存パッケージをインストール
 # ============================================
 
 rust-dev: ## Rust 開発サーバーを起動
+	@set -a; \
+	[ -f .env ] && . ./.env; \
+	set +a; \
 	cd rust && cargo run -p linklynx_backend
 
 rust-build: ## Rust を本番用にビルド
@@ -322,7 +325,7 @@ gen: db-doc ## 生成タスクを実行（regex + tbls doc/ER）
 # 開発ワークフロー
 # ============================================
 
-dev: db-up ## 開発環境を起動（DB + Frontend）
+dev: db-up ## 開発環境を起動（DB + Frontend + Rust）
 	@if ! command -v node >/dev/null 2>&1; then \
 		echo "$(RED)Node.js が見つかりません。先に make setup か setup/setup.sh を実行してください$(NC)"; \
 		exit 1; \
@@ -331,10 +334,19 @@ dev: db-up ## 開発環境を起動（DB + Frontend）
 		echo "$(RED)pnpm が見つかりません。先に make setup か setup/setup.sh を実行してください$(NC)"; \
 		exit 1; \
 	fi
-	@echo "$(GREEN)データベースを起動しました。Frontend を起動します:$(NC)"
+	@if ! command -v cargo >/dev/null 2>&1; then \
+		echo "$(RED)cargo が見つかりません。先に make setup か setup/setup.sh を実行してください$(NC)"; \
+		exit 1; \
+	fi
+	@echo "$(GREEN)データベースを起動しました。Frontend と Rust API を起動します:$(NC)"
 	@echo "  Next.js: http://localhost:3000"
+	@echo "  Rust API: http://localhost:8080"
 	@cd typescript && CI=true pnpm install --frozen-lockfile
-	@$(MAKE) ts-dev
+	@set -e; \
+	$(MAKE) rust-dev & \
+	rust_pid=$$!; \
+	trap 'kill $$rust_pid 2>/dev/null || true' INT TERM EXIT; \
+	$(MAKE) ts-dev
 
 test: ## 全テストを実行
 	@echo "$(BLUE)TypeScript テスト実行中...$(NC)"

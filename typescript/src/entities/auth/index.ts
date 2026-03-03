@@ -2,6 +2,12 @@ export type {
   AuthActionError,
   AuthActionErrorCode,
   AuthActionResult,
+  PrincipalProvisionError,
+  PrincipalProvisionErrorCode,
+  PrincipalProvisionResult,
+  AuthenticatedFetchError,
+  AuthenticatedFetchErrorCode,
+  AuthenticatedFetchResult,
   AuthSession,
   AuthSessionContextValue,
   AuthSessionStatus,
@@ -9,6 +15,8 @@ export type {
   AuthUser,
 } from "./model";
 export {
+  ensurePrincipalProvisionedForCurrentUser,
+  authenticatedFetch,
   loginWithEmailAndPassword,
   registerWithEmailAndPassword,
   reloadCurrentAuthUser,

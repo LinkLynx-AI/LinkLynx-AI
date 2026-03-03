@@ -1,9 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { loginWithEmailAndPassword } from "@/entities";
-import { APP_ROUTES } from "@/shared/config";
-import { buildVerifyEmailRoute, getLoginErrorMessage, validateLoginInput } from "../model";
+import { ensurePrincipalProvisionedForCurrentUser, loginWithEmailAndPassword } from "@/entities";
+import { APP_ROUTES, type LoginRedirectReason, normalizeReturnToPath } from "@/shared/config";
+import {
+  buildVerifyEmailRoute,
+  getLoginErrorMessage,
+  getPrincipalProvisionErrorMessage,
+  validateLoginInput,
+} from "../model";
 
 type LoginFormState = {
   email: string;
@@ -15,13 +20,32 @@ const INITIAL_FORM_STATE: LoginFormState = {
   password: "",
 };
 
+type LoginFormProps = {
+  returnTo: string | null;
+  reason: LoginRedirectReason | null;
+};
+
+function resolveReasonMessage(reason: LoginRedirectReason | null): string | null {
+  if (reason === "session-expired") {
+    return "セッションの有効期限が切れました。再度ログインしてください。";
+  }
+
+  if (reason === "unauthenticated") {
+    return "この画面にアクセスするにはログインが必要です。";
+  }
+
+  return null;
+}
+
 /**
  * ログインフォームを表示し Firebase 認証へ接続する。
  */
-export function LoginForm() {
+export function LoginForm({ returnTo, reason }: LoginFormProps) {
   const [form, setForm] = useState<LoginFormState>(INITIAL_FORM_STATE);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const reasonMessage = resolveReasonMessage(reason);
+  const redirectPath = normalizeReturnToPath(returnTo) ?? APP_ROUTES.channels.me;
 
   function updateForm<K extends keyof LoginFormState>(key: K, value: LoginFormState[K]) {
     setForm((current) => ({
@@ -45,23 +69,34 @@ export function LoginForm() {
 
     setIsSubmitting(true);
     const result = await loginWithEmailAndPassword(validation.data);
-    setIsSubmitting(false);
 
     if (!result.ok) {
+      setIsSubmitting(false);
       setErrorMessage(getLoginErrorMessage(result.error));
       return;
     }
 
     if (!result.data.emailVerified) {
+      setIsSubmitting(false);
       window.location.assign(
         buildVerifyEmailRoute({
           email: result.data.email,
+          returnTo: redirectPath,
         }),
       );
       return;
     }
 
-    window.location.assign(APP_ROUTES.channels.me);
+    const provisionResult = await ensurePrincipalProvisionedForCurrentUser();
+    setIsSubmitting(false);
+
+    if (!provisionResult.ok) {
+      console.warn("Principal provisioning failed after login.", provisionResult.error);
+      setErrorMessage(getPrincipalProvisionErrorMessage(provisionResult.error));
+      return;
+    }
+
+    window.location.assign(redirectPath);
   }
 
   return (
@@ -97,8 +132,14 @@ export function LoginForm() {
         />
       </div>
 
-      {errorMessage !== null && (
-        <p className="rounded bg-discord-brand-red/10 px-3 py-2 text-sm text-discord-brand-red">
+      {reasonMessage === null ? null : (
+        <p className="rounded-md border border-amber-300/40 bg-amber-300/10 px-3 py-2 text-sm text-amber-200">
+          {reasonMessage}
+        </p>
+      )}
+
+      {errorMessage === null ? null : (
+        <p className="rounded-md border border-[var(--llx-brand-red)]/40 bg-[var(--llx-brand-red)]/10 px-3 py-2 text-sm text-[var(--llx-brand-red)]">
           {errorMessage}
         </p>
       )}
