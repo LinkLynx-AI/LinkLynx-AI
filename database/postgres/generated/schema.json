@@ -1495,6 +1495,363 @@
           ]
         }
       ]
+    },
+    {
+      "name": "public.guild_roles_v2",
+      "type": "BASE TABLE",
+      "columns": [
+        {
+          "name": "guild_id",
+          "type": "bigint",
+          "nullable": false
+        },
+        {
+          "name": "role_key",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "priority",
+          "type": "integer",
+          "nullable": false
+        },
+        {
+          "name": "allow_view",
+          "type": "boolean",
+          "nullable": false,
+          "default": "true"
+        },
+        {
+          "name": "allow_post",
+          "type": "boolean",
+          "nullable": false,
+          "default": "true"
+        },
+        {
+          "name": "allow_manage",
+          "type": "boolean",
+          "nullable": false,
+          "default": "false"
+        },
+        {
+          "name": "is_system",
+          "type": "boolean",
+          "nullable": false,
+          "default": "false"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default": "now()"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default": "now()"
+        },
+        {
+          "name": "source_level",
+          "type": "role_level",
+          "nullable": true
+        }
+      ],
+      "indexes": [
+        {
+          "name": "guild_roles_v2_pkey",
+          "def": "CREATE UNIQUE INDEX guild_roles_v2_pkey ON public.guild_roles_v2 USING btree (guild_id, role_key)",
+          "table": "public.guild_roles_v2",
+          "columns": [
+            "guild_id",
+            "role_key"
+          ]
+        },
+        {
+          "name": "idx_guild_roles_v2_priority",
+          "def": "CREATE INDEX idx_guild_roles_v2_priority ON public.guild_roles_v2 USING btree (guild_id, priority DESC, role_key)",
+          "table": "public.guild_roles_v2",
+          "columns": [
+            "guild_id",
+            "priority",
+            "role_key"
+          ]
+        }
+      ],
+      "constraints": [
+        {
+          "name": "chk_guild_roles_v2_name_non_empty",
+          "type": "CHECK",
+          "def": "CHECK ((length(name) \u003e 0))",
+          "table": "public.guild_roles_v2",
+          "referenced_table": "",
+          "columns": [
+            "name"
+          ]
+        },
+        {
+          "name": "chk_guild_roles_v2_role_key_non_empty",
+          "type": "CHECK",
+          "def": "CHECK ((length(role_key) \u003e 0))",
+          "table": "public.guild_roles_v2",
+          "referenced_table": "",
+          "columns": [
+            "role_key"
+          ]
+        },
+        {
+          "name": "guild_roles_v2_guild_id_fkey",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE",
+          "table": "public.guild_roles_v2",
+          "referenced_table": "guilds",
+          "columns": [
+            "guild_id"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "guild_roles_v2_pkey",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (guild_id, role_key)",
+          "table": "public.guild_roles_v2",
+          "referenced_table": "",
+          "columns": [
+            "guild_id",
+            "role_key"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "public.guild_member_roles_v2",
+      "type": "BASE TABLE",
+      "columns": [
+        {
+          "name": "guild_id",
+          "type": "bigint",
+          "nullable": false
+        },
+        {
+          "name": "user_id",
+          "type": "bigint",
+          "nullable": false
+        },
+        {
+          "name": "role_key",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "assigned_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default": "now()"
+        },
+        {
+          "name": "assigned_by",
+          "type": "bigint",
+          "nullable": true
+        }
+      ],
+      "indexes": [
+        {
+          "name": "guild_member_roles_v2_pkey",
+          "def": "CREATE UNIQUE INDEX guild_member_roles_v2_pkey ON public.guild_member_roles_v2 USING btree (guild_id, user_id, role_key)",
+          "table": "public.guild_member_roles_v2",
+          "columns": [
+            "guild_id",
+            "user_id",
+            "role_key"
+          ]
+        },
+        {
+          "name": "idx_guild_member_roles_v2_user",
+          "def": "CREATE INDEX idx_guild_member_roles_v2_user ON public.guild_member_roles_v2 USING btree (user_id, guild_id)",
+          "table": "public.guild_member_roles_v2",
+          "columns": [
+            "user_id",
+            "guild_id"
+          ]
+        }
+      ],
+      "constraints": [
+        {
+          "name": "guild_member_roles_v2_assigned_by_fkey",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (assigned_by) REFERENCES users(id) ON DELETE SET NULL",
+          "table": "public.guild_member_roles_v2",
+          "referenced_table": "users",
+          "columns": [
+            "assigned_by"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "guild_member_roles_v2_guild_id_user_id_fkey",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (guild_id, user_id) REFERENCES guild_members(guild_id, user_id) ON DELETE CASCADE",
+          "table": "public.guild_member_roles_v2",
+          "referenced_table": "guild_members",
+          "columns": [
+            "guild_id",
+            "user_id"
+          ],
+          "referenced_columns": [
+            "guild_id",
+            "user_id"
+          ]
+        },
+        {
+          "name": "guild_member_roles_v2_guild_id_role_key_fkey",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (guild_id, role_key) REFERENCES guild_roles_v2(guild_id, role_key) ON DELETE RESTRICT",
+          "table": "public.guild_member_roles_v2",
+          "referenced_table": "guild_roles_v2",
+          "columns": [
+            "guild_id",
+            "role_key"
+          ],
+          "referenced_columns": [
+            "guild_id",
+            "role_key"
+          ]
+        },
+        {
+          "name": "guild_member_roles_v2_pkey",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (guild_id, user_id, role_key)",
+          "table": "public.guild_member_roles_v2",
+          "referenced_table": "",
+          "columns": [
+            "guild_id",
+            "user_id",
+            "role_key"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "public.channel_role_permission_overrides_v2",
+      "type": "BASE TABLE",
+      "columns": [
+        {
+          "name": "channel_id",
+          "type": "bigint",
+          "nullable": false
+        },
+        {
+          "name": "guild_id",
+          "type": "bigint",
+          "nullable": false
+        },
+        {
+          "name": "role_key",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "can_view",
+          "type": "boolean",
+          "nullable": true,
+          "comment": "NULL はロール既定値を継承、TRUE/FALSE は明示上書き。"
+        },
+        {
+          "name": "can_post",
+          "type": "boolean",
+          "nullable": true,
+          "comment": "NULL はロール既定値を継承、TRUE/FALSE は明示上書き。"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default": "now()"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default": "now()"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "channel_role_permission_overrides_v2_pkey",
+          "def": "CREATE UNIQUE INDEX channel_role_permission_overrides_v2_pkey ON public.channel_role_permission_overrides_v2 USING btree (channel_id, role_key)",
+          "table": "public.channel_role_permission_overrides_v2",
+          "columns": [
+            "channel_id",
+            "role_key"
+          ]
+        }
+      ],
+      "constraints": [
+        {
+          "name": "chk_channel_role_overrides_v2_role_key_non_empty",
+          "type": "CHECK",
+          "def": "CHECK ((length(role_key) \u003e 0))",
+          "table": "public.channel_role_permission_overrides_v2",
+          "referenced_table": "",
+          "columns": [
+            "role_key"
+          ]
+        },
+        {
+          "name": "channel_role_permission_overrides_v2_channel_id_fkey",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (channel_id) REFERENCES channels(id) ON DELETE CASCADE",
+          "table": "public.channel_role_permission_overrides_v2",
+          "referenced_table": "channels",
+          "columns": [
+            "channel_id"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "channel_role_permission_overrides_v2_guild_id_role_key_fkey",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (guild_id, role_key) REFERENCES guild_roles_v2(guild_id, role_key) ON DELETE CASCADE",
+          "table": "public.channel_role_permission_overrides_v2",
+          "referenced_table": "guild_roles_v2",
+          "columns": [
+            "guild_id",
+            "role_key"
+          ],
+          "referenced_columns": [
+            "guild_id",
+            "role_key"
+          ]
+        },
+        {
+          "name": "channel_role_permission_overrides_v2_pkey",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (channel_id, role_key)",
+          "table": "public.channel_role_permission_overrides_v2",
+          "referenced_table": "",
+          "columns": [
+            "channel_id",
+            "role_key"
+          ]
+        }
+      ],
+      "triggers": [
+        {
+          "name": "trg_enforce_channel_role_overrides_v2_scope",
+          "def": "CREATE TRIGGER trg_enforce_channel_role_overrides_v2_scope BEFORE INSERT OR UPDATE ON public.channel_role_permission_overrides_v2 FOR EACH ROW EXECUTE FUNCTION enforce_channel_role_overrides_v2_scope()"
+        }
+      ]
     }
   ],
   "relations": [
@@ -1813,6 +2170,90 @@
       ],
       "parent_cardinality": "exactly_one",
       "def": "FOREIGN KEY (principal_id) REFERENCES users(id) ON DELETE CASCADE"
+    },
+    {
+      "table": "public.guild_roles_v2",
+      "columns": [
+        "guild_id"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "public.guilds",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "exactly_one",
+      "def": "FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE"
+    },
+    {
+      "table": "public.guild_member_roles_v2",
+      "columns": [
+        "assigned_by"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "public.users",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "zero_or_one",
+      "def": "FOREIGN KEY (assigned_by) REFERENCES users(id) ON DELETE SET NULL"
+    },
+    {
+      "table": "public.guild_member_roles_v2",
+      "columns": [
+        "guild_id",
+        "user_id"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "public.guild_members",
+      "parent_columns": [
+        "guild_id",
+        "user_id"
+      ],
+      "parent_cardinality": "exactly_one",
+      "def": "FOREIGN KEY (guild_id, user_id) REFERENCES guild_members(guild_id, user_id) ON DELETE CASCADE"
+    },
+    {
+      "table": "public.guild_member_roles_v2",
+      "columns": [
+        "guild_id",
+        "role_key"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "public.guild_roles_v2",
+      "parent_columns": [
+        "guild_id",
+        "role_key"
+      ],
+      "parent_cardinality": "exactly_one",
+      "def": "FOREIGN KEY (guild_id, role_key) REFERENCES guild_roles_v2(guild_id, role_key) ON DELETE RESTRICT"
+    },
+    {
+      "table": "public.channel_role_permission_overrides_v2",
+      "columns": [
+        "channel_id"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "public.channels",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "exactly_one",
+      "def": "FOREIGN KEY (channel_id) REFERENCES channels(id) ON DELETE CASCADE"
+    },
+    {
+      "table": "public.channel_role_permission_overrides_v2",
+      "columns": [
+        "guild_id",
+        "role_key"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "public.guild_roles_v2",
+      "parent_columns": [
+        "guild_id",
+        "role_key"
+      ],
+      "parent_cardinality": "exactly_one",
+      "def": "FOREIGN KEY (guild_id, role_key) REFERENCES guild_roles_v2(guild_id, role_key) ON DELETE CASCADE"
     }
   ],
   "functions": [
@@ -1850,6 +2291,12 @@
       "name": "public.mark_outbox_event_failed",
       "return_type": "void",
       "arguments": "p_id bigint, p_retry_seconds integer DEFAULT 15",
+      "type": "FUNCTION"
+    },
+    {
+      "name": "public.enforce_channel_role_overrides_v2_scope",
+      "return_type": "trigger",
+      "arguments": "",
       "type": "FUNCTION"
     }
   ],

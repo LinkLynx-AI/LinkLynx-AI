@@ -20,6 +20,9 @@
 | [public.audit_logs](public.audit_logs.md) | 8 |  | BASE TABLE |
 | [public.outbox_events](public.outbox_events.md) | 9 |  | BASE TABLE |
 | [public.auth_identities](public.auth_identities.md) | 5 |  | BASE TABLE |
+| [public.guild_roles_v2](public.guild_roles_v2.md) | 11 |  | BASE TABLE |
+| [public.guild_member_roles_v2](public.guild_member_roles_v2.md) | 5 |  | BASE TABLE |
+| [public.channel_role_permission_overrides_v2](public.channel_role_permission_overrides_v2.md) | 7 |  | BASE TABLE |
 
 ## Stored procedures and functions
 
@@ -31,6 +34,7 @@
 | public.claim_outbox_events | record | p_limit integer DEFAULT 50, p_lease_seconds integer DEFAULT 30 | FUNCTION |
 | public.mark_outbox_event_sent | void | p_id bigint | FUNCTION |
 | public.mark_outbox_event_failed | void | p_id bigint, p_retry_seconds integer DEFAULT 15 | FUNCTION |
+| public.enforce_channel_role_overrides_v2_scope | trigger |  | FUNCTION |
 
 ## Enums
 

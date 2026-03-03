@@ -82,6 +82,31 @@ $$;
 
 
 
+CREATE FUNCTION public.enforce_channel_role_overrides_v2_scope() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  channel_guild_id BIGINT;
+BEGIN
+  SELECT guild_id
+  INTO channel_guild_id
+  FROM channels
+  WHERE id = NEW.channel_id;
+
+  IF channel_guild_id IS NULL THEN
+    RAISE EXCEPTION 'channel_role_permission_overrides_v2.channel_id must reference guild channel';
+  END IF;
+
+  IF channel_guild_id <> NEW.guild_id THEN
+    RAISE EXCEPTION 'channel_role_permission_overrides_v2.guild_id must match channels.guild_id';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+
+
 CREATE FUNCTION public.enforce_dm_pairs_channel_type() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -239,6 +264,27 @@ CREATE TABLE public.channel_reads (
 
 
 
+CREATE TABLE public.channel_role_permission_overrides_v2 (
+    channel_id bigint NOT NULL,
+    guild_id bigint NOT NULL,
+    role_key text NOT NULL,
+    can_view boolean,
+    can_post boolean,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chk_channel_role_overrides_v2_role_key_non_empty CHECK ((length(role_key) > 0))
+);
+
+
+
+COMMENT ON COLUMN public.channel_role_permission_overrides_v2.can_view IS 'NULL はロール既定値を継承、TRUE/FALSE は明示上書き。';
+
+
+
+COMMENT ON COLUMN public.channel_role_permission_overrides_v2.can_post IS 'NULL はロール既定値を継承、TRUE/FALSE は明示上書き。';
+
+
+
 CREATE TABLE public.channels (
     id bigint NOT NULL,
     type public.channel_type NOT NULL,
@@ -277,6 +323,16 @@ CREATE TABLE public.guild_member_roles (
 
 
 
+CREATE TABLE public.guild_member_roles_v2 (
+    guild_id bigint NOT NULL,
+    user_id bigint NOT NULL,
+    role_key text NOT NULL,
+    assigned_at timestamp with time zone DEFAULT now() NOT NULL,
+    assigned_by bigint
+);
+
+
+
 CREATE TABLE public.guild_members (
     guild_id bigint NOT NULL,
     user_id bigint NOT NULL,
@@ -290,6 +346,24 @@ CREATE TABLE public.guild_roles (
     guild_id bigint NOT NULL,
     level public.role_level NOT NULL,
     name text NOT NULL
+);
+
+
+
+CREATE TABLE public.guild_roles_v2 (
+    guild_id bigint NOT NULL,
+    role_key text NOT NULL,
+    name text NOT NULL,
+    priority integer NOT NULL,
+    allow_view boolean DEFAULT true NOT NULL,
+    allow_post boolean DEFAULT true NOT NULL,
+    allow_manage boolean DEFAULT false NOT NULL,
+    is_system boolean DEFAULT false NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    source_level public.role_level,
+    CONSTRAINT chk_guild_roles_v2_name_non_empty CHECK ((length(name) > 0)),
+    CONSTRAINT chk_guild_roles_v2_role_key_non_empty CHECK ((length(role_key) > 0))
 );
 
 
@@ -401,6 +475,11 @@ ALTER TABLE ONLY public.channel_reads
 
 
 
+ALTER TABLE ONLY public.channel_role_permission_overrides_v2
+    ADD CONSTRAINT channel_role_permission_overrides_v2_pkey PRIMARY KEY (channel_id, role_key);
+
+
+
 ALTER TABLE ONLY public.channels
     ADD CONSTRAINT channels_pkey PRIMARY KEY (id);
 
@@ -421,6 +500,11 @@ ALTER TABLE ONLY public.guild_member_roles
 
 
 
+ALTER TABLE ONLY public.guild_member_roles_v2
+    ADD CONSTRAINT guild_member_roles_v2_pkey PRIMARY KEY (guild_id, user_id, role_key);
+
+
+
 ALTER TABLE ONLY public.guild_members
     ADD CONSTRAINT guild_members_pkey PRIMARY KEY (guild_id, user_id);
 
@@ -428,6 +512,11 @@ ALTER TABLE ONLY public.guild_members
 
 ALTER TABLE ONLY public.guild_roles
     ADD CONSTRAINT guild_roles_pkey PRIMARY KEY (guild_id, level);
+
+
+
+ALTER TABLE ONLY public.guild_roles_v2
+    ADD CONSTRAINT guild_roles_v2_pkey PRIMARY KEY (guild_id, role_key);
 
 
 
@@ -495,7 +584,15 @@ CREATE INDEX idx_dm_participants_user ON public.dm_participants USING btree (use
 
 
 
+CREATE INDEX idx_guild_member_roles_v2_user ON public.guild_member_roles_v2 USING btree (user_id, guild_id);
+
+
+
 CREATE INDEX idx_guild_members_user ON public.guild_members USING btree (user_id);
+
+
+
+CREATE INDEX idx_guild_roles_v2_priority ON public.guild_roles_v2 USING btree (guild_id, priority DESC, role_key);
 
 
 
@@ -516,6 +613,10 @@ CREATE INDEX idx_outbox_pending ON public.outbox_events USING btree (status, nex
 
 
 CREATE UNIQUE INDEX uq_users_email_lower ON public.users USING btree (lower(email));
+
+
+
+CREATE TRIGGER trg_enforce_channel_role_overrides_v2_scope BEFORE INSERT OR UPDATE ON public.channel_role_permission_overrides_v2 FOR EACH ROW EXECUTE FUNCTION public.enforce_channel_role_overrides_v2_scope();
 
 
 
@@ -559,6 +660,16 @@ ALTER TABLE ONLY public.channel_reads
 
 ALTER TABLE ONLY public.channel_reads
     ADD CONSTRAINT channel_reads_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY public.channel_role_permission_overrides_v2
+    ADD CONSTRAINT channel_role_permission_overrides_v2_channel_id_fkey FOREIGN KEY (channel_id) REFERENCES public.channels(id) ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY public.channel_role_permission_overrides_v2
+    ADD CONSTRAINT channel_role_permission_overrides_v2_guild_id_role_key_fkey FOREIGN KEY (guild_id, role_key) REFERENCES public.guild_roles_v2(guild_id, role_key) ON DELETE CASCADE;
 
 
 
@@ -607,6 +718,21 @@ ALTER TABLE ONLY public.guild_member_roles
 
 
 
+ALTER TABLE ONLY public.guild_member_roles_v2
+    ADD CONSTRAINT guild_member_roles_v2_assigned_by_fkey FOREIGN KEY (assigned_by) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+
+ALTER TABLE ONLY public.guild_member_roles_v2
+    ADD CONSTRAINT guild_member_roles_v2_guild_id_role_key_fkey FOREIGN KEY (guild_id, role_key) REFERENCES public.guild_roles_v2(guild_id, role_key) ON DELETE RESTRICT;
+
+
+
+ALTER TABLE ONLY public.guild_member_roles_v2
+    ADD CONSTRAINT guild_member_roles_v2_guild_id_user_id_fkey FOREIGN KEY (guild_id, user_id) REFERENCES public.guild_members(guild_id, user_id) ON DELETE CASCADE;
+
+
+
 ALTER TABLE ONLY public.guild_members
     ADD CONSTRAINT guild_members_guild_id_fkey FOREIGN KEY (guild_id) REFERENCES public.guilds(id) ON DELETE CASCADE;
 
@@ -619,6 +745,11 @@ ALTER TABLE ONLY public.guild_members
 
 ALTER TABLE ONLY public.guild_roles
     ADD CONSTRAINT guild_roles_guild_id_fkey FOREIGN KEY (guild_id) REFERENCES public.guilds(id) ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY public.guild_roles_v2
+    ADD CONSTRAINT guild_roles_v2_guild_id_fkey FOREIGN KEY (guild_id) REFERENCES public.guilds(id) ON DELETE CASCADE;
 
 
 
