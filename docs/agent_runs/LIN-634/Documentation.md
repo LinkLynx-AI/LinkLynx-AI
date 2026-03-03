@@ -33,8 +33,8 @@
 ## Per-issue evidence (LIN-634)
 - issue: `LIN-634`
 - branch: `codex/LIN-634-channel-hierarchy-db`
-- reviewer gate: pending
+- reviewer gate: unavailable (manual self-review fallback)
 - UI gate: skipped (UI changesなし)
-- PR: pending
+- PR: https://github.com/LinkLynx-AI/LinkLynx-AI/pull/990
 - planned PR base branch: `codex/LIN-633-channel-user-override-spicedb`
 - merge policy: stacked PR (`LIN-633` -> `main`)
