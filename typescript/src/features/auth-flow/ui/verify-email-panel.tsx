@@ -2,12 +2,13 @@
 
 import { useMemo, useState } from "react";
 import {
+  ensurePrincipalProvisionedForCurrentUser,
   reloadCurrentAuthUser,
   sendVerificationEmailForCurrentUser,
   useAuthSession,
 } from "@/entities";
 import { APP_ROUTES } from "@/shared/config";
-import { getVerifyEmailErrorMessage } from "../model";
+import { getPrincipalProvisionErrorMessage, getVerifyEmailErrorMessage } from "../model";
 
 type VerifyEmailPanelProps = {
   initialEmail: string | null;
@@ -121,6 +122,18 @@ export function VerifyEmailPanel({ initialEmail, initialSent }: VerifyEmailPanel
     }
 
     if (result.data.emailVerified) {
+      const provisionResult = await ensurePrincipalProvisionedForCurrentUser({
+        forceRefresh: true,
+      });
+
+      if (!provisionResult.ok) {
+        setNotice({
+          tone: "error",
+          text: getPrincipalProvisionErrorMessage(provisionResult.error),
+        });
+        return;
+      }
+
       window.location.assign(APP_ROUTES.channels.me);
       return;
     }

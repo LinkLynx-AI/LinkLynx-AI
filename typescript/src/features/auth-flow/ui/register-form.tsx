@@ -1,9 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import { registerWithEmailAndPassword, sendVerificationEmailForCurrentUser } from "@/entities";
+import {
+  ensurePrincipalProvisionedForCurrentUser,
+  registerWithEmailAndPassword,
+  sendVerificationEmailForCurrentUser,
+} from "@/entities";
 import { APP_ROUTES } from "@/shared/config";
-import { buildVerifyEmailRoute, getRegisterErrorMessage, validateRegisterInput } from "../model";
+import {
+  buildVerifyEmailRoute,
+  getPrincipalProvisionErrorMessage,
+  getRegisterErrorMessage,
+  validateRegisterInput,
+} from "../model";
 
 type RegisterFormState = {
   email: string;
@@ -58,7 +67,15 @@ export function RegisterForm() {
     }
 
     if (registerResult.data.emailVerified) {
+      const provisionResult = await ensurePrincipalProvisionedForCurrentUser();
       setIsSubmitting(false);
+
+      if (!provisionResult.ok) {
+        console.warn("Principal provisioning failed after register.", provisionResult.error);
+        setErrorMessage(getPrincipalProvisionErrorMessage(provisionResult.error));
+        return;
+      }
+
       window.location.assign(APP_ROUTES.channels.me);
       return;
     }

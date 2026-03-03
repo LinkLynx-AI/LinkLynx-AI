@@ -1,6 +1,7 @@
 export {
   buildVerifyEmailRoute,
   getLoginErrorMessage,
+  getPrincipalProvisionErrorMessage,
   getRegisterErrorMessage,
   getVerifyEmailErrorMessage,
   validateLoginInput,

@@ -1,9 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { loginWithEmailAndPassword } from "@/entities";
+import { ensurePrincipalProvisionedForCurrentUser, loginWithEmailAndPassword } from "@/entities";
 import { APP_ROUTES } from "@/shared/config";
-import { buildVerifyEmailRoute, getLoginErrorMessage, validateLoginInput } from "../model";
+import {
+  buildVerifyEmailRoute,
+  getLoginErrorMessage,
+  getPrincipalProvisionErrorMessage,
+  validateLoginInput,
+} from "../model";
 
 type LoginFormState = {
   email: string;
@@ -45,19 +50,29 @@ export function LoginForm() {
 
     setIsSubmitting(true);
     const result = await loginWithEmailAndPassword(validation.data);
-    setIsSubmitting(false);
 
     if (!result.ok) {
+      setIsSubmitting(false);
       setErrorMessage(getLoginErrorMessage(result.error));
       return;
     }
 
     if (!result.data.emailVerified) {
+      setIsSubmitting(false);
       window.location.assign(
         buildVerifyEmailRoute({
           email: result.data.email,
         }),
       );
+      return;
+    }
+
+    const provisionResult = await ensurePrincipalProvisionedForCurrentUser();
+    setIsSubmitting(false);
+
+    if (!provisionResult.ok) {
+      console.warn("Principal provisioning failed after login.", provisionResult.error);
+      setErrorMessage(getPrincipalProvisionErrorMessage(provisionResult.error));
       return;
     }
 
