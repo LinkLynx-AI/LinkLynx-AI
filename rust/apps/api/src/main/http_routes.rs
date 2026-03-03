@@ -16,6 +16,10 @@ fn app_with_state(state: AppState) -> Router {
             "/guilds/{guild_id}/channels",
             get(list_guild_channels).post(create_guild_channel),
         )
+        .route(
+            "/users/me/profile",
+            get(get_my_profile).patch(patch_my_profile),
+        )
         .route_layer(middleware::from_fn_with_state(
             state.clone(),
             rest_auth_middleware,
@@ -216,6 +220,11 @@ struct ChannelCreateResponse {
     channel: guild_channel::CreatedChannel,
 }
 
+#[derive(Debug, Serialize)]
+struct ProfileResponse {
+    profile: profile::ProfileSettings,
+}
+
 /// guild_idパスパラメータを検証する。
 /// @param raw_guild_id 生のguild_id文字列
 /// @returns 検証済みguild_id
@@ -239,6 +248,65 @@ fn parse_json_payload<T>(payload: Result<Json<T>, JsonRejection>) -> Result<T, G
     payload
         .map(|Json(value)| value)
         .map_err(|_| GuildChannelError::validation("request_body_invalid"))
+}
+
+/// JSON入力を検証してプロフィール更新ペイロードを取得する。
+/// @param payload JSON抽出結果
+/// @returns 検証済みJSONペイロード
+/// @throws ProfileError JSON不正時
+fn parse_profile_patch_payload(
+    payload: Result<Json<serde_json::Value>, JsonRejection>,
+) -> Result<ProfilePatchInput, ProfileError> {
+    let payload = payload
+        .map(|Json(value)| value)
+        .map_err(|_| ProfileError::validation("request_body_invalid"))?;
+    let payload = payload
+        .as_object()
+        .ok_or_else(|| ProfileError::validation("request_body_invalid"))?;
+
+    let display_name = parse_display_name_patch_field(payload)?;
+    let status_text = parse_nullable_string_patch_field(payload, "status_text")?;
+    let avatar_key = parse_nullable_string_patch_field(payload, "avatar_key")?;
+
+    Ok(ProfilePatchInput {
+        display_name,
+        status_text,
+        avatar_key,
+    })
+}
+
+/// display_name更新フィールドを解釈する。
+/// @param payload リクエストJSONオブジェクト
+/// @returns display_name更新値
+/// @throws ProfileError 型不正またはnull入力時
+fn parse_display_name_patch_field(
+    payload: &serde_json::Map<String, serde_json::Value>,
+) -> Result<Option<String>, ProfileError> {
+    match payload.get("display_name") {
+        Some(serde_json::Value::String(value)) => Ok(Some(value.clone())),
+        Some(serde_json::Value::Null) => {
+            Err(ProfileError::validation("display_name_null_not_allowed"))
+        }
+        Some(_) => Err(ProfileError::validation("display_name_invalid_type")),
+        None => Ok(None),
+    }
+}
+
+/// nullable文字列更新フィールドを解釈する。
+/// @param payload リクエストJSONオブジェクト
+/// @param field_name 対象フィールド名
+/// @returns 更新値（None=未指定、Some(None)=null指定、Some(Some)=文字列指定）
+/// @throws ProfileError 型不正時
+fn parse_nullable_string_patch_field(
+    payload: &serde_json::Map<String, serde_json::Value>,
+    field_name: &str,
+) -> Result<Option<Option<String>>, ProfileError> {
+    match payload.get(field_name) {
+        Some(serde_json::Value::String(value)) => Ok(Some(Some(value.clone()))),
+        Some(serde_json::Value::Null) => Ok(Some(None)),
+        Some(_) => Err(ProfileError::validation(format!("{field_name}_invalid_type"))),
+        None => Ok(None),
+    }
 }
 
 /// principalが所属するguild一覧を返す。
@@ -346,6 +414,50 @@ async fn create_guild_channel(
     {
         Ok(channel) => (StatusCode::CREATED, Json(ChannelCreateResponse { channel })).into_response(),
         Err(error) => guild_channel_error_response(&error, request_id),
+    }
+}
+
+/// 認証済みprincipalのプロフィールを返す。
+/// @param state アプリケーション状態
+/// @param auth_context 認証文脈
+/// @returns プロフィールレスポンス
+/// @throws なし
+async fn get_my_profile(
+    State(state): State<AppState>,
+    Extension(auth_context): Extension<AuthContext>,
+) -> Response {
+    let request_id = auth_context.request_id.clone();
+
+    match state.profile_service.get_profile(auth_context.principal_id).await {
+        Ok(profile) => Json(ProfileResponse { profile }).into_response(),
+        Err(error) => profile_error_response(&error, request_id),
+    }
+}
+
+/// 認証済みprincipalのプロフィールを更新する。
+/// @param state アプリケーション状態
+/// @param auth_context 認証文脈
+/// @param payload 更新入力
+/// @returns 更新後プロフィールレスポンス
+/// @throws なし
+async fn patch_my_profile(
+    State(state): State<AppState>,
+    Extension(auth_context): Extension<AuthContext>,
+    payload: Result<Json<serde_json::Value>, JsonRejection>,
+) -> Response {
+    let request_id = auth_context.request_id.clone();
+    let patch = match parse_profile_patch_payload(payload) {
+        Ok(value) => value,
+        Err(error) => return profile_error_response(&error, request_id),
+    };
+
+    match state
+        .profile_service
+        .update_profile(auth_context.principal_id, patch)
+        .await
+    {
+        Ok(profile) => Json(ProfileResponse { profile }).into_response(),
+        Err(error) => profile_error_response(&error, request_id),
     }
 }
 
