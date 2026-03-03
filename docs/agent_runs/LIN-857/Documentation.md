@@ -38,5 +38,7 @@
 ## Per-issue evidence (LIN-857)
 - issue: `LIN-857`
 - branch: `codex/LIN-857-drop-legacy-permission-assets`
-- PR: pending
+- reviewer gate: unavailable (manual self-review fallback)
+- UI gate: skipped (UI changesなし)
+- PR: https://github.com/LinkLynx-AI/LinkLynx-AI/pull/992
 - planned PR base branch: `codex/LIN-634-channel-hierarchy-db`
