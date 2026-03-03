@@ -1,6 +1,7 @@
 mod auth;
 mod authz;
 mod guild_channel;
+mod profile;
 
 use std::{
     collections::HashSet,
@@ -38,6 +39,10 @@ use guild_channel::{
     build_runtime_guild_channel_service, guild_channel_error_response, GuildChannelError,
     GuildChannelService,
 };
+use profile::{
+    build_runtime_profile_service, profile_error_response, ProfileError, ProfilePatchInput,
+    ProfileService,
+};
 use serde::{Deserialize, Serialize};
 use tower_http::cors::{Any, CorsLayer};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
@@ -47,6 +52,7 @@ pub(crate) struct AppState {
     auth_service: Arc<AuthService>,
     authorizer: Arc<dyn Authorizer>,
     guild_channel_service: Arc<dyn GuildChannelService>,
+    profile_service: Arc<dyn ProfileService>,
     ws_reauth_grace: Duration,
     ws_ticket_ttl: Duration,
     auth_identify_timeout: Duration,
@@ -100,6 +106,7 @@ fn build_runtime_state() -> AppState {
     let auth_service = Arc::new(build_runtime_auth_service(Arc::clone(&metrics)));
     let authorizer = build_runtime_authorizer();
     let guild_channel_service = build_runtime_guild_channel_service();
+    let profile_service = build_runtime_profile_service();
     let ws_reauth_grace = Duration::from_secs(
         env::var("WS_REAUTH_GRACE_SECONDS")
             .ok()
@@ -118,6 +125,7 @@ fn build_runtime_state() -> AppState {
         auth_service,
         authorizer,
         guild_channel_service,
+        profile_service,
         ws_reauth_grace,
         ws_ticket_ttl,
         auth_identify_timeout,

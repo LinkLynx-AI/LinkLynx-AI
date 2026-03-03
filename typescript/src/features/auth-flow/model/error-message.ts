@@ -102,6 +102,7 @@ function appendRequestIdSuffix(message: string, requestId: string | null): strin
 export function getPrincipalProvisionErrorMessage(error: PrincipalProvisionError): string {
   switch (error.code) {
     case "unauthenticated":
+    case "token-unavailable":
       return "セッションが無効です。再度ログインしてください。";
     case "email-not-verified":
       return "メール確認が未完了です。確認後に再試行してください。";

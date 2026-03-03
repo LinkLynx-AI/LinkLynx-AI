@@ -30,6 +30,13 @@ CREATE TYPE public.audit_action AS ENUM (
 
 
 
+CREATE TYPE public.channel_hierarchy_kind AS ENUM (
+    'category_child',
+    'thread'
+);
+
+
+
 CREATE TYPE public.channel_type AS ENUM (
     'guild_text',
     'dm'
@@ -41,14 +48,6 @@ CREATE TYPE public.outbox_status AS ENUM (
     'PENDING',
     'SENT',
     'FAILED'
-);
-
-
-
-CREATE TYPE public.role_level AS ENUM (
-    'owner',
-    'admin',
-    'member'
 );
 
 
@@ -78,6 +77,93 @@ SET
 FROM pending
 WHERE o.id = pending.id
 RETURNING o.id, o.event_type, o.aggregate_id, o.payload;
+$$;
+
+
+
+CREATE FUNCTION public.enforce_channel_hierarchies_v2_scope() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  child_guild_id BIGINT;
+  child_type channel_type;
+  parent_guild_id BIGINT;
+  parent_type channel_type;
+BEGIN
+  SELECT guild_id, type
+  INTO child_guild_id, child_type
+  FROM channels
+  WHERE id = NEW.child_channel_id;
+
+  IF child_guild_id IS NULL OR child_type <> 'guild_text' THEN
+    RAISE EXCEPTION 'child channel must be guild_text with guild_id';
+  END IF;
+
+  SELECT guild_id, type
+  INTO parent_guild_id, parent_type
+  FROM channels
+  WHERE id = NEW.parent_channel_id;
+
+  IF parent_guild_id IS NULL OR parent_type <> 'guild_text' THEN
+    RAISE EXCEPTION 'parent channel must be guild_text with guild_id';
+  END IF;
+
+  IF child_guild_id <> parent_guild_id OR child_guild_id <> NEW.guild_id THEN
+    RAISE EXCEPTION 'hierarchy guild scope mismatch';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+
+
+CREATE FUNCTION public.enforce_channel_role_overrides_v2_scope() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  channel_guild_id BIGINT;
+BEGIN
+  SELECT guild_id
+  INTO channel_guild_id
+  FROM channels
+  WHERE id = NEW.channel_id;
+
+  IF channel_guild_id IS NULL THEN
+    RAISE EXCEPTION 'channel_role_permission_overrides_v2.channel_id must reference guild channel';
+  END IF;
+
+  IF channel_guild_id <> NEW.guild_id THEN
+    RAISE EXCEPTION 'channel_role_permission_overrides_v2.guild_id must match channels.guild_id';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+
+
+CREATE FUNCTION public.enforce_channel_user_overrides_v2_scope() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  channel_guild_id BIGINT;
+BEGIN
+  SELECT guild_id
+  INTO channel_guild_id
+  FROM channels
+  WHERE id = NEW.channel_id;
+
+  IF channel_guild_id IS NULL THEN
+    RAISE EXCEPTION 'channel_user_permission_overrides_v2.channel_id must reference guild channel';
+  END IF;
+
+  IF channel_guild_id <> NEW.guild_id THEN
+    RAISE EXCEPTION 'channel_user_permission_overrides_v2.guild_id must match channels.guild_id';
+  END IF;
+
+  RETURN NEW;
+END;
 $$;
 
 
@@ -203,6 +289,23 @@ CREATE TABLE public.auth_identities (
 
 
 
+CREATE TABLE public.channel_hierarchies_v2 (
+    child_channel_id bigint NOT NULL,
+    guild_id bigint NOT NULL,
+    parent_channel_id bigint NOT NULL,
+    hierarchy_kind public.channel_hierarchy_kind NOT NULL,
+    parent_message_id bigint,
+    "position" integer DEFAULT 0 NOT NULL,
+    archived_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chk_ch_hier_v2_thread_parent_msg CHECK ((((hierarchy_kind = 'thread'::public.channel_hierarchy_kind) AND (parent_message_id IS NOT NULL)) OR ((hierarchy_kind = 'category_child'::public.channel_hierarchy_kind) AND (parent_message_id IS NULL)))),
+    CONSTRAINT chk_channel_hierarchies_v2_not_self CHECK ((child_channel_id <> parent_channel_id)),
+    CONSTRAINT chk_channel_hierarchies_v2_position_non_negative CHECK (("position" >= 0))
+);
+
+
+
 CREATE TABLE public.channel_last_message (
     channel_id bigint NOT NULL,
     last_message_id bigint NOT NULL,
@@ -212,20 +315,67 @@ CREATE TABLE public.channel_last_message (
 
 
 
-CREATE TABLE public.channel_permission_overrides (
+CREATE TABLE public.channel_role_permission_overrides_v2 (
     channel_id bigint NOT NULL,
-    level public.role_level NOT NULL,
+    guild_id bigint NOT NULL,
+    role_key text NOT NULL,
     can_view boolean,
-    can_post boolean
+    can_post boolean,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chk_channel_role_overrides_v2_role_key_non_empty CHECK ((length(role_key) > 0))
 );
 
 
 
-COMMENT ON COLUMN public.channel_permission_overrides.can_view IS 'NULL はロール既定値を継承、TRUE/FALSE は明示上書き。';
+COMMENT ON COLUMN public.channel_role_permission_overrides_v2.can_view IS 'NULL はロール既定値を継承、TRUE/FALSE は明示上書き。';
 
 
 
-COMMENT ON COLUMN public.channel_permission_overrides.can_post IS 'NULL はロール既定値を継承、TRUE/FALSE は明示上書き。';
+COMMENT ON COLUMN public.channel_role_permission_overrides_v2.can_post IS 'NULL はロール既定値を継承、TRUE/FALSE は明示上書き。';
+
+
+
+CREATE TABLE public.channel_user_permission_overrides_v2 (
+    channel_id bigint NOT NULL,
+    guild_id bigint NOT NULL,
+    user_id bigint NOT NULL,
+    can_view boolean,
+    can_post boolean,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+
+COMMENT ON COLUMN public.channel_user_permission_overrides_v2.can_view IS 'NULL はロール既定値を継承、TRUE/FALSE はユーザー単位で明示上書き。';
+
+
+
+COMMENT ON COLUMN public.channel_user_permission_overrides_v2.can_post IS 'NULL はロール既定値を継承、TRUE/FALSE はユーザー単位で明示上書き。';
+
+
+
+CREATE VIEW public.channel_permission_overrides_subject_v2 AS
+ SELECT channel_role_permission_overrides_v2.channel_id,
+    channel_role_permission_overrides_v2.guild_id,
+    'role'::text AS subject_type,
+    channel_role_permission_overrides_v2.role_key AS subject_id,
+    channel_role_permission_overrides_v2.can_view,
+    channel_role_permission_overrides_v2.can_post,
+    channel_role_permission_overrides_v2.created_at,
+    channel_role_permission_overrides_v2.updated_at
+   FROM public.channel_role_permission_overrides_v2
+UNION ALL
+ SELECT channel_user_permission_overrides_v2.channel_id,
+    channel_user_permission_overrides_v2.guild_id,
+    'user'::text AS subject_type,
+    (channel_user_permission_overrides_v2.user_id)::text AS subject_id,
+    channel_user_permission_overrides_v2.can_view,
+    channel_user_permission_overrides_v2.can_post,
+    channel_user_permission_overrides_v2.created_at,
+    channel_user_permission_overrides_v2.updated_at
+   FROM public.channel_user_permission_overrides_v2;
 
 
 
@@ -283,10 +433,12 @@ CREATE TABLE public.dm_participants (
 
 
 
-CREATE TABLE public.guild_member_roles (
+CREATE TABLE public.guild_member_roles_v2 (
     guild_id bigint NOT NULL,
     user_id bigint NOT NULL,
-    level public.role_level NOT NULL
+    role_key text NOT NULL,
+    assigned_at timestamp with time zone DEFAULT now() NOT NULL,
+    assigned_by bigint
 );
 
 
@@ -300,10 +452,20 @@ CREATE TABLE public.guild_members (
 
 
 
-CREATE TABLE public.guild_roles (
+CREATE TABLE public.guild_roles_v2 (
     guild_id bigint NOT NULL,
-    level public.role_level NOT NULL,
-    name text NOT NULL
+    role_key text NOT NULL,
+    name text NOT NULL,
+    priority integer NOT NULL,
+    allow_view boolean DEFAULT true NOT NULL,
+    allow_post boolean DEFAULT true NOT NULL,
+    allow_manage boolean DEFAULT false NOT NULL,
+    is_system boolean DEFAULT false NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chk_guild_roles_v2_name_non_empty CHECK ((length(name) > 0)),
+    CONSTRAINT chk_guild_roles_v2_role_key_format CHECK ((role_key ~ '^[a-z0-9_]{1,64}$'::text)),
+    CONSTRAINT chk_guild_roles_v2_role_key_non_empty CHECK ((length(role_key) > 0))
 );
 
 
@@ -422,18 +584,28 @@ ALTER TABLE ONLY public.auth_identities
 
 
 
+ALTER TABLE ONLY public.channel_hierarchies_v2
+    ADD CONSTRAINT channel_hierarchies_v2_pkey PRIMARY KEY (child_channel_id);
+
+
+
 ALTER TABLE ONLY public.channel_last_message
     ADD CONSTRAINT channel_last_message_pkey PRIMARY KEY (channel_id);
 
 
 
-ALTER TABLE ONLY public.channel_permission_overrides
-    ADD CONSTRAINT channel_permission_overrides_pkey PRIMARY KEY (channel_id, level);
-
-
-
 ALTER TABLE ONLY public.channel_reads
     ADD CONSTRAINT channel_reads_pkey PRIMARY KEY (channel_id, user_id);
+
+
+
+ALTER TABLE ONLY public.channel_role_permission_overrides_v2
+    ADD CONSTRAINT channel_role_permission_overrides_v2_pkey PRIMARY KEY (channel_id, role_key);
+
+
+
+ALTER TABLE ONLY public.channel_user_permission_overrides_v2
+    ADD CONSTRAINT channel_user_permission_overrides_v2_pkey PRIMARY KEY (channel_id, user_id);
 
 
 
@@ -452,8 +624,8 @@ ALTER TABLE ONLY public.dm_participants
 
 
 
-ALTER TABLE ONLY public.guild_member_roles
-    ADD CONSTRAINT guild_member_roles_pkey PRIMARY KEY (guild_id, user_id);
+ALTER TABLE ONLY public.guild_member_roles_v2
+    ADD CONSTRAINT guild_member_roles_v2_pkey PRIMARY KEY (guild_id, user_id, role_key);
 
 
 
@@ -462,8 +634,8 @@ ALTER TABLE ONLY public.guild_members
 
 
 
-ALTER TABLE ONLY public.guild_roles
-    ADD CONSTRAINT guild_roles_pkey PRIMARY KEY (guild_id, level);
+ALTER TABLE ONLY public.guild_roles_v2
+    ADD CONSTRAINT guild_roles_v2_pkey PRIMARY KEY (guild_id, role_key);
 
 
 
@@ -515,11 +687,27 @@ CREATE INDEX idx_auth_identities_principal_id ON public.auth_identities USING bt
 
 
 
+CREATE INDEX idx_channel_hierarchies_v2_guild_kind ON public.channel_hierarchies_v2 USING btree (guild_id, hierarchy_kind, parent_channel_id);
+
+
+
+CREATE INDEX idx_channel_hierarchies_v2_parent_pos ON public.channel_hierarchies_v2 USING btree (parent_channel_id, "position", child_channel_id);
+
+
+
 CREATE INDEX idx_channel_last_message_time ON public.channel_last_message USING btree (last_message_at DESC);
 
 
 
 CREATE INDEX idx_channel_reads_user ON public.channel_reads USING btree (user_id);
+
+
+
+CREATE INDEX idx_channel_user_overrides_v2_guild_user ON public.channel_user_permission_overrides_v2 USING btree (guild_id, user_id);
+
+
+
+CREATE INDEX idx_channel_user_overrides_v2_user ON public.channel_user_permission_overrides_v2 USING btree (user_id, guild_id);
 
 
 
@@ -535,10 +723,15 @@ CREATE INDEX idx_dm_participants_user ON public.dm_participants USING btree (use
 
 
 
+CREATE INDEX idx_guild_member_roles_v2_user ON public.guild_member_roles_v2 USING btree (user_id, guild_id);
+
+
+
 CREATE INDEX idx_guild_members_user ON public.guild_members USING btree (user_id);
 
 
 
+CREATE INDEX idx_guild_roles_v2_priority ON public.guild_roles_v2 USING btree (guild_id, priority DESC, role_key);
 CREATE INDEX idx_guild_members_user_joined_guild ON public.guild_members USING btree (user_id, joined_at DESC, guild_id);
 
 
@@ -559,7 +752,23 @@ CREATE INDEX idx_outbox_pending ON public.outbox_events USING btree (status, nex
 
 
 
+CREATE UNIQUE INDEX uq_channel_hierarchies_v2_thread_parent_message ON public.channel_hierarchies_v2 USING btree (guild_id, parent_channel_id, parent_message_id) WHERE (hierarchy_kind = 'thread'::public.channel_hierarchy_kind);
+
+
+
 CREATE UNIQUE INDEX uq_users_email_lower ON public.users USING btree (lower(email));
+
+
+
+CREATE TRIGGER trg_enforce_channel_hierarchies_v2_scope BEFORE INSERT OR UPDATE ON public.channel_hierarchies_v2 FOR EACH ROW EXECUTE FUNCTION public.enforce_channel_hierarchies_v2_scope();
+
+
+
+CREATE TRIGGER trg_enforce_channel_role_overrides_v2_scope BEFORE INSERT OR UPDATE ON public.channel_role_permission_overrides_v2 FOR EACH ROW EXECUTE FUNCTION public.enforce_channel_role_overrides_v2_scope();
+
+
+
+CREATE TRIGGER trg_enforce_channel_user_overrides_v2_scope BEFORE INSERT OR UPDATE ON public.channel_user_permission_overrides_v2 FOR EACH ROW EXECUTE FUNCTION public.enforce_channel_user_overrides_v2_scope();
 
 
 
@@ -586,13 +795,23 @@ ALTER TABLE ONLY public.auth_identities
 
 
 
+ALTER TABLE ONLY public.channel_hierarchies_v2
+    ADD CONSTRAINT channel_hierarchies_v2_child_channel_id_fkey FOREIGN KEY (child_channel_id) REFERENCES public.channels(id) ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY public.channel_hierarchies_v2
+    ADD CONSTRAINT channel_hierarchies_v2_guild_id_fkey FOREIGN KEY (guild_id) REFERENCES public.guilds(id) ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY public.channel_hierarchies_v2
+    ADD CONSTRAINT channel_hierarchies_v2_parent_channel_id_fkey FOREIGN KEY (parent_channel_id) REFERENCES public.channels(id) ON DELETE CASCADE;
+
+
+
 ALTER TABLE ONLY public.channel_last_message
     ADD CONSTRAINT channel_last_message_channel_id_fkey FOREIGN KEY (channel_id) REFERENCES public.channels(id) ON DELETE CASCADE;
-
-
-
-ALTER TABLE ONLY public.channel_permission_overrides
-    ADD CONSTRAINT channel_permission_overrides_channel_id_fkey FOREIGN KEY (channel_id) REFERENCES public.channels(id) ON DELETE CASCADE;
 
 
 
@@ -603,6 +822,26 @@ ALTER TABLE ONLY public.channel_reads
 
 ALTER TABLE ONLY public.channel_reads
     ADD CONSTRAINT channel_reads_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY public.channel_role_permission_overrides_v2
+    ADD CONSTRAINT channel_role_permission_overrides_v2_channel_id_fkey FOREIGN KEY (channel_id) REFERENCES public.channels(id) ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY public.channel_role_permission_overrides_v2
+    ADD CONSTRAINT channel_role_permission_overrides_v2_guild_id_role_key_fkey FOREIGN KEY (guild_id, role_key) REFERENCES public.guild_roles_v2(guild_id, role_key) ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY public.channel_user_permission_overrides_v2
+    ADD CONSTRAINT channel_user_permission_overrides_v2_channel_id_fkey FOREIGN KEY (channel_id) REFERENCES public.channels(id) ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY public.channel_user_permission_overrides_v2
+    ADD CONSTRAINT channel_user_permission_overrides_v2_guild_id_user_id_fkey FOREIGN KEY (guild_id, user_id) REFERENCES public.guild_members(guild_id, user_id) ON DELETE CASCADE;
 
 
 
@@ -641,13 +880,18 @@ ALTER TABLE ONLY public.dm_participants
 
 
 
-ALTER TABLE ONLY public.guild_member_roles
-    ADD CONSTRAINT guild_member_roles_guild_id_level_fkey FOREIGN KEY (guild_id, level) REFERENCES public.guild_roles(guild_id, level) ON DELETE RESTRICT;
+ALTER TABLE ONLY public.guild_member_roles_v2
+    ADD CONSTRAINT guild_member_roles_v2_assigned_by_fkey FOREIGN KEY (assigned_by) REFERENCES public.users(id) ON DELETE SET NULL;
 
 
 
-ALTER TABLE ONLY public.guild_member_roles
-    ADD CONSTRAINT guild_member_roles_guild_id_user_id_fkey FOREIGN KEY (guild_id, user_id) REFERENCES public.guild_members(guild_id, user_id) ON DELETE CASCADE;
+ALTER TABLE ONLY public.guild_member_roles_v2
+    ADD CONSTRAINT guild_member_roles_v2_guild_id_role_key_fkey FOREIGN KEY (guild_id, role_key) REFERENCES public.guild_roles_v2(guild_id, role_key) ON DELETE RESTRICT;
+
+
+
+ALTER TABLE ONLY public.guild_member_roles_v2
+    ADD CONSTRAINT guild_member_roles_v2_guild_id_user_id_fkey FOREIGN KEY (guild_id, user_id) REFERENCES public.guild_members(guild_id, user_id) ON DELETE CASCADE;
 
 
 
@@ -661,8 +905,8 @@ ALTER TABLE ONLY public.guild_members
 
 
 
-ALTER TABLE ONLY public.guild_roles
-    ADD CONSTRAINT guild_roles_guild_id_fkey FOREIGN KEY (guild_id) REFERENCES public.guilds(id) ON DELETE CASCADE;
+ALTER TABLE ONLY public.guild_roles_v2
+    ADD CONSTRAINT guild_roles_v2_guild_id_fkey FOREIGN KEY (guild_id) REFERENCES public.guilds(id) ON DELETE CASCADE;
 
 
 
@@ -688,7 +932,6 @@ ALTER TABLE ONLY public.invites
 
 ALTER TABLE ONLY public.invites
     ADD CONSTRAINT invites_guild_id_fkey FOREIGN KEY (guild_id) REFERENCES public.guilds(id) ON DELETE CASCADE;
-
 
 
 
