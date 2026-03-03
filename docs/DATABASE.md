@@ -30,6 +30,7 @@
 9. `0009_lin633_channel_user_overrides_spicedb`
 10. `0010_lin634_channel_hierarchy_category_thread`
 11. `0011_lin857_drop_legacy_permission_assets_post_cutover`
+12. `0012_lin635_message_reply_pin_persistence`
 
 ### 2.1 型（ENUM）
 
@@ -54,6 +55,8 @@
 - `channel_role_permission_overrides_v2`
 - `channel_user_permission_overrides_v2`
 - `channel_hierarchies_v2`
+- `message_references_v2`
+- `channel_pins_v2`
 - `channel_reads`
 - `channel_last_message`
 - `audit_logs`
@@ -70,6 +73,8 @@
 - `guild_roles_v2` + `guild_member_roles_v2` + `channel_role_permission_overrides_v2` は LIN-632 で導入された任意ロールモデル（LIN-857でv0資産を削除し単一化）
 - `channel_user_permission_overrides_v2` は LIN-633 で導入されたユーザー単位の tri-state override で、`channel_role_permission_overrides_v2` と併存する
 - `channel_hierarchies_v2` は LIN-634 で導入されたカテゴリ配下/スレッド識別の階層メタデータで、`channels` 本体互換を維持したまま親子関係を保持する
+- `message_references_v2` は LIN-635 で導入された返信参照メタデータで、`message_id` 単位で `reply_to_message_id` を一意追跡する
+- `channel_pins_v2` は LIN-635 で導入されたピン留め状態メタデータで、`pinned_at/pinned_by` と `unpinned_at/unpinned_by` により監査可能な状態遷移を保持する
 - `channel_reads` は `(channel_id, user_id)` を主キーとして既読位置管理
 - `channel_last_message` はチャネル最新メッセージの参照を保持
 - `audit_logs` は監査イベント記録
@@ -102,6 +107,9 @@
 - `idx_invites_guild`, `idx_invites_expires`
 - `idx_channel_hierarchies_v2_parent_pos`
 - `idx_channel_hierarchies_v2_guild_kind`
+- `idx_msg_refs_v2_channel_reply`
+- `idx_ch_pins_v2_active`
+- `idx_ch_pins_v2_message`
 - `idx_channel_user_overrides_v2_user`
 - `idx_channel_user_overrides_v2_guild_user`
 - `idx_channel_reads_user`
@@ -165,6 +173,12 @@ The source of truth for channel hierarchy schema (category/thread), scope constr
 The source of truth for post-cutover removal of legacy permission tables/columns is:
 
 - `database/contracts/lin857_legacy_permission_assets_removal_contract.md`
+
+### 2.15 Message Reply/Pin Persistence Contract (LIN-635)
+
+The source of truth for message reply reference tracking, pin/unpin audit columns, and tombstone compatibility policy is:
+
+- `database/contracts/lin635_message_reply_pin_persistence_contract.md`
 
 ## 3. ScyllaDB の現在状態
 
@@ -239,3 +253,5 @@ The source of truth for Scylla operations (SoR boundary, partition review criter
   - `database/contracts/lin634_channel_hierarchy_category_thread_contract.md`
 - LIN-857 legacy permission assets removal contract:
   - `database/contracts/lin857_legacy_permission_assets_removal_contract.md`
+- LIN-635 message reply/pin persistence contract:
+  - `database/contracts/lin635_message_reply_pin_persistence_contract.md`

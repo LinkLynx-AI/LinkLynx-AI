@@ -23,6 +23,8 @@
 | [public.channel_user_permission_overrides_v2](public.channel_user_permission_overrides_v2.md) | 7 |  | BASE TABLE |
 | [public.channel_permission_overrides_subject_v2](public.channel_permission_overrides_subject_v2.md) | 8 |  | VIEW |
 | [public.channel_hierarchies_v2](public.channel_hierarchies_v2.md) | 9 |  | BASE TABLE |
+| [public.message_references_v2](public.message_references_v2.md) | 4 |  | BASE TABLE |
+| [public.channel_pins_v2](public.channel_pins_v2.md) | 7 |  | BASE TABLE |
 
 ## Stored procedures and functions
 

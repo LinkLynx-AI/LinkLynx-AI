@@ -2014,6 +2014,236 @@
           "def": "CREATE TRIGGER trg_enforce_channel_hierarchies_v2_scope BEFORE INSERT OR UPDATE ON public.channel_hierarchies_v2 FOR EACH ROW EXECUTE FUNCTION enforce_channel_hierarchies_v2_scope()"
         }
       ]
+    },
+    {
+      "name": "public.message_references_v2",
+      "type": "BASE TABLE",
+      "columns": [
+        {
+          "name": "message_id",
+          "type": "bigint",
+          "nullable": false
+        },
+        {
+          "name": "channel_id",
+          "type": "bigint",
+          "nullable": false
+        },
+        {
+          "name": "reply_to_message_id",
+          "type": "bigint",
+          "nullable": false,
+          "comment": "Scylla SoR上の参照先message_id。削除済み参照先のトゥームストーン表示整合のためFKを張らない。"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default": "now()"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "message_references_v2_pkey",
+          "def": "CREATE UNIQUE INDEX message_references_v2_pkey ON public.message_references_v2 USING btree (message_id)",
+          "table": "public.message_references_v2",
+          "columns": [
+            "message_id"
+          ]
+        },
+        {
+          "name": "idx_msg_refs_v2_channel_reply",
+          "def": "CREATE INDEX idx_msg_refs_v2_channel_reply ON public.message_references_v2 USING btree (channel_id, reply_to_message_id, message_id DESC)",
+          "table": "public.message_references_v2",
+          "columns": [
+            "channel_id",
+            "reply_to_message_id",
+            "message_id"
+          ]
+        }
+      ],
+      "constraints": [
+        {
+          "name": "chk_msg_refs_v2_not_self",
+          "type": "CHECK",
+          "def": "CHECK ((message_id \u003c\u003e reply_to_message_id))",
+          "table": "public.message_references_v2",
+          "referenced_table": "",
+          "columns": [
+            "message_id",
+            "reply_to_message_id"
+          ]
+        },
+        {
+          "name": "message_references_v2_channel_id_fkey",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (channel_id) REFERENCES channels(id) ON DELETE CASCADE",
+          "table": "public.message_references_v2",
+          "referenced_table": "channels",
+          "columns": [
+            "channel_id"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "message_references_v2_pkey",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (message_id)",
+          "table": "public.message_references_v2",
+          "referenced_table": "",
+          "columns": [
+            "message_id"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "public.channel_pins_v2",
+      "type": "BASE TABLE",
+      "columns": [
+        {
+          "name": "channel_id",
+          "type": "bigint",
+          "nullable": false
+        },
+        {
+          "name": "message_id",
+          "type": "bigint",
+          "nullable": false
+        },
+        {
+          "name": "pinned_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default": "now()"
+        },
+        {
+          "name": "pinned_by",
+          "type": "bigint",
+          "nullable": true
+        },
+        {
+          "name": "unpinned_at",
+          "type": "timestamp with time zone",
+          "nullable": true
+        },
+        {
+          "name": "unpinned_by",
+          "type": "bigint",
+          "nullable": true
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default": "now()"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "channel_pins_v2_pkey",
+          "def": "CREATE UNIQUE INDEX channel_pins_v2_pkey ON public.channel_pins_v2 USING btree (channel_id, message_id)",
+          "table": "public.channel_pins_v2",
+          "columns": [
+            "channel_id",
+            "message_id"
+          ]
+        },
+        {
+          "name": "idx_ch_pins_v2_active",
+          "def": "CREATE INDEX idx_ch_pins_v2_active ON public.channel_pins_v2 USING btree (channel_id, pinned_at DESC, message_id DESC) WHERE (unpinned_at IS NULL)",
+          "table": "public.channel_pins_v2",
+          "columns": [
+            "channel_id",
+            "pinned_at",
+            "message_id"
+          ]
+        },
+        {
+          "name": "idx_ch_pins_v2_message",
+          "def": "CREATE INDEX idx_ch_pins_v2_message ON public.channel_pins_v2 USING btree (message_id)",
+          "table": "public.channel_pins_v2",
+          "columns": [
+            "message_id"
+          ]
+        }
+      ],
+      "constraints": [
+        {
+          "name": "chk_ch_pins_v2_unpin_pair",
+          "type": "CHECK",
+          "def": "CHECK ((((unpinned_at IS NULL) AND (unpinned_by IS NULL)) OR (unpinned_at IS NOT NULL)))",
+          "table": "public.channel_pins_v2",
+          "referenced_table": "",
+          "columns": [
+            "unpinned_at",
+            "unpinned_by"
+          ]
+        },
+        {
+          "name": "chk_ch_pins_v2_unpin_time",
+          "type": "CHECK",
+          "def": "CHECK (((unpinned_at IS NULL) OR (unpinned_at \u003e= pinned_at)))",
+          "table": "public.channel_pins_v2",
+          "referenced_table": "",
+          "columns": [
+            "unpinned_at",
+            "pinned_at"
+          ]
+        },
+        {
+          "name": "channel_pins_v2_pinned_by_fkey",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (pinned_by) REFERENCES users(id) ON DELETE SET NULL",
+          "table": "public.channel_pins_v2",
+          "referenced_table": "users",
+          "columns": [
+            "pinned_by"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "channel_pins_v2_unpinned_by_fkey",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (unpinned_by) REFERENCES users(id) ON DELETE SET NULL",
+          "table": "public.channel_pins_v2",
+          "referenced_table": "users",
+          "columns": [
+            "unpinned_by"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "channel_pins_v2_channel_id_fkey",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (channel_id) REFERENCES channels(id) ON DELETE CASCADE",
+          "table": "public.channel_pins_v2",
+          "referenced_table": "channels",
+          "columns": [
+            "channel_id"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "channel_pins_v2_pkey",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (channel_id, message_id)",
+          "table": "public.channel_pins_v2",
+          "referenced_table": "",
+          "columns": [
+            "channel_id",
+            "message_id"
+          ]
+        }
+      ]
     }
   ],
   "relations": [
@@ -2427,6 +2657,58 @@
       ],
       "parent_cardinality": "exactly_one",
       "def": "FOREIGN KEY (parent_channel_id) REFERENCES channels(id) ON DELETE CASCADE"
+    },
+    {
+      "table": "public.message_references_v2",
+      "columns": [
+        "channel_id"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "public.channels",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "exactly_one",
+      "def": "FOREIGN KEY (channel_id) REFERENCES channels(id) ON DELETE CASCADE"
+    },
+    {
+      "table": "public.channel_pins_v2",
+      "columns": [
+        "pinned_by"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "public.users",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "zero_or_one",
+      "def": "FOREIGN KEY (pinned_by) REFERENCES users(id) ON DELETE SET NULL"
+    },
+    {
+      "table": "public.channel_pins_v2",
+      "columns": [
+        "unpinned_by"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "public.users",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "zero_or_one",
+      "def": "FOREIGN KEY (unpinned_by) REFERENCES users(id) ON DELETE SET NULL"
+    },
+    {
+      "table": "public.channel_pins_v2",
+      "columns": [
+        "channel_id"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "public.channels",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "exactly_one",
+      "def": "FOREIGN KEY (channel_id) REFERENCES channels(id) ON DELETE CASCADE"
     }
   ],
   "functions": [
