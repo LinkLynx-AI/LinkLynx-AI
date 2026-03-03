@@ -1,7 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { reloadCurrentAuthUser, sendVerificationEmailForCurrentUser, useAuthSession } from "@/entities";
+import {
+  reloadCurrentAuthUser,
+  sendVerificationEmailForCurrentUser,
+  useAuthSession,
+} from "@/entities";
 import { APP_ROUTES } from "@/shared/config";
 import { getVerifyEmailErrorMessage } from "../model";
 
