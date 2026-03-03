@@ -171,6 +171,9 @@ impl PostgresGuildChannelService {
             return Err(GuildChannelError::not_found("guild_not_found"));
         }
 
+        // TODO(LIN-629): Remove local membership authorization once the common
+        // SpiceDB-backed Authorizer evaluates Guild/GuildChannel resources.
+        // Keep the guild existence check to preserve 404 contract semantics.
         let is_member = client
             .query_opt(
                 "SELECT 1 FROM guild_members WHERE guild_id = $1 AND user_id = $2",
