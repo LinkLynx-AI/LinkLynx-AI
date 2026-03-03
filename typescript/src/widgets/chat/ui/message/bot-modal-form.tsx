@@ -4,7 +4,10 @@ import { useState } from "react";
 import { cn } from "@/shared/lib/cn";
 import { Modal, ModalHeader, ModalBody, ModalFooter } from "@/shared/ui/modal";
 import { Button } from "@/shared/ui/button";
-import type { BotModalForm as BotModalFormType, TextInputComponent } from "@/shared/model/types/bot-components";
+import type {
+  BotModalForm as BotModalFormType,
+  TextInputComponent,
+} from "@/shared/model/types/bot-components";
 
 function TextInput({
   component,

@@ -45,7 +45,9 @@ const AUTH_ROUTE_CONTENT: Record<AuthRouteKind, AuthRouteContent> = {
 const CHANNEL_SHELL_NAVIGATION: ChannelShellNavigation = {
   sectionLabel: "Channels",
   serverRailItems: [{ id: "home", label: "Home", href: APP_ROUTES.channels.me, selected: true }],
-  channelItems: [{ id: "me", label: "@me", href: APP_ROUTES.channels.me, kind: "dm", selected: true }],
+  channelItems: [
+    { id: "me", label: "@me", href: APP_ROUTES.channels.me, kind: "dm", selected: true },
+  ],
   memberItems: [],
 };
 

@@ -4,7 +4,7 @@ import { useState, useCallback, useRef, type KeyboardEvent, type ClipboardEvent 
 import { CirclePlus, Smile, Sticker, Gift } from "lucide-react";
 import { cn } from "@/shared/lib/cn";
 import { useSendMessage } from "@/shared/api/mutations/use-send-message";
-import { EmojiPicker } from "@/widgets/pickers";
+import { EmojiPicker } from "@/features/pickers";
 import { FormattingToolbar } from "./formatting-toolbar";
 import { MarkdownPreview } from "./markdown-preview";
 import { FileUploadArea, type FileItem } from "./file-upload-area";

@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "fsd:check": "node ./scripts/check-fsd.mjs",
     "start": "next start",
     "lint": "eslint . --ext .ts,.tsx --max-warnings=0",
     "lint:fix": "eslint . --ext .ts,.tsx --fix",

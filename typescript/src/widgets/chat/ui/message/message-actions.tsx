@@ -4,7 +4,7 @@ import { useState, useRef } from "react";
 import { SmilePlus, Reply, Pencil, MessageSquare, MoreHorizontal } from "lucide-react";
 import { cn } from "@/shared/lib/cn";
 import { useUIStore } from "@/shared/model/stores/ui-store";
-import { EmojiPicker } from "@/widgets/pickers";
+import { EmojiPicker } from "@/features/pickers";
 import { PublishButton } from "./publish-button";
 import type { Message } from "@/shared/model/types";
 

@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { ThreadCard, ThreadView, mockThreads } from "@/widgets/threads";
-import type { ThreadData } from "@/widgets/threads";
+import { ThreadCard, ThreadView, mockThreads } from "@/features/threads";
+import type { ThreadData } from "@/features/threads";
 import { EmptyState } from "@/shared/ui/empty-state";
 
 export function ThreadsPanel() {
