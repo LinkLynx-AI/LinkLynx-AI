@@ -6,7 +6,7 @@
 
 | Name | Type | Default | Nullable | Children | Parents | Comment |
 | ---- | ---- | ------- | -------- | -------- | ------- | ------- |
-| id | bigint |  | false | [public.dm_participants](public.dm_participants.md) [public.dm_pairs](public.dm_pairs.md) [public.channel_permission_overrides](public.channel_permission_overrides.md) [public.channel_reads](public.channel_reads.md) [public.channel_last_message](public.channel_last_message.md) [public.channel_role_permission_overrides_v2](public.channel_role_permission_overrides_v2.md) [public.channel_user_permission_overrides_v2](public.channel_user_permission_overrides_v2.md) |  |  |
+| id | bigint |  | false | [public.dm_participants](public.dm_participants.md) [public.dm_pairs](public.dm_pairs.md) [public.channel_permission_overrides](public.channel_permission_overrides.md) [public.channel_reads](public.channel_reads.md) [public.channel_last_message](public.channel_last_message.md) [public.channel_role_permission_overrides_v2](public.channel_role_permission_overrides_v2.md) [public.channel_user_permission_overrides_v2](public.channel_user_permission_overrides_v2.md) [public.channel_hierarchies_v2](public.channel_hierarchies_v2.md) |  |  |
 | type | channel_type |  | false |  |  |  |
 | guild_id | bigint |  | true |  | [public.guilds](public.guilds.md) |  |
 | name | text |  | true |  |  |  |

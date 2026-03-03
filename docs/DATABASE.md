@@ -28,10 +28,12 @@
 7. `0007_lin622_users_id_sequence_for_provisioning`
 8. `0008_lin632_arbitrary_roles_spicedb_prep`
 9. `0009_lin633_channel_user_overrides_spicedb`
+10. `0010_lin634_channel_hierarchy_category_thread`
 
 ### 2.1 型（ENUM）
 
 - `channel_type`: `guild_text`, `dm`
+- `channel_hierarchy_kind`: `category_child`, `thread`
 - `role_level`: `owner`, `admin`, `member`
 - `audit_action`: `INVITE_CREATE`, `INVITE_DISABLE`, `GUILD_MEMBER_JOIN`, `GUILD_MEMBER_LEAVE`, `ROLE_ASSIGN`, `ROLE_REVOKE`, `CHANNEL_CREATE`, `CHANNEL_UPDATE`, `CHANNEL_DELETE`, `MESSAGE_DELETE_MOD`, `USER_BAN`, `USER_UNBAN`
 - `outbox_status`: `PENDING`, `SENT`, `FAILED`
@@ -54,6 +56,7 @@
 - `guild_member_roles_v2`
 - `channel_role_permission_overrides_v2`
 - `channel_user_permission_overrides_v2`
+- `channel_hierarchies_v2`
 - `channel_reads`
 - `channel_last_message`
 - `audit_logs`
@@ -70,6 +73,7 @@
 - `guild_roles` + `guild_member_roles` + `channel_permission_overrides` でロール/権限上書き
 - `guild_roles_v2` + `guild_member_roles_v2` + `channel_role_permission_overrides_v2` は LIN-632 で導入された任意ロール移行モデル（v0との併存）
 - `channel_user_permission_overrides_v2` は LIN-633 で導入されたユーザー単位の tri-state override で、`channel_role_permission_overrides_v2` と併存する
+- `channel_hierarchies_v2` は LIN-634 で導入されたカテゴリ配下/スレッド識別の階層メタデータで、`channels` 本体互換を維持したまま親子関係を保持する
 - `channel_reads` は `(channel_id, user_id)` を主キーとして既読位置管理
 - `channel_last_message` はチャネル最新メッセージの参照を保持
 - `audit_logs` は監査イベント記録
@@ -79,6 +83,7 @@
 
 関数:
 - `set_users_updated_at()`
+- `enforce_channel_hierarchies_v2_scope()`
 - `enforce_dm_pairs_channel_type()`
 - `upsert_channel_reads_monotonic(...)`
 - `claim_outbox_events(p_limit, p_lease_seconds)`
@@ -87,6 +92,7 @@
 
 トリガー:
 - `trg_users_set_updated_at`（`users` 更新時に `updated_at` 更新）
+- `trg_enforce_channel_hierarchies_v2_scope`（`channel_hierarchies_v2` の child/parent/guild整合を強制）
 - `trg_enforce_dm_pairs_channel_type`（`dm_pairs.channel_id` が `channels.type=dm` を強制）
 
 ### 2.5 主要インデックス（抜粋）
@@ -98,6 +104,8 @@
 - `idx_channels_guild`（`type='guild_text'` 条件付き）
 - `idx_dm_participants_user`
 - `idx_invites_guild`, `idx_invites_expires`
+- `idx_channel_hierarchies_v2_parent_pos`
+- `idx_channel_hierarchies_v2_guild_kind`
 - `idx_channel_user_overrides_v2_user`
 - `idx_channel_user_overrides_v2_guild_user`
 - `idx_channel_reads_user`
@@ -149,6 +157,12 @@ The source of truth for arbitrary-role migration model and Postgres -> SpiceDB t
 The source of truth for channel-level user override (tri-state), evaluation precedence, and role/user override -> SpiceDB tuple conversion is:
 
 - `database/contracts/lin633_channel_user_override_spicedb_contract.md`
+
+### 2.13 Channel Hierarchy (Category/Thread) Contract (LIN-634)
+
+The source of truth for channel hierarchy schema (category/thread), scope constraints, and compatibility policy is:
+
+- `database/contracts/lin634_channel_hierarchy_category_thread_contract.md`
 
 ## 3. ScyllaDB の現在状態
 
@@ -219,3 +233,5 @@ The source of truth for Scylla operations (SoR boundary, partition review criter
   - `database/contracts/lin632_spicedb_role_model_migration_contract.md`
 - LIN-633 channel user override / SpiceDB mapping contract:
   - `database/contracts/lin633_channel_user_override_spicedb_contract.md`
+- LIN-634 channel hierarchy (category/thread) contract:
+  - `database/contracts/lin634_channel_hierarchy_category_thread_contract.md`

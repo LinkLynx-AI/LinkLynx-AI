@@ -30,6 +30,13 @@ CREATE TYPE public.audit_action AS ENUM (
 
 
 
+CREATE TYPE public.channel_hierarchy_kind AS ENUM (
+    'category_child',
+    'thread'
+);
+
+
+
 CREATE TYPE public.channel_type AS ENUM (
     'guild_text',
     'dm'
@@ -78,6 +85,43 @@ SET
 FROM pending
 WHERE o.id = pending.id
 RETURNING o.id, o.event_type, o.aggregate_id, o.payload;
+$$;
+
+
+
+CREATE FUNCTION public.enforce_channel_hierarchies_v2_scope() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  child_guild_id BIGINT;
+  child_type channel_type;
+  parent_guild_id BIGINT;
+  parent_type channel_type;
+BEGIN
+  SELECT guild_id, type
+  INTO child_guild_id, child_type
+  FROM channels
+  WHERE id = NEW.child_channel_id;
+
+  IF child_guild_id IS NULL OR child_type <> 'guild_text' THEN
+    RAISE EXCEPTION 'channel_hierarchies_v2.child_channel_id must reference channels.type=guild_text with non-null guild_id';
+  END IF;
+
+  SELECT guild_id, type
+  INTO parent_guild_id, parent_type
+  FROM channels
+  WHERE id = NEW.parent_channel_id;
+
+  IF parent_guild_id IS NULL OR parent_type <> 'guild_text' THEN
+    RAISE EXCEPTION 'channel_hierarchies_v2.parent_channel_id must reference channels.type=guild_text with non-null guild_id';
+  END IF;
+
+  IF child_guild_id <> parent_guild_id OR child_guild_id <> NEW.guild_id THEN
+    RAISE EXCEPTION 'channel_hierarchies_v2 guild scope mismatch between child/parent/guild_id';
+  END IF;
+
+  RETURN NEW;
+END;
 $$;
 
 
@@ -249,6 +293,23 @@ CREATE TABLE public.auth_identities (
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     CONSTRAINT chk_auth_identities_provider_non_empty CHECK ((length(provider) > 0)),
     CONSTRAINT chk_auth_identities_provider_subject_non_empty CHECK ((length(provider_subject) > 0))
+);
+
+
+
+CREATE TABLE public.channel_hierarchies_v2 (
+    child_channel_id bigint NOT NULL,
+    guild_id bigint NOT NULL,
+    parent_channel_id bigint NOT NULL,
+    hierarchy_kind public.channel_hierarchy_kind NOT NULL,
+    parent_message_id bigint,
+    "position" integer DEFAULT 0 NOT NULL,
+    archived_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chk_channel_hierarchies_v2_not_self CHECK ((child_channel_id <> parent_channel_id)),
+    CONSTRAINT chk_channel_hierarchies_v2_position_non_negative CHECK (("position" >= 0)),
+    CONSTRAINT chk_channel_hierarchies_v2_thread_parent_message CHECK ((((hierarchy_kind = 'thread'::public.channel_hierarchy_kind) AND (parent_message_id IS NOT NULL)) OR ((hierarchy_kind = 'category_child'::public.channel_hierarchy_kind) AND (parent_message_id IS NULL))))
 );
 
 
@@ -529,6 +590,11 @@ ALTER TABLE ONLY public.auth_identities
 
 
 
+ALTER TABLE ONLY public.channel_hierarchies_v2
+    ADD CONSTRAINT channel_hierarchies_v2_pkey PRIMARY KEY (child_channel_id);
+
+
+
 ALTER TABLE ONLY public.channel_last_message
     ADD CONSTRAINT channel_last_message_pkey PRIMARY KEY (channel_id);
 
@@ -642,6 +708,14 @@ CREATE INDEX idx_auth_identities_principal_id ON public.auth_identities USING bt
 
 
 
+CREATE INDEX idx_channel_hierarchies_v2_guild_kind ON public.channel_hierarchies_v2 USING btree (guild_id, hierarchy_kind, parent_channel_id);
+
+
+
+CREATE INDEX idx_channel_hierarchies_v2_parent_pos ON public.channel_hierarchies_v2 USING btree (parent_channel_id, "position", child_channel_id);
+
+
+
 CREATE INDEX idx_channel_last_message_time ON public.channel_last_message USING btree (last_message_at DESC);
 
 
@@ -694,7 +768,15 @@ CREATE INDEX idx_outbox_pending ON public.outbox_events USING btree (status, nex
 
 
 
+CREATE UNIQUE INDEX uq_channel_hierarchies_v2_thread_parent_message ON public.channel_hierarchies_v2 USING btree (guild_id, parent_channel_id, parent_message_id) WHERE (hierarchy_kind = 'thread'::public.channel_hierarchy_kind);
+
+
+
 CREATE UNIQUE INDEX uq_users_email_lower ON public.users USING btree (lower(email));
+
+
+
+CREATE TRIGGER trg_enforce_channel_hierarchies_v2_scope BEFORE INSERT OR UPDATE ON public.channel_hierarchies_v2 FOR EACH ROW EXECUTE FUNCTION public.enforce_channel_hierarchies_v2_scope();
 
 
 
@@ -726,6 +808,21 @@ ALTER TABLE ONLY public.audit_logs
 
 ALTER TABLE ONLY public.auth_identities
     ADD CONSTRAINT auth_identities_principal_id_fkey FOREIGN KEY (principal_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY public.channel_hierarchies_v2
+    ADD CONSTRAINT channel_hierarchies_v2_child_channel_id_fkey FOREIGN KEY (child_channel_id) REFERENCES public.channels(id) ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY public.channel_hierarchies_v2
+    ADD CONSTRAINT channel_hierarchies_v2_guild_id_fkey FOREIGN KEY (guild_id) REFERENCES public.guilds(id) ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY public.channel_hierarchies_v2
+    ADD CONSTRAINT channel_hierarchies_v2_parent_channel_id_fkey FOREIGN KEY (parent_channel_id) REFERENCES public.channels(id) ON DELETE CASCADE;
 
 
 
