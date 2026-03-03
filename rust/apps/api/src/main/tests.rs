@@ -8,6 +8,10 @@ mod tests {
         VerifiedToken,
     };
     use authz::{Authorizer, AuthzCheckInput, AuthzError};
+    use guild_channel::{
+        ChannelSummary, CreatedChannel, CreatedGuild, GuildChannelError, GuildChannelService,
+        GuildSummary,
+    };
     use axum::{body::to_bytes, http::StatusCode};
     use linklynx_shared::PrincipalId;
     use tower::ServiceExt;
@@ -18,6 +22,7 @@ mod tests {
     struct StaticAllowAllAuthorizer;
     struct StaticDenyAuthorizer;
     struct StaticUnavailableAuthorizer;
+    struct StaticGuildChannelService;
 
     #[async_trait]
     impl TokenVerifier for StaticTokenVerifier {
@@ -65,6 +70,97 @@ mod tests {
         }
     }
 
+    #[async_trait]
+    impl GuildChannelService for StaticGuildChannelService {
+        async fn list_guilds(
+            &self,
+            principal_id: PrincipalId,
+        ) -> Result<Vec<GuildSummary>, GuildChannelError> {
+            if principal_id.0 != 1001 {
+                return Ok(vec![]);
+            }
+
+            Ok(vec![GuildSummary {
+                guild_id: 2001,
+                name: "LinkLynx Developers".to_owned(),
+                icon_key: None,
+                joined_at: "2026-03-03T00:00:00Z".to_owned(),
+            }])
+        }
+
+        async fn create_guild(
+            &self,
+            principal_id: PrincipalId,
+            name: String,
+        ) -> Result<CreatedGuild, GuildChannelError> {
+            let normalized = name.trim();
+            if normalized.is_empty() {
+                return Err(GuildChannelError::validation("guild_name_required"));
+            }
+
+            Ok(CreatedGuild {
+                guild_id: 2002,
+                name: normalized.to_owned(),
+                icon_key: None,
+                owner_id: principal_id.0,
+            })
+        }
+
+        async fn list_guild_channels(
+            &self,
+            principal_id: PrincipalId,
+            guild_id: i64,
+        ) -> Result<Vec<ChannelSummary>, GuildChannelError> {
+            if guild_id != 2001 {
+                return Err(GuildChannelError::not_found("guild_not_found"));
+            }
+            if principal_id.0 != 1001 {
+                return Err(GuildChannelError::forbidden("guild_membership_required"));
+            }
+
+            Ok(vec![
+                ChannelSummary {
+                    channel_id: 3001,
+                    guild_id,
+                    name: "general".to_owned(),
+                    created_at: "2026-03-03T00:00:00Z".to_owned(),
+                },
+                ChannelSummary {
+                    channel_id: 3002,
+                    guild_id,
+                    name: "random".to_owned(),
+                    created_at: "2026-03-03T00:00:30Z".to_owned(),
+                },
+            ])
+        }
+
+        async fn create_guild_channel(
+            &self,
+            principal_id: PrincipalId,
+            guild_id: i64,
+            name: String,
+        ) -> Result<CreatedChannel, GuildChannelError> {
+            if guild_id != 2001 {
+                return Err(GuildChannelError::not_found("guild_not_found"));
+            }
+            if principal_id.0 != 1001 {
+                return Err(GuildChannelError::forbidden("guild_membership_required"));
+            }
+
+            let normalized = name.trim();
+            if normalized.is_empty() {
+                return Err(GuildChannelError::validation("channel_name_required"));
+            }
+
+            Ok(CreatedChannel {
+                channel_id: 3003,
+                guild_id,
+                name: normalized.to_owned(),
+                created_at: "2026-03-03T00:01:00Z".to_owned(),
+            })
+        }
+    }
+
     async fn app_for_test() -> Router {
         app_for_test_with_authorizer(Arc::new(StaticAllowAllAuthorizer)).await
     }
@@ -91,6 +187,7 @@ mod tests {
         let state = AppState {
             auth_service,
             authorizer,
+            guild_channel_service: Arc::new(StaticGuildChannelService),
             ws_reauth_grace: Duration::from_secs(30),
         };
 
@@ -304,6 +401,156 @@ mod tests {
         let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
         assert_eq!(json["code"], "AUTHZ_UNAVAILABLE");
         assert_eq!(json["request_id"], "authz-unavailable-test");
+    }
+
+    #[tokio::test]
+    async fn list_guilds_returns_member_scoped_result() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/v1/guilds")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["guilds"][0]["guild_id"], 2001);
+        assert_eq!(json["guilds"][0]["name"], "LinkLynx Developers");
+    }
+
+    #[tokio::test]
+    async fn list_guild_channels_returns_forbidden_for_non_member() {
+        let app = app_for_test().await;
+        let token = format!("u-unknown:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/v1/guilds/2001/channels")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("x-request-id", "non-member-test")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "AUTHZ_DENIED");
+        assert_eq!(json["request_id"], "non-member-test");
+    }
+
+    #[tokio::test]
+    async fn list_guild_channels_returns_not_found_for_unknown_guild() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/v1/guilds/9999/channels")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "GUILD_NOT_FOUND");
+    }
+
+    #[tokio::test]
+    async fn create_guild_rejects_blank_name() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/v1/guilds")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"name":"   "}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "VALIDATION_ERROR");
+    }
+
+    #[tokio::test]
+    async fn create_guild_returns_created() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/v1/guilds")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"name":"My Guild"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::CREATED);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["guild"]["guild_id"], 2002);
+        assert_eq!(json["guild"]["name"], "My Guild");
+        assert_eq!(json["guild"]["owner_id"], 1001);
+    }
+
+    #[tokio::test]
+    async fn create_guild_channel_returns_created_for_member() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/v1/guilds/2001/channels")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"name":"release"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::CREATED);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["channel"]["guild_id"], 2001);
+        assert_eq!(json["channel"]["name"], "release");
     }
 
     #[test]
