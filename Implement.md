@@ -16,3 +16,17 @@
 - 検証:
   - `cd typescript && npm run typecheck` ✅
   - `cd typescript && npm run lint` ✅
+
+## 2026-03-03 (widgets/legacy 廃止対応)
+- `typescript/src/widgets/legacy/ui/*` を `typescript/src/widgets/<slice>/ui` へ移動し、`widgets/legacy` を削除。
+- `auth-guard` は `typescript/src/widgets/auth-guard/ui/auth-guard.tsx` として再配置。
+- 各 `widgets/<slice>/index.ts` を追加し、Public API をスライス単位で公開。
+- `@/widgets/legacy/ui/*` import を新構造へ置換:
+  - ルート参照: `@/widgets/<slice>`
+  - 深い参照: `@/widgets/<slice>/ui/...`
+- widget 間参照の一部を Public API 経由に整理:
+  - 例: `panels` → `threads`, `modals` → `user-profile`
+- `typescript/eslint.config.mjs` の緩和対象を `src/widgets/legacy/**/*` から `src/widgets/**/*` に更新。
+- 検証:
+  - `cd typescript && npm run typecheck` ✅
+  - `cd typescript && npm run lint` ✅

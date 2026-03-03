@@ -3,7 +3,7 @@
 import { useSyncServerId } from "@/shared/model/legacy/hooks/use-sync-guild-params";
 import { useDMChannels } from "@/shared/api/legacy/queries/use-channels";
 import { Avatar } from "@/shared/ui/legacy/avatar";
-import { UserPanel } from "@/widgets/legacy/ui/channel-sidebar/user-panel";
+import { UserPanel } from "@/widgets/channel-sidebar";
 import Link from "next/link";
 import { Users } from "lucide-react";
 import { usePathname } from "next/navigation";

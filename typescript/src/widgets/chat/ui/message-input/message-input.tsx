@@ -4,11 +4,11 @@ import { useState, useCallback, useRef, type KeyboardEvent, type ClipboardEvent 
 import { CirclePlus, Smile, Sticker, Gift } from "lucide-react";
 import { cn } from "@/shared/lib/legacy/cn";
 import { useSendMessage } from "@/shared/api/legacy/mutations/use-send-message";
-import { EmojiPicker } from "@/widgets/legacy/ui/pickers";
+import { EmojiPicker } from "@/widgets/pickers";
 import { FormattingToolbar } from "./formatting-toolbar";
 import { MarkdownPreview } from "./markdown-preview";
 import { FileUploadArea, type FileItem } from "./file-upload-area";
-import { SlashCommandPopup } from "@/widgets/legacy/ui/chat/message/slash-command-popup";
+import { SlashCommandPopup } from "../message/slash-command-popup";
 import { mockSlashCommands } from "@/shared/api/legacy/mock/data/bot-commands";
 import type { SlashCommand } from "@/shared/model/legacy/types/bot-components";
 

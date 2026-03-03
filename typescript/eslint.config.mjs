@@ -145,7 +145,7 @@ export default tseslint.config(
   {
     // moc-design UI files use mock/stub patterns that intentionally violate strict rules
     files: [
-      "src/widgets/legacy/**/*.{ts,tsx}",
+      "src/widgets/**/*.{ts,tsx}",
       "src/shared/model/legacy/**/*.{ts,tsx}",
       "src/shared/lib/legacy/**/*.{ts,tsx}",
       "src/shared/api/legacy/**/*.{ts,tsx}",

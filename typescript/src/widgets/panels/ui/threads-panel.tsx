@@ -1,10 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { ThreadCard } from "@/widgets/legacy/ui/threads/thread-card";
-import { ThreadView } from "@/widgets/legacy/ui/threads/thread-view";
-import { mockThreads } from "@/widgets/legacy/ui/threads/thread-mock-data";
-import type { ThreadData } from "@/widgets/legacy/ui/threads/thread-types";
+import { ThreadCard, ThreadView, mockThreads } from "@/widgets/threads";
+import type { ThreadData } from "@/widgets/threads";
 import { EmptyState } from "@/shared/ui/legacy/empty-state";
 
 export function ThreadsPanel() {

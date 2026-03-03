@@ -1,6 +1,6 @@
 "use client";
 
-import { FriendsPage } from "@/widgets/legacy/ui/dm-friends";
+import { FriendsPage } from "@/widgets/dm-friends";
 
 export default function FriendsRoute() {
   return <FriendsPage />;

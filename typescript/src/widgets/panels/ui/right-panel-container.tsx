@@ -6,7 +6,7 @@ import { useUIStore } from "@/shared/model/legacy/stores/ui-store";
 import { PinnedMessagesPanel } from "./pinned-messages-panel";
 import { SearchPanel } from "./search-panel";
 import { ThreadsPanel } from "./threads-panel";
-import { NotificationInbox } from "@/widgets/legacy/ui/notifications";
+import { NotificationInbox } from "@/widgets/notifications";
 
 const PANEL_TITLES: Record<string, string> = {
   pinned: "ピン留めされたメッセージ",

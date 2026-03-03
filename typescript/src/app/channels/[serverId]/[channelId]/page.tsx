@@ -1,4 +1,4 @@
-import { ChannelView } from "@/widgets/legacy/ui/chat/channel-view";
+import { ChannelView } from "@/widgets/chat";
 
 export default async function ChannelPage({
   params,

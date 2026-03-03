@@ -4,9 +4,9 @@ import { useSyncChannelId } from "@/shared/model/legacy/hooks/use-sync-guild-par
 import { useChannel } from "@/shared/api/legacy/queries/use-channels";
 import { useVoiceStore } from "@/shared/model/legacy/stores/voice-store";
 import { ChatArea } from "./chat-area";
-import { VoiceArea } from "@/widgets/legacy/ui/voice";
-import { ForumView } from "@/widgets/legacy/ui/forum";
-import { StageChannelView } from "@/widgets/legacy/ui/voice";
+import { VoiceArea } from "@/widgets/voice";
+import { ForumView } from "@/widgets/forum";
+import { StageChannelView } from "@/widgets/voice";
 
 export function ChannelView({ channelId }: { channelId: string }) {
   useSyncChannelId(channelId);
