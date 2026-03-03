@@ -6,8 +6,8 @@
 
 | Name | Type | Default | Nullable | Children | Parents | Comment |
 | ---- | ---- | ------- | -------- | -------- | ------- | ------- |
-| guild_id | bigint |  | false | [public.guild_member_roles](public.guild_member_roles.md) | [public.guilds](public.guilds.md) |  |
-| user_id | bigint |  | false | [public.guild_member_roles](public.guild_member_roles.md) | [public.users](public.users.md) |  |
+| guild_id | bigint |  | false | [public.guild_member_roles](public.guild_member_roles.md) [public.guild_member_roles_v2](public.guild_member_roles_v2.md) [public.channel_user_permission_overrides_v2](public.channel_user_permission_overrides_v2.md) | [public.guilds](public.guilds.md) |  |
+| user_id | bigint |  | false | [public.guild_member_roles](public.guild_member_roles.md) [public.guild_member_roles_v2](public.guild_member_roles_v2.md) [public.channel_user_permission_overrides_v2](public.channel_user_permission_overrides_v2.md) | [public.users](public.users.md) |  |
 | joined_at | timestamp with time zone | now() | false |  |  |  |
 | nickname | text |  | true |  |  |  |
 
