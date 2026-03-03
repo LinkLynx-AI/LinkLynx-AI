@@ -10,13 +10,14 @@
 
 ## Validation results
 - `rg -n "auth_identities|email_verification_tokens|password_reset_tokens|password_hash|email_verified" database/postgres/migrations`: passed.
-- `make db-schema-check`: failed in current local environment.
-  - failure reason: `Bind for 0.0.0.0:5432 failed: port is already allocated`.
-  - note: this check requires project Postgres to start and `pg_dump` to run against that instance.
+- `make db-migrate`: failed in this environment (`sqlx: command not found`).
+- fallback migration verification:
+  - applied `database/postgres/migrations/*up.sql` in order via `psql` on temporary local Postgres (`COMPOSE_FILE=/tmp/linklynx-db-only-5432-compose.yml`).
+- `make db-schema-check`: passed.
 
 ## Decisions
-- Since LIN-631 scope is documentation-only and does not change SQL schema files, kept validation evidence with static migration trace plus environment-blocked runtime check result.
-- Parent-branch-first PR policy could not be applied yet because no published parent branch for LIN-630 was found in remote refs at execution time.
+- LIN-631 scope is documentation-only, but runtime validation was re-run after local 5432 availability was restored.
+- Branch strategy was corrected to stacked PRs (`LIN-631 -> LIN-632 -> LIN-633`).
 
 ## Per-issue evidence (LIN-631)
 - issue: `LIN-631`
@@ -24,5 +25,5 @@
 - reviewer gate: not executed (no code-path change; manual self-review only)
 - UI gate: skipped (no UI changes)
 - PR: https://github.com/LinkLynx-AI/LinkLynx-AI/pull/983
-- PR base branch: `main` (fallback until parent branch exists)
-- merge policy: `main` target, no auto-merge
+- PR base branch: `main`
+- merge policy: stacked PR chain root (`LIN-631` is root)
