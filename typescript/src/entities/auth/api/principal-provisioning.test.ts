@@ -181,4 +181,24 @@ describe("ensurePrincipalProvisionedForCurrentUser", () => {
 
     expect(result.error.code).toBe("unexpected-response");
   });
+
+  test("NEXT_PUBLIC_API_URL 未設定時は unknown を返す", async () => {
+    delete process.env.NEXT_PUBLIC_API_URL;
+    setCurrentUser({
+      getIdToken: () => Promise.resolve("token-6"),
+    });
+
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await ensurePrincipalProvisionedForCurrentUser();
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      throw new Error("expected error result");
+    }
+
+    expect(result.error.code).toBe("unknown");
+    expect(result.error.message).toContain("NEXT_PUBLIC_API_URL is required but not set");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
 });

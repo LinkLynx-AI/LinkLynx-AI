@@ -34,9 +34,15 @@ function mapBackendAuthErrorCode(code: string): PrincipalProvisionErrorCode {
 }
 
 function resolveApiBaseUrl(): string {
-  const parsed = API_BASE_URL_SCHEMA.safeParse(process.env.NEXT_PUBLIC_API_URL);
+  const rawUrl = process.env.NEXT_PUBLIC_API_URL;
+  if (typeof rawUrl !== "string" || rawUrl.trim().length === 0) {
+    throw new Error("NEXT_PUBLIC_API_URL is required but not set.");
+  }
+
+  const parsed = API_BASE_URL_SCHEMA.safeParse(rawUrl);
   if (!parsed.success) {
-    throw new Error("NEXT_PUBLIC_API_URL is invalid or missing.");
+    const reason = parsed.error.issues.map((issue) => issue.message).join(", ");
+    throw new Error(`NEXT_PUBLIC_API_URL is invalid: ${reason}`);
   }
 
   return parsed.data;
@@ -85,9 +91,26 @@ export async function ensurePrincipalProvisionedForCurrentUser(params?: {
     };
   }
 
+  let endpointUrl: string;
+  try {
+    endpointUrl = toProtectedPingUrl(resolveApiBaseUrl());
+  } catch (error: unknown) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : "frontend runtime configuration is invalid.";
+    return {
+      ok: false,
+      error: createPrincipalProvisionError({
+        code: "unknown",
+        message,
+      }),
+    };
+  }
+
   let response: Response;
   try {
-    response = await fetch(toProtectedPingUrl(resolveApiBaseUrl()), {
+    response = await fetch(endpointUrl, {
       method: "GET",
       headers: {
         Authorization: `Bearer ${idToken}`,
