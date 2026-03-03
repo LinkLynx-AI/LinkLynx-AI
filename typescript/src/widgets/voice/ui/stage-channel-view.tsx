@@ -2,9 +2,9 @@
 
 import { useState } from "react";
 import { Hand, PhoneOff, Mic, MicOff } from "lucide-react";
-import { cn } from "@/shared/lib/legacy/cn";
-import { Avatar } from "@/shared/ui/legacy/avatar";
-import { useVoiceStore } from "@/shared/model/legacy/stores/voice-store";
+import { cn } from "@/shared/lib/cn";
+import { Avatar } from "@/shared/ui/avatar";
+import { useVoiceStore } from "@/shared/model/stores/voice-store";
 
 type StageParticipant = {
   userId: string;

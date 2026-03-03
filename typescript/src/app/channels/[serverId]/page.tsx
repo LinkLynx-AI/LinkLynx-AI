@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useParams } from "next/navigation";
-import { useChannels } from "@/shared/api/legacy/queries/use-channels";
+import { useChannels } from "@/shared/api/queries/use-channels";
 
 export default function ServerPage() {
   const router = useRouter();

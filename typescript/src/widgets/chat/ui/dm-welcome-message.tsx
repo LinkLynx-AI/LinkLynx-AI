@@ -1,5 +1,5 @@
-import { Avatar } from "@/shared/ui/legacy/avatar";
-import type { User } from "@/shared/model/legacy/types";
+import { Avatar } from "@/shared/ui/avatar";
+import type { User } from "@/shared/model/types";
 
 export function DmWelcomeMessage({ recipient }: { recipient: User }) {
   return (

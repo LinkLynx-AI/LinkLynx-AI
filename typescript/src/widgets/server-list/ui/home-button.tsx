@@ -3,8 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { cn } from "@/shared/lib/legacy/cn";
-import { Tooltip } from "@/shared/ui/legacy/tooltip";
+import { cn } from "@/shared/lib/cn";
+import { Tooltip } from "@/shared/ui/tooltip-simple";
 import { PillIndicator } from "./pill-indicator";
 
 export function HomeButton() {

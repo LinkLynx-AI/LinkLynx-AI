@@ -1,8 +1,8 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { getAPIClient } from "@/shared/api/legacy/api-client";
-import type { SearchParams } from "@/shared/api/legacy/api-client";
+import { getAPIClient } from "@/shared/api/api-client";
+import type { SearchParams } from "@/shared/api/api-client";
 
 export function useSearchMessages(serverId: string, params: SearchParams) {
   return useQuery({

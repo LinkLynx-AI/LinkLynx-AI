@@ -2,11 +2,11 @@
 
 import { useState } from "react";
 import { Search } from "lucide-react";
-import { cn } from "@/shared/lib/legacy/cn";
-import { Avatar } from "@/shared/ui/legacy/avatar";
-import { Button } from "@/shared/ui/legacy/button";
-import { useMembers } from "@/shared/api/legacy/queries/use-members";
-import type { GuildMember } from "@/shared/model/legacy/types/server";
+import { cn } from "@/shared/lib/cn";
+import { Avatar } from "@/shared/ui/avatar";
+import { Button } from "@/shared/ui/button";
+import { useMembers } from "@/shared/api/queries/use-members";
+import type { GuildMember } from "@/shared/model/types/server";
 
 const mockMembers: GuildMember[] = [];
 

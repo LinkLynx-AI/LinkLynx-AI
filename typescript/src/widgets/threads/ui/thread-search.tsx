@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { cn } from "@/shared/lib/legacy/cn";
+import { cn } from "@/shared/lib/cn";
 import { Search, X } from "lucide-react";
-import { Avatar } from "@/shared/ui/legacy/avatar";
+import { Avatar } from "@/shared/ui/avatar";
 
 type SearchResult = {
   messageId: string;

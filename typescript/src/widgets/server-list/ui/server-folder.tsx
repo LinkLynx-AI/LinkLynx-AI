@@ -1,13 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { cn } from "@/shared/lib/legacy/cn";
-import { Tooltip } from "@/shared/ui/legacy/tooltip";
-import { Badge } from "@/shared/ui/legacy/badge";
+import { cn } from "@/shared/lib/cn";
+import { Tooltip } from "@/shared/ui/tooltip-simple";
+import { Badge } from "@/shared/ui/badge";
 import { PillIndicator } from "./pill-indicator";
 import { ServerIcon } from "./server-icon";
-import { useGuildStore } from "@/shared/model/legacy/stores/guild-store";
-import type { Guild } from "@/shared/model/legacy/types/server";
+import { useGuildStore } from "@/shared/model/stores/guild-store";
+import type { Guild } from "@/shared/model/types/server";
 
 export type ServerFolderData = {
   id: string;

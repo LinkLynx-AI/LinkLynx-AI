@@ -1,8 +1,8 @@
 "use client";
 
 import { MessageSquare } from "lucide-react";
-import { cn } from "@/shared/lib/legacy/cn";
-import { formatRelativeTime } from "@/shared/lib/legacy/format-date";
+import { cn } from "@/shared/lib/cn";
+import { formatRelativeTime } from "@/shared/lib/format-date";
 import type { ThreadData } from "./thread-types";
 
 export function ThreadCard({

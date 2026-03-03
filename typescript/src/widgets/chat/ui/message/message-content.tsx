@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { cn } from "@/shared/lib/legacy/cn";
-import { parseDiscordMarkdown, type MarkdownNode } from "@/shared/lib/legacy/parse-markdown";
-import type { User } from "@/shared/model/legacy/types/user";
+import { cn } from "@/shared/lib/cn";
+import { parseDiscordMarkdown, type MarkdownNode } from "@/shared/lib/parse-markdown";
+import type { User } from "@/shared/model/types/user";
 import { UserMention, ChannelMention, EveryoneMention, HereMention } from "./mention";
 import { CodeBlock } from "./code-block";
 

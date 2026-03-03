@@ -1,6 +1,6 @@
 "use client";
 
-import { useMessages } from "@/shared/api/legacy/queries/use-messages";
+import { useMessages } from "@/shared/api/queries/use-messages";
 import { ChannelHeader } from "./channel-header";
 import { MessageList } from "./message-list";
 import { MessageInput } from "./message-input";

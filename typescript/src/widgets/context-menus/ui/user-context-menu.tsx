@@ -1,8 +1,8 @@
 "use client";
 
-import { ContextMenu, MenuItem, MenuSeparator } from "@/shared/ui/legacy/context-menu";
-import { useUIStore } from "@/shared/model/legacy/stores/ui-store";
-import type { User } from "@/shared/model/legacy/types/user";
+import { ContextMenu, MenuItem, MenuSeparator } from "@/shared/ui/context-menu";
+import { useUIStore } from "@/shared/model/stores/ui-store";
+import type { User } from "@/shared/model/types/user";
 
 export function UserContextMenu({ data }: { data: { user: User; serverId?: string } }) {
   const hideContextMenu = useUIStore((s) => s.hideContextMenu);

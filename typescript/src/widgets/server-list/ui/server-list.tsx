@@ -1,7 +1,7 @@
 "use client";
 
-import { useServers } from "@/shared/api/legacy/queries/use-servers";
-import { useGuildStore } from "@/shared/model/legacy/stores/guild-store";
+import { useServers } from "@/shared/api/queries/use-servers";
+import { useGuildStore } from "@/shared/model/stores/guild-store";
 import { HomeButton } from "./home-button";
 import { ServerIcon } from "./server-icon";
 import { ServerListSeparator } from "./server-list-separator";

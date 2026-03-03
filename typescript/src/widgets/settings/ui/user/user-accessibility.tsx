@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { cn } from "@/shared/lib/legacy/cn";
-import { Toggle } from "@/shared/ui/legacy/toggle";
-import { Select } from "@/shared/ui/legacy/select";
-import { Slider } from "@/shared/ui/legacy/slider";
+import { cn } from "@/shared/lib/cn";
+import { Toggle } from "@/shared/ui/toggle";
+import { Select } from "@/shared/ui/select";
+import { Slider } from "@/shared/ui/slider";
 
 type StickerAnimation = "always" | "hover" | "never";
 

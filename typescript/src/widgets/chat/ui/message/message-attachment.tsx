@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { FileIcon, Download } from "lucide-react";
-import { cn } from "@/shared/lib/legacy/cn";
-import type { Attachment } from "@/shared/model/legacy/types/message";
+import { cn } from "@/shared/lib/cn";
+import type { Attachment } from "@/shared/model/types/message";
 
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;

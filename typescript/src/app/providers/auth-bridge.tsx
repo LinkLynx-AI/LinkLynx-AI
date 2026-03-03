@@ -2,8 +2,8 @@
 
 import { useEffect } from "react";
 import { useAuthSession } from "@/entities/auth";
-import { useAuthStore } from "@/shared/model/legacy/stores/auth-store";
-import type { User } from "@/shared/model/legacy/types/user";
+import { useAuthStore } from "@/shared/model/stores/auth-store";
+import type { User } from "@/shared/model/types/user";
 
 /**
  * Firebase認証セッションをmoc-designのZustand auth-storeへ同期するブリッジ。

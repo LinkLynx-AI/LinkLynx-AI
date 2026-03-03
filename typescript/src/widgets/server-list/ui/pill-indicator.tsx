@@ -1,6 +1,6 @@
 "use client";
 
-import { cn } from "@/shared/lib/legacy/cn";
+import { cn } from "@/shared/lib/cn";
 
 export function PillIndicator({ state }: { state: "none" | "unread" | "hover" | "selected" }) {
   if (state === "none") return null;

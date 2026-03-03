@@ -2,8 +2,8 @@
 
 import { useState, useRef, useCallback } from "react";
 import { ChevronRight } from "lucide-react";
-import { cn } from "@/shared/lib/legacy/cn";
-import { ContextMenu } from "@/shared/ui/legacy/context-menu";
+import { cn } from "@/shared/lib/cn";
+import { ContextMenu } from "@/shared/ui/context-menu";
 
 export function SubMenu({ label, children }: { label: string; children: React.ReactNode }) {
   const [open, setOpen] = useState(false);

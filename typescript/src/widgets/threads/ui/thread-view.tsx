@@ -2,10 +2,10 @@
 
 import { useState, useCallback, useRef, type KeyboardEvent } from "react";
 import { X, Users, CirclePlus, Smile, Bell, Search } from "lucide-react";
-import { cn } from "@/shared/lib/legacy/cn";
-import { Avatar } from "@/shared/ui/legacy/avatar";
-import { formatMessageTimestamp, formatShortTimestamp } from "@/shared/lib/legacy/format-date";
-import type { Message } from "@/shared/model/legacy/types/message";
+import { cn } from "@/shared/lib/cn";
+import { Avatar } from "@/shared/ui/avatar";
+import { formatMessageTimestamp, formatShortTimestamp } from "@/shared/lib/format-date";
+import type { Message } from "@/shared/model/types/message";
 import { mockThreadMessages } from "./thread-mock-data";
 import { ThreadMembersPopout, type ThreadMember } from "./thread-members-popout";
 import { ThreadNotificationMenu } from "./thread-notification-menu";

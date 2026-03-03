@@ -2,11 +2,11 @@
 
 import { useState } from "react";
 import { Search } from "lucide-react";
-import { cn } from "@/shared/lib/legacy/cn";
-import { useGuildStore } from "@/shared/model/legacy/stores/guild-store";
+import { cn } from "@/shared/lib/cn";
+import { useGuildStore } from "@/shared/model/stores/guild-store";
 import { useSearchMessages } from "./use-search-messages";
-import { Avatar } from "@/shared/ui/legacy";
-import { EmptyState } from "@/shared/ui/legacy/empty-state";
+import { Avatar } from "@/shared/ui/ui-kit";
+import { EmptyState } from "@/shared/ui/empty-state";
 
 function formatTimestamp(timestamp: string) {
   const date = new Date(timestamp);

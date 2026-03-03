@@ -2,10 +2,10 @@
 
 import { useState } from "react";
 import { Search, ChevronDown, ChevronRight } from "lucide-react";
-import { cn } from "@/shared/lib/legacy/cn";
-import { Avatar } from "@/shared/ui/legacy/avatar";
-import { mockAuditLogEntries } from "@/shared/api/legacy/mock/data/audit-log";
-import type { AuditLogEntry } from "@/shared/api/legacy/mock/data/audit-log";
+import { cn } from "@/shared/lib/cn";
+import { Avatar } from "@/shared/ui/avatar";
+import { mockAuditLogEntries } from "@/shared/api/mock/data/audit-log";
+import type { AuditLogEntry } from "@/shared/api/mock/data/audit-log";
 
 const actionTypeLabels: Record<AuditLogEntry["actionType"], string> = {
   channel_create: "チャンネルを作成",

@@ -2,12 +2,12 @@
 
 import { useState } from "react";
 import { Hash, Volume2, MessageSquare, Lock } from "lucide-react";
-import { Modal, ModalHeader, ModalBody, ModalFooter } from "@/shared/ui/legacy/modal";
-import { Button } from "@/shared/ui/legacy/button";
-import { Input } from "@/shared/ui/legacy/input";
-import { Toggle } from "@/shared/ui/legacy/toggle";
-import { useCreateChannel } from "@/shared/api/legacy/mutations/use-channel-actions";
-import { cn } from "@/shared/lib/legacy/cn";
+import { Modal, ModalHeader, ModalBody, ModalFooter } from "@/shared/ui/modal";
+import { Button } from "@/shared/ui/button";
+import { Input } from "@/shared/ui/input";
+import { Toggle } from "@/shared/ui/toggle";
+import { useCreateChannel } from "@/shared/api/mutations/use-channel-actions";
+import { cn } from "@/shared/lib/cn";
 
 const channelTypes = [
   {

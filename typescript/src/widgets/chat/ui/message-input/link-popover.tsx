@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { cn } from "@/shared/lib/legacy/cn";
+import { cn } from "@/shared/lib/cn";
 
 type LinkPopoverProps = {
   onInsert: (url: string, text: string) => void;

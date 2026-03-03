@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { cn } from "@/shared/lib/legacy/cn";
-import { mockDailyStats, mockChannelActivity } from "@/shared/api/legacy/mock/data/analytics";
+import { cn } from "@/shared/lib/cn";
+import { mockDailyStats, mockChannelActivity } from "@/shared/api/mock/data/analytics";
 
 type Period = 7 | 30 | 90;
 

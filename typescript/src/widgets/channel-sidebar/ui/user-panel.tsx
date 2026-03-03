@@ -1,11 +1,11 @@
 "use client";
 
 import { Mic, MicOff, Headphones, HeadphoneOff, Settings } from "lucide-react";
-import { cn } from "@/shared/lib/legacy/cn";
-import { Avatar } from "@/shared/ui/legacy/avatar";
-import { Tooltip } from "@/shared/ui/legacy/tooltip";
-import { useAuthStore } from "@/shared/model/legacy/stores/auth-store";
-import { useVoiceStore } from "@/shared/model/legacy/stores/voice-store";
+import { cn } from "@/shared/lib/cn";
+import { Avatar } from "@/shared/ui/avatar";
+import { Tooltip } from "@/shared/ui/tooltip-simple";
+import { useAuthStore } from "@/shared/model/stores/auth-store";
+import { useVoiceStore } from "@/shared/model/stores/voice-store";
 
 export function UserPanel() {
   const { currentUser, status, customStatus } = useAuthStore();

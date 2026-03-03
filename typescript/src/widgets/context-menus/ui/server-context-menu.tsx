@@ -1,8 +1,8 @@
 "use client";
 
-import { ContextMenu, MenuItem, MenuSeparator } from "@/shared/ui/legacy/context-menu";
-import { useUIStore } from "@/shared/model/legacy/stores/ui-store";
-import type { Guild } from "@/shared/model/legacy/types/server";
+import { ContextMenu, MenuItem, MenuSeparator } from "@/shared/ui/context-menu";
+import { useUIStore } from "@/shared/model/stores/ui-store";
+import type { Guild } from "@/shared/model/types/server";
 
 export function ServerContextMenu({ data }: { data: { server: Guild } }) {
   const openModal = useUIStore((s) => s.openModal);

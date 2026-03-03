@@ -2,8 +2,8 @@
 
 import { useState, useMemo, useCallback } from "react";
 import { X, CheckCheck } from "lucide-react";
-import { cn } from "@/shared/lib/legacy/cn";
-import { Tabs } from "@/shared/ui/legacy/tabs";
+import { cn } from "@/shared/lib/cn";
+import { Tabs } from "@/shared/ui/tabs-simple";
 import { NotificationItem } from "./notification-item";
 import { MOCK_NOTIFICATIONS } from "./notification-mock-data";
 

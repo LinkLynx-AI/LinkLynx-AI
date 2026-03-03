@@ -1,5 +1,5 @@
-import { Avatar } from "@/shared/ui/legacy/avatar";
-import type { Message } from "@/shared/model/legacy/types/message";
+import { Avatar } from "@/shared/ui/avatar";
+import type { Message } from "@/shared/model/types/message";
 
 export function MessageReply({ referencedMessage }: { referencedMessage: Message | null }) {
   if (!referencedMessage) return null;

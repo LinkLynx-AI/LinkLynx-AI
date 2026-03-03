@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { cn } from "@/shared/lib/legacy/cn";
-import { Button } from "@/shared/ui/legacy/button";
+import { cn } from "@/shared/lib/cn";
+import { Button } from "@/shared/ui/button";
 import { CheckCircle, Users } from "lucide-react";
 
 export function InviteEmbed({

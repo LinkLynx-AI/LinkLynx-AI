@@ -1,13 +1,13 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { Avatar } from "@/shared/ui/legacy/avatar";
-import { Input } from "@/shared/ui/legacy/input";
-import { Textarea } from "@/shared/ui/legacy/textarea";
-import { Button } from "@/shared/ui/legacy/button";
-import { useAuthStore } from "@/shared/model/legacy/stores/auth-store";
-import { ImageCropModal } from "@/shared/ui/legacy/image-crop-modal";
-import { cn } from "@/shared/lib/legacy/cn";
+import { Avatar } from "@/shared/ui/avatar";
+import { Input } from "@/shared/ui/input";
+import { Textarea } from "@/shared/ui/textarea";
+import { Button } from "@/shared/ui/button";
+import { useAuthStore } from "@/shared/model/stores/auth-store";
+import { ImageCropModal } from "@/shared/ui/image-crop-modal";
+import { cn } from "@/shared/lib/cn";
 
 export function UserProfile() {
   const currentUser = useAuthStore((s) => s.currentUser);

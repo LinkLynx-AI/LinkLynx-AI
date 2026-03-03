@@ -1,12 +1,12 @@
 "use client";
 
 import { useCallback, useState, useRef, type KeyboardEvent } from "react";
-import { Avatar } from "@/shared/ui/legacy/avatar";
-import { cn } from "@/shared/lib/legacy/cn";
-import { formatMessageTimestamp, formatShortTimestamp } from "@/shared/lib/legacy/format-date";
-import { useUIStore } from "@/shared/model/legacy/stores/ui-store";
-import { useEditMessage } from "@/shared/api/legacy/mutations/use-edit-message";
-import type { Message as MessageType } from "@/shared/model/legacy/types/message";
+import { Avatar } from "@/shared/ui/avatar";
+import { cn } from "@/shared/lib/cn";
+import { formatMessageTimestamp, formatShortTimestamp } from "@/shared/lib/format-date";
+import { useUIStore } from "@/shared/model/stores/ui-store";
+import { useEditMessage } from "@/shared/api/mutations/use-edit-message";
+import type { Message as MessageType } from "@/shared/model/types/message";
 import { MessageActions } from "./message-actions";
 import { MessageAttachment } from "./message-attachment";
 import { MessageContent } from "./message-content";

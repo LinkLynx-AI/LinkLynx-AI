@@ -1,13 +1,13 @@
 "use client";
 
 import { useRef, useEffect, useCallback, useState } from "react";
-import { cn } from "@/shared/lib/legacy/cn";
-import type { Message as MessageType } from "@/shared/model/legacy/types/message";
+import { cn } from "@/shared/lib/cn";
+import type { Message as MessageType } from "@/shared/model/types/message";
 import { Message } from "./message";
 import { DateSeparator } from "./date-separator";
 import { WelcomeMessage } from "./welcome-message";
 import { ScrollToBottom } from "./scroll-to-bottom";
-import { MessageSkeletonList } from "@/shared/ui/legacy/message-skeleton";
+import { MessageSkeletonList } from "@/shared/ui/message-skeleton";
 
 const GROUPING_THRESHOLD_MS = 7 * 60 * 1000; // 7 minutes
 

@@ -1,15 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { cn } from "@/shared/lib/legacy/cn";
+import { cn } from "@/shared/lib/cn";
 import { ArrowLeft, Search, UserPlus } from "lucide-react";
-import { Input } from "@/shared/ui/legacy/input";
-import { Button } from "@/shared/ui/legacy/button";
-import { Toggle } from "@/shared/ui/legacy/toggle";
-import { Tabs } from "@/shared/ui/legacy/tabs";
+import { Input } from "@/shared/ui/input";
+import { Button } from "@/shared/ui/button";
+import { Toggle } from "@/shared/ui/toggle";
+import { Tabs } from "@/shared/ui/tabs-simple";
 import { PermissionToggle } from "./permission-toggle";
 import { RoleColorPicker } from "./role-color-picker";
-import { type MockRole, PERMISSION_FLAGS, hasPermission } from "@/shared/api/legacy/mock/data/roles";
+import { type MockRole, PERMISSION_FLAGS, hasPermission } from "@/shared/api/mock/data/roles";
 
 type PermissionState = "allow" | "deny" | "inherit";
 

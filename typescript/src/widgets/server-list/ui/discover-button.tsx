@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { cn } from "@/shared/lib/legacy/cn";
-import { Tooltip } from "@/shared/ui/legacy/tooltip";
+import { cn } from "@/shared/lib/cn";
+import { Tooltip } from "@/shared/ui/tooltip-simple";
 
 export function DiscoverButton() {
   const [isHovered, setIsHovered] = useState(false);

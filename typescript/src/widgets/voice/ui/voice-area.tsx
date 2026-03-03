@@ -2,9 +2,9 @@
 
 import { useState } from "react";
 import { Users } from "lucide-react";
-import { cn } from "@/shared/lib/legacy/cn";
-import { useVoiceStore } from "@/shared/model/legacy/stores/voice-store";
-import { useAuthStore } from "@/shared/model/legacy/stores/auth-store";
+import { cn } from "@/shared/lib/cn";
+import { useVoiceStore } from "@/shared/model/stores/voice-store";
+import { useAuthStore } from "@/shared/model/stores/auth-store";
 import { VoiceParticipantTile } from "./voice-participant-tile";
 import { VoiceControlBar } from "./voice-control-bar";
 import { TextInVoice } from "./text-in-voice";

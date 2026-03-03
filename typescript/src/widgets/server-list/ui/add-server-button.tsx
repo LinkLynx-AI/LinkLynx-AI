@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { cn } from "@/shared/lib/legacy/cn";
-import { Tooltip } from "@/shared/ui/legacy/tooltip";
-import { useUIStore } from "@/shared/model/legacy/stores/ui-store";
+import { cn } from "@/shared/lib/cn";
+import { Tooltip } from "@/shared/ui/tooltip-simple";
+import { useUIStore } from "@/shared/model/stores/ui-store";
 
 export function AddServerButton() {
   const [isHovered, setIsHovered] = useState(false);

@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { Modal, ModalHeader, ModalBody, ModalFooter } from "@/shared/ui/legacy/modal";
-import { Input } from "@/shared/ui/legacy/input";
-import { Button } from "@/shared/ui/legacy/button";
+import { Modal, ModalHeader, ModalBody, ModalFooter } from "@/shared/ui/modal";
+import { Input } from "@/shared/ui/input";
+import { Button } from "@/shared/ui/button";
 
 const fieldLabels: Record<string, string> = {
   displayName: "表示名",

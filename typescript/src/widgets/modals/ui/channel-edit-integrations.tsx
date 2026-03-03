@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { Webhook, Plus, Copy, Trash2 } from "lucide-react";
-import { Button } from "@/shared/ui/legacy/button";
-import { Toggle } from "@/shared/ui/legacy/toggle";
+import { Button } from "@/shared/ui/button";
+import { Toggle } from "@/shared/ui/toggle";
 
 type WebhookItem = {
   id: string;

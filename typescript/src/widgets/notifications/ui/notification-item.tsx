@@ -1,9 +1,9 @@
 "use client";
 
 import { Check } from "lucide-react";
-import { cn } from "@/shared/lib/legacy/cn";
-import { Avatar } from "@/shared/ui/legacy/avatar";
-import { formatRelativeTime } from "@/shared/lib/legacy/format-date";
+import { cn } from "@/shared/lib/cn";
+import { Avatar } from "@/shared/ui/avatar";
+import { formatRelativeTime } from "@/shared/lib/format-date";
 import type { NotificationData } from "./notification-types";
 
 export function NotificationItem({

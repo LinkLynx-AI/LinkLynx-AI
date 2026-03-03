@@ -1,10 +1,10 @@
 "use client";
 
-import { useFriends } from "@/shared/api/legacy/queries/use-friends";
-import { useAcceptFriendRequest, useRemoveFriend } from "@/shared/api/legacy/mutations/use-friend-actions";
-import { Avatar } from "@/shared/ui/legacy/avatar";
+import { useFriends } from "@/shared/api/queries/use-friends";
+import { useAcceptFriendRequest, useRemoveFriend } from "@/shared/api/mutations/use-friend-actions";
+import { Avatar } from "@/shared/ui/avatar";
 import { Check, X } from "lucide-react";
-import { cn } from "@/shared/lib/legacy/cn";
+import { cn } from "@/shared/lib/cn";
 
 export function PendingRequests() {
   const { data: relationships = [] } = useFriends();

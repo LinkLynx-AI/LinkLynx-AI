@@ -1,8 +1,8 @@
 "use client";
 
 import { X } from "lucide-react";
-import { cn } from "@/shared/lib/legacy/cn";
-import { useUIStore } from "@/shared/model/legacy/stores/ui-store";
+import { cn } from "@/shared/lib/cn";
+import { useUIStore } from "@/shared/model/stores/ui-store";
 import { PinnedMessagesPanel } from "./pinned-messages-panel";
 import { SearchPanel } from "./search-panel";
 import { ThreadsPanel } from "./threads-panel";

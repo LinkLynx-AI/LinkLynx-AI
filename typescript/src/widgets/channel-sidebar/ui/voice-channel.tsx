@@ -1,11 +1,11 @@
 "use client";
 
 import { Volume2, Settings } from "lucide-react";
-import { cn } from "@/shared/lib/legacy/cn";
-import { Avatar } from "@/shared/ui/legacy/avatar";
-import { useVoiceStore } from "@/shared/model/legacy/stores/voice-store";
-import type { Channel } from "@/shared/model/legacy/types/channel";
-import type { User } from "@/shared/model/legacy/types/user";
+import { cn } from "@/shared/lib/cn";
+import { Avatar } from "@/shared/ui/avatar";
+import { useVoiceStore } from "@/shared/model/stores/voice-store";
+import type { Channel } from "@/shared/model/types/channel";
+import type { User } from "@/shared/model/types/user";
 
 export function VoiceChannel({
   channel,

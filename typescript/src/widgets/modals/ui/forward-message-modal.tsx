@@ -1,13 +1,13 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Modal, ModalHeader, ModalBody, ModalFooter } from "@/shared/ui/legacy/modal";
-import { Input } from "@/shared/ui/legacy/input";
-import { Avatar } from "@/shared/ui/legacy/avatar";
+import { Modal, ModalHeader, ModalBody, ModalFooter } from "@/shared/ui/modal";
+import { Input } from "@/shared/ui/input";
+import { Avatar } from "@/shared/ui/avatar";
 import { Hash } from "lucide-react";
-import { useServers } from "@/shared/api/legacy/queries/use-servers";
-import { useDMChannels } from "@/shared/api/legacy/queries/use-channels";
-import type { Message } from "@/shared/model/legacy/types/message";
+import { useServers } from "@/shared/api/queries/use-servers";
+import { useDMChannels } from "@/shared/api/queries/use-channels";
+import type { Message } from "@/shared/model/types/message";
 
 type ForwardDestination = {
   id: string;

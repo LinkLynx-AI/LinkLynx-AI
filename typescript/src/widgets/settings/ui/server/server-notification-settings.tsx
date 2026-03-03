@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Modal, ModalHeader, ModalBody, ModalFooter } from "@/shared/ui/legacy/modal";
-import { Button } from "@/shared/ui/legacy/button";
-import { Select } from "@/shared/ui/legacy/select";
-import { Toggle } from "@/shared/ui/legacy/toggle";
+import { Modal, ModalHeader, ModalBody, ModalFooter } from "@/shared/ui/modal";
+import { Button } from "@/shared/ui/button";
+import { Select } from "@/shared/ui/select";
+import { Toggle } from "@/shared/ui/toggle";
 import { ChannelMuteSubmenu } from "./channel-mute-submenu";
 
 const notificationOptions = [

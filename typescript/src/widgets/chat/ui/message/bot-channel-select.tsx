@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { cn } from "@/shared/lib/legacy/cn";
+import { cn } from "@/shared/lib/cn";
 import { Hash, Volume2 } from "lucide-react";
-import type { ChannelSelectComponent } from "@/shared/model/legacy/types/bot-components";
+import type { ChannelSelectComponent } from "@/shared/model/types/bot-components";
 
 type MockChannel = {
   id: string;

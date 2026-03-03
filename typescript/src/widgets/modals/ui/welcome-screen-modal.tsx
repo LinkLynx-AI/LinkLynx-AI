@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Modal, ModalFooter } from "@/shared/ui/legacy/modal";
-import { cn } from "@/shared/lib/legacy/cn";
+import { Modal, ModalFooter } from "@/shared/ui/modal";
+import { cn } from "@/shared/lib/cn";
 import { Check } from "lucide-react";
 
 const mockRecommendedChannels: {

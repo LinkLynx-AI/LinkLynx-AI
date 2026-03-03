@@ -2,9 +2,9 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Search } from "lucide-react";
-import { useServers } from "@/shared/api/legacy/queries/use-servers";
-import { useDMChannels } from "@/shared/api/legacy/queries/use-channels";
-import { cn } from "@/shared/lib/legacy/cn";
+import { useServers } from "@/shared/api/queries/use-servers";
+import { useDMChannels } from "@/shared/api/queries/use-channels";
+import { cn } from "@/shared/lib/cn";
 import { useRouter } from "next/navigation";
 
 type SearchResultItem = {

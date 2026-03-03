@@ -1,7 +1,7 @@
 import { ArrowRight, Rocket, Pin } from "lucide-react";
-import { cn } from "@/shared/lib/legacy/cn";
-import { formatMessageTimestamp } from "@/shared/lib/legacy/format-date";
-import type { Message } from "@/shared/model/legacy/types/message";
+import { cn } from "@/shared/lib/cn";
+import { formatMessageTimestamp } from "@/shared/lib/format-date";
+import type { Message } from "@/shared/model/types/message";
 
 function getSystemMessageContent(message: Message) {
   const name = message.author.displayName;

@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { Monitor, AppWindow, X } from "lucide-react";
-import { cn } from "@/shared/lib/legacy/cn";
-import { Tabs } from "@/shared/ui/legacy/tabs";
+import { cn } from "@/shared/lib/cn";
+import { Tabs } from "@/shared/ui/tabs-simple";
 
 type ScreenSource = {
   type: "screen" | "window";

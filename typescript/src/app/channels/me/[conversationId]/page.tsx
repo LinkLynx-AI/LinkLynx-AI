@@ -2,7 +2,7 @@
 
 import { use } from "react";
 import { ChatArea } from "@/widgets/chat";
-import { useChannel } from "@/shared/api/legacy/queries/use-channels";
+import { useChannel } from "@/shared/api/queries/use-channels";
 
 export default function DMConversationPage({
   params,

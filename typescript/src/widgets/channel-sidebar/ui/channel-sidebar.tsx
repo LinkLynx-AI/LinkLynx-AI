@@ -1,16 +1,16 @@
 "use client";
 
 import { useMemo } from "react";
-import { useChannels } from "@/shared/api/legacy/queries/use-channels";
-import { useGuildStore } from "@/shared/model/legacy/stores/guild-store";
-import { useServer } from "@/shared/api/legacy/queries/use-servers";
+import { useChannels } from "@/shared/api/queries/use-channels";
+import { useGuildStore } from "@/shared/model/stores/guild-store";
+import { useServer } from "@/shared/api/queries/use-servers";
 import { ServerHeader } from "./server-header";
 import { ChannelCategory } from "./channel-category";
 import { ChannelItem } from "./channel-item";
 import { VoiceChannel } from "./voice-channel";
 import { UserPanel } from "./user-panel";
 import { VoiceConnectionPanel } from "./voice-connection-panel";
-import type { Channel } from "@/shared/model/legacy/types/channel";
+import type { Channel } from "@/shared/model/types/channel";
 
 type CategoryGroup = {
   category: Channel | null;

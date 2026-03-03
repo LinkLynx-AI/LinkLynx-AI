@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from "react";
 import { Check, X, Loader2 } from "lucide-react";
-import { cn } from "@/shared/lib/legacy/cn";
+import { cn } from "@/shared/lib/cn";
 
 type AvailabilityStatus = "idle" | "checking" | "available" | "unavailable";
 

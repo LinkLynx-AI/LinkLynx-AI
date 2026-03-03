@@ -1,10 +1,10 @@
 "use client";
 
 import { useCallback } from "react";
-import { Avatar } from "@/shared/ui/legacy/avatar";
-import { cn } from "@/shared/lib/legacy/cn";
-import { useUIStore } from "@/shared/model/legacy/stores/ui-store";
-import type { GuildMember } from "@/shared/model/legacy/types/server";
+import { Avatar } from "@/shared/ui/avatar";
+import { cn } from "@/shared/lib/cn";
+import { useUIStore } from "@/shared/model/stores/ui-store";
+import type { GuildMember } from "@/shared/model/types/server";
 
 export function MemberItem({ member, roleColor }: { member: GuildMember; roleColor?: string }) {
   const showProfilePopout = useUIStore((s) => s.showProfilePopout);

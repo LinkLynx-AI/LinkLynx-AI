@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { Check } from "lucide-react";
-import { cn } from "@/shared/lib/legacy/cn";
-import { Button } from "@/shared/ui/legacy/button";
+import { cn } from "@/shared/lib/cn";
+import { Button } from "@/shared/ui/button";
 
 type BillingCycle = "monthly" | "yearly";
 type Plan = "free" | "basic" | "nitro";

@@ -2,12 +2,12 @@
 
 import { useCallback, useState } from "react";
 import Link from "next/link";
-import { cn } from "@/shared/lib/legacy/cn";
-import { Tooltip } from "@/shared/ui/legacy/tooltip";
-import { Badge } from "@/shared/ui/legacy/badge";
+import { cn } from "@/shared/lib/cn";
+import { Tooltip } from "@/shared/ui/tooltip-simple";
+import { Badge } from "@/shared/ui/badge";
 import { PillIndicator } from "./pill-indicator";
-import { useUIStore } from "@/shared/model/legacy/stores/ui-store";
-import type { Guild } from "@/shared/model/legacy/types/server";
+import { useUIStore } from "@/shared/model/stores/ui-store";
+import type { Guild } from "@/shared/model/types/server";
 
 export function ServerIcon({
   server,

@@ -1,6 +1,6 @@
 "use client";
 
-import { cn } from "@/shared/lib/legacy/cn";
+import { cn } from "@/shared/lib/cn";
 
 const muteOptions = [
   { label: "15分", duration: 900 },

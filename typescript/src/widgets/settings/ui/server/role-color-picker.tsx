@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
-import { cn } from "@/shared/lib/legacy/cn";
-import { PRESET_COLORS } from "@/shared/api/legacy/mock/data/roles";
+import { cn } from "@/shared/lib/cn";
+import { PRESET_COLORS } from "@/shared/api/mock/data/roles";
 
 function hexToHsv(hex: string): { h: number; s: number; v: number } {
   const r = parseInt(hex.slice(1, 3), 16) / 255;

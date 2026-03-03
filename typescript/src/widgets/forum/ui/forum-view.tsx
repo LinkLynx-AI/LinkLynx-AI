@@ -2,9 +2,9 @@
 
 import { useState, useMemo } from "react";
 import { Plus, Grid3X3, List, Hash } from "lucide-react";
-import { cn } from "@/shared/lib/legacy/cn";
-import { Button } from "@/shared/ui/legacy/button";
-import { Select } from "@/shared/ui/legacy/select";
+import { cn } from "@/shared/lib/cn";
+import { Button } from "@/shared/ui/button";
+import { Select } from "@/shared/ui/select";
 import { ForumPostCard } from "./forum-post-card";
 import { ForumCreatePost } from "./forum-create-post";
 import { MOCK_FORUM_POSTS, FORUM_TAGS } from "./forum-mock-data";

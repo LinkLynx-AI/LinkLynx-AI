@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { Modal, ModalHeader, ModalBody, ModalFooter } from "@/shared/ui/legacy/modal";
-import { Button } from "@/shared/ui/legacy/button";
-import { Input } from "@/shared/ui/legacy/input";
+import { Modal, ModalHeader, ModalBody, ModalFooter } from "@/shared/ui/modal";
+import { Button } from "@/shared/ui/button";
+import { Input } from "@/shared/ui/input";
 
 export function JoinServerModal({ onClose }: { onClose: () => void }) {
   const [inviteLink, setInviteLink] = useState("");

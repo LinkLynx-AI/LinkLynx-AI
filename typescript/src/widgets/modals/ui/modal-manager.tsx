@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { useUIStore } from "@/shared/model/legacy/stores/ui-store";
+import { useUIStore } from "@/shared/model/stores/ui-store";
 import { CreateServerModal } from "./create-server-modal";
 import { JoinServerModal } from "./join-server-modal";
 import { CreateChannelModal } from "./create-channel-modal";
@@ -23,7 +23,7 @@ import { ReactionDetailModal } from "./reaction-detail-modal";
 import { AppDirectoryModal } from "./app-directory-modal";
 import { PollVotersModal } from "./poll-voters-modal";
 import { ServerTemplateModal } from "./server-template-modal";
-import { KeyboardShortcutsModal } from "@/shared/ui/legacy/keyboard-shortcuts-modal";
+import { KeyboardShortcutsModal } from "@/shared/ui/keyboard-shortcuts-modal";
 
 export function ModalManager() {
   const activeModal = useUIStore((s) => s.activeModal);
@@ -106,7 +106,7 @@ export function ModalManager() {
       return (
         <ForwardMessageModal
           onClose={closeModal}
-          message={modalProps.message as import("@/shared/model/legacy/types/message").Message | undefined}
+          message={modalProps.message as import("@/shared/model/types/message").Message | undefined}
         />
       );
     case "welcome-screen":

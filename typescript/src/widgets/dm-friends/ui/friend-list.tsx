@@ -1,8 +1,8 @@
 "use client";
 
-import { useFriends } from "@/shared/api/legacy/queries/use-friends";
+import { useFriends } from "@/shared/api/queries/use-friends";
 import { FriendItem } from "./friend-item";
-import type { RelationshipType } from "@/shared/api/legacy/api-client";
+import type { RelationshipType } from "@/shared/api/api-client";
 
 const tabToType: Record<string, RelationshipType | "online"> = {
   オンライン: "online",

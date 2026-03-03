@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { cn } from "@/shared/lib/legacy/cn";
+import { cn } from "@/shared/lib/cn";
 import type { Sound } from "./soundboard-types";
 
 export function SoundButton({ sound, onPlay }: { sound: Sound; onPlay: (sound: Sound) => void }) {

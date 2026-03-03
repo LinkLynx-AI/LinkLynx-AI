@@ -1,11 +1,11 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { Input } from "@/shared/ui/legacy/input";
-import { Textarea } from "@/shared/ui/legacy/textarea";
-import { Select } from "@/shared/ui/legacy/select";
-import { Button } from "@/shared/ui/legacy/button";
-import { Avatar } from "@/shared/ui/legacy/avatar";
+import { Input } from "@/shared/ui/input";
+import { Textarea } from "@/shared/ui/textarea";
+import { Select } from "@/shared/ui/select";
+import { Button } from "@/shared/ui/button";
+import { Avatar } from "@/shared/ui/avatar";
 import { Upload, Zap } from "lucide-react";
 
 const notificationOptions = [

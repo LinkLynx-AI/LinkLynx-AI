@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { cn } from "@/shared/lib/legacy/cn";
-import { Toggle } from "@/shared/ui/legacy/toggle";
-import { Button } from "@/shared/ui/legacy/button";
+import { cn } from "@/shared/lib/cn";
+import { Toggle } from "@/shared/ui/toggle";
+import { Button } from "@/shared/ui/button";
 import { AutomodRuleEditor, type AutoModRule } from "./automod-rule-editor";
 import { Plus, Pencil, Trash2, Shield } from "lucide-react";
 

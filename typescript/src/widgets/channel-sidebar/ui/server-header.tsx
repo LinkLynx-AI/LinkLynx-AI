@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { ChevronDown } from "lucide-react";
-import { cn } from "@/shared/lib/legacy/cn";
+import { cn } from "@/shared/lib/cn";
 
 export function ServerHeader({ serverName }: { serverName: string }) {
   const [open, setOpen] = useState(false);

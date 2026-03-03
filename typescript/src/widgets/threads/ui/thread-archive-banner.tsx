@@ -1,6 +1,6 @@
 "use client";
 
-import { cn } from "@/shared/lib/legacy/cn";
+import { cn } from "@/shared/lib/cn";
 import { Archive, Lock } from "lucide-react";
 
 export function ThreadArchiveBanner({

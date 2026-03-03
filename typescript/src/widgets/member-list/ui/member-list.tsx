@@ -1,12 +1,12 @@
 "use client";
 
 import { useMemo } from "react";
-import { useMembers } from "@/shared/api/legacy/queries";
-import { useGuildStore } from "@/shared/model/legacy/stores/guild-store";
+import { useMembers } from "@/shared/api/queries";
+import { useGuildStore } from "@/shared/model/stores/guild-store";
 import { MemberCategory } from "./member-category";
 import { MemberItem } from "./member-item";
-import type { GuildMember, Role } from "@/shared/model/legacy/types/server";
-import { mockRoles } from "@/shared/api/legacy/mock/data/servers";
+import type { GuildMember, Role } from "@/shared/model/types/server";
+import { mockRoles } from "@/shared/api/mock/data/servers";
 
 function numberToHex(color: number): string {
   if (color === 0) return "";

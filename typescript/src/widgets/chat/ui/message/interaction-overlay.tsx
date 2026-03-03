@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { cn } from "@/shared/lib/legacy/cn";
+import { cn } from "@/shared/lib/cn";
 import { AlertTriangle, Check } from "lucide-react";
 
 export function InteractionOverlay({

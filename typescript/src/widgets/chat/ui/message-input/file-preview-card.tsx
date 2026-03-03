@@ -1,7 +1,7 @@
 "use client";
 
 import { X, File, EyeOff, Image } from "lucide-react";
-import { cn } from "@/shared/lib/legacy/cn";
+import { cn } from "@/shared/lib/cn";
 
 type FilePreviewCardProps = {
   file: {

@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Button } from "@/shared/ui/legacy/button";
-import { Avatar } from "@/shared/ui/legacy/avatar";
+import { Button } from "@/shared/ui/button";
+import { Avatar } from "@/shared/ui/avatar";
 import { ExternalLink, Shield, Trash2, Bot } from "lucide-react";
 
 type BotData = {

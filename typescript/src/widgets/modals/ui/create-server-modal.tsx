@@ -2,10 +2,10 @@
 
 import { useState } from "react";
 import { Camera, ChevronRight } from "lucide-react";
-import { Modal, ModalBody, ModalFooter } from "@/shared/ui/legacy/modal";
-import { Button } from "@/shared/ui/legacy/button";
-import { Input } from "@/shared/ui/legacy/input";
-import { useCreateServer } from "@/shared/api/legacy/mutations/use-server-actions";
+import { Modal, ModalBody, ModalFooter } from "@/shared/ui/modal";
+import { Button } from "@/shared/ui/button";
+import { Input } from "@/shared/ui/input";
+import { useCreateServer } from "@/shared/api/mutations/use-server-actions";
 
 const templates = [
   { id: "original", label: "オリジナル", emoji: "🛠️" },

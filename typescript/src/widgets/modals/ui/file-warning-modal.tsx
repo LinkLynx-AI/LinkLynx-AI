@@ -1,8 +1,8 @@
 "use client";
 
 import { AlertTriangle } from "lucide-react";
-import { Modal, ModalHeader, ModalBody, ModalFooter } from "@/shared/ui/legacy/modal";
-import { Button } from "@/shared/ui/legacy/button";
+import { Modal, ModalHeader, ModalBody, ModalFooter } from "@/shared/ui/modal";
+import { Button } from "@/shared/ui/button";
 
 export function FileWarningModal({
   filename,

@@ -2,10 +2,10 @@
 
 import { useState } from "react";
 import { Plus, Pencil, Trash2 } from "lucide-react";
-import { cn } from "@/shared/lib/legacy/cn";
-import { Button } from "@/shared/ui/legacy/button";
-import { Select } from "@/shared/ui/legacy/select";
-import { KeybindRecorder } from "@/shared/ui/legacy/keybind-recorder";
+import { cn } from "@/shared/lib/cn";
+import { Button } from "@/shared/ui/button";
+import { Select } from "@/shared/ui/select";
+import { KeybindRecorder } from "@/shared/ui/keybind-recorder";
 
 type Keybind = {
   id: string;

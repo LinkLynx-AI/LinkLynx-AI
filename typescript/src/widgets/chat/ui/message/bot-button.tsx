@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { cn } from "@/shared/lib/legacy/cn";
-import type { ButtonComponent } from "@/shared/model/legacy/types/bot-components";
+import { cn } from "@/shared/lib/cn";
+import type { ButtonComponent } from "@/shared/model/types/bot-components";
 
 const styleClasses: Record<string, string> = {
   primary:

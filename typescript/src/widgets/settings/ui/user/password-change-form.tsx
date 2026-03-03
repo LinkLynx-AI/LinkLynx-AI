@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { Input } from "@/shared/ui/legacy/input";
-import { Button } from "@/shared/ui/legacy/button";
-import { PasswordStrengthIndicator } from "@/shared/ui/legacy/password-strength-indicator";
+import { Input } from "@/shared/ui/input";
+import { Button } from "@/shared/ui/button";
+import { PasswordStrengthIndicator } from "@/shared/ui/password-strength-indicator";
 
 export function PasswordChangeForm({
   onSubmit,

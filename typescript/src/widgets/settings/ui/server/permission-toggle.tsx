@@ -1,6 +1,6 @@
 "use client";
 
-import { cn } from "@/shared/lib/legacy/cn";
+import { cn } from "@/shared/lib/cn";
 import { Check, X, Minus } from "lucide-react";
 
 type PermissionState = "allow" | "deny" | "inherit";

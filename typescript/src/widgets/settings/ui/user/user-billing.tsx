@@ -2,10 +2,10 @@
 
 import { useState } from "react";
 import { CreditCard, Pencil, Trash2 } from "lucide-react";
-import { cn } from "@/shared/lib/legacy/cn";
-import { Button } from "@/shared/ui/legacy/button";
-import { Input } from "@/shared/ui/legacy/input";
-import { mockPaymentMethods, mockBillingHistory } from "@/shared/api/legacy/mock/data/billing";
+import { cn } from "@/shared/lib/cn";
+import { Button } from "@/shared/ui/button";
+import { Input } from "@/shared/ui/input";
+import { mockPaymentMethods, mockBillingHistory } from "@/shared/api/mock/data/billing";
 
 const cardIcons: Record<string, string> = {
   visa: "VISA",

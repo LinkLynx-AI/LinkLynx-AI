@@ -1,6 +1,6 @@
 "use client";
 
-import { useUIStore } from "@/shared/model/legacy/stores/ui-store";
+import { useUIStore } from "@/shared/model/stores/ui-store";
 import { MemberList } from "./member-list";
 
 export function MemberListPanel() {

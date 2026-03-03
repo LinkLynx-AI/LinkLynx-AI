@@ -1,6 +1,6 @@
-import { cn } from "@/shared/lib/legacy/cn";
-import { useUIStore } from "@/shared/model/legacy/stores/ui-store";
-import type { Reaction } from "@/shared/model/legacy/types/message";
+import { cn } from "@/shared/lib/cn";
+import { useUIStore } from "@/shared/model/stores/ui-store";
+import type { Reaction } from "@/shared/model/types/message";
 
 export function MessageReactions({
   reactions,

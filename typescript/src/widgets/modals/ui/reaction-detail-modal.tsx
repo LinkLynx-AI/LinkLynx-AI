@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { Modal } from "@/shared/ui/legacy/modal";
-import { Avatar } from "@/shared/ui/legacy/avatar";
-import { cn } from "@/shared/lib/legacy/cn";
+import { Modal } from "@/shared/ui/modal";
+import { Avatar } from "@/shared/ui/avatar";
+import { cn } from "@/shared/lib/cn";
 
 type MockUser = {
   id: string;

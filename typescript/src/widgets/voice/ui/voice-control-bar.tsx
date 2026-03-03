@@ -13,9 +13,9 @@ import {
   Music,
   MessageSquare,
 } from "lucide-react";
-import { cn } from "@/shared/lib/legacy/cn";
-import { Tooltip } from "@/shared/ui/legacy/tooltip";
-import { useVoiceStore } from "@/shared/model/legacy/stores/voice-store";
+import { cn } from "@/shared/lib/cn";
+import { Tooltip } from "@/shared/ui/tooltip-simple";
+import { useVoiceStore } from "@/shared/model/stores/voice-store";
 import { SoundboardPanel } from "./soundboard-panel";
 import { ClipsRecorder } from "./clips-recorder";
 

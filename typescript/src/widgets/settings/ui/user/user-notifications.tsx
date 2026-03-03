@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { cn } from "@/shared/lib/legacy/cn";
-import { Toggle } from "@/shared/ui/legacy/toggle";
-import { Select } from "@/shared/ui/legacy/select";
+import { cn } from "@/shared/lib/cn";
+import { Toggle } from "@/shared/ui/toggle";
+import { Select } from "@/shared/ui/select";
 
 const notificationOptions = [
   { value: "all", label: "すべてのメッセージ" },

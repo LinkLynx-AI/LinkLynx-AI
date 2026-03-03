@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { ThreadCard, ThreadView, mockThreads } from "@/widgets/threads";
 import type { ThreadData } from "@/widgets/threads";
-import { EmptyState } from "@/shared/ui/legacy/empty-state";
+import { EmptyState } from "@/shared/ui/empty-state";
 
 export function ThreadsPanel() {
   const [selectedThread, setSelectedThread] = useState<ThreadData | null>(null);

@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { cn } from "@/shared/lib/legacy/cn";
-import { useUIStore, type ModalType } from "@/shared/model/legacy/stores/ui-store";
-import { useAuthStore } from "@/shared/model/legacy/stores/auth-store";
+import { cn } from "@/shared/lib/cn";
+import { useUIStore, type ModalType } from "@/shared/model/stores/ui-store";
+import { useAuthStore } from "@/shared/model/stores/auth-store";
 
 type RouteShortcut = {
   href: string;

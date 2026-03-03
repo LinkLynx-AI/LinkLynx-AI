@@ -2,7 +2,7 @@ import { ServerList } from "@/widgets/server-list";
 import { ProfilePopout } from "@/widgets/user-profile";
 import { ContextMenuPortal } from "@/widgets/context-menus";
 import { ModalManager } from "@/widgets/modals";
-import { SkipNav } from "@/shared/ui/legacy/skip-nav";
+import { SkipNav } from "@/shared/ui/skip-nav";
 import { AuthGuard } from "@/widgets/auth-guard";
 
 export default function ChannelsLayout({ children }: { children: React.ReactNode }) {

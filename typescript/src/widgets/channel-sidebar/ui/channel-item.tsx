@@ -3,9 +3,9 @@
 import { useCallback } from "react";
 import Link from "next/link";
 import { Hash, Megaphone, Settings, UserPlus } from "lucide-react";
-import { cn } from "@/shared/lib/legacy/cn";
-import { useUIStore } from "@/shared/model/legacy/stores/ui-store";
-import type { Channel } from "@/shared/model/legacy/types/channel";
+import { cn } from "@/shared/lib/cn";
+import { useUIStore } from "@/shared/model/stores/ui-store";
+import type { Channel } from "@/shared/model/types/channel";
 
 function ChannelIcon({ type }: { type: number }) {
   if (type === 5) {

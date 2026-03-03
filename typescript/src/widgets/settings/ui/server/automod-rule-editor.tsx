@@ -1,11 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { cn } from "@/shared/lib/legacy/cn";
-import { Input } from "@/shared/ui/legacy/input";
-import { Select } from "@/shared/ui/legacy/select";
-import { Toggle } from "@/shared/ui/legacy/toggle";
-import { Button } from "@/shared/ui/legacy/button";
+import { cn } from "@/shared/lib/cn";
+import { Input } from "@/shared/ui/input";
+import { Select } from "@/shared/ui/select";
+import { Toggle } from "@/shared/ui/toggle";
+import { Button } from "@/shared/ui/button";
 
 export type AutoModAction = {
   type: "block_message" | "send_alert_message" | "timeout";

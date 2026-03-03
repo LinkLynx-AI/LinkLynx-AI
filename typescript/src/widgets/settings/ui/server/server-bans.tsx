@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { Search } from "lucide-react";
-import { Avatar } from "@/shared/ui/legacy/avatar";
-import { Button } from "@/shared/ui/legacy/button";
+import { Avatar } from "@/shared/ui/avatar";
+import { Button } from "@/shared/ui/button";
 
 type BannedUser = {
   id: string;

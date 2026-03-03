@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { Modal, ModalHeader, ModalBody, ModalFooter } from "@/shared/ui/legacy/modal";
-import { Button } from "@/shared/ui/legacy/button";
-import { Checkbox } from "@/shared/ui/legacy/checkbox";
+import { Modal, ModalHeader, ModalBody, ModalFooter } from "@/shared/ui/modal";
+import { Button } from "@/shared/ui/button";
+import { Checkbox } from "@/shared/ui/checkbox";
 
 export function ExternalLinkModal({ url, onClose }: { url: string; onClose: () => void }) {
   const [trustDomain, setTrustDomain] = useState(false);

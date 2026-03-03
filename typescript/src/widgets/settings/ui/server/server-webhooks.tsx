@@ -1,11 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { cn } from "@/shared/lib/legacy/cn";
-import { Button } from "@/shared/ui/legacy/button";
-import { Input } from "@/shared/ui/legacy/input";
-import { Select } from "@/shared/ui/legacy/select";
-import { mockWebhooks, type WebhookData } from "@/shared/api/legacy/mock/data/webhooks";
+import { cn } from "@/shared/lib/cn";
+import { Button } from "@/shared/ui/button";
+import { Input } from "@/shared/ui/input";
+import { Select } from "@/shared/ui/select";
+import { mockWebhooks, type WebhookData } from "@/shared/api/mock/data/webhooks";
 import { Copy, Trash2, ChevronDown, Upload } from "lucide-react";
 
 const channelOptions = [

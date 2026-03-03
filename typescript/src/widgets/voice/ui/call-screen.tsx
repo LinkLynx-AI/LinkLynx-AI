@@ -1,8 +1,8 @@
 "use client";
 
 import { Phone, PhoneOff } from "lucide-react";
-import { cn } from "@/shared/lib/legacy/cn";
-import { Avatar } from "@/shared/ui/legacy/avatar";
+import { cn } from "@/shared/lib/cn";
+import { Avatar } from "@/shared/ui/avatar";
 
 export function CallScreen({
   type,

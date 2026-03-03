@@ -1,8 +1,8 @@
 "use client";
 
 import { Hash, Search, Bell, Users, Settings, Pin, MessageSquareText } from "lucide-react";
-import { cn } from "@/shared/lib/legacy/cn";
-import { useUIStore } from "@/shared/model/legacy/stores/ui-store";
+import { cn } from "@/shared/lib/cn";
+import { useUIStore } from "@/shared/model/stores/ui-store";
 
 export function ChannelHeader({
   channelName,

@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { X } from "lucide-react";
-import { cn } from "@/shared/lib/legacy/cn";
+import { cn } from "@/shared/lib/cn";
 import { ServerOverview } from "./server/server-overview";
 import { ServerRoles } from "./server/server-roles";
 import { ServerMembers } from "./server/server-members";

@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Modal, ModalHeader, ModalBody } from "@/shared/ui/legacy/modal";
-import { Tabs } from "@/shared/ui/legacy/tabs";
+import { Modal, ModalHeader, ModalBody } from "@/shared/ui/modal";
+import { Tabs } from "@/shared/ui/tabs-simple";
 import { ChannelEditOverview } from "./channel-edit-overview";
 import { ChannelEditPermissions } from "./channel-edit-permissions";
 import { ChannelEditInvites } from "./channel-edit-invites";

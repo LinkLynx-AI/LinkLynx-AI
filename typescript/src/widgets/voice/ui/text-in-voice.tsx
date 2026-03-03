@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Send } from "lucide-react";
-import { Avatar } from "@/shared/ui/legacy/avatar";
+import { Avatar } from "@/shared/ui/avatar";
 
 type VoiceChatMessage = {
   id: string;

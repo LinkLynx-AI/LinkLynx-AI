@@ -2,10 +2,10 @@
 
 import { useState } from "react";
 import { X } from "lucide-react";
-import { cn } from "@/shared/lib/legacy/cn";
-import { Button } from "@/shared/ui/legacy/button";
-import { Input } from "@/shared/ui/legacy/input";
-import { Textarea } from "@/shared/ui/legacy/textarea";
+import { cn } from "@/shared/lib/cn";
+import { Button } from "@/shared/ui/button";
+import { Input } from "@/shared/ui/input";
+import { Textarea } from "@/shared/ui/textarea";
 import type { ForumTag } from "./forum-types";
 
 export function ForumCreatePost({ tags, onClose }: { tags: ForumTag[]; onClose: () => void }) {

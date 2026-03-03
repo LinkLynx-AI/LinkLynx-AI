@@ -1,11 +1,11 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { cn } from "@/shared/lib/legacy/cn";
+import { cn } from "@/shared/lib/cn";
 import { Search } from "lucide-react";
-import { Avatar } from "@/shared/ui/legacy/avatar";
-import { mockUsers } from "@/shared/api/legacy/mock/data/users";
-import type { UserSelectComponent } from "@/shared/model/legacy/types/bot-components";
+import { Avatar } from "@/shared/ui/avatar";
+import { mockUsers } from "@/shared/api/mock/data/users";
+import type { UserSelectComponent } from "@/shared/model/types/bot-components";
 
 export function BotUserSelect({
   component,

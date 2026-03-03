@@ -2,8 +2,8 @@
 
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { Search, X, Lock } from "lucide-react";
-import { cn } from "@/shared/lib/legacy/cn";
-import { NitroGate } from "@/shared/ui/legacy/nitro-gate";
+import { cn } from "@/shared/lib/cn";
+import { NitroGate } from "@/shared/ui/nitro-gate";
 import { EMOJI_CATEGORIES, EMOJI_DATA, type EmojiCategoryId } from "./emoji-data";
 
 type EmojiPickerProps = {

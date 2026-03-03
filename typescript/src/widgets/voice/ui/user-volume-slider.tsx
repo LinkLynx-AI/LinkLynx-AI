@@ -1,7 +1,7 @@
 "use client";
 
 import { Volume, Volume1, Volume2, VolumeX } from "lucide-react";
-import { cn } from "@/shared/lib/legacy/cn";
+import { cn } from "@/shared/lib/cn";
 
 function getVolumeIcon(volume: number, isMuted: boolean) {
   if (isMuted || volume === 0) return VolumeX;

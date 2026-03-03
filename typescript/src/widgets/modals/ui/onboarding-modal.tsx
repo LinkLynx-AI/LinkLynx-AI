@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useRef, useCallback } from "react";
-import { Modal, ModalFooter } from "@/shared/ui/legacy/modal";
-import { Button } from "@/shared/ui/legacy/button";
-import { Checkbox } from "@/shared/ui/legacy/checkbox";
-import { cn } from "@/shared/lib/legacy/cn";
+import { Modal, ModalFooter } from "@/shared/ui/modal";
+import { Button } from "@/shared/ui/button";
+import { Checkbox } from "@/shared/ui/checkbox";
+import { cn } from "@/shared/lib/cn";
 import { Check, Hash } from "lucide-react";
 
 const TOTAL_STEPS = 4;

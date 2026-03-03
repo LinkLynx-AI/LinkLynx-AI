@@ -1,8 +1,8 @@
 "use client";
 
 import { Play, Share2, Trash2, Film } from "lucide-react";
-import { cn } from "@/shared/lib/legacy/cn";
-import { Tooltip } from "@/shared/ui/legacy/tooltip";
+import { cn } from "@/shared/lib/cn";
+import { Tooltip } from "@/shared/ui/tooltip-simple";
 
 export type ClipItem = {
   id: string;

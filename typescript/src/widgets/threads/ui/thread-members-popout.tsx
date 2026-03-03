@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { cn } from "@/shared/lib/legacy/cn";
+import { cn } from "@/shared/lib/cn";
 import { X, UserPlus, Search } from "lucide-react";
-import { Avatar } from "@/shared/ui/legacy/avatar";
+import { Avatar } from "@/shared/ui/avatar";
 
 export type ThreadMember = {
   userId: string;

@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Button } from "@/shared/ui/legacy/button";
-import { Toggle } from "@/shared/ui/legacy/toggle";
+import { Button } from "@/shared/ui/button";
+import { Toggle } from "@/shared/ui/toggle";
 import { Unlink } from "lucide-react";
 
 type Service = {

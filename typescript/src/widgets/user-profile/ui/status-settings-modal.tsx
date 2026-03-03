@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Modal, ModalHeader, ModalBody, ModalFooter } from "@/shared/ui/legacy/modal";
-import { Input } from "@/shared/ui/legacy/input";
-import { Select } from "@/shared/ui/legacy/select";
-import { cn } from "@/shared/lib/legacy/cn";
+import { Modal, ModalHeader, ModalBody, ModalFooter } from "@/shared/ui/modal";
+import { Input } from "@/shared/ui/input";
+import { Select } from "@/shared/ui/select";
+import { cn } from "@/shared/lib/cn";
 
 const presetStatuses = [
   { emoji: "🟢", label: "オンライン", value: "online" },

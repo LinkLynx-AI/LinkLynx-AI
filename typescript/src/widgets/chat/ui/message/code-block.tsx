@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { cn } from "@/shared/lib/legacy/cn";
+import { cn } from "@/shared/lib/cn";
 
 export function CodeBlock({ language, content }: { language: string; content: string }) {
   const [copied, setCopied] = useState(false);

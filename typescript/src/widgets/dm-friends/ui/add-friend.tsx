@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { useSendFriendRequest } from "@/shared/api/legacy/mutations/use-friend-actions";
-import { cn } from "@/shared/lib/legacy/cn";
+import { useSendFriendRequest } from "@/shared/api/mutations/use-friend-actions";
+import { cn } from "@/shared/lib/cn";
 
 export function AddFriend() {
   const [username, setUsername] = useState("");

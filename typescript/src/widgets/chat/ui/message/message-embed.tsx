@@ -1,5 +1,5 @@
-import { cn } from "@/shared/lib/legacy/cn";
-import type { Embed } from "@/shared/model/legacy/types/message";
+import { cn } from "@/shared/lib/cn";
+import type { Embed } from "@/shared/model/types/message";
 
 function numberToHex(color: number): string {
   return `#${color.toString(16).padStart(6, "0")}`;

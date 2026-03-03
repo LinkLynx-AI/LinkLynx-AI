@@ -1,8 +1,8 @@
 "use client";
 
-import { ContextMenu, MenuItem, MenuSeparator } from "@/shared/ui/legacy/context-menu";
-import { useUIStore } from "@/shared/model/legacy/stores/ui-store";
-import type { Channel } from "@/shared/model/legacy/types/channel";
+import { ContextMenu, MenuItem, MenuSeparator } from "@/shared/ui/context-menu";
+import { useUIStore } from "@/shared/model/stores/ui-store";
+import type { Channel } from "@/shared/model/types/channel";
 
 export function ChannelContextMenu({ data }: { data: { channel: Channel; serverId: string } }) {
   const openModal = useUIStore((s) => s.openModal);

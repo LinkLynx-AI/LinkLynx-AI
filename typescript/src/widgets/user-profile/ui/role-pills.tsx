@@ -1,6 +1,6 @@
 "use client";
 
-import type { Role } from "@/shared/model/legacy/types/server";
+import type { Role } from "@/shared/model/types/server";
 
 function numberToHex(color: number): string {
   if (color === 0) return "#99aab5";

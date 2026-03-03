@@ -2,12 +2,12 @@
 
 import { useState } from "react";
 import { Camera } from "lucide-react";
-import { cn } from "@/shared/lib/legacy/cn";
-import { Button } from "@/shared/ui/legacy/button";
-import { Select } from "@/shared/ui/legacy/select";
-import { Toggle } from "@/shared/ui/legacy/toggle";
-import { Slider } from "@/shared/ui/legacy/slider";
-import { KeybindRecorder } from "@/shared/ui/legacy/keybind-recorder";
+import { cn } from "@/shared/lib/cn";
+import { Button } from "@/shared/ui/button";
+import { Select } from "@/shared/ui/select";
+import { Toggle } from "@/shared/ui/toggle";
+import { Slider } from "@/shared/ui/slider";
+import { KeybindRecorder } from "@/shared/ui/keybind-recorder";
 
 const inputDevices = [
   { value: "default", label: "デフォルト - マイク (Realtek Audio)" },

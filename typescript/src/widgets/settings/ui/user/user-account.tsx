@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { Avatar } from "@/shared/ui/legacy/avatar";
-import { Button } from "@/shared/ui/legacy/button";
-import { useAuthStore } from "@/shared/model/legacy/stores/auth-store";
+import { Avatar } from "@/shared/ui/avatar";
+import { Button } from "@/shared/ui/button";
+import { useAuthStore } from "@/shared/model/stores/auth-store";
 import { UserAccountEditModal } from "./user-account-edit-modal";
 import { PasswordChangeForm } from "./password-change-form";
 import { TwoFactorSetup } from "./two-factor-setup";

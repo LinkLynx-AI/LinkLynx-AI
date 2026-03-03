@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Languages } from "lucide-react";
-import { cn } from "@/shared/lib/legacy/cn";
+import { cn } from "@/shared/lib/cn";
 
 export function MessageTranslation({
   content,

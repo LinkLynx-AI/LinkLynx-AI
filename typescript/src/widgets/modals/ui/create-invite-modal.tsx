@@ -1,13 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Modal, ModalHeader, ModalBody, ModalFooter } from "@/shared/ui/legacy/modal";
-import { Button } from "@/shared/ui/legacy/button";
-import { Input } from "@/shared/ui/legacy/input";
-import { Select } from "@/shared/ui/legacy/select";
-import { Toggle } from "@/shared/ui/legacy/toggle";
-import { Avatar } from "@/shared/ui/legacy/avatar";
-import { getAPIClient } from "@/shared/api/legacy/api-client";
+import { Modal, ModalHeader, ModalBody, ModalFooter } from "@/shared/ui/modal";
+import { Button } from "@/shared/ui/button";
+import { Input } from "@/shared/ui/input";
+import { Select } from "@/shared/ui/select";
+import { Toggle } from "@/shared/ui/toggle";
+import { Avatar } from "@/shared/ui/avatar";
+import { getAPIClient } from "@/shared/api/api-client";
 import { Search, Send } from "lucide-react";
 
 const expiryOptions = [

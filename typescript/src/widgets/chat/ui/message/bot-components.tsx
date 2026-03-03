@@ -1,6 +1,6 @@
 "use client";
 
-import type { ActionRow } from "@/shared/model/legacy/types/bot-components";
+import type { ActionRow } from "@/shared/model/types/bot-components";
 import { BotButton } from "./bot-button";
 import { BotSelect } from "./bot-select";
 import { BotUserSelect } from "./bot-user-select";

@@ -1,11 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { cn } from "@/shared/lib/legacy/cn";
-import { Button } from "@/shared/ui/legacy/button";
+import { cn } from "@/shared/lib/cn";
+import { Button } from "@/shared/ui/button";
 import { GripVertical, Plus, Shield } from "lucide-react";
 import { RoleEditPanel } from "./role-edit-panel";
-import { mockRoles as initialMockRoles, type MockRole } from "@/shared/api/legacy/mock/data/roles";
+import { mockRoles as initialMockRoles, type MockRole } from "@/shared/api/mock/data/roles";
 
 export function ServerRoles({ serverId }: { serverId: string }) {
   const [roles, setRoles] = useState<MockRole[]>(initialMockRoles);

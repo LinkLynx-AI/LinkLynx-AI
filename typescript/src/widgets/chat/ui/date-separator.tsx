@@ -1,4 +1,4 @@
-import { formatDateSeparator } from "@/shared/lib/legacy/format-date";
+import { formatDateSeparator } from "@/shared/lib/format-date";
 
 export function DateSeparator({ date }: { date: string }) {
   return (

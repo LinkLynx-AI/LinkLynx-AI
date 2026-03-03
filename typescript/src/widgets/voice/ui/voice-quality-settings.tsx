@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { X } from "lucide-react";
-import { cn } from "@/shared/lib/legacy/cn";
+import { cn } from "@/shared/lib/cn";
 
 export function VoiceQualitySettings({ onClose }: { onClose: () => void }) {
   const [resolution, setResolution] = useState("1080p");

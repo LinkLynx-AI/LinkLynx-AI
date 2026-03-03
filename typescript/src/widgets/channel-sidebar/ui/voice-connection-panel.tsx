@@ -1,9 +1,9 @@
 "use client";
 
 import { PhoneOff, Signal } from "lucide-react";
-import { cn } from "@/shared/lib/legacy/cn";
-import { useVoiceStore } from "@/shared/model/legacy/stores/voice-store";
-import { useChannel } from "@/shared/api/legacy/queries/use-channels";
+import { cn } from "@/shared/lib/cn";
+import { useVoiceStore } from "@/shared/model/stores/voice-store";
+import { useChannel } from "@/shared/api/queries/use-channels";
 
 export function VoiceConnectionPanel() {
   const { connected, channelId, disconnect } = useVoiceStore();

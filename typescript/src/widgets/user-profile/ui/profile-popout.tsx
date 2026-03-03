@@ -1,14 +1,14 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Avatar } from "@/shared/ui/legacy/avatar";
-import { useUIStore } from "@/shared/model/legacy/stores/ui-store";
-import { useGuildStore } from "@/shared/model/legacy/stores/guild-store";
-import { useUserProfile } from "@/shared/api/legacy/queries/use-user-profile";
+import { Avatar } from "@/shared/ui/avatar";
+import { useUIStore } from "@/shared/model/stores/ui-store";
+import { useGuildStore } from "@/shared/model/stores/guild-store";
+import { useUserProfile } from "@/shared/api/queries/use-user-profile";
 import { ProfileBadges } from "./profile-badges";
 import { RolePills } from "./role-pills";
-import { mockRoles, mockMembers } from "@/shared/api/legacy/mock/data/servers";
-import type { Role } from "@/shared/model/legacy/types/server";
+import { mockRoles, mockMembers } from "@/shared/api/mock/data/servers";
+import type { Role } from "@/shared/model/types/server";
 
 function numberToHex(color: number): string {
   return `#${color.toString(16).padStart(6, "0")}`;

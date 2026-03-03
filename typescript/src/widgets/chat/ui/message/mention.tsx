@@ -1,6 +1,6 @@
 "use client";
 
-import { cn } from "@/shared/lib/legacy/cn";
+import { cn } from "@/shared/lib/cn";
 
 export function UserMention({ userId, displayName }: { userId: string; displayName?: string }) {
   return (

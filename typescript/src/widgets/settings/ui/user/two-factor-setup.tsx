@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback } from "react";
-import { Button } from "@/shared/ui/legacy/button";
+import { Button } from "@/shared/ui/button";
 import { Download } from "lucide-react";
 
 const BACKUP_CODES = [

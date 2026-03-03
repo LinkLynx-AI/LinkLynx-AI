@@ -1,8 +1,8 @@
 "use client";
 
-import { useSyncChannelId } from "@/shared/model/legacy/hooks/use-sync-guild-params";
-import { useChannel } from "@/shared/api/legacy/queries/use-channels";
-import { useVoiceStore } from "@/shared/model/legacy/stores/voice-store";
+import { useSyncChannelId } from "@/shared/model/hooks/use-sync-guild-params";
+import { useChannel } from "@/shared/api/queries/use-channels";
+import { useVoiceStore } from "@/shared/model/stores/voice-store";
 import { ChatArea } from "./chat-area";
 import { VoiceArea } from "@/widgets/voice";
 import { ForumView } from "@/widgets/forum";

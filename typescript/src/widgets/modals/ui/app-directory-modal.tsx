@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { Search, X } from "lucide-react";
-import { Modal } from "@/shared/ui/legacy/modal";
-import { cn } from "@/shared/lib/legacy/cn";
+import { Modal } from "@/shared/ui/modal";
+import { cn } from "@/shared/lib/cn";
 
 type AppInfo = {
   id: string;

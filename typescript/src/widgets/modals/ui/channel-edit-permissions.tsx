@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Plus, Shield, Users } from "lucide-react";
-import { cn } from "@/shared/lib/legacy/cn";
+import { cn } from "@/shared/lib/cn";
 
 type Role = {
   id: string;

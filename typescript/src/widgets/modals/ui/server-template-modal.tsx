@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { Modal, ModalHeader, ModalBody, ModalFooter } from "@/shared/ui/legacy/modal";
+import { Modal, ModalHeader, ModalBody, ModalFooter } from "@/shared/ui/modal";
 import { Hash, Volume2, ChevronDown, ChevronRight, FolderOpen } from "lucide-react";
-import { cn } from "@/shared/lib/legacy/cn";
+import { cn } from "@/shared/lib/cn";
 
 const mockChannelTree: {
   id: string;

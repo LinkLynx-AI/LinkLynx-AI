@@ -1,8 +1,8 @@
 "use client";
 
 import { MicOff, HeadphoneOff } from "lucide-react";
-import { cn } from "@/shared/lib/legacy/cn";
-import { Avatar } from "@/shared/ui/legacy/avatar";
+import { cn } from "@/shared/lib/cn";
+import { Avatar } from "@/shared/ui/avatar";
 
 type VoiceParticipantData = {
   userId: string;

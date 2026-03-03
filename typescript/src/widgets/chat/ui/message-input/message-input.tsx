@@ -2,15 +2,15 @@
 
 import { useState, useCallback, useRef, type KeyboardEvent, type ClipboardEvent } from "react";
 import { CirclePlus, Smile, Sticker, Gift } from "lucide-react";
-import { cn } from "@/shared/lib/legacy/cn";
-import { useSendMessage } from "@/shared/api/legacy/mutations/use-send-message";
+import { cn } from "@/shared/lib/cn";
+import { useSendMessage } from "@/shared/api/mutations/use-send-message";
 import { EmojiPicker } from "@/widgets/pickers";
 import { FormattingToolbar } from "./formatting-toolbar";
 import { MarkdownPreview } from "./markdown-preview";
 import { FileUploadArea, type FileItem } from "./file-upload-area";
 import { SlashCommandPopup } from "../message/slash-command-popup";
-import { mockSlashCommands } from "@/shared/api/legacy/mock/data/bot-commands";
-import type { SlashCommand } from "@/shared/model/legacy/types/bot-components";
+import { mockSlashCommands } from "@/shared/api/mock/data/bot-commands";
+import type { SlashCommand } from "@/shared/model/types/bot-components";
 
 let fileIdCounter = 0;
 

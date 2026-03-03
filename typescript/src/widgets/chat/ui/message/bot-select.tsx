@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { cn } from "@/shared/lib/legacy/cn";
-import type { SelectMenuComponent, SelectOption } from "@/shared/model/legacy/types/bot-components";
+import { cn } from "@/shared/lib/cn";
+import type { SelectMenuComponent, SelectOption } from "@/shared/model/types/bot-components";
 
 export function BotSelect({
   component,

@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { cn } from "@/shared/lib/legacy/cn";
-import { Avatar } from "@/shared/ui/legacy/avatar";
-import type { SlashCommand } from "@/shared/model/legacy/types/bot-components";
+import { cn } from "@/shared/lib/cn";
+import { Avatar } from "@/shared/ui/avatar";
+import type { SlashCommand } from "@/shared/model/types/bot-components";
 import { SlashCommandArgs } from "./slash-command-args";
 
 export function SlashCommandPopup({

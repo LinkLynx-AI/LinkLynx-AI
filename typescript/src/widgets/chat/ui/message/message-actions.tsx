@@ -2,11 +2,11 @@
 
 import { useState, useRef } from "react";
 import { SmilePlus, Reply, Pencil, MessageSquare, MoreHorizontal } from "lucide-react";
-import { cn } from "@/shared/lib/legacy/cn";
-import { useUIStore } from "@/shared/model/legacy/stores/ui-store";
+import { cn } from "@/shared/lib/cn";
+import { useUIStore } from "@/shared/model/stores/ui-store";
 import { EmojiPicker } from "@/widgets/pickers";
 import { PublishButton } from "./publish-button";
-import type { Message } from "@/shared/model/legacy/types";
+import type { Message } from "@/shared/model/types";
 
 export function MessageActions({
   message,

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Trash2 } from "lucide-react";
-import { Button } from "@/shared/ui/legacy/button";
+import { Button } from "@/shared/ui/button";
 
 type ServerSticker = {
   id: string;

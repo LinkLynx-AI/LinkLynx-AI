@@ -1,9 +1,9 @@
 "use client";
 
-import { ContextMenu, MenuItem, MenuSeparator } from "@/shared/ui/legacy/context-menu";
-import { useUIStore } from "@/shared/model/legacy/stores/ui-store";
-import { useAuthStore } from "@/shared/model/legacy/stores/auth-store";
-import type { Message } from "@/shared/model/legacy/types/message";
+import { ContextMenu, MenuItem, MenuSeparator } from "@/shared/ui/context-menu";
+import { useUIStore } from "@/shared/model/stores/ui-store";
+import { useAuthStore } from "@/shared/model/stores/auth-store";
+import type { Message } from "@/shared/model/types/message";
 
 export function MessageContextMenu({ data }: { data: { message: Message } }) {
   const hideContextMenu = useUIStore((s) => s.hideContextMenu);

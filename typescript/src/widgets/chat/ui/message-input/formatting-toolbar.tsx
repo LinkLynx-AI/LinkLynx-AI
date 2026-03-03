@@ -16,8 +16,8 @@ import {
   ListOrdered,
   Eye,
 } from "lucide-react";
-import { cn } from "@/shared/lib/legacy/cn";
-import { Tooltip } from "@/shared/ui/legacy/tooltip";
+import { cn } from "@/shared/lib/cn";
+import { Tooltip } from "@/shared/ui/tooltip-simple";
 import { HeadingDropdown } from "./heading-dropdown";
 import { LinkPopover } from "./link-popover";
 

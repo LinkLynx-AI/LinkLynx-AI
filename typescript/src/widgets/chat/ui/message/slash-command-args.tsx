@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
-import { cn } from "@/shared/lib/legacy/cn";
-import type { SlashCommand, SlashCommandOption } from "@/shared/model/legacy/types/bot-components";
+import { cn } from "@/shared/lib/cn";
+import type { SlashCommand, SlashCommandOption } from "@/shared/model/types/bot-components";
 
 function OptionInput({
   option,

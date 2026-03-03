@@ -1,9 +1,9 @@
 "use client";
 
-import { Avatar } from "@/shared/ui/legacy/avatar";
+import { Avatar } from "@/shared/ui/avatar";
 import { MessageSquare, Phone } from "lucide-react";
-import { cn } from "@/shared/lib/legacy/cn";
-import type { User } from "@/shared/model/legacy/types";
+import { cn } from "@/shared/lib/cn";
+import type { User } from "@/shared/model/types";
 
 const statusText: Record<string, string> = {
   online: "オンライン",

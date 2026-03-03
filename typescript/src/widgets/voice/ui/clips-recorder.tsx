@@ -1,8 +1,8 @@
 "use client";
 
 import { Clapperboard } from "lucide-react";
-import { cn } from "@/shared/lib/legacy/cn";
-import { Tooltip } from "@/shared/ui/legacy/tooltip";
+import { cn } from "@/shared/lib/cn";
+import { Tooltip } from "@/shared/ui/tooltip-simple";
 
 function formatDuration(seconds: number) {
   const m = Math.floor(seconds / 60);

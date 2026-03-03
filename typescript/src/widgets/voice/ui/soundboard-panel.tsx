@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { cn } from "@/shared/lib/legacy/cn";
-import { Tabs } from "@/shared/ui/legacy/tabs";
+import { cn } from "@/shared/lib/cn";
+import { Tabs } from "@/shared/ui/tabs-simple";
 import { SoundButton } from "./sound-button";
 import { mockSounds } from "./soundboard-mock-data";
 import type { Sound } from "./soundboard-types";

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useCallback, useRef } from "react";
-import { useUIStore } from "@/shared/model/legacy/stores/ui-store";
+import { useUIStore } from "@/shared/model/stores/ui-store";
 import { ServerContextMenu } from "./server-context-menu";
 import { ChannelContextMenu } from "./channel-context-menu";
 import { MessageContextMenu } from "./message-context-menu";
@@ -10,18 +10,18 @@ import { UserContextMenu } from "./user-context-menu";
 function getMenuComponent(type: string, data: unknown) {
   switch (type) {
     case "server":
-      return <ServerContextMenu data={data as { server: import("@/shared/model/legacy/types/server").Guild }} />;
+      return <ServerContextMenu data={data as { server: import("@/shared/model/types/server").Guild }} />;
     case "channel":
       return (
         <ChannelContextMenu
-          data={data as { channel: import("@/shared/model/legacy/types/channel").Channel; serverId: string }}
+          data={data as { channel: import("@/shared/model/types/channel").Channel; serverId: string }}
         />
       );
     case "message":
-      return <MessageContextMenu data={data as { message: import("@/shared/model/legacy/types/message").Message }} />;
+      return <MessageContextMenu data={data as { message: import("@/shared/model/types/message").Message }} />;
     case "user":
       return (
-        <UserContextMenu data={data as { user: import("@/shared/model/legacy/types/user").User; serverId?: string }} />
+        <UserContextMenu data={data as { user: import("@/shared/model/types/user").User; serverId?: string }} />
       );
     default:
       return null;

@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { Button } from "@/shared/ui/legacy/button";
-import { mockInvites } from "@/shared/api/legacy/mock/data/invites";
-import type { Invite } from "@/shared/api/legacy/mock/data/invites";
+import { Button } from "@/shared/ui/button";
+import { mockInvites } from "@/shared/api/mock/data/invites";
+import type { Invite } from "@/shared/api/mock/data/invites";
 
 function formatExpiry(expiresAt: string | null): string {
   if (!expiresAt) return "無期限";

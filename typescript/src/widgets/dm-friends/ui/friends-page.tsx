@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { cn } from "@/shared/lib/legacy/cn";
+import { cn } from "@/shared/lib/cn";
 import { FriendList } from "./friend-list";
 import { PendingRequests } from "./pending-requests";
 import { AddFriend } from "./add-friend";

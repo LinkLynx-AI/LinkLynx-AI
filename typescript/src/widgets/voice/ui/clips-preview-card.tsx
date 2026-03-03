@@ -1,7 +1,7 @@
 "use client";
 
 import { Download, Share2, Trash2 } from "lucide-react";
-import { Tooltip } from "@/shared/ui/legacy/tooltip";
+import { Tooltip } from "@/shared/ui/tooltip-simple";
 
 function formatDuration(seconds: number) {
   const m = Math.floor(seconds / 60);

@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowDown } from "lucide-react";
-import { cn } from "@/shared/lib/legacy/cn";
+import { cn } from "@/shared/lib/cn";
 
 export function ScrollToBottom({ visible, onClick }: { visible: boolean; onClick: () => void }) {
   if (!visible) return null;
