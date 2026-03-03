@@ -142,6 +142,18 @@ impl PostgresProfileService {
         let mut guard = self.clients.write().await;
         guard.clear();
     }
+
+    /// クエリエラー時に接続プールを破棄して依存障害へ変換する。
+    /// @param reason 障害理由
+    /// @returns 依存障害エラー
+    /// @throws なし
+    async fn dependency_unavailable_after_pool_invalidate(
+        &self,
+        reason: impl Into<String>,
+    ) -> ProfileError {
+        self.invalidate_pool().await;
+        ProfileError::dependency_unavailable(reason.into())
+    }
 }
 
 #[async_trait]
@@ -153,7 +165,7 @@ impl ProfileService for PostgresProfileService {
     async fn get_profile(&self, principal_id: PrincipalId) -> Result<ProfileSettings, ProfileError> {
         let client = self.select_client().await?;
 
-        let row = client
+        let row = match client
             .query_opt(
                 "SELECT display_name, status_text, avatar_key
                  FROM users
@@ -162,9 +174,17 @@ impl ProfileService for PostgresProfileService {
                 &[&principal_id.0],
             )
             .await
-            .map_err(|error| {
-                ProfileError::dependency_unavailable(format!("profile_get_query_failed:{error}"))
-            })?;
+        {
+            Ok(row) => row,
+            Err(error) => {
+                let profile_error = self
+                    .dependency_unavailable_after_pool_invalidate(format!(
+                        "profile_get_query_failed:{error}"
+                    ))
+                    .await;
+                return Err(profile_error);
+            }
+        };
 
         let Some(row) = row else {
             return Err(ProfileError::not_found("user_not_found"));
@@ -228,10 +248,12 @@ impl ProfileService for PostgresProfileService {
         {
             Ok(row) => row,
             Err(error) => {
-                self.invalidate_pool().await;
-                return Err(ProfileError::dependency_unavailable(format!(
-                    "profile_update_query_failed:{error}"
-                )));
+                let profile_error = self
+                    .dependency_unavailable_after_pool_invalidate(format!(
+                        "profile_update_query_failed:{error}"
+                    ))
+                    .await;
+                return Err(profile_error);
             }
         };
 

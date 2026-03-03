@@ -55,6 +55,24 @@ mod tests {
     }
 
     #[test]
+    fn normalize_profile_patch_input_rejects_display_name_too_long() {
+        let patch = ProfilePatchInput {
+            display_name: Some("a".repeat(33)),
+            status_text: None,
+            avatar_key: None,
+        };
+
+        let result = normalize_profile_patch_input(patch);
+        assert!(matches!(
+            result,
+            Err(ProfileError {
+                kind: ProfileErrorKind::Validation,
+                reason,
+            }) if reason == "display_name_too_long"
+        ));
+    }
+
+    #[test]
     fn normalize_profile_patch_input_normalizes_nullable_text_as_null() {
         let patch = ProfilePatchInput {
             display_name: Some("  Display Name  ".to_owned()),
@@ -104,6 +122,24 @@ mod tests {
                 kind: ProfileErrorKind::Validation,
                 ..
             })
+        ));
+    }
+
+    #[test]
+    fn normalize_profile_patch_input_rejects_avatar_key_too_long() {
+        let patch = ProfilePatchInput {
+            display_name: None,
+            status_text: None,
+            avatar_key: Some(Some("a".repeat(513))),
+        };
+
+        let result = normalize_profile_patch_input(patch);
+        assert!(matches!(
+            result,
+            Err(ProfileError {
+                kind: ProfileErrorKind::Validation,
+                reason,
+            }) if reason == "avatar_key_too_long"
         ));
     }
 }
