@@ -6,6 +6,7 @@ import {
   buildLoginRoute,
   classifyAppRoute,
   normalizeReturnToPath,
+  parseGuildChannelRoute,
   parseLoginRedirectReason,
 } from "./routes";
 
@@ -28,6 +29,26 @@ describe("routes", () => {
   test("channel ルートを生成する", () => {
     expect(buildChannelRoute("guild-1", "channel-2")).toBe("/channels/guild-1/channel-2");
     expect(buildChannelRoute("guild/a", "channel b")).toBe("/channels/guild%2Fa/channel%20b");
+  });
+
+  test("guild/channel ルートから選択状態を抽出する", () => {
+    expect(parseGuildChannelRoute("/channels/1001")).toEqual({
+      guildId: "1001",
+      channelId: null,
+    });
+    expect(parseGuildChannelRoute("/channels/1001/3001")).toEqual({
+      guildId: "1001",
+      channelId: "3001",
+    });
+    expect(parseGuildChannelRoute("/channels/guild%2Fa/channel%20b")).toEqual({
+      guildId: "guild/a",
+      channelId: "channel b",
+    });
+    expect(parseGuildChannelRoute("/channels/me")).toBeNull();
+    expect(parseGuildChannelRoute("/channels/me/3001")).toBeNull();
+    expect(parseGuildChannelRoute("/channels/1001/3001/extra")).toBeNull();
+    expect(parseGuildChannelRoute("/channels//3001")).toBeNull();
+    expect(parseGuildChannelRoute("/settings/profile")).toBeNull();
   });
 
   test("public/auth/protected のルート分類を判定する", () => {

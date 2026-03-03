@@ -18,6 +18,10 @@ export const APP_ROUTES = {
 export type GuardKind = "unauthenticated" | "forbidden" | "not-found" | "service-unavailable";
 export type RouteAccessKind = "public" | "auth" | "protected" | "unknown";
 export type LoginRedirectReason = "unauthenticated" | "session-expired";
+export type GuildChannelRouteSelection = {
+  guildId: string;
+  channelId: string | null;
+};
 
 export type PlaceholderState = "loading" | "empty" | "error" | "readonly" | "disabled";
 
@@ -34,6 +38,14 @@ function normalizePathname(pathname: string): string {
   }
 
   return pathname.replace(/\/+$/, "");
+}
+
+function safeDecodeURIComponent(value: string): string | null {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -64,6 +76,53 @@ export function classifyAppRoute(pathname: string): RouteAccessKind {
   }
 
   return "unknown";
+}
+
+/**
+ * `/channels/{guildId}` または `/channels/{guildId}/{channelId}` から選択状態を抽出する。
+ */
+export function parseGuildChannelRoute(pathname: string): GuildChannelRouteSelection | null {
+  const normalizedPathname = normalizePathname(pathname.trim());
+  if (!normalizedPathname.startsWith("/channels/")) {
+    return null;
+  }
+
+  const routeSegments = normalizedPathname.slice("/channels/".length).split("/");
+
+  if (routeSegments.length < 1 || routeSegments.length > 2) {
+    return null;
+  }
+  if (routeSegments.some((segment) => segment.length === 0)) {
+    return null;
+  }
+
+  const rawGuildId = routeSegments[0];
+  if (rawGuildId === undefined || rawGuildId.toLowerCase() === "me") {
+    return null;
+  }
+
+  const guildId = safeDecodeURIComponent(rawGuildId);
+  if (guildId === null || guildId.trim().length === 0) {
+    return null;
+  }
+
+  const rawChannelId = routeSegments[1];
+  if (rawChannelId === undefined) {
+    return {
+      guildId,
+      channelId: null,
+    };
+  }
+
+  const channelId = safeDecodeURIComponent(rawChannelId);
+  if (channelId === null || channelId.trim().length === 0) {
+    return null;
+  }
+
+  return {
+    guildId,
+    channelId,
+  };
 }
 
 /**
