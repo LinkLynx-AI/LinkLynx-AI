@@ -1,6 +1,7 @@
 import type { AuthActionError } from "@/entities";
 import { describe, expect, test } from "vitest";
 import {
+  getGoogleSignInErrorMessage,
   getLoginErrorMessage,
   getPrincipalProvisionErrorMessage,
   getRegisterErrorMessage,
@@ -30,6 +31,18 @@ describe("auth flow error message", () => {
   test("verify の unauthenticated をログイン要求文言へ変換する", () => {
     const message = getVerifyEmailErrorMessage(createError("unauthenticated"));
     expect(message).toBe("確認メールを再送するにはログインが必要です。");
+  });
+
+  test("google sign-in の popup-closed-by-user をキャンセル文言へ変換する", () => {
+    const message = getGoogleSignInErrorMessage(createError("popup-closed-by-user"));
+    expect(message).toBe("Googleサインインをキャンセルしました。");
+  });
+
+  test("google sign-in の popup-blocked をブロック文言へ変換する", () => {
+    const message = getGoogleSignInErrorMessage(createError("popup-blocked"));
+    expect(message).toBe(
+      "ポップアップがブロックされました。ブラウザ設定を確認して再試行してください。",
+    );
   });
 
   test("principal確保の auth-unavailable を運用向け文言へ変換する", () => {

@@ -1,8 +1,10 @@
 import {
+  GoogleAuthProvider,
   createUserWithEmailAndPassword,
   reload,
   sendEmailVerification,
   sendPasswordResetEmail,
+  signInWithPopup,
   signInWithEmailAndPassword,
 } from "firebase/auth";
 import { getFirebaseAuth } from "@/shared/lib";
@@ -16,11 +18,16 @@ const FIREBASE_ERROR_CODE_MAP: Readonly<Record<string, AuthActionErrorCode>> = {
   "email-already-in-use": "email-already-in-use",
   "weak-password": "weak-password",
   "user-not-found": "user-not-found",
+  "popup-closed-by-user": "popup-closed-by-user",
+  "popup-blocked": "popup-blocked",
+  "cancelled-popup-request": "cancelled-popup-request",
+  "account-exists-with-different-credential": "account-exists-with-different-credential",
   "too-many-requests": "too-many-requests",
   "network-request-failed": "network-request-failed",
   "operation-not-allowed": "operation-not-allowed",
   "requires-recent-login": "requires-recent-login",
 };
+const GOOGLE_AUTH_PROVIDER = new GoogleAuthProvider();
 
 type FirebaseErrorLike = {
   code: string;
@@ -95,6 +102,21 @@ export async function loginWithEmailAndPassword(params: {
     };
   } catch (error: unknown) {
     return toFailure(error, "ログインに失敗しました。");
+  }
+}
+
+/**
+ * Google popup 認証でログインする。
+ */
+export async function signInWithGooglePopup(): Promise<AuthActionResult<AuthUser>> {
+  try {
+    const credential = await signInWithPopup(getFirebaseAuth(), GOOGLE_AUTH_PROVIDER);
+    return {
+      ok: true,
+      data: toAuthUser(credential.user),
+    };
+  } catch (error: unknown) {
+    return toFailure(error, "Googleサインインに失敗しました。");
   }
 }
 

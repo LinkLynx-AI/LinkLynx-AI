@@ -1,18 +1,22 @@
 "use client";
 
 import { useState } from "react";
+import type { AuthUser } from "@/entities";
 import {
   ensurePrincipalProvisionedForCurrentUser,
   registerWithEmailAndPassword,
   sendVerificationEmailForCurrentUser,
+  signInWithGooglePopup,
 } from "@/entities";
 import { APP_ROUTES } from "@/shared/config";
 import {
   buildVerifyEmailRoute,
+  getGoogleSignInErrorMessage,
   getPrincipalProvisionErrorMessage,
   getRegisterErrorMessage,
   validateRegisterInput,
 } from "../model";
+import { GoogleSignInButton } from "./google-sign-in-button";
 
 type RegisterFormState = {
   email: string;
@@ -26,13 +30,16 @@ const INITIAL_FORM_STATE: RegisterFormState = {
   confirmPassword: "",
 };
 
+type SubmitKind = "email" | "google" | null;
+
 /**
  * 新規登録フォームを表示し Firebase へ接続する。
  */
 export function RegisterForm() {
   const [form, setForm] = useState<RegisterFormState>(INITIAL_FORM_STATE);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitKind, setSubmitKind] = useState<SubmitKind>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const isSubmitting = submitKind !== null;
 
   function updateForm<K extends keyof RegisterFormState>(key: K, value: RegisterFormState[K]) {
     setForm((current) => ({
@@ -41,9 +48,36 @@ export function RegisterForm() {
     }));
   }
 
+  async function ensurePrincipalAndRedirect() {
+    const provisionResult = await ensurePrincipalProvisionedForCurrentUser();
+    setSubmitKind(null);
+
+    if (!provisionResult.ok) {
+      console.warn("Principal provisioning failed after register.", provisionResult.error);
+      setErrorMessage(getPrincipalProvisionErrorMessage(provisionResult.error));
+      return;
+    }
+
+    window.location.assign(APP_ROUTES.channels.me);
+  }
+
+  function routeToVerifyEmail(user: AuthUser, sent?: boolean) {
+    setSubmitKind(null);
+    const route =
+      sent === undefined
+        ? buildVerifyEmailRoute({
+            email: user.email,
+          })
+        : buildVerifyEmailRoute({
+            email: user.email,
+            sent,
+          });
+    window.location.assign(route);
+  }
+
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (isSubmitting) {
+    if (submitKind !== null) {
       return;
     }
 
@@ -54,45 +88,60 @@ export function RegisterForm() {
       return;
     }
 
-    setIsSubmitting(true);
+    setSubmitKind("email");
     const registerResult = await registerWithEmailAndPassword({
       email: validation.data.email,
       password: validation.data.password,
     });
 
     if (!registerResult.ok) {
-      setIsSubmitting(false);
+      setSubmitKind(null);
       setErrorMessage(getRegisterErrorMessage(registerResult.error));
       return;
     }
 
     if (registerResult.data.emailVerified) {
-      const provisionResult = await ensurePrincipalProvisionedForCurrentUser();
-      setIsSubmitting(false);
-
-      if (!provisionResult.ok) {
-        console.warn("Principal provisioning failed after register.", provisionResult.error);
-        setErrorMessage(getPrincipalProvisionErrorMessage(provisionResult.error));
-        return;
-      }
-
-      window.location.assign(APP_ROUTES.channels.me);
+      await ensurePrincipalAndRedirect();
       return;
     }
 
     const verifyEmailResult = await sendVerificationEmailForCurrentUser();
-    setIsSubmitting(false);
+    setSubmitKind(null);
 
     if (!verifyEmailResult.ok) {
       console.warn("Verification mail sending failed after register.", verifyEmailResult.error);
     }
 
-    window.location.assign(
-      buildVerifyEmailRoute({
+    routeToVerifyEmail(
+      {
+        ...registerResult.data,
         email: registerResult.data.email ?? validation.data.email,
-        sent: verifyEmailResult.ok,
-      }),
+      },
+      verifyEmailResult.ok,
     );
+  }
+
+  async function handleGoogleSignIn() {
+    if (submitKind !== null) {
+      return;
+    }
+
+    setErrorMessage(null);
+    setSubmitKind("google");
+    const result = await signInWithGooglePopup();
+
+    if (!result.ok) {
+      setSubmitKind(null);
+      setErrorMessage(getGoogleSignInErrorMessage(result.error));
+      return;
+    }
+
+    if (!result.data.emailVerified) {
+      routeToVerifyEmail(result.data);
+      return;
+    }
+
+    await ensurePrincipalAndRedirect();
   }
 
   return (
@@ -152,8 +201,16 @@ export function RegisterForm() {
         disabled={isSubmitting}
         className="mt-2 w-full rounded bg-discord-brand-blurple px-4 py-3 text-sm font-medium text-white transition hover:bg-discord-btn-blurple-hover disabled:cursor-not-allowed disabled:opacity-50"
       >
-        {isSubmitting ? "登録中..." : "アカウントを作成"}
+        {submitKind === "email" ? "登録中..." : "アカウントを作成"}
       </button>
+
+      <GoogleSignInButton
+        disabled={isSubmitting}
+        isSubmitting={submitKind === "google"}
+        onClick={() => {
+          void handleGoogleSignIn();
+        }}
+      />
     </form>
   );
 }

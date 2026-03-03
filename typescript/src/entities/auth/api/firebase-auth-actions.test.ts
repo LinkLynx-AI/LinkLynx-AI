@@ -2,20 +2,28 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 
 const getFirebaseAuthMock = vi.hoisted(() => vi.fn());
 const signInWithEmailAndPasswordMock = vi.hoisted(() => vi.fn());
+const signInWithPopupMock = vi.hoisted(() => vi.fn());
 const createUserWithEmailAndPasswordMock = vi.hoisted(() => vi.fn());
 const sendEmailVerificationMock = vi.hoisted(() => vi.fn());
 const sendPasswordResetEmailMock = vi.hoisted(() => vi.fn());
 const reloadMock = vi.hoisted(() => vi.fn());
+const GoogleAuthProviderMock = vi.hoisted(() =>
+  vi.fn().mockImplementation(() => ({
+    provider: "google",
+  })),
+);
 
 vi.mock("@/shared/lib", () => ({
   getFirebaseAuth: getFirebaseAuthMock,
 }));
 
 vi.mock("firebase/auth", () => ({
+  GoogleAuthProvider: GoogleAuthProviderMock,
   createUserWithEmailAndPassword: createUserWithEmailAndPasswordMock,
   reload: reloadMock,
   sendEmailVerification: sendEmailVerificationMock,
   sendPasswordResetEmail: sendPasswordResetEmailMock,
+  signInWithPopup: signInWithPopupMock,
   signInWithEmailAndPassword: signInWithEmailAndPasswordMock,
 }));
 
@@ -24,6 +32,7 @@ import {
   registerWithEmailAndPassword,
   reloadCurrentAuthUser,
   sendPasswordResetEmailByAddress,
+  signInWithGooglePopup,
   sendVerificationEmailForCurrentUser,
 } from "./firebase-auth-actions";
 
@@ -31,6 +40,7 @@ describe("firebase auth actions", () => {
   afterEach(() => {
     getFirebaseAuthMock.mockReset();
     signInWithEmailAndPasswordMock.mockReset();
+    signInWithPopupMock.mockReset();
     createUserWithEmailAndPasswordMock.mockReset();
     sendEmailVerificationMock.mockReset();
     sendPasswordResetEmailMock.mockReset();
@@ -80,6 +90,53 @@ describe("firebase auth actions", () => {
         code: "invalid-credentials",
         message: "invalid credential",
         firebaseCode: "invalid-credential",
+      },
+    });
+  });
+
+  test("google popup 認証成功時は AuthUser を返す", async () => {
+    const auth = { currentUser: null };
+    getFirebaseAuthMock.mockReturnValue(auth);
+    signInWithPopupMock.mockResolvedValue({
+      user: {
+        uid: "u-google-1",
+        email: "google@example.com",
+        emailVerified: true,
+      },
+    });
+
+    const result = await signInWithGooglePopup();
+
+    expect(result).toEqual({
+      ok: true,
+      data: {
+        uid: "u-google-1",
+        email: "google@example.com",
+        emailVerified: true,
+      },
+    });
+    expect(signInWithPopupMock).toHaveBeenCalledTimes(1);
+    expect(signInWithPopupMock.mock.calls[0]?.[0]).toBe(auth);
+    expect(signInWithPopupMock.mock.calls[0]?.[1]).toEqual({
+      provider: "google",
+    });
+  });
+
+  test("google popup 認証失敗時は popup エラーを正規化する", async () => {
+    getFirebaseAuthMock.mockReturnValue({ currentUser: null });
+    signInWithPopupMock.mockRejectedValue({
+      code: "auth/popup-closed-by-user",
+      message: "popup closed",
+    });
+
+    const result = await signInWithGooglePopup();
+
+    expect(result).toEqual({
+      ok: false,
+      error: {
+        code: "popup-closed-by-user",
+        message: "popup closed",
+        firebaseCode: "popup-closed-by-user",
       },
     });
   });
