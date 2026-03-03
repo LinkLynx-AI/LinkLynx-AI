@@ -34,25 +34,27 @@ ON CONFLICT (guild_id, user_id) DO UPDATE
 SET
   nickname = EXCLUDED.nickname;
 
-INSERT INTO guild_roles (guild_id, level, name)
+INSERT INTO guild_roles_v2 (guild_id, role_key, name, priority, allow_view, allow_post, allow_manage, is_system)
 VALUES
-  (2001, 'owner',  'Owner'),
-  (2001, 'admin',  'Admin'),
-  (2001, 'member', 'Member')
-ON CONFLICT (guild_id, level) DO UPDATE
+  (2001, 'owner',  'Owner', 300, true, true, true, true),
+  (2001, 'admin',  'Admin', 200, true, true, true, true),
+  (2001, 'member', 'Member', 100, true, true, false, true)
+ON CONFLICT (guild_id, role_key) DO UPDATE
 SET
-  name = EXCLUDED.name;
+  name = EXCLUDED.name,
+  priority = EXCLUDED.priority,
+  allow_view = EXCLUDED.allow_view,
+  allow_post = EXCLUDED.allow_post,
+  allow_manage = EXCLUDED.allow_manage,
+  is_system = EXCLUDED.is_system;
 
-INSERT INTO guild_member_roles (guild_id, user_id, level)
+INSERT INTO guild_member_roles_v2 (guild_id, user_id, role_key)
 VALUES
   (2001, 1001, 'owner'),
   (2001, 1002, 'admin'),
   (2001, 1003, 'member')
-ON CONFLICT (guild_id, user_id) DO UPDATE
-SET
-  level = EXCLUDED.level;
+ON CONFLICT (guild_id, user_id, role_key) DO NOTHING;
 
--- channels (guild_text + dm)
 INSERT INTO channels (id, type, guild_id, name, created_by)
 VALUES
   (3001, 'guild_text', 2001, 'general', 1001),
@@ -65,6 +67,16 @@ SET
   guild_id = EXCLUDED.guild_id,
   name = EXCLUDED.name,
   created_by = EXCLUDED.created_by;
+
+INSERT INTO channel_role_permission_overrides_v2 (channel_id, guild_id, role_key, can_view, can_post)
+VALUES
+  (3001, 2001, 'member', true, true),
+  (3002, 2001, 'member', true, false),
+  (3002, 2001, 'admin', true, true)
+ON CONFLICT (channel_id, role_key) DO UPDATE
+SET
+  can_view = EXCLUDED.can_view,
+  can_post = EXCLUDED.can_post;
 
 INSERT INTO dm_participants (channel_id, user_id)
 VALUES
@@ -81,16 +93,6 @@ VALUES
 ON CONFLICT (user_low, user_high) DO UPDATE
 SET
   channel_id = EXCLUDED.channel_id;
-
-INSERT INTO channel_permission_overrides (channel_id, level, can_view, can_post)
-VALUES
-  (3001, 'member', true, true),
-  (3002, 'member', true, false),
-  (3002, 'admin', true, true)
-ON CONFLICT (channel_id, level) DO UPDATE
-SET
-  can_view = EXCLUDED.can_view,
-  can_post = EXCLUDED.can_post;
 
 INSERT INTO channel_reads (channel_id, user_id, last_read_message_id, last_client_seq)
 VALUES
