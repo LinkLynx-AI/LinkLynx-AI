@@ -1,7 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { reloadCurrentAuthUser, sendVerificationEmailForCurrentUser, useAuthSession } from "@/entities";
+import {
+  reloadCurrentAuthUser,
+  sendVerificationEmailForCurrentUser,
+  useAuthSession,
+} from "@/entities";
 import { APP_ROUTES } from "@/shared/config";
 import { getVerifyEmailErrorMessage } from "../model";
 
@@ -166,7 +170,10 @@ export function VerifyEmailPanel({ initialEmail, initialSent }: VerifyEmailPanel
       {isAuthenticated ? null : (
         <p className="text-sm text-[var(--llx-text-muted)]">
           ログイン状態が確認できないため、まず
-          <a href={APP_ROUTES.login} className="mx-1 text-[var(--llx-brand-blurple)] hover:opacity-90">
+          <a
+            href={APP_ROUTES.login}
+            className="mx-1 text-[var(--llx-brand-blurple)] hover:opacity-90"
+          >
             ログイン
           </a>
           してください。

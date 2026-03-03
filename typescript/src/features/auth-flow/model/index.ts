@@ -3,10 +3,7 @@ import { APP_ROUTES } from "@/shared/config";
 /**
  * verify-email 画面の遷移URLを構築する。
  */
-export function buildVerifyEmailRoute(params: {
-  email: string | null;
-  sent?: boolean;
-}): string {
+export function buildVerifyEmailRoute(params: { email: string | null; sent?: boolean }): string {
   const query = new URLSearchParams();
   const normalizedEmail = params.email?.trim() ?? "";
 
