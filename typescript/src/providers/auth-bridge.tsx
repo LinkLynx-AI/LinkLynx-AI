@@ -1,0 +1,38 @@
+"use client";
+
+import { useEffect } from "react";
+import { useAuthSession } from "@/entities/auth/ui/auth-provider";
+import { useAuthStore } from "@/stores/auth-store";
+import type { User } from "@/types/user";
+
+/**
+ * Firebase認証セッションをmoc-designのZustand auth-storeへ同期するブリッジ。
+ * UIコンポーネントがZustand経由でユーザー情報を参照できるようにする。
+ */
+export function AuthBridge() {
+  const session = useAuthSession();
+  const setCurrentUser = useAuthStore((s) => s.setCurrentUser);
+
+  useEffect(() => {
+    if (session.status !== "authenticated" || session.user === null) {
+      return;
+    }
+
+    const { user } = session;
+    const username = user.email?.split("@")[0] ?? "User";
+
+    const mocUser: User = {
+      id: user.uid,
+      username,
+      displayName: username,
+      avatar: null,
+      status: "online",
+      customStatus: null,
+      bot: false,
+    };
+
+    setCurrentUser(mocUser);
+  }, [session, setCurrentUser]);
+
+  return null;
+}

@@ -1,0 +1,142 @@
+@import "tailwindcss";
+
+/* ===== Discord Design Tokens (Dark Theme 2025) ===== */
+
+@theme inline {
+  /* Font Family */
+  --font-sans: "gg sans", "Noto Sans", "Helvetica Neue", Arial, sans-serif;
+
+  /* Font Sizes */
+  --font-size-xs: 0.75rem;     /* 12px - timestamps, captions, category headers */
+  --font-size-sm: 0.875rem;    /* 14px - button text */
+  --font-size-base: 0.9375rem; /* 15px - channel names in sidebar */
+  --font-size-md: 1rem;        /* 16px - message body, usernames */
+  --font-size-lg: 1.25rem;     /* 20px - section headers */
+  --font-size-xl: 1.5rem;      /* 24px - modal titles */
+
+  /* Background Colors */
+  --color-discord-bg-primary: #313338;
+  --color-discord-bg-secondary: #2B2D31;
+  --color-discord-bg-tertiary: #1E1F22;
+  --color-discord-bg-floating: #111214;
+  --color-discord-bg-accent: #4E5058;
+  --color-discord-bg-mod-hover: rgba(79, 84, 92, 0.16);
+  --color-discord-bg-mod-active: rgba(79, 84, 92, 0.24);
+  --color-discord-bg-mod-selected: rgba(79, 84, 92, 0.32);
+
+  /* Text Colors */
+  --color-discord-text-normal: #DBDEE1;
+  --color-discord-text-muted: #949BA4;
+  --color-discord-text-link: #00A8FC;
+  --color-discord-header-primary: #F2F3F5;
+  --color-discord-header-secondary: #B5BAC1;
+  --color-discord-channels-default: #949BA4;
+
+  /* Interactive Colors */
+  --color-discord-interactive-normal: #B5BAC1;
+  --color-discord-interactive-hover: #DBDEE1;
+  --color-discord-interactive-active: #FFFFFF;
+  --color-discord-interactive-muted: #4E5058;
+
+  /* Brand Colors */
+  --color-discord-brand-blurple: #5865F2;
+  --color-discord-brand-green: #57F287;
+  --color-discord-brand-yellow: #FEE75C;
+  --color-discord-brand-fuchsia: #EB459E;
+  --color-discord-brand-red: #ED4245;
+
+  /* Button Colors */
+  --color-discord-btn-blurple-hover: #4752C4;
+  --color-discord-btn-blurple-active: #3C45A5;
+  --color-discord-btn-secondary-bg: #4E5058;
+  --color-discord-btn-secondary-hover: #6D6F78;
+  --color-discord-btn-secondary-active: #3C3E44;
+  --color-discord-btn-success: #23A55A;
+  --color-discord-btn-success-hover: #1A7D44;
+  --color-discord-btn-danger: #DA373C;
+  --color-discord-btn-danger-hover: #A12828;
+
+  /* Status Colors */
+  --color-discord-status-online: #23A55A;
+  --color-discord-status-idle: #F0B232;
+  --color-discord-status-dnd: #F23F43;
+  --color-discord-status-offline: #80848E;
+  --color-discord-status-streaming: #593695;
+
+  /* Misc Colors */
+  --color-discord-divider: #3F4147;
+  --color-discord-input-bg: #383A40;
+  --color-discord-header-separator: #1F2023;
+  --color-discord-mention-bg: rgba(88, 101, 242, 0.3);
+  --color-discord-mention-hover-bg: rgba(88, 101, 242, 0.5);
+  --color-discord-scrollbar-thumb: #1a1b1e;
+  --color-discord-scrollbar-track: #2b2d31;
+
+  /* Spacing / Layout Dimensions */
+  --spacing-server-list: 4.5rem;      /* 72px */
+  --spacing-channel-sidebar: 15rem;   /* 240px */
+  --spacing-member-list: 15rem;       /* 240px */
+  --spacing-header-height: 3rem;      /* 48px */
+  --spacing-user-panel: 3.25rem;      /* 52px */
+  --spacing-input-height: 2.75rem;    /* 44px */
+  --spacing-server-icon: 3rem;        /* 48px */
+}
+
+/* ===== Base Styles ===== */
+
+body {
+  background-color: var(--color-discord-bg-primary);
+  color: var(--color-discord-text-normal);
+  font-family: var(--font-sans);
+  overflow: hidden;
+}
+
+/* ===== Discord Thin Scrollbar ===== */
+
+.discord-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.discord-scrollbar::-webkit-scrollbar-track {
+  background: var(--color-discord-scrollbar-track);
+  border-radius: 4px;
+}
+
+.discord-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--color-discord-scrollbar-thumb);
+  border-radius: 4px;
+}
+
+.discord-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #232428;
+}
+
+/* Firefox scrollbar */
+.discord-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-discord-scrollbar-thumb) var(--color-discord-scrollbar-track);
+}
+
+/* ===== Voice Ring Animation ===== */
+
+@keyframes voice-ring {
+  0%, 100% {
+    box-shadow: 0 0 0 3px #23A55A;
+  }
+  50% {
+    box-shadow: 0 0 0 5px #23A55A, 0 0 12px 2px rgba(35, 165, 90, 0.4);
+  }
+}
+
+.animate-voice-ring {
+  animation: voice-ring 1.5s ease-in-out infinite;
+}
+
+/* ===== Utility Classes ===== */
+
+.text-category {
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}

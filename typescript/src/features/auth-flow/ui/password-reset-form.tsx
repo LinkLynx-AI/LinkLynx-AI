@@ -53,27 +53,27 @@ export function PasswordResetForm() {
         void handleSubmit(event);
       }}
     >
-      <label className="block space-y-2">
-        <span className="text-xs font-medium uppercase tracking-[0.15em] text-[var(--llx-header-secondary)]">
-          Email
-        </span>
+      <div className="space-y-2">
+        <label className="block text-xs font-bold uppercase tracking-wider text-discord-header-secondary">
+          メールアドレス <span className="text-discord-brand-red">*</span>
+        </label>
         <input
           type="email"
           value={form.email}
           onChange={(event) => setForm({ email: event.target.value })}
           autoComplete="email"
-          className="w-full rounded-md border border-[var(--llx-divider)] bg-[var(--llx-bg-secondary)] px-3 py-2 text-sm text-[var(--llx-text-primary)] outline-none transition focus:border-[var(--llx-brand-blurple)]"
+          className="w-full rounded bg-discord-input-bg px-3 py-2.5 text-sm text-discord-text-normal outline-none ring-0 transition focus:ring-2 focus:ring-discord-brand-blurple"
         />
-      </label>
+      </div>
 
-      {errorMessage === null ? null : (
-        <p className="rounded-md border border-[var(--llx-brand-red)]/40 bg-[var(--llx-brand-red)]/10 px-3 py-2 text-sm text-[var(--llx-brand-red)]">
+      {errorMessage !== null && (
+        <p className="rounded bg-discord-brand-red/10 px-3 py-2 text-sm text-discord-brand-red">
           {errorMessage}
         </p>
       )}
 
-      {completionMessage === null ? null : (
-        <p className="rounded-md border border-emerald-400/40 bg-emerald-400/10 px-3 py-2 text-sm text-emerald-200">
+      {completionMessage !== null && (
+        <p className="rounded bg-discord-btn-success/10 px-3 py-2 text-sm text-discord-btn-success">
           {completionMessage}
         </p>
       )}
@@ -81,7 +81,7 @@ export function PasswordResetForm() {
       <button
         type="submit"
         disabled={isSubmitting}
-        className="inline-flex w-full items-center justify-center rounded-md bg-[var(--llx-brand-blurple)] px-4 py-2 text-sm font-medium text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+        className="mt-2 w-full rounded bg-discord-brand-blurple px-4 py-3 text-sm font-medium text-white transition hover:bg-discord-btn-blurple-hover disabled:cursor-not-allowed disabled:opacity-50"
       >
         {isSubmitting ? "送信中..." : "再設定メールを送る"}
       </button>

@@ -1,14 +1,16 @@
-import { createUiGateway } from "@/entities";
-import { AuthRoutePreview } from "@/app/(auth)/_components/auth-route-preview";
-import { RegisterForm } from "@/features";
+import { AuthLayout } from "@/app/(auth)/_components/auth-layout";
+import { RegisterForm } from "@/features/auth-flow/ui/register-form";
+import { APP_ROUTES } from "@/shared/config";
 
-export default async function RegisterPage() {
-  const uiGateway = createUiGateway();
-  const content = await uiGateway.auth.getRouteContent("register");
-
+export default function RegisterPage() {
   return (
-    <AuthRoutePreview {...content}>
+    <AuthLayout
+      title="アカウントを作成"
+      footerText="すでにアカウントをお持ちの方は"
+      footerLinkText="ログイン"
+      footerLinkHref={APP_ROUTES.login}
+    >
       <RegisterForm />
-    </AuthRoutePreview>
+    </AuthLayout>
   );
 }
