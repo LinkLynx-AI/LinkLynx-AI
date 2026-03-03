@@ -159,3 +159,9 @@ v0 での認可関連 SoR:
 
 - この文書は契約固定のみを目的とし、既存AuthN契約は変更しない。
 - 破壊的変更は行わない（additive only）。
+
+## 7. LIN-632 transition note (arbitrary roles)
+
+- LIN-632 で `guild_roles_v2` / `guild_member_roles_v2` / `channel_role_permission_overrides_v2` を導入し、任意ロールモデルへの移行基盤を追加する。
+- 移行期間中、v0判定契約（本書 3.3）の読み取りSoRは維持し、dual-write/cutover/rollback は LIN-632 契約文書をSSOTとする。
+- 詳細は `database/contracts/lin632_spicedb_role_model_migration_contract.md` を参照する。
