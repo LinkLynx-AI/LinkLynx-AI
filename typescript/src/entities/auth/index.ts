@@ -21,6 +21,7 @@ export {
   registerWithEmailAndPassword,
   reloadCurrentAuthUser,
   sendPasswordResetEmailByAddress,
+  signInWithGooglePopup,
   sendVerificationEmailForCurrentUser,
 } from "./api";
 export { AuthProvider, useAuthSession } from "./ui";

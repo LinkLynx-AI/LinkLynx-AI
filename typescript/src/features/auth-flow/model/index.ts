@@ -33,6 +33,7 @@ export function buildVerifyEmailRoute(params: {
 }
 
 export {
+  getGoogleSignInErrorMessage,
   getLoginErrorMessage,
   getPrincipalProvisionErrorMessage,
   getRegisterErrorMessage,

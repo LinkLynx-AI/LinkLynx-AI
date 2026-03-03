@@ -1,14 +1,21 @@
 "use client";
 
 import { useState } from "react";
-import { ensurePrincipalProvisionedForCurrentUser, loginWithEmailAndPassword } from "@/entities";
+import type { AuthUser } from "@/entities";
+import {
+  ensurePrincipalProvisionedForCurrentUser,
+  loginWithEmailAndPassword,
+  signInWithGooglePopup,
+} from "@/entities";
 import { APP_ROUTES, type LoginRedirectReason, normalizeReturnToPath } from "@/shared/config";
 import {
   buildVerifyEmailRoute,
+  getGoogleSignInErrorMessage,
   getLoginErrorMessage,
   getPrincipalProvisionErrorMessage,
   validateLoginInput,
 } from "../model";
+import { GoogleSignInButton } from "./google-sign-in-button";
 
 type LoginFormState = {
   email: string;
@@ -24,6 +31,8 @@ type LoginFormProps = {
   returnTo: string | null;
   reason: LoginRedirectReason | null;
 };
+
+type SubmitKind = "email" | "google" | null;
 
 function resolveReasonMessage(reason: LoginRedirectReason | null): string | null {
   if (reason === "session-expired") {
@@ -42,8 +51,9 @@ function resolveReasonMessage(reason: LoginRedirectReason | null): string | null
  */
 export function LoginForm({ returnTo, reason }: LoginFormProps) {
   const [form, setForm] = useState<LoginFormState>(INITIAL_FORM_STATE);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitKind, setSubmitKind] = useState<SubmitKind>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const isSubmitting = submitKind !== null;
   const reasonMessage = resolveReasonMessage(reason);
   const redirectPath = normalizeReturnToPath(returnTo) ?? APP_ROUTES.channels.me;
 
@@ -54,9 +64,33 @@ export function LoginForm({ returnTo, reason }: LoginFormProps) {
     }));
   }
 
+  async function completeAuthenticatedFlow(user: AuthUser) {
+    if (!user.emailVerified) {
+      setSubmitKind(null);
+      window.location.assign(
+        buildVerifyEmailRoute({
+          email: user.email,
+          returnTo: redirectPath,
+        }),
+      );
+      return;
+    }
+
+    const provisionResult = await ensurePrincipalProvisionedForCurrentUser();
+    setSubmitKind(null);
+
+    if (!provisionResult.ok) {
+      console.warn("Principal provisioning failed after login.", provisionResult.error);
+      setErrorMessage(getPrincipalProvisionErrorMessage(provisionResult.error));
+      return;
+    }
+
+    window.location.assign(redirectPath);
+  }
+
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (isSubmitting) {
+    if (submitKind !== null) {
       return;
     }
 
@@ -67,36 +101,34 @@ export function LoginForm({ returnTo, reason }: LoginFormProps) {
       return;
     }
 
-    setIsSubmitting(true);
+    setSubmitKind("email");
     const result = await loginWithEmailAndPassword(validation.data);
 
     if (!result.ok) {
-      setIsSubmitting(false);
+      setSubmitKind(null);
       setErrorMessage(getLoginErrorMessage(result.error));
       return;
     }
 
-    if (!result.data.emailVerified) {
-      setIsSubmitting(false);
-      window.location.assign(
-        buildVerifyEmailRoute({
-          email: result.data.email,
-          returnTo: redirectPath,
-        }),
-      );
+    await completeAuthenticatedFlow(result.data);
+  }
+
+  async function handleGoogleSignIn() {
+    if (submitKind !== null) {
       return;
     }
 
-    const provisionResult = await ensurePrincipalProvisionedForCurrentUser();
-    setIsSubmitting(false);
+    setErrorMessage(null);
+    setSubmitKind("google");
+    const result = await signInWithGooglePopup();
 
-    if (!provisionResult.ok) {
-      console.warn("Principal provisioning failed after login.", provisionResult.error);
-      setErrorMessage(getPrincipalProvisionErrorMessage(provisionResult.error));
+    if (!result.ok) {
+      setSubmitKind(null);
+      setErrorMessage(getGoogleSignInErrorMessage(result.error));
       return;
     }
 
-    window.location.assign(redirectPath);
+    await completeAuthenticatedFlow(result.data);
   }
 
   return (
@@ -149,8 +181,16 @@ export function LoginForm({ returnTo, reason }: LoginFormProps) {
         disabled={isSubmitting}
         className="mt-2 w-full rounded bg-discord-brand-blurple px-4 py-3 text-sm font-medium text-white transition hover:bg-discord-btn-blurple-hover disabled:cursor-not-allowed disabled:opacity-50"
       >
-        {isSubmitting ? "ログイン中..." : "ログイン"}
+        {submitKind === "email" ? "ログイン中..." : "ログイン"}
       </button>
+
+      <GoogleSignInButton
+        disabled={isSubmitting}
+        isSubmitting={submitKind === "google"}
+        onClick={() => {
+          void handleGoogleSignIn();
+        }}
+      />
     </form>
   );
 }

@@ -47,6 +47,30 @@ export function getRegisterErrorMessage(error: AuthActionError): string {
 }
 
 /**
+ * Google サインイン失敗時の表示文言へ変換する。
+ */
+export function getGoogleSignInErrorMessage(error: AuthActionError): string {
+  switch (error.code) {
+    case "popup-closed-by-user":
+      return "Googleサインインをキャンセルしました。";
+    case "popup-blocked":
+      return "ポップアップがブロックされました。ブラウザ設定を確認して再試行してください。";
+    case "cancelled-popup-request":
+      return "Googleサインインの処理が中断されました。もう一度お試しください。";
+    case "account-exists-with-different-credential":
+      return "このメールアドレスは別のログイン方法で登録されています。既存の方法でログインしてください。";
+    case "too-many-requests":
+      return "試行回数が多すぎます。時間をおいて再試行してください。";
+    case "network-request-failed":
+      return "ネットワークエラーが発生しました。接続を確認して再試行してください。";
+    case "operation-not-allowed":
+      return "現在このログイン方式は利用できません。";
+    default:
+      return "Googleサインインに失敗しました。時間をおいて再試行してください。";
+  }
+}
+
+/**
  * メール確認関連操作失敗時の表示文言へ変換する。
  */
 export function getVerifyEmailErrorMessage(error: AuthActionError): string {
