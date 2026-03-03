@@ -28,16 +28,25 @@
   - `AUTHZ_UNAVAILABLE` (503)
 - Added route tests and service-level tests in `rust/apps/api/src/main/tests.rs` and `rust/apps/api/src/guild_channel/tests.rs`.
 - Created run memory files under `docs/agent_runs/LIN-806/`.
+- Tuned Postgres guild/channel access path:
+  - Added lightweight client pool (`GUILD_CHANNEL_STORE_POOL_SIZE`, default `4`) for repeated endpoint access.
+  - Unified guild create bootstrap into single SQL statement (`WITH` + seed CTEs) to keep owner/member/role bootstrap atomic.
+  - Added pool invalidation on write query failures.
 
 ## Validation results
 - `cd rust && cargo test -p linklynx_backend --locked`: passed.
 - `make rust-lint`: passed.
 - `make validate`: first failed due missing `node_modules`; after `npm -C typescript ci`, passed.
 - `cd typescript && npm run typecheck`: passed.
+- After pool tuning changes:
+  - `make rust-lint`: passed.
+  - `make validate`: passed.
+  - `cd typescript && npm run typecheck`: passed.
 
 ## Review gate result
-- Reviewer agents were not executed in this local run.
-- Manual self-review: no blocker found in current diff.
+- Requested reviewer agents, but `reviewer` / `reviewer_simple` / `reviewer_ui_guard` types were unavailable in this environment.
+- Fallback: manual read-only review with quality gates.
+- Gate decision: pass (no `P1+` findings identified).
 
 ## UI gate result
 - `reviewer_ui_guard`: not executed.

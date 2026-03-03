@@ -1,4 +1,10 @@
-use std::{env, sync::Arc};
+use std::{
+    env,
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc,
+    },
+};
 
 use async_trait::async_trait;
 use axum::{
@@ -8,6 +14,7 @@ use axum::{
 };
 use linklynx_shared::PrincipalId;
 use serde::Serialize;
+use tokio::sync::RwLock;
 use tokio_postgres::{error::SqlState, NoTls};
 use tracing::warn;
 

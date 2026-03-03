@@ -3,6 +3,9 @@
 pub struct PostgresGuildChannelService {
     database_url: Arc<str>,
     allow_postgres_notls: bool,
+    clients: Arc<RwLock<Vec<Arc<tokio_postgres::Client>>>>,
+    next_index: Arc<AtomicU64>,
+    pool_size: usize,
 }
 
 impl PostgresGuildChannelService {
@@ -12,9 +15,18 @@ impl PostgresGuildChannelService {
     /// @returns Postgresサービス
     /// @throws なし
     pub fn new(database_url: String, allow_postgres_notls: bool) -> Self {
+        let pool_size = env::var("GUILD_CHANNEL_STORE_POOL_SIZE")
+            .ok()
+            .and_then(|value| value.parse::<usize>().ok())
+            .unwrap_or(4)
+            .max(1);
+
         Self {
             database_url: Arc::from(database_url),
             allow_postgres_notls,
+            clients: Arc::new(RwLock::new(Vec::new())),
+            next_index: Arc::new(AtomicU64::new(0)),
+            pool_size,
         }
     }
 
@@ -22,7 +34,7 @@ impl PostgresGuildChannelService {
     /// @param なし
     /// @returns Postgresクライアント
     /// @throws GuildChannelError 接続失敗時
-    async fn connect_client(&self) -> Result<tokio_postgres::Client, GuildChannelError> {
+    async fn connect_client(&self) -> Result<Arc<tokio_postgres::Client>, GuildChannelError> {
         if !self.allow_postgres_notls {
             return Err(GuildChannelError::dependency_unavailable(
                 "postgres_tls_required",
@@ -41,7 +53,56 @@ impl PostgresGuildChannelService {
             }
         });
 
-        Ok(client)
+        Ok(Arc::new(client))
+    }
+
+    /// 接続プールを初期化する。
+    /// @param なし
+    /// @returns 初期化結果
+    /// @throws GuildChannelError 接続失敗時
+    async fn ensure_pool(&self) -> Result<(), GuildChannelError> {
+        {
+            let guard = self.clients.read().await;
+            if !guard.is_empty() {
+                return Ok(());
+            }
+        }
+
+        let mut guard = self.clients.write().await;
+        if !guard.is_empty() {
+            return Ok(());
+        }
+
+        for _ in 0..self.pool_size {
+            guard.push(self.connect_client().await?);
+        }
+
+        Ok(())
+    }
+
+    /// 接続プールからクライアントを選択する。
+    /// @param なし
+    /// @returns 選択されたクライアント
+    /// @throws GuildChannelError 接続未確立時
+    async fn select_client(&self) -> Result<Arc<tokio_postgres::Client>, GuildChannelError> {
+        self.ensure_pool().await?;
+
+        let guard = self.clients.read().await;
+        if guard.is_empty() {
+            return Err(GuildChannelError::dependency_unavailable("postgres_pool_empty"));
+        }
+
+        let index = (self.next_index.fetch_add(1, Ordering::Relaxed) as usize) % guard.len();
+        Ok(Arc::clone(&guard[index]))
+    }
+
+    /// 接続プールを破棄して再接続を促す。
+    /// @param なし
+    /// @returns なし
+    /// @throws なし
+    async fn invalidate_pool(&self) {
+        let mut guard = self.clients.write().await;
+        guard.clear();
     }
 
     /// guild存在とメンバー所属を検証する。
@@ -119,7 +180,7 @@ impl GuildChannelService for PostgresGuildChannelService {
         &self,
         principal_id: PrincipalId,
     ) -> Result<Vec<GuildSummary>, GuildChannelError> {
-        let client = self.connect_client().await?;
+        let client = self.select_client().await?;
 
         let rows = client
             .query(
@@ -163,77 +224,57 @@ impl GuildChannelService for PostgresGuildChannelService {
         name: String,
     ) -> Result<CreatedGuild, GuildChannelError> {
         let normalized_name = normalize_non_empty_name(&name, "guild_name_required")?;
-        let mut client = self.connect_client().await?;
-
-        let transaction = client.transaction().await.map_err(|error| {
-            GuildChannelError::dependency_unavailable(format!("guild_create_begin_tx_failed:{error}"))
-        })?;
-
-        let created = transaction
+        let client = self.select_client().await?;
+        let created = match client
             .query_one(
-                "INSERT INTO guilds (name, owner_id)
-                 VALUES ($1, $2)
-                 RETURNING id AS guild_id, name, icon_key, owner_id",
+                "WITH created_guild AS (
+                    INSERT INTO guilds (name, owner_id)
+                    VALUES ($1, $2)
+                    RETURNING id, name, icon_key, owner_id
+                 ),
+                 owner_member AS (
+                    INSERT INTO guild_members (guild_id, user_id)
+                    SELECT id, $2 FROM created_guild
+                    ON CONFLICT (guild_id, user_id) DO NOTHING
+                 ),
+                 role_seed AS (
+                    INSERT INTO guild_roles (guild_id, level, name)
+                    SELECT id, level, role_name
+                    FROM created_guild
+                    CROSS JOIN (
+                      VALUES
+                        ('owner'::role_level, 'Owner'::text),
+                        ('admin'::role_level, 'Admin'::text),
+                        ('member'::role_level, 'Member'::text)
+                    ) AS roles(level, role_name)
+                    ON CONFLICT (guild_id, level) DO UPDATE
+                    SET name = EXCLUDED.name
+                 ),
+                 owner_role AS (
+                    INSERT INTO guild_member_roles (guild_id, user_id, level)
+                    SELECT id, $2, 'owner'::role_level FROM created_guild
+                    ON CONFLICT (guild_id, user_id) DO UPDATE
+                    SET level = EXCLUDED.level
+                 )
+                 SELECT
+                    id AS guild_id,
+                    name,
+                    icon_key,
+                    owner_id
+                 FROM created_guild",
                 &[&normalized_name, &principal_id.0],
             )
             .await
-            .map_err(|error| Self::map_write_error("guild_create_insert_failed", error))?;
-
-        let guild_id = created.get::<&str, i64>("guild_id");
-
-        transaction
-            .execute(
-                "INSERT INTO guild_members (guild_id, user_id)
-                 VALUES ($1, $2)
-                 ON CONFLICT (guild_id, user_id) DO NOTHING",
-                &[&guild_id, &principal_id.0],
-            )
-            .await
-            .map_err(|error| {
-                GuildChannelError::dependency_unavailable(format!(
-                    "guild_create_owner_member_bootstrap_failed:{error}"
-                ))
-            })?;
-
-        transaction
-            .execute(
-                "INSERT INTO guild_roles (guild_id, level, name)
-                 VALUES
-                   ($1, 'owner', 'Owner'),
-                   ($1, 'admin', 'Admin'),
-                   ($1, 'member', 'Member')
-                 ON CONFLICT (guild_id, level) DO UPDATE
-                 SET name = EXCLUDED.name",
-                &[&guild_id],
-            )
-            .await
-            .map_err(|error| {
-                GuildChannelError::dependency_unavailable(format!(
-                    "guild_create_role_bootstrap_failed:{error}"
-                ))
-            })?;
-
-        transaction
-            .execute(
-                "INSERT INTO guild_member_roles (guild_id, user_id, level)
-                 VALUES ($1, $2, 'owner')
-                 ON CONFLICT (guild_id, user_id) DO UPDATE
-                 SET level = EXCLUDED.level",
-                &[&guild_id, &principal_id.0],
-            )
-            .await
-            .map_err(|error| {
-                GuildChannelError::dependency_unavailable(format!(
-                    "guild_create_owner_role_bootstrap_failed:{error}"
-                ))
-            })?;
-
-        transaction.commit().await.map_err(|error| {
-            GuildChannelError::dependency_unavailable(format!("guild_create_commit_failed:{error}"))
-        })?;
+        {
+            Ok(row) => row,
+            Err(error) => {
+                self.invalidate_pool().await;
+                return Err(Self::map_write_error("guild_create_query_failed", error));
+            }
+        };
 
         Ok(CreatedGuild {
-            guild_id,
+            guild_id: created.get::<&str, i64>("guild_id"),
             name: created.get::<&str, String>("name"),
             icon_key: created.get::<&str, Option<String>>("icon_key"),
             owner_id: created.get::<&str, i64>("owner_id"),
@@ -250,7 +291,7 @@ impl GuildChannelService for PostgresGuildChannelService {
         principal_id: PrincipalId,
         guild_id: i64,
     ) -> Result<Vec<ChannelSummary>, GuildChannelError> {
-        let client = self.connect_client().await?;
+        let client = self.select_client().await?;
         self.ensure_guild_member(&client, principal_id, guild_id).await?;
 
         let rows = client
@@ -259,7 +300,7 @@ impl GuildChannelService for PostgresGuildChannelService {
                     id AS channel_id,
                     guild_id,
                     name,
-                    to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS created_at
+                    to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS created_at_text
                  FROM channels
                  WHERE guild_id = $1
                    AND type = 'guild_text'
@@ -279,7 +320,7 @@ impl GuildChannelService for PostgresGuildChannelService {
                 channel_id: row.get::<&str, i64>("channel_id"),
                 guild_id: row.get::<&str, i64>("guild_id"),
                 name: row.get::<&str, String>("name"),
-                created_at: row.get::<&str, String>("created_at"),
+                created_at: row.get::<&str, String>("created_at_text"),
             })
             .collect();
 
@@ -299,10 +340,10 @@ impl GuildChannelService for PostgresGuildChannelService {
         name: String,
     ) -> Result<CreatedChannel, GuildChannelError> {
         let normalized_name = normalize_non_empty_name(&name, "channel_name_required")?;
-        let client = self.connect_client().await?;
+        let client = self.select_client().await?;
         self.ensure_guild_member(&client, principal_id, guild_id).await?;
 
-        let row = client
+        let row = match client
             .query_one(
                 "INSERT INTO channels (type, guild_id, name, created_by)
                  VALUES ('guild_text', $1, $2, $3)
@@ -314,7 +355,13 @@ impl GuildChannelService for PostgresGuildChannelService {
                 &[&guild_id, &normalized_name, &principal_id.0],
             )
             .await
-            .map_err(|error| Self::map_write_error("channel_create_insert_failed", error))?;
+        {
+            Ok(row) => row,
+            Err(error) => {
+                self.invalidate_pool().await;
+                return Err(Self::map_write_error("channel_create_insert_failed", error));
+            }
+        };
 
         Ok(CreatedChannel {
             channel_id: row.get::<&str, i64>("channel_id"),
