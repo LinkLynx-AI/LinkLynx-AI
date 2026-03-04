@@ -18,6 +18,8 @@ pub struct AuthzCheckInput {
 #[derive(Debug, Clone)]
 pub enum AuthzResource {
     Session,
+    Guild { guild_id: i64 },
+    GuildChannel { guild_id: i64, channel_id: i64 },
     RestPath { path: String },
 }
 
@@ -306,6 +308,65 @@ impl SpiceDbHttpAuthorizer {
             (AuthzResource::Session, _) => {
                 return Err(AuthzError::denied("session_action_not_supported"));
             }
+            (AuthzResource::Guild { guild_id }, AuthzAction::View) => (
+                SpiceDbObjectReference {
+                    object_type: "guild".to_owned(),
+                    object_id: guild_id.to_string(),
+                },
+                "can_view".to_owned(),
+            ),
+            (AuthzResource::Guild { guild_id }, AuthzAction::Manage) => (
+                SpiceDbObjectReference {
+                    object_type: "guild".to_owned(),
+                    object_id: guild_id.to_string(),
+                },
+                "can_manage".to_owned(),
+            ),
+            (AuthzResource::Guild { .. }, _) => {
+                return Err(AuthzError::denied("guild_action_not_supported"));
+            }
+            (
+                AuthzResource::GuildChannel {
+                    guild_id: _,
+                    channel_id,
+                },
+                AuthzAction::View,
+            ) => (
+                SpiceDbObjectReference {
+                    object_type: "channel".to_owned(),
+                    object_id: channel_id.to_string(),
+                },
+                "can_view".to_owned(),
+            ),
+            (
+                AuthzResource::GuildChannel {
+                    guild_id: _,
+                    channel_id,
+                },
+                AuthzAction::Post,
+            ) => (
+                SpiceDbObjectReference {
+                    object_type: "channel".to_owned(),
+                    object_id: channel_id.to_string(),
+                },
+                "can_post".to_owned(),
+            ),
+            (
+                AuthzResource::GuildChannel {
+                    guild_id: _,
+                    channel_id,
+                },
+                AuthzAction::Manage,
+            ) => (
+                SpiceDbObjectReference {
+                    object_type: "channel".to_owned(),
+                    object_id: channel_id.to_string(),
+                },
+                "can_manage".to_owned(),
+            ),
+            (AuthzResource::GuildChannel { .. }, _) => {
+                return Err(AuthzError::denied("guild_channel_action_not_supported"));
+            }
             (AuthzResource::RestPath { path }, AuthzAction::View) => (
                 SpiceDbObjectReference {
                     object_type: "api_path".to_owned(),
@@ -460,6 +521,11 @@ fn authz_action_label(action: AuthzAction) -> &'static str {
 fn authz_resource_label(resource: &AuthzResource) -> String {
     match resource {
         AuthzResource::Session => "session".to_owned(),
+        AuthzResource::Guild { guild_id } => format!("guild:{guild_id}"),
+        AuthzResource::GuildChannel {
+            guild_id,
+            channel_id,
+        } => format!("guild:{guild_id}/channel:{channel_id}"),
         AuthzResource::RestPath { path } => path.clone(),
     }
 }
@@ -467,6 +533,11 @@ fn authz_resource_label(resource: &AuthzResource) -> String {
 fn authz_resource_cache_key(resource: &AuthzResource) -> String {
     match resource {
         AuthzResource::Session => "session:global".to_owned(),
+        AuthzResource::Guild { guild_id } => format!("guild:{guild_id}"),
+        AuthzResource::GuildChannel {
+            guild_id,
+            channel_id,
+        } => format!("guild:{guild_id}/channel:{channel_id}"),
         AuthzResource::RestPath { path } => format!("api_path:{path}"),
     }
 }

@@ -7,7 +7,7 @@ mod tests {
         PrincipalProvisioner, PrincipalResolver, PrincipalStore, TokenVerifier, TokenVerifyError,
         VerifiedToken,
     };
-    use authz::{Authorizer, AuthzCheckInput, AuthzError};
+    use authz::{Authorizer, AuthzAction, AuthzCheckInput, AuthzError, AuthzResource};
     use axum::{body::to_bytes, http::StatusCode};
     use linklynx_shared::PrincipalId;
     use tower::ServiceExt;
@@ -18,6 +18,7 @@ mod tests {
     struct StaticAllowAllAuthorizer;
     struct StaticDenyAuthorizer;
     struct StaticUnavailableAuthorizer;
+    struct RoleScenarioAuthorizer;
 
     #[async_trait]
     impl TokenVerifier for StaticTokenVerifier {
@@ -65,6 +66,42 @@ mod tests {
         }
     }
 
+    #[async_trait]
+    impl Authorizer for RoleScenarioAuthorizer {
+        async fn check(&self, input: &AuthzCheckInput) -> Result<(), AuthzError> {
+            match (&input.resource, input.action) {
+                (AuthzResource::Guild { .. }, AuthzAction::Manage) => {
+                    if input.principal_id.0 == 9001 || input.principal_id.0 == 9002 {
+                        Ok(())
+                    } else {
+                        Err(AuthzError::denied("guild_manage_denied"))
+                    }
+                }
+                (AuthzResource::Guild { .. }, AuthzAction::View) => {
+                    if input.principal_id.0 == 9001
+                        || input.principal_id.0 == 9002
+                        || input.principal_id.0 == 9003
+                    {
+                        Ok(())
+                    } else {
+                        Err(AuthzError::denied("guild_view_denied"))
+                    }
+                }
+                (AuthzResource::GuildChannel { .. }, AuthzAction::View | AuthzAction::Post) => {
+                    if input.principal_id.0 == 9001
+                        || input.principal_id.0 == 9002
+                        || input.principal_id.0 == 9003
+                    {
+                        Ok(())
+                    } else {
+                        Err(AuthzError::denied("guild_channel_access_denied"))
+                    }
+                }
+                _ => Ok(()),
+            }
+        }
+    }
+
     async fn app_for_test() -> Router {
         app_for_test_with_authorizer(Arc::new(StaticAllowAllAuthorizer)).await
     }
@@ -75,6 +112,9 @@ mod tests {
 
         let store = Arc::new(InMemoryPrincipalStore::default());
         store.insert("firebase", "u-1", PrincipalId(1001)).await;
+        store.insert("firebase", "u-owner", PrincipalId(9001)).await;
+        store.insert("firebase", "u-admin", PrincipalId(9002)).await;
+        store.insert("firebase", "u-member", PrincipalId(9003)).await;
         let store_resolver: Arc<dyn PrincipalStore> = store.clone();
         let provisioner: Arc<dyn PrincipalProvisioner> = store.clone();
 
@@ -242,6 +282,106 @@ mod tests {
         let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
         assert_eq!(json["code"], "AUTHZ_UNAVAILABLE");
         assert_eq!(json["request_id"], "authz-unavailable-test");
+    }
+
+    #[tokio::test]
+    async fn guild_channel_message_endpoints_apply_role_based_allow_and_deny() {
+        let app = app_for_test_with_authorizer(Arc::new(RoleScenarioAuthorizer)).await;
+
+        let owner_token = format!("u-owner:{}", unix_timestamp_seconds() + 300);
+        let owner_response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/v1/guilds/10")
+                    .header("authorization", format!("Bearer {owner_token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(owner_response.status(), StatusCode::OK);
+
+        let admin_token = format!("u-admin:{}", unix_timestamp_seconds() + 300);
+        let admin_response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("PATCH")
+                    .uri("/v1/guilds/10")
+                    .header("authorization", format!("Bearer {admin_token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(admin_response.status(), StatusCode::OK);
+
+        let member_token = format!("u-member:{}", unix_timestamp_seconds() + 300);
+        let member_manage_response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("PATCH")
+                    .uri("/v1/guilds/10")
+                    .header("authorization", format!("Bearer {member_token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(member_manage_response.status(), StatusCode::FORBIDDEN);
+
+        let member_channel_response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/v1/guilds/10/channels/20")
+                    .header("authorization", format!("Bearer {member_token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(member_channel_response.status(), StatusCode::OK);
+
+        let member_message_response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/v1/guilds/10/channels/20/messages")
+                    .header("authorization", format!("Bearer {member_token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(member_message_response.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn guild_endpoint_returns_unavailable_when_authz_unavailable() {
+        let app = app_for_test_with_authorizer(Arc::new(StaticUnavailableAuthorizer)).await;
+        let token = format!("u-owner:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/v1/guilds/10")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("x-request-id", "guild-authz-unavailable-test")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "AUTHZ_UNAVAILABLE");
+        assert_eq!(json["request_id"], "guild-authz-unavailable-test");
     }
 
     #[test]
