@@ -100,6 +100,24 @@ pub fn build_runtime_authorizer() -> Arc<dyn Authorizer> {
         "spicedb" => {
             match build_spicedb_runtime_config_from_env() {
                 Ok(config) => {
+                    match build_spicedb_tuple_sync_runtime_config_from_env() {
+                        Ok(tuple_sync_config) => {
+                            warn!(
+                                provider = "spicedb",
+                                outbox_claim_limit = tuple_sync_config.outbox_claim_limit,
+                                outbox_lease_seconds = tuple_sync_config.outbox_lease_seconds,
+                                outbox_retry_seconds = tuple_sync_config.outbox_retry_seconds,
+                                "AUTHZ_PROVIDER=spicedb tuple sync runtime config is ready"
+                            );
+                        }
+                        Err(reason) => {
+                            warn!(
+                                provider = "spicedb",
+                                reason = %reason,
+                                "AUTHZ_PROVIDER=spicedb tuple sync runtime config is invalid"
+                            );
+                        }
+                    }
                     warn!(
                         provider = "spicedb",
                         endpoint = %config.endpoint,
