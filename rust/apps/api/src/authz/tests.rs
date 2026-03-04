@@ -1,8 +1,12 @@
 #[cfg(test)]
 mod tests {
     use super::*;
+    use axum::{extract::State, routing::post, Json, Router};
     use serde_json::json;
-    use std::sync::OnceLock;
+    use std::sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc, OnceLock,
+    };
 
     fn env_lock() -> &'static tokio::sync::Mutex<()> {
         static ENV_LOCK: OnceLock<tokio::sync::Mutex<()>> = OnceLock::new();
@@ -66,11 +70,15 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn runtime_provider_spicedb_falls_back_to_allow_all() {
+    async fn runtime_provider_spicedb_returns_unavailable_when_dependency_unreachable() {
         let _guard = env_lock().lock().await;
         let mut scoped = ScopedEnv::new();
         scoped.set("AUTHZ_PROVIDER", "spicedb");
-        scoped.set("AUTHZ_ALLOW_ALL_UNTIL", "2026-06-30");
+        scoped.set("SPICEDB_ENDPOINT", "http://spicedb:50051");
+        scoped.set("SPICEDB_CHECK_ENDPOINT", "http://127.0.0.1:9");
+        scoped.set("SPICEDB_PRESHARED_KEY", "test-key");
+        scoped.set("SPICEDB_REQUEST_TIMEOUT_MS", "10");
+        scoped.set("SPICEDB_CHECK_MAX_RETRIES", "0");
 
         let authorizer = build_runtime_authorizer();
         let input = AuthzCheckInput {
@@ -79,15 +87,15 @@ mod tests {
             action: AuthzAction::Connect,
         };
 
-        assert!(authorizer.check(&input).await.is_ok());
+        let error = authorizer.check(&input).await.unwrap_err();
+        assert_eq!(error.kind, AuthzErrorKind::DependencyUnavailable);
     }
 
     #[tokio::test]
-    async fn runtime_provider_unknown_falls_back_to_allow_all() {
+    async fn runtime_provider_unknown_is_fail_closed() {
         let _guard = env_lock().lock().await;
         let mut scoped = ScopedEnv::new();
         scoped.set("AUTHZ_PROVIDER", "unknown");
-        scoped.set("AUTHZ_ALLOW_ALL_UNTIL", "2026-06-30");
 
         let authorizer = build_runtime_authorizer();
         let input = AuthzCheckInput {
@@ -98,7 +106,8 @@ mod tests {
             action: AuthzAction::View,
         };
 
-        assert!(authorizer.check(&input).await.is_ok());
+        let error = authorizer.check(&input).await.unwrap_err();
+        assert_eq!(error.kind, AuthzErrorKind::DependencyUnavailable);
     }
 
     #[tokio::test]
@@ -142,6 +151,7 @@ mod tests {
         let _guard = env_lock().lock().await;
         let mut scoped = ScopedEnv::new();
         scoped.set("SPICEDB_ENDPOINT", "http://localhost:50051");
+        scoped.set("SPICEDB_CHECK_ENDPOINT", "http://localhost:8443");
         scoped.unset("SPICEDB_PRESHARED_KEY");
 
         let error = build_spicedb_runtime_config_from_env().unwrap_err();
@@ -156,18 +166,114 @@ mod tests {
         let _guard = env_lock().lock().await;
         let mut scoped = ScopedEnv::new();
         scoped.set("SPICEDB_ENDPOINT", "http://spicedb:50051");
+        scoped.set("SPICEDB_CHECK_ENDPOINT", "http://spicedb:8443");
         scoped.set("SPICEDB_PRESHARED_KEY", "test-key");
         scoped.set("SPICEDB_REQUEST_TIMEOUT_MS", "1500");
+        scoped.set("SPICEDB_CHECK_MAX_RETRIES", "2");
+        scoped.set("SPICEDB_CHECK_RETRY_BACKOFF_MS", "120");
+        scoped.set("AUTHZ_CACHE_ALLOW_TTL_MS", "4000");
+        scoped.set("AUTHZ_CACHE_DENY_TTL_MS", "900");
+        scoped.set("SPICEDB_POLICY_VERSION", "lin862-v1-test");
         scoped.set("SPICEDB_SCHEMA_PATH", "database/contracts/lin862_spicedb_namespace_relation_permission_contract.md");
 
         let config = build_spicedb_runtime_config_from_env().unwrap();
         assert_eq!(config.endpoint, "http://spicedb:50051");
+        assert_eq!(config.check_endpoint, "http://spicedb:8443");
         assert_eq!(config.preshared_key, "test-key");
         assert_eq!(config.request_timeout_ms, 1500);
+        assert_eq!(config.check_max_retries, 2);
+        assert_eq!(config.check_retry_backoff_ms, 120);
+        assert_eq!(config.cache_allow_ttl_ms, 4000);
+        assert_eq!(config.cache_deny_ttl_ms, 900);
+        assert_eq!(config.policy_version, "lin862-v1-test");
         assert_eq!(
             config.schema_path,
             "database/contracts/lin862_spicedb_namespace_relation_permission_contract.md"
         );
+    }
+
+    #[tokio::test]
+    async fn runtime_provider_spicedb_maps_has_permission_to_allow() {
+        let _guard = env_lock().lock().await;
+        let mock = MockSpiceDbServer::start(
+            vec![MockSpiceDbResponse::ok("PERMISSIONSHIP_HAS_PERMISSION")],
+            false,
+        )
+        .await;
+        let mut scoped = ScopedEnv::new();
+        scoped.set("AUTHZ_PROVIDER", "spicedb");
+        scoped.set("SPICEDB_ENDPOINT", "http://spicedb:50051");
+        scoped.set("SPICEDB_CHECK_ENDPOINT", &mock.endpoint());
+        scoped.set("SPICEDB_PRESHARED_KEY", "test-key");
+        scoped.set("SPICEDB_REQUEST_TIMEOUT_MS", "100");
+        scoped.set("SPICEDB_CHECK_MAX_RETRIES", "0");
+
+        let authorizer = build_runtime_authorizer();
+        let input = AuthzCheckInput {
+            principal_id: PrincipalId(2001),
+            resource: AuthzResource::Session,
+            action: AuthzAction::Connect,
+        };
+        assert!(authorizer.check(&input).await.is_ok());
+        assert_eq!(mock.request_count(), 1);
+    }
+
+    #[tokio::test]
+    async fn runtime_provider_spicedb_maps_no_permission_to_deny() {
+        let _guard = env_lock().lock().await;
+        let mock = MockSpiceDbServer::start(
+            vec![MockSpiceDbResponse::ok("PERMISSIONSHIP_NO_PERMISSION")],
+            false,
+        )
+        .await;
+        let mut scoped = ScopedEnv::new();
+        scoped.set("AUTHZ_PROVIDER", "spicedb");
+        scoped.set("SPICEDB_ENDPOINT", "http://spicedb:50051");
+        scoped.set("SPICEDB_CHECK_ENDPOINT", &mock.endpoint());
+        scoped.set("SPICEDB_PRESHARED_KEY", "test-key");
+        scoped.set("SPICEDB_REQUEST_TIMEOUT_MS", "100");
+        scoped.set("SPICEDB_CHECK_MAX_RETRIES", "0");
+
+        let authorizer = build_runtime_authorizer();
+        let input = AuthzCheckInput {
+            principal_id: PrincipalId(2001),
+            resource: AuthzResource::Session,
+            action: AuthzAction::Connect,
+        };
+        let error = authorizer.check(&input).await.unwrap_err();
+        assert_eq!(error.kind, AuthzErrorKind::Denied);
+        assert_eq!(mock.request_count(), 1);
+    }
+
+    #[tokio::test]
+    async fn runtime_provider_spicedb_uses_cache_for_repeat_checks() {
+        let _guard = env_lock().lock().await;
+        let mock = MockSpiceDbServer::start(
+            vec![MockSpiceDbResponse::ok("PERMISSIONSHIP_HAS_PERMISSION")],
+            false,
+        )
+        .await;
+        let mut scoped = ScopedEnv::new();
+        scoped.set("AUTHZ_PROVIDER", "spicedb");
+        scoped.set("SPICEDB_ENDPOINT", "http://spicedb:50051");
+        scoped.set("SPICEDB_CHECK_ENDPOINT", &mock.endpoint());
+        scoped.set("SPICEDB_PRESHARED_KEY", "test-key");
+        scoped.set("SPICEDB_REQUEST_TIMEOUT_MS", "100");
+        scoped.set("SPICEDB_CHECK_MAX_RETRIES", "0");
+        scoped.set("AUTHZ_CACHE_ALLOW_TTL_MS", "5000");
+
+        let authorizer = build_runtime_authorizer();
+        let input = AuthzCheckInput {
+            principal_id: PrincipalId(3001),
+            resource: AuthzResource::RestPath {
+                path: "/v1/protected/ping".to_owned(),
+            },
+            action: AuthzAction::View,
+        };
+
+        assert!(authorizer.check(&input).await.is_ok());
+        assert!(authorizer.check(&input).await.is_ok());
+        assert_eq!(mock.request_count(), 1);
     }
 
     #[test]
@@ -450,6 +556,104 @@ mod tests {
         assert_eq!(config.outbox_claim_limit, 250);
         assert_eq!(config.outbox_lease_seconds, 45);
         assert_eq!(config.outbox_retry_seconds, 20);
+    }
+
+    #[derive(Clone)]
+    struct MockSpiceDbResponse {
+        status_code: u16,
+        body: serde_json::Value,
+    }
+
+    impl MockSpiceDbResponse {
+        fn ok(permissionship: &str) -> Self {
+            Self {
+                status_code: 200,
+                body: json!({
+                    "permissionship": permissionship
+                }),
+            }
+        }
+    }
+
+    #[derive(Clone)]
+    struct MockSpiceDbState {
+        responses: Arc<tokio::sync::Mutex<Vec<MockSpiceDbResponse>>>,
+        request_count: Arc<AtomicU64>,
+        require_auth: bool,
+    }
+
+    struct MockSpiceDbServer {
+        address: std::net::SocketAddr,
+        state: MockSpiceDbState,
+    }
+
+    impl MockSpiceDbServer {
+        async fn start(responses: Vec<MockSpiceDbResponse>, require_auth: bool) -> Self {
+            let state = MockSpiceDbState {
+                responses: Arc::new(tokio::sync::Mutex::new(responses)),
+                request_count: Arc::new(AtomicU64::new(0)),
+                require_auth,
+            };
+
+            let app = Router::new()
+                .route("/v1/permissions/check", post(mock_spicedb_check_handler))
+                .with_state(state.clone());
+
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let address = listener.local_addr().unwrap();
+
+            tokio::spawn(async move {
+                let _ = axum::serve(listener, app).await;
+            });
+
+            Self { address, state }
+        }
+
+        fn endpoint(&self) -> String {
+            format!("http://{}", self.address)
+        }
+
+        fn request_count(&self) -> u64 {
+            self.state
+                .request_count
+                .load(Ordering::Relaxed)
+        }
+    }
+
+    async fn mock_spicedb_check_handler(
+        State(state): State<MockSpiceDbState>,
+        headers: axum::http::HeaderMap,
+        Json(_request): Json<serde_json::Value>,
+    ) -> (axum::http::StatusCode, Json<serde_json::Value>) {
+        state
+            .request_count
+            .fetch_add(1, Ordering::Relaxed);
+
+        if state.require_auth {
+            let has_header = headers
+                .get("authorization")
+                .and_then(|value| value.to_str().ok())
+                .map(|value| value.starts_with("Bearer "))
+                .unwrap_or(false);
+            if !has_header {
+                return (
+                    axum::http::StatusCode::UNAUTHORIZED,
+                    Json(json!({"message":"missing auth header"})),
+                );
+            }
+        }
+
+        let mut responses = state.responses.lock().await;
+        let response = if responses.is_empty() {
+            MockSpiceDbResponse::ok("PERMISSIONSHIP_NO_PERMISSION")
+        } else {
+            responses.remove(0)
+        };
+
+        (
+            axum::http::StatusCode::from_u16(response.status_code).unwrap(),
+            Json(response.body),
+        )
     }
 
     #[derive(Default)]

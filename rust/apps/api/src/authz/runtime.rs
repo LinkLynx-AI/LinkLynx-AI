@@ -1,7 +1,13 @@
 const DEFAULT_AUTHZ_PROVIDER: &str = "noop";
 const DEFAULT_ALLOW_ALL_UNTIL: &str = "2026-06-30";
 const DEFAULT_SPICEDB_ENDPOINT: &str = "http://localhost:50051";
+const DEFAULT_SPICEDB_CHECK_ENDPOINT: &str = "http://localhost:8443";
 const DEFAULT_SPICEDB_REQUEST_TIMEOUT_MS: u64 = 1000;
+const DEFAULT_SPICEDB_CHECK_MAX_RETRIES: u32 = 1;
+const DEFAULT_SPICEDB_CHECK_RETRY_BACKOFF_MS: u64 = 100;
+const DEFAULT_AUTHZ_CACHE_ALLOW_TTL_MS: u64 = 5000;
+const DEFAULT_AUTHZ_CACHE_DENY_TTL_MS: u64 = 1000;
+const DEFAULT_SPICEDB_POLICY_VERSION: &str = "lin862-v1";
 const DEFAULT_SPICEDB_SCHEMA_PATH: &str =
     "database/contracts/lin862_spicedb_namespace_relation_permission_contract.md";
 
@@ -9,8 +15,14 @@ const DEFAULT_SPICEDB_SCHEMA_PATH: &str =
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SpiceDbRuntimeConfig {
     pub endpoint: String,
+    pub check_endpoint: String,
     pub preshared_key: String,
     pub request_timeout_ms: u64,
+    pub check_max_retries: u32,
+    pub check_retry_backoff_ms: u64,
+    pub cache_allow_ttl_ms: u64,
+    pub cache_deny_ttl_ms: u64,
+    pub policy_version: String,
     pub schema_path: String,
 }
 
@@ -20,21 +32,46 @@ pub struct SpiceDbRuntimeConfig {
 /// @throws String 必須値欠落または不正値時
 pub fn build_spicedb_runtime_config_from_env() -> Result<SpiceDbRuntimeConfig, String> {
     let endpoint = parse_optional_non_empty_env("SPICEDB_ENDPOINT", DEFAULT_SPICEDB_ENDPOINT)?;
+    let check_endpoint =
+        parse_optional_non_empty_env("SPICEDB_CHECK_ENDPOINT", DEFAULT_SPICEDB_CHECK_ENDPOINT)?;
     let preshared_key = parse_required_non_empty_env("SPICEDB_PRESHARED_KEY")?;
     let request_timeout_ms = parse_optional_u64_env(
         "SPICEDB_REQUEST_TIMEOUT_MS",
         DEFAULT_SPICEDB_REQUEST_TIMEOUT_MS,
     )?;
+    let check_max_retries = parse_optional_u32_env(
+        "SPICEDB_CHECK_MAX_RETRIES",
+        DEFAULT_SPICEDB_CHECK_MAX_RETRIES,
+    )?;
+    let check_retry_backoff_ms = parse_optional_u64_env(
+        "SPICEDB_CHECK_RETRY_BACKOFF_MS",
+        DEFAULT_SPICEDB_CHECK_RETRY_BACKOFF_MS,
+    )?;
+    let cache_allow_ttl_ms =
+        parse_optional_u64_env("AUTHZ_CACHE_ALLOW_TTL_MS", DEFAULT_AUTHZ_CACHE_ALLOW_TTL_MS)?;
+    let cache_deny_ttl_ms =
+        parse_optional_u64_env("AUTHZ_CACHE_DENY_TTL_MS", DEFAULT_AUTHZ_CACHE_DENY_TTL_MS)?;
+    let policy_version =
+        parse_optional_non_empty_env("SPICEDB_POLICY_VERSION", DEFAULT_SPICEDB_POLICY_VERSION)?;
     let schema_path = parse_optional_non_empty_env("SPICEDB_SCHEMA_PATH", DEFAULT_SPICEDB_SCHEMA_PATH)?;
 
     if reqwest::Url::parse(&endpoint).is_err() {
         return Err("SPICEDB_ENDPOINT must be a valid URL".to_owned());
     }
+    if reqwest::Url::parse(&check_endpoint).is_err() {
+        return Err("SPICEDB_CHECK_ENDPOINT must be a valid URL".to_owned());
+    }
 
     Ok(SpiceDbRuntimeConfig {
         endpoint,
+        check_endpoint,
         preshared_key,
         request_timeout_ms,
+        check_max_retries,
+        check_retry_backoff_ms,
+        cache_allow_ttl_ms,
+        cache_deny_ttl_ms,
+        policy_version,
         schema_path,
     })
 }
@@ -118,45 +155,57 @@ pub fn build_runtime_authorizer() -> Arc<dyn Authorizer> {
                             );
                         }
                     }
+
                     warn!(
                         provider = "spicedb",
                         endpoint = %config.endpoint,
+                        check_endpoint = %config.check_endpoint,
                         request_timeout_ms = config.request_timeout_ms,
+                        check_max_retries = config.check_max_retries,
+                        check_retry_backoff_ms = config.check_retry_backoff_ms,
+                        cache_allow_ttl_ms = config.cache_allow_ttl_ms,
+                        cache_deny_ttl_ms = config.cache_deny_ttl_ms,
+                        policy_version = %config.policy_version,
                         schema_path = %config.schema_path,
-                        fallback = "noop",
-                        allow_all_until = %allow_all_until,
                         supported_action_count = supported_actions.len(),
-                        "AUTHZ_PROVIDER=spicedb runtime foundation is configured, but provider implementation is pending; fallback to noop allow-all"
+                        "AUTHZ_PROVIDER=spicedb runtime config is ready"
                     );
+
+                    match SpiceDbHttpAuthorizer::new(&config) {
+                        Ok(authorizer) => Arc::new(authorizer),
+                        Err(reason) => {
+                            warn!(
+                                provider = "spicedb",
+                                reason = %reason,
+                                "failed to initialize spicedb authorizer; fail-close authorizer is active"
+                            );
+                            Arc::new(FailClosedAuthorizer::new(format!(
+                                "spicedb_authorizer_init_failed:{reason}"
+                            )))
+                        }
+                    }
                 }
                 Err(reason) => {
                     warn!(
                         provider = "spicedb",
                         reason = %reason,
-                        fallback = "noop",
-                        allow_all_until = %allow_all_until,
-                        supported_action_count = supported_actions.len(),
-                        "AUTHZ_PROVIDER=spicedb runtime foundation is misconfigured; fallback to noop allow-all"
+                        "AUTHZ_PROVIDER=spicedb runtime config is invalid; fail-close authorizer is active"
                     );
+                    Arc::new(FailClosedAuthorizer::new(format!(
+                        "spicedb_runtime_config_invalid:{reason}"
+                    )))
                 }
             }
-            Arc::new(NoopAllowAllAuthorizer::new(
-                allow_all_until,
-                NoopAuthorizerMode::Allow,
-            ))
         }
         _ => {
             warn!(
                 provider = %provider,
-                fallback = "noop",
-                allow_all_until = %allow_all_until,
                 supported_action_count = supported_actions.len(),
-                "unknown AUTHZ_PROVIDER; fallback to noop allow-all"
+                "unknown AUTHZ_PROVIDER; fail-close authorizer is active"
             );
-            Arc::new(NoopAllowAllAuthorizer::new(
-                allow_all_until,
-                NoopAuthorizerMode::Allow,
-            ))
+            Arc::new(FailClosedAuthorizer::new(format!(
+                "unknown_authz_provider:{provider}"
+            )))
         }
     }
 }
@@ -211,6 +260,26 @@ fn parse_optional_u64_env(name: &str, default: u64) -> Result<u64, String> {
             trimmed
                 .parse::<u64>()
                 .map_err(|error| format!("{name} must be a valid u64 (reason: {error})"))
+        }
+        Err(_) => Ok(default),
+    }
+}
+
+/// 任意環境変数をu32として読み取り、未設定時は既定値を返す。
+/// @param name 環境変数名
+/// @param default 未設定時の既定値
+/// @returns 読み取ったu32値
+/// @throws String 数値変換に失敗した場合
+fn parse_optional_u32_env(name: &str, default: u32) -> Result<u32, String> {
+    match env::var(name) {
+        Ok(value) => {
+            let trimmed = value.trim();
+            if trimmed.is_empty() {
+                return Err(format!("{name} must not be empty when set"));
+            }
+            trimmed
+                .parse::<u32>()
+                .map_err(|error| format!("{name} must be a valid u32 (reason: {error})"))
         }
         Err(_) => Ok(default),
     }
