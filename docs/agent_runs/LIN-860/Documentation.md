@@ -116,6 +116,6 @@
   - `make rust-lint`: passed
 - reviewer gate (`reviewer_simple`): unavailable -> manual self-review fallback (no blocking findings)
 - UI gate (`reviewer_ui_guard` / `reviewer_ui`): unavailable -> UI changesなしで `reviewer_ui` skipped
-- PR URL: pending
+- PR URL: https://github.com/LinkLynx-AI/LinkLynx-AI/pull/1031
 - PR base branch: `codex/lin-860`
-- merge/auto-merge status: pending
+- merge/auto-merge status: open（auto-merge pending）
