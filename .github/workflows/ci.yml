@@ -6,6 +6,28 @@ on:
       - main
 
 jobs:
+  spicedb-runtime:
+    name: SpiceDB Runtime Foundation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Start SpiceDB
+        run: docker compose up -d spicedb
+      - name: Wait for SpiceDB gRPC endpoint
+        run: |
+          for i in {1..30}; do
+            if nc -z 127.0.0.1 50051; then
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "SpiceDB gRPC endpoint did not become ready on localhost:50051" >&2
+          docker compose logs spicedb >&2
+          exit 1
+      - name: Stop SpiceDB
+        if: always()
+        run: docker compose down
+
   typescript-validate:
     name: TypeScript Validate
     runs-on: ubuntu-latest

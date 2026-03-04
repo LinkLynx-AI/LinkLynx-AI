@@ -1,5 +1,43 @@
 const DEFAULT_AUTHZ_PROVIDER: &str = "noop";
 const DEFAULT_ALLOW_ALL_UNTIL: &str = "2026-06-30";
+const DEFAULT_SPICEDB_ENDPOINT: &str = "http://localhost:50051";
+const DEFAULT_SPICEDB_REQUEST_TIMEOUT_MS: u64 = 1000;
+const DEFAULT_SPICEDB_SCHEMA_PATH: &str =
+    "database/contracts/lin862_spicedb_namespace_relation_permission_contract.md";
+
+/// SpiceDB接続の実行時設定を表現する。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SpiceDbRuntimeConfig {
+    pub endpoint: String,
+    pub preshared_key: String,
+    pub request_timeout_ms: u64,
+    pub schema_path: String,
+}
+
+/// 実行時環境変数からSpiceDB接続設定を構築する。
+/// @param なし
+/// @returns 構築済みSpiceDB設定
+/// @throws String 必須値欠落または不正値時
+pub fn build_spicedb_runtime_config_from_env() -> Result<SpiceDbRuntimeConfig, String> {
+    let endpoint = parse_optional_non_empty_env("SPICEDB_ENDPOINT", DEFAULT_SPICEDB_ENDPOINT)?;
+    let preshared_key = parse_required_non_empty_env("SPICEDB_PRESHARED_KEY")?;
+    let request_timeout_ms = parse_optional_u64_env(
+        "SPICEDB_REQUEST_TIMEOUT_MS",
+        DEFAULT_SPICEDB_REQUEST_TIMEOUT_MS,
+    )?;
+    let schema_path = parse_optional_non_empty_env("SPICEDB_SCHEMA_PATH", DEFAULT_SPICEDB_SCHEMA_PATH)?;
+
+    if reqwest::Url::parse(&endpoint).is_err() {
+        return Err("SPICEDB_ENDPOINT must be a valid URL".to_owned());
+    }
+
+    Ok(SpiceDbRuntimeConfig {
+        endpoint,
+        preshared_key,
+        request_timeout_ms,
+        schema_path,
+    })
+}
 
 /// 実行時向けの認可実装を生成する。
 /// @param なし
@@ -60,13 +98,30 @@ pub fn build_runtime_authorizer() -> Arc<dyn Authorizer> {
             ))
         }
         "spicedb" => {
-            warn!(
-                provider = "spicedb",
-                fallback = "noop",
-                allow_all_until = %allow_all_until,
-                supported_action_count = supported_actions.len(),
-                "AUTHZ_PROVIDER=spicedb is not implemented yet; fallback to noop allow-all"
-            );
+            match build_spicedb_runtime_config_from_env() {
+                Ok(config) => {
+                    warn!(
+                        provider = "spicedb",
+                        endpoint = %config.endpoint,
+                        request_timeout_ms = config.request_timeout_ms,
+                        schema_path = %config.schema_path,
+                        fallback = "noop",
+                        allow_all_until = %allow_all_until,
+                        supported_action_count = supported_actions.len(),
+                        "AUTHZ_PROVIDER=spicedb runtime foundation is configured, but provider implementation is pending; fallback to noop allow-all"
+                    );
+                }
+                Err(reason) => {
+                    warn!(
+                        provider = "spicedb",
+                        reason = %reason,
+                        fallback = "noop",
+                        allow_all_until = %allow_all_until,
+                        supported_action_count = supported_actions.len(),
+                        "AUTHZ_PROVIDER=spicedb runtime foundation is misconfigured; fallback to noop allow-all"
+                    );
+                }
+            }
             Arc::new(NoopAllowAllAuthorizer::new(
                 allow_all_until,
                 NoopAuthorizerMode::Allow,
@@ -85,5 +140,60 @@ pub fn build_runtime_authorizer() -> Arc<dyn Authorizer> {
                 NoopAuthorizerMode::Allow,
             ))
         }
+    }
+}
+
+/// 必須環境変数を非空文字列として読み取る。
+/// @param name 環境変数名
+/// @returns 読み取った文字列
+/// @throws String 必須値が欠落または空の場合
+fn parse_required_non_empty_env(name: &str) -> Result<String, String> {
+    match env::var(name) {
+        Ok(value) => {
+            let trimmed = value.trim();
+            if trimmed.is_empty() {
+                return Err(format!("{name} is required and must not be empty"));
+            }
+            Ok(trimmed.to_owned())
+        }
+        Err(_) => Err(format!("{name} is required")),
+    }
+}
+
+/// 任意環境変数を非空文字列として読み取り、未設定時は既定値を返す。
+/// @param name 環境変数名
+/// @param default 未設定時の既定値
+/// @returns 読み取った文字列
+/// @throws String 空文字列が設定されている場合
+fn parse_optional_non_empty_env(name: &str, default: &str) -> Result<String, String> {
+    match env::var(name) {
+        Ok(value) => {
+            let trimmed = value.trim();
+            if trimmed.is_empty() {
+                return Err(format!("{name} must not be empty when set"));
+            }
+            Ok(trimmed.to_owned())
+        }
+        Err(_) => Ok(default.to_owned()),
+    }
+}
+
+/// 任意環境変数をu64として読み取り、未設定時は既定値を返す。
+/// @param name 環境変数名
+/// @param default 未設定時の既定値
+/// @returns 読み取ったu64値
+/// @throws String 数値変換に失敗した場合
+fn parse_optional_u64_env(name: &str, default: u64) -> Result<u64, String> {
+    match env::var(name) {
+        Ok(value) => {
+            let trimmed = value.trim();
+            if trimmed.is_empty() {
+                return Err(format!("{name} must not be empty when set"));
+            }
+            trimmed
+                .parse::<u64>()
+                .map_err(|error| format!("{name} must be a valid u64 (reason: {error})"))
+        }
+        Err(_) => Ok(default),
     }
 }

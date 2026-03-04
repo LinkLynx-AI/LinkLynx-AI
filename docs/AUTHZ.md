@@ -190,3 +190,4 @@ v0 での認可関連 SoR:
 - SpiceDB の namespace/relation/permission 設計SSOTは `database/contracts/lin862_spicedb_namespace_relation_permission_contract.md`。
 - LIN-632/LIN-633 の tuple写像契約を受け、channel判定の優先順（`user deny > user allow > role deny > role allow > role default > default deny`）を満たす relation/permission を固定する。
 - deny/unavailable の境界は ADR-004 を適用し、判定不能時の fail-open を禁止する。
+- LIN-863 での local/CI 実行基盤手順は `docs/runbooks/authz-spicedb-local-ci-runtime-runbook.md` を参照する。
