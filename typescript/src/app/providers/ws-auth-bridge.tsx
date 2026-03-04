@@ -16,6 +16,7 @@ import {
   useAuthSession,
   type WsCloseKind,
   type WsConnectionState,
+  type WsTicketIssueError,
 } from "@/entities/auth";
 
 const BASE_RECONNECT_DELAY_MS = 1_000;
@@ -48,6 +49,12 @@ function resolveWebSocketUrl(apiBaseUrl: string): string {
   const parsedApiBaseUrl = new URL(apiBaseUrl);
   if (parsedApiBaseUrl.protocol !== "http:" && parsedApiBaseUrl.protocol !== "https:") {
     throw new Error("NEXT_PUBLIC_API_URL must use http or https protocol.");
+  }
+  if (parsedApiBaseUrl.username !== "" || parsedApiBaseUrl.password !== "") {
+    throw new Error("NEXT_PUBLIC_API_URL must not contain userinfo.");
+  }
+  if (parsedApiBaseUrl.hostname.trim().length === 0) {
+    throw new Error("NEXT_PUBLIC_API_URL must include a hostname.");
   }
 
   parsedApiBaseUrl.protocol = parsedApiBaseUrl.protocol === "https:" ? "wss:" : "ws:";
@@ -82,6 +89,16 @@ function isDeterministicWsTicketAuthError(code: string): boolean {
 
 function shouldShowServiceUnavailableBannerForTicketError(code: string): boolean {
   return code === "temporarily-unavailable" || code === "unknown" || code === "unexpected-response";
+}
+
+function createIdentifyMessage(ticket: string): string {
+  return JSON.stringify({
+    type: "auth.identify",
+    d: {
+      method: "ticket",
+      ticket,
+    },
+  });
 }
 
 /**
@@ -227,19 +244,7 @@ export function WsAuthBridge() {
     [clearReconnectTimer],
   );
 
-  const connect = useCallback(async () => {
-    if (!shouldConnectRef.current || redirectingRef.current) {
-      return;
-    }
-
-    const connectGeneration = startConnectAttempt();
-    if (connectGeneration === null) {
-      return;
-    }
-
-    clearReconnectTimer();
-    closeCurrentSocket();
-
+  const setConnectingState = useCallback(() => {
     setConnectionState({
       phase: "connecting",
       closeCode: null,
@@ -248,153 +253,87 @@ export function WsAuthBridge() {
       reconnectAttempt: reconnectAttemptRef.current,
       nextRetryInMs: null,
     });
+  }, []);
 
-    const ticketResult = await issueWsTicket();
-    if (!shouldConnectRef.current || redirectingRef.current) {
-      finishConnectAttempt(connectGeneration);
-      return;
-    }
+  const scheduleDependencyUnavailableReconnect = useCallback(
+    (params: {
+      message: string;
+      status: number | null;
+      showServiceUnavailableBanner?: boolean;
+    }) => {
+      scheduleReconnect({
+        closeCode: params.status,
+        closeReason: params.message,
+        closeKind: "dependency-unavailable",
+        showServiceUnavailableBanner: params.showServiceUnavailableBanner ?? true,
+      });
+    },
+    [scheduleReconnect],
+  );
 
-    if (!ticketResult.ok) {
-      finishConnectAttempt(connectGeneration);
-
-      if (isDeterministicWsTicketAuthError(ticketResult.error.code)) {
+  const handleTicketIssueFailure = useCallback(
+    async (error: WsTicketIssueError) => {
+      if (isDeterministicWsTicketAuthError(error.code)) {
         await redirectToLogin();
         return;
       }
 
-      scheduleReconnect({
-        closeCode: ticketResult.error.status,
-        closeReason: ticketResult.error.message,
-        closeKind: "dependency-unavailable",
-        showServiceUnavailableBanner: shouldShowServiceUnavailableBannerForTicketError(
-          ticketResult.error.code,
-        ),
+      scheduleDependencyUnavailableReconnect({
+        status: error.status,
+        message: error.message,
+        showServiceUnavailableBanner: shouldShowServiceUnavailableBannerForTicketError(error.code),
       });
-      return;
-    }
+    },
+    [redirectToLogin, scheduleDependencyUnavailableReconnect],
+  );
 
-    let wsUrl: string;
-    try {
-      wsUrl = resolveWebSocketUrl(process.env.NEXT_PUBLIC_API_URL ?? "");
-    } catch (error: unknown) {
-      const message =
-        error instanceof Error ? error.message : "WebSocket URL の解決に失敗しました。";
-      finishConnectAttempt(connectGeneration);
-      scheduleReconnect({
-        closeCode: null,
-        closeReason: message,
-        closeKind: "dependency-unavailable",
-        showServiceUnavailableBanner: true,
-      });
-      return;
-    }
+  const handleSocketReady = useCallback(() => {
+    reconnectAttemptRef.current = 0;
+    setIsServiceUnavailable(false);
+    setConnectionState({
+      phase: "ready",
+      closeCode: null,
+      closeReason: null,
+      closeKind: null,
+      reconnectAttempt: 0,
+      nextRetryInMs: null,
+    });
+  }, []);
 
-    let socket: WebSocket;
-    try {
-      socket = new WebSocket(wsUrl);
-    } catch (error: unknown) {
-      const message =
-        error instanceof Error ? error.message : "WebSocket 接続の開始に失敗しました。";
-      finishConnectAttempt(connectGeneration);
-      scheduleReconnect({
-        closeCode: null,
-        closeReason: message,
-        closeKind: "dependency-unavailable",
-        showServiceUnavailableBanner: true,
-      });
-      return;
-    }
+  const handleSocketReauthenticate = useCallback(
+    async (socket: WebSocket) => {
+      let refreshedToken: string | null;
+      try {
+        refreshedToken = await session.getIdToken(true);
+      } catch {
+        await redirectToLogin();
+        return;
+      }
 
-    socketRef.current = socket;
+      if (refreshedToken === null || refreshedToken.trim().length === 0) {
+        await redirectToLogin();
+        return;
+      }
 
-    socket.onopen = () => {
       if (socketRef.current !== socket) {
         return;
       }
 
-      finishConnectAttempt(connectGeneration);
-      setIsServiceUnavailable(false);
-      setConnectionState((currentState) => ({
-        ...currentState,
-        phase: "identifying",
-        closeCode: null,
-        closeReason: null,
-        closeKind: null,
-        nextRetryInMs: null,
-      }));
+      socket.send(
+        JSON.stringify({
+          type: "auth.reauthenticate",
+          d: {
+            idToken: refreshedToken,
+          },
+        }),
+      );
+    },
+    [redirectToLogin, session],
+  );
 
-      const identifyMessage = {
-        type: "auth.identify",
-        d: {
-          method: "ticket",
-          ticket: ticketResult.data.ticket,
-        },
-      };
-
-      socket.send(JSON.stringify(identifyMessage));
-    };
-
-    socket.onmessage = (event) => {
-      if (socketRef.current !== socket || typeof event.data !== "string") {
-        return;
-      }
-
-      let payload: unknown;
-      try {
-        payload = JSON.parse(event.data);
-      } catch {
-        return;
-      }
-
-      if (WS_READY_EVENT_SCHEMA.safeParse(payload).success) {
-        reconnectAttemptRef.current = 0;
-        setIsServiceUnavailable(false);
-        setConnectionState({
-          phase: "ready",
-          closeCode: null,
-          closeReason: null,
-          closeKind: null,
-          reconnectAttempt: 0,
-          nextRetryInMs: null,
-        });
-        return;
-      }
-
-      if (!WS_REAUTH_EVENT_SCHEMA.safeParse(payload).success) {
-        return;
-      }
-
-      void (async () => {
-        let refreshedToken: string | null;
-        try {
-          refreshedToken = await session.getIdToken(true);
-        } catch {
-          await redirectToLogin();
-          return;
-        }
-
-        if (refreshedToken === null || refreshedToken.trim().length === 0) {
-          await redirectToLogin();
-          return;
-        }
-
-        if (socketRef.current !== socket) {
-          return;
-        }
-
-        socket.send(
-          JSON.stringify({
-            type: "auth.reauthenticate",
-            d: {
-              idToken: refreshedToken,
-            },
-          }),
-        );
-      })();
-    };
-
-    socket.onclose = (event) => {
+  const handleSocketClose = useCallback(
+    (params: { socket: WebSocket; connectGeneration: number; event: CloseEvent }) => {
+      const { socket, connectGeneration, event } = params;
       if (intentionallyClosingSocketRef.current === socket) {
         intentionallyClosingSocketRef.current = null;
         finishConnectAttempt(connectGeneration);
@@ -431,27 +370,149 @@ export function WsAuthBridge() {
         closeKind,
         showServiceUnavailableBanner: event.code === 1011,
       });
-    };
+    },
+    [finishConnectAttempt, redirectToLogin, scheduleReconnect],
+  );
 
-    socket.onerror = () => {
-      if (socketRef.current !== socket) {
-        return;
-      }
+  const bindSocketHandlers = useCallback(
+    (params: { socket: WebSocket; connectGeneration: number; ticket: string }) => {
+      const { socket, connectGeneration, ticket } = params;
 
+      socket.onopen = () => {
+        if (socketRef.current !== socket) {
+          return;
+        }
+
+        finishConnectAttempt(connectGeneration);
+        setIsServiceUnavailable(false);
+        setConnectionState((currentState) => ({
+          ...currentState,
+          phase: "identifying",
+          closeCode: null,
+          closeReason: null,
+          closeKind: null,
+          nextRetryInMs: null,
+        }));
+
+        socket.send(createIdentifyMessage(ticket));
+      };
+
+      socket.onmessage = (event) => {
+        if (socketRef.current !== socket || typeof event.data !== "string") {
+          return;
+        }
+
+        let payload: unknown;
+        try {
+          payload = JSON.parse(event.data);
+        } catch {
+          return;
+        }
+
+        if (WS_READY_EVENT_SCHEMA.safeParse(payload).success) {
+          handleSocketReady();
+          return;
+        }
+
+        if (!WS_REAUTH_EVENT_SCHEMA.safeParse(payload).success) {
+          return;
+        }
+
+        void handleSocketReauthenticate(socket);
+      };
+
+      socket.onclose = (event) => {
+        handleSocketClose({
+          socket,
+          connectGeneration,
+          event,
+        });
+      };
+
+      socket.onerror = () => {
+        if (socketRef.current !== socket) {
+          return;
+        }
+
+        finishConnectAttempt(connectGeneration);
+        setConnectionState((currentState) => ({
+          ...currentState,
+          phase: "closed",
+          closeKind: "transport-error",
+        }));
+      };
+    },
+    [finishConnectAttempt, handleSocketClose, handleSocketReady, handleSocketReauthenticate],
+  );
+
+  const connect = useCallback(async () => {
+    if (!shouldConnectRef.current || redirectingRef.current) {
+      return;
+    }
+
+    const connectGeneration = startConnectAttempt();
+    if (connectGeneration === null) {
+      return;
+    }
+
+    clearReconnectTimer();
+    closeCurrentSocket();
+    setConnectingState();
+
+    const ticketResult = await issueWsTicket();
+    if (!shouldConnectRef.current || redirectingRef.current) {
       finishConnectAttempt(connectGeneration);
-      setConnectionState((currentState) => ({
-        ...currentState,
-        phase: "closed",
-        closeKind: "transport-error",
-      }));
-    };
+      return;
+    }
+
+    if (!ticketResult.ok) {
+      finishConnectAttempt(connectGeneration);
+      await handleTicketIssueFailure(ticketResult.error);
+      return;
+    }
+
+    let wsUrl: string;
+    try {
+      wsUrl = resolveWebSocketUrl(process.env.NEXT_PUBLIC_API_URL ?? "");
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error ? error.message : "WebSocket URL の解決に失敗しました。";
+      finishConnectAttempt(connectGeneration);
+      scheduleDependencyUnavailableReconnect({
+        status: null,
+        message,
+      });
+      return;
+    }
+
+    let socket: WebSocket;
+    try {
+      socket = new WebSocket(wsUrl);
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error ? error.message : "WebSocket 接続の開始に失敗しました。";
+      finishConnectAttempt(connectGeneration);
+      scheduleDependencyUnavailableReconnect({
+        status: null,
+        message,
+      });
+      return;
+    }
+
+    socketRef.current = socket;
+    bindSocketHandlers({
+      socket,
+      connectGeneration,
+      ticket: ticketResult.data.ticket,
+    });
   }, [
+    bindSocketHandlers,
     clearReconnectTimer,
     closeCurrentSocket,
     finishConnectAttempt,
-    redirectToLogin,
-    scheduleReconnect,
-    session,
+    handleTicketIssueFailure,
+    scheduleDependencyUnavailableReconnect,
+    setConnectingState,
     startConnectAttempt,
   ]);
 

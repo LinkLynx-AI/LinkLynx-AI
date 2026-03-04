@@ -1,8 +1,8 @@
 # LIN-644 Documentation
 
 ## Current status
-- Now: 実装・検証完了
-- Next: PR作成
+- Now: Claude Code レビュー提案対応まで完了
+- Next: PR再レビュー待ち
 
 ## Decisions
 - `1008` は signOut + `/login?reason=session-expired` へ誘導。
@@ -11,7 +11,9 @@
 - `POST /auth/ws-ticket` の `403` 系（`AUTH_EMAIL_NOT_VERIFIED` / `AUTH_PRINCIPAL_NOT_MAPPED`）は再試行せず login 遷移。
 - `AUTH_UNAVAILABLE` と transport 失敗は `temporarily-unavailable` として再試行対象に分類。
 - `connect` は単一フライト制御（generation + in-flight）で多重接続を防止。
+- `connect` は ticket失敗処理/WSイベント処理を分離し、責務を分割して保守性を改善。
 - バナーは `role="status"` + `aria-live="polite"` を付与し、再試行秒数は動的カウントダウン表示。
+- `NEXT_PUBLIC_API_URL` は userinfo 付きURLを拒否し、WS URL 解決時に fail-close する。
 
 ## How to run / demo
 - `cd typescript && npm run test -- src/entities/auth/api/ws-ticket.test.ts src/app/providers/ws-auth-bridge.test.tsx`

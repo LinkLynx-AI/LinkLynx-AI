@@ -11,3 +11,4 @@
 - 2026-03-04: `WsAuthBridge` を実装し、`Providers` に組み込み。
 - 2026-03-04: レビュー指摘対応として、ws-ticket エラーの再試行可否分類修正・WS多重接続ガード・バナーa11y/live-region・動的カウントダウンを追加。
 - 2026-03-04: `make validate` を再実行し、全チェック通過を確認。
+- 2026-03-04: Claude Code の改善提案対応として、`connect` の責務分割（ticket失敗処理/WSイベント処理を分離）と `NEXT_PUBLIC_API_URL` の userinfo 拒否検証を追加。

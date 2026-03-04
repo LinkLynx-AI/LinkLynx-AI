@@ -275,6 +275,21 @@ describe("WsAuthBridge", () => {
     expect(firstCall?.[0]).toContain("reason=session-expired");
   });
 
+  test("NEXT_PUBLIC_API_URL に userinfo が含まれる場合は接続せず再試行バナーを表示する", async () => {
+    vi.useFakeTimers();
+    process.env.NEXT_PUBLIC_API_URL = "https://user:pass@localhost:8080";
+
+    render(<WsAuthBridge />);
+
+    await act(async () => {
+      await flushMicrotasks();
+    });
+
+    expect(issueWsTicketMock).toHaveBeenCalledTimes(1);
+    expect(FakeWebSocket.instances.length).toBe(0);
+    expect(screen.getByText(/認証基盤が一時的に利用できません/)).toBeTruthy();
+  });
+
   test("1011 close でバナー表示し、指数バックオフで再接続する", async () => {
     vi.useFakeTimers();
 
