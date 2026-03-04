@@ -21,3 +21,7 @@
   - `create-server-modal` テストのアクセシブル名判定を正規表現化し、絵文字付与時でも壊れないように修正。
   - `make rust-lint` を実行し通過。
   - `make validate` は Python 環境制約（PEP 668）で失敗を確認。
+- Follow-up (PR review response):
+  - Claude Code の提案に対応し、`type: 0` の直値を定数化。
+  - `SUPPORTED_CHANNEL_TYPES` と型ガードを導入し、v1 チャンネル種別検証を拡張しやすい形へ整理。
+  - 作成系エラーメッセージを `CREATE_ERROR_MESSAGES` へ集約して重複を除去。

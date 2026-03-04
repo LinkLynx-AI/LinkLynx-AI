@@ -57,10 +57,20 @@ const DEFAULT_CHANNEL_VALUES = {
   rateLimitPerUser: 0,
   lastMessageId: null,
 } as const;
+const SUPPORTED_CHANNEL_TYPES = [0] as const;
+const CREATE_ERROR_MESSAGES = {
+  validation: "入力内容を確認してください。",
+  authzDenied: "この操作を行う権限がありません。",
+  authzUnavailable: "認可サービスが一時的に利用できません。しばらくしてから再試行してください。",
+  guildNotFound: "対象のサーバーが見つかりません。",
+  authRequired: "ログイン状態を確認してから再試行してください。",
+  network: "ネットワーク接続を確認してから再試行してください。",
+} as const;
 
 type GuildListResponse = z.infer<typeof GUILD_LIST_RESPONSE_SCHEMA>;
 type GuildCreateResponse = z.infer<typeof GUILD_CREATE_RESPONSE_SCHEMA>;
 type ChannelListResponse = z.infer<typeof CHANNEL_LIST_RESPONSE_SCHEMA>;
+type SupportedChannelType = (typeof SUPPORTED_CHANNEL_TYPES)[number];
 
 type GuildChannelApiErrorParams = {
   status: number | null;
@@ -138,25 +148,22 @@ export function toCreateActionErrorText(error: unknown, fallbackMessage: string)
   }
 
   if (error.code === "VALIDATION_ERROR") {
-    return attachRequestId("入力内容を確認してください。", error.requestId);
+    return attachRequestId(CREATE_ERROR_MESSAGES.validation, error.requestId);
   }
   if (error.code === "AUTHZ_DENIED") {
-    return attachRequestId("この操作を行う権限がありません。", error.requestId);
+    return attachRequestId(CREATE_ERROR_MESSAGES.authzDenied, error.requestId);
   }
   if (error.code === "AUTHZ_UNAVAILABLE") {
-    return attachRequestId(
-      "認可サービスが一時的に利用できません。しばらくしてから再試行してください。",
-      error.requestId,
-    );
+    return attachRequestId(CREATE_ERROR_MESSAGES.authzUnavailable, error.requestId);
   }
   if (error.code === "GUILD_NOT_FOUND") {
-    return attachRequestId("対象のサーバーが見つかりません。", error.requestId);
+    return attachRequestId(CREATE_ERROR_MESSAGES.guildNotFound, error.requestId);
   }
   if (error.code === "unauthenticated" || error.code === "token-unavailable") {
-    return attachRequestId("ログイン状態を確認してから再試行してください。", error.requestId);
+    return attachRequestId(CREATE_ERROR_MESSAGES.authRequired, error.requestId);
   }
   if (error.code === "network-request-failed") {
-    return attachRequestId("ネットワーク接続を確認してから再試行してください。", error.requestId);
+    return attachRequestId(CREATE_ERROR_MESSAGES.network, error.requestId);
   }
 
   return attachRequestId(fallbackMessage, error.requestId);
@@ -274,6 +281,10 @@ function mapChannel(summary: ChannelListResponse["channels"][number], position: 
     position,
     ...DEFAULT_CHANNEL_VALUES,
   };
+}
+
+function isSupportedChannelType(type: CreateChannelData["type"]): type is SupportedChannelType {
+  return SUPPORTED_CHANNEL_TYPES.some((supportedType) => supportedType === type);
 }
 
 /**
@@ -571,7 +582,7 @@ export class GuildChannelAPIClient extends NoDataAPIClient {
   async createServer(data: CreateGuildData): Promise<Guild> {
     const normalizedName = data.name.trim();
     if (normalizedName.length === 0) {
-      throw new GuildChannelApiError("入力内容を確認してください。", {
+      throw new GuildChannelApiError(CREATE_ERROR_MESSAGES.validation, {
         status: 400,
         code: "VALIDATION_ERROR",
       });
@@ -588,14 +599,14 @@ export class GuildChannelAPIClient extends NoDataAPIClient {
   async createChannel(serverId: string, data: CreateChannelData): Promise<Channel> {
     const normalizedServerId = serverId.trim();
     if (normalizedServerId.length === 0) {
-      throw new GuildChannelApiError("対象のサーバーが見つかりません。", {
+      throw new GuildChannelApiError(CREATE_ERROR_MESSAGES.guildNotFound, {
         status: 404,
         code: "GUILD_NOT_FOUND",
       });
     }
 
-    if (data.type !== 0) {
-      throw new GuildChannelApiError("入力内容を確認してください。", {
+    if (!isSupportedChannelType(data.type)) {
+      throw new GuildChannelApiError(CREATE_ERROR_MESSAGES.validation, {
         status: 400,
         code: "VALIDATION_ERROR",
       });
@@ -603,7 +614,7 @@ export class GuildChannelAPIClient extends NoDataAPIClient {
 
     const normalizedName = data.name.trim();
     if (normalizedName.length === 0) {
-      throw new GuildChannelApiError("入力内容を確認してください。", {
+      throw new GuildChannelApiError(CREATE_ERROR_MESSAGES.validation, {
         status: 400,
         code: "VALIDATION_ERROR",
       });

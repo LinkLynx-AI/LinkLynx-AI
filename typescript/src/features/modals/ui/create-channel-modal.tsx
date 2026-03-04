@@ -12,9 +12,11 @@ import { toCreateActionErrorText } from "@/shared/api/guild-channel-api-client";
 import { buildChannelRoute } from "@/shared/config/routes";
 import { cn } from "@/shared/lib/cn";
 
+const TEXT_CHANNEL_TYPE = 0 as const;
+
 const channelTypes = [
   {
-    type: 0 as const,
+    type: TEXT_CHANNEL_TYPE,
     label: "テキスト",
     icon: Hash,
     description: "メッセージや画像、GIFなどを送信できます",
@@ -69,7 +71,7 @@ export function CreateChannelModal({
     try {
       const createdChannel = await createChannel.mutateAsync({
         serverId,
-        data: { name: normalizedName, type: 0 },
+        data: { name: normalizedName, type: TEXT_CHANNEL_TYPE },
       });
       onClose();
       router.push(buildChannelRoute(serverId, createdChannel.id));

@@ -9,6 +9,7 @@
 - Next:
   - PR 作成時に `make validate` 失敗理由（PEP 668 による Python dev-tools install 制約）を明記する。
   - reviewer / reviewer_ui_guard / reviewer_ui ゲート結果を PR 本文へ記録する。
+  - Claude Code のレビュー提案（定数化・検証整理・文言集約）を取り込み、追従コミットを作成する。
 
 ## Decisions
 - channel 作成導線は server context menu に最小追加する（UI 全面改修はしない）。
