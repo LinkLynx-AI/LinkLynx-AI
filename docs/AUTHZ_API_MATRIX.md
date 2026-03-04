@@ -26,6 +26,11 @@
 | GET | `/health` | Public | なし | なし | ヘルスチェック |
 | GET | `/internal/auth/metrics` | Public | なし | なし | 認証メトリクス取得 |
 | GET | `/v1/protected/ping` | Protected | 必須 | 必須 | `rest_auth_middleware` を経由 |
+| GET | `/v1/guilds/:guild_id` | Protected | 必須 | 必須 | Guild参照 |
+| PATCH | `/v1/guilds/:guild_id` | Protected | 必須 | 必須 | Guild管理 |
+| GET | `/v1/guilds/:guild_id/channels/:channel_id` | Protected | 必須 | 必須 | Channel参照 |
+| GET | `/v1/guilds/:guild_id/channels/:channel_id/messages` | Protected | 必須 | 必須 | Message一覧参照 |
+| POST | `/v1/guilds/:guild_id/channels/:channel_id/messages` | Protected | 必須 | 必須 | Message投稿 |
 
 ### 2.2 WebSocket endpoint
 
@@ -42,6 +47,11 @@
 
 ### Protected (AuthZ required)
 - `GET /v1/protected/ping`
+- `GET /v1/guilds/:guild_id`
+- `PATCH /v1/guilds/:guild_id`
+- `GET /v1/guilds/:guild_id/channels/:channel_id`
+- `GET /v1/guilds/:guild_id/channels/:channel_id/messages`
+- `POST /v1/guilds/:guild_id/channels/:channel_id/messages`
 - `GET /ws`（upgrade handshake）
 - `auth.reauthenticate` 処理時の再認証 AuthZ
 
@@ -52,6 +62,11 @@
 | Surface | Operation | Principal | Resource | Action | Expected decision handling |
 | --- | --- | --- | --- | --- | --- |
 | REST | `GET /v1/protected/ping` | AuthN済み `principal_id` | `AuthzResource::RestPath { path: "/v1/protected/ping" }` | `View` | deny=`403/AUTHZ_DENIED`, unavailable=`503/AUTHZ_UNAVAILABLE` |
+| REST | `GET /v1/guilds/:guild_id` | AuthN済み `principal_id` | `AuthzResource::Guild { guild_id }` | `View` | deny=`403/AUTHZ_DENIED`, unavailable=`503/AUTHZ_UNAVAILABLE` |
+| REST | `PATCH /v1/guilds/:guild_id` | AuthN済み `principal_id` | `AuthzResource::Guild { guild_id }` | `Manage` | deny=`403/AUTHZ_DENIED`, unavailable=`503/AUTHZ_UNAVAILABLE` |
+| REST | `GET /v1/guilds/:guild_id/channels/:channel_id` | AuthN済み `principal_id` | `AuthzResource::GuildChannel { guild_id, channel_id }` | `View` | deny=`403/AUTHZ_DENIED`, unavailable=`503/AUTHZ_UNAVAILABLE` |
+| REST | `GET /v1/guilds/:guild_id/channels/:channel_id/messages` | AuthN済み `principal_id` | `AuthzResource::GuildChannel { guild_id, channel_id }` | `View` | deny=`403/AUTHZ_DENIED`, unavailable=`503/AUTHZ_UNAVAILABLE` |
+| REST | `POST /v1/guilds/:guild_id/channels/:channel_id/messages` | AuthN済み `principal_id` | `AuthzResource::GuildChannel { guild_id, channel_id }` | `Post` | deny=`403/AUTHZ_DENIED`, unavailable=`503/AUTHZ_UNAVAILABLE` |
 | WS | `/ws` handshake | AuthN済み `principal_id` | `AuthzResource::Session` | `Connect` | deny=`1008`, unavailable=`1011` |
 | WS | `auth.reauthenticate` | AuthN済み `principal_id` | `AuthzResource::Session` | `Connect` | deny=`1008`, unavailable=`1011` |
 
@@ -78,4 +93,4 @@
 ## 6. Notes for downstream issues
 
 - `LIN-862` 以降は本マトリクスを入力に SpiceDB スキーマ・Tuple写像を設計する。
-- `LIN-866` / `LIN-867` で新規ドメインAPIを適用する際は、本ファイルに endpoint を追加する。
+- `LIN-867` で Invite/DM/Moderation/WS の追加適用時は、本ファイルに endpoint を追加する。

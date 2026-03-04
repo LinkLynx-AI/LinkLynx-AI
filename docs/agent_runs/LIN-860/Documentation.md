@@ -2,7 +2,7 @@
 
 ## Status
 - In progress.
-- Current child issue: `LIN-865`.
+- Current child issue: `LIN-866`.
 
 ## Decisions
 - Parent/child execution order follows LIN-860 definition (`861 -> 868`).
@@ -212,6 +212,61 @@
 ## Per-child evidence (LIN-865)
 - issue: `LIN-865`
 - branch: `codex/LIN-865-authz-provider-spicedb-fail-close`
+- validation commands and results:
+  - `make rust-lint`: passed
+  - `make validate`: failed（environment dependency missing）
+- reviewer gate (`reviewer_simple`): unavailable -> manual self-review fallback (no blocking findings)
+- UI gate (`reviewer_ui_guard` / `reviewer_ui`): unavailable -> UI changesなしで `reviewer_ui` skipped
+- PR URL: https://github.com/LinkLynx-AI/LinkLynx-AI/pull/1033
+- PR base branch: `codex/lin-860`
+- merge/auto-merge status: merged (`2026-03-04T07:25:16Z`)
+
+## LIN-866 progress
+- branch: `codex/LIN-866-authz-rest-guild-channel-message`
+- objective: Guild/Channel/Message 系 REST API へ AuthZ 適用（resource/action 写像の固定）と fail-close 境界維持
+- delivered:
+  - `rust/apps/api/src/main/http_routes.rs`
+    - 最小 REST endpoint を追加
+      - `GET /v1/guilds/{guild_id}`
+      - `PATCH /v1/guilds/{guild_id}`
+      - `GET /v1/guilds/{guild_id}/channels/{channel_id}`
+      - `GET/POST /v1/guilds/{guild_id}/channels/{channel_id}/messages`
+    - `rest_auth_middleware` の resource/action 写像を拡張
+      - Guild path -> `AuthzResource::Guild`
+      - Channel/Message path -> `AuthzResource::GuildChannel`
+      - method -> `View/Post/Manage`
+  - `rust/apps/api/src/authz/service.rs`
+    - `AuthzResource` に `Guild` / `GuildChannel` を追加
+    - SpiceDB check mapping を追加
+      - `Guild + View/Manage` -> `guild:{id}#can_view/can_manage`
+      - `GuildChannel + View/Post/Manage` -> `channel:{id}#can_view/can_post/can_manage`
+  - `rust/apps/api/src/main/tests.rs`
+    - owner/admin/member 相当の allow/deny テスト追加
+    - unavailable (`503`) 維持テストを Guild endpoint で追加
+  - `rust/apps/api/src/authz/tests.rs`
+    - SpiceDB request body を捕捉し、Guild/Channel mapping を検証するテスト追加
+  - `docs/AUTHZ_API_MATRIX.md`
+    - LIN-866 対象 endpoint と `principal/resource/action` マトリクスを追記
+
+## Validation results (LIN-866)
+- `make rust-lint`: passed
+- `make validate`: failed（`typescript` の `node_modules` 未導入により `prettier: command not found`）
+
+## Review results (LIN-866)
+- `reviewer_simple`: unavailable in current execution environment（agent type unavailable）
+- Manual self-review fallback:
+  - 追加 endpoint がすべて `rest_auth_middleware` を経由することを確認
+  - Guild/Channel resource mapping と method action mapping をテストで固定
+  - SpiceDB provider request mapping（objectType/objectId/permission）をテストで固定
+  - blocking findings: none
+- `reviewer_ui_guard`: unavailable in current execution environment（agent type unavailable）
+- UI gate fallback:
+  - changed files are backend/docs only, no frontend/UI files
+  - `reviewer_ui`: skipped（UI changesなし）
+
+## Per-child evidence (LIN-866)
+- issue: `LIN-866`
+- branch: `codex/LIN-866-authz-rest-guild-channel-message`
 - validation commands and results:
   - `make rust-lint`: passed
   - `make validate`: failed（environment dependency missing）

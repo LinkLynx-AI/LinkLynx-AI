@@ -294,6 +294,73 @@ mod tests {
         assert_eq!(mock.request_count(), 1);
     }
 
+    #[tokio::test]
+    async fn runtime_provider_spicedb_maps_guild_manage_to_can_manage() {
+        let _guard = env_lock().lock().await;
+        let mock = MockSpiceDbServer::start(
+            vec![MockSpiceDbResponse::ok("PERMISSIONSHIP_HAS_PERMISSION")],
+            false,
+        )
+        .await;
+        let mut scoped = ScopedEnv::new();
+        scoped.set("AUTHZ_PROVIDER", "spicedb");
+        scoped.set("SPICEDB_ENDPOINT", "http://spicedb:50051");
+        scoped.set("SPICEDB_CHECK_ENDPOINT", &mock.endpoint());
+        scoped.set("SPICEDB_PRESHARED_KEY", "test-key");
+        scoped.set("SPICEDB_REQUEST_TIMEOUT_MS", "100");
+        scoped.set("SPICEDB_CHECK_MAX_RETRIES", "0");
+
+        let authorizer = build_runtime_authorizer();
+        let input = AuthzCheckInput {
+            principal_id: PrincipalId(4001),
+            resource: AuthzResource::Guild { guild_id: 99 },
+            action: AuthzAction::Manage,
+        };
+
+        assert!(authorizer.check(&input).await.is_ok());
+        assert_eq!(mock.request_count(), 1);
+        let requests = mock.requests().await;
+        assert_eq!(requests.len(), 1);
+        assert_eq!(requests[0]["resource"]["objectType"], "guild");
+        assert_eq!(requests[0]["resource"]["objectId"], "99");
+        assert_eq!(requests[0]["permission"], "can_manage");
+    }
+
+    #[tokio::test]
+    async fn runtime_provider_spicedb_maps_channel_post_to_can_post() {
+        let _guard = env_lock().lock().await;
+        let mock = MockSpiceDbServer::start(
+            vec![MockSpiceDbResponse::ok("PERMISSIONSHIP_HAS_PERMISSION")],
+            false,
+        )
+        .await;
+        let mut scoped = ScopedEnv::new();
+        scoped.set("AUTHZ_PROVIDER", "spicedb");
+        scoped.set("SPICEDB_ENDPOINT", "http://spicedb:50051");
+        scoped.set("SPICEDB_CHECK_ENDPOINT", &mock.endpoint());
+        scoped.set("SPICEDB_PRESHARED_KEY", "test-key");
+        scoped.set("SPICEDB_REQUEST_TIMEOUT_MS", "100");
+        scoped.set("SPICEDB_CHECK_MAX_RETRIES", "0");
+
+        let authorizer = build_runtime_authorizer();
+        let input = AuthzCheckInput {
+            principal_id: PrincipalId(4002),
+            resource: AuthzResource::GuildChannel {
+                guild_id: 10,
+                channel_id: 77,
+            },
+            action: AuthzAction::Post,
+        };
+
+        assert!(authorizer.check(&input).await.is_ok());
+        assert_eq!(mock.request_count(), 1);
+        let requests = mock.requests().await;
+        assert_eq!(requests.len(), 1);
+        assert_eq!(requests[0]["resource"]["objectType"], "channel");
+        assert_eq!(requests[0]["resource"]["objectId"], "77");
+        assert_eq!(requests[0]["permission"], "can_post");
+    }
+
     #[test]
     fn tuple_mapping_uses_canonical_relations() {
         let role_row = GuildRolePermissionRow {
@@ -597,6 +664,7 @@ mod tests {
     struct MockSpiceDbState {
         responses: Arc<tokio::sync::Mutex<Vec<MockSpiceDbResponse>>>,
         request_count: Arc<AtomicU64>,
+        requests: Arc<tokio::sync::Mutex<Vec<serde_json::Value>>>,
         require_auth: bool,
     }
 
@@ -610,6 +678,7 @@ mod tests {
             let state = MockSpiceDbState {
                 responses: Arc::new(tokio::sync::Mutex::new(responses)),
                 request_count: Arc::new(AtomicU64::new(0)),
+                requests: Arc::new(tokio::sync::Mutex::new(Vec::new())),
                 require_auth,
             };
 
@@ -636,16 +705,21 @@ mod tests {
                 .request_count
                 .load(Ordering::Relaxed)
         }
+
+        async fn requests(&self) -> Vec<serde_json::Value> {
+            self.state.requests.lock().await.clone()
+        }
     }
 
     async fn mock_spicedb_check_handler(
         State(state): State<MockSpiceDbState>,
         headers: axum::http::HeaderMap,
-        Json(_request): Json<serde_json::Value>,
+        Json(request): Json<serde_json::Value>,
     ) -> (axum::http::StatusCode, Json<serde_json::Value>) {
         state
             .request_count
             .fetch_add(1, Ordering::Relaxed);
+        state.requests.lock().await.push(request);
 
         if state.require_auth {
             let has_header = headers
