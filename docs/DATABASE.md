@@ -203,6 +203,12 @@ The source of truth for attachment metadata persistence, logical deletion/retent
 
 - `database/contracts/lin637_attachment_metadata_persistence_contract.md`
 
+### 2.18 SpiceDB Namespace/Relation/Permission Model Contract (LIN-862)
+
+The source of truth for SpiceDB namespace/relation/permission design aligned with LIN-861 matrix and LIN-632/LIN-633 tuple mapping is:
+
+- `database/contracts/lin862_spicedb_namespace_relation_permission_contract.md`
+
 ## 3. ScyllaDB の現在状態
 
 基準: `database/scylla/001_lin139_messages.cql`
@@ -282,3 +288,5 @@ The source of truth for Scylla operations (SoR boundary, partition review criter
   - `database/contracts/lin636_message_reaction_persistence_contract.md`
 - LIN-637 attachment metadata persistence contract:
   - `database/contracts/lin637_attachment_metadata_persistence_contract.md`
+- LIN-862 SpiceDB namespace/relation/permission model contract:
+  - `database/contracts/lin862_spicedb_namespace_relation_permission_contract.md`
