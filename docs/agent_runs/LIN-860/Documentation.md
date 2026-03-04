@@ -2,7 +2,7 @@
 
 ## Status
 - In progress.
-- Current child issue: `LIN-866`.
+- Current child issue: `LIN-867`.
 
 ## Decisions
 - Parent/child execution order follows LIN-860 definition (`861 -> 868`).
@@ -267,6 +267,61 @@
 ## Per-child evidence (LIN-866)
 - issue: `LIN-866`
 - branch: `codex/LIN-866-authz-rest-guild-channel-message`
+- validation commands and results:
+  - `make rust-lint`: passed
+  - `make validate`: failed（environment dependency missing）
+- reviewer gate (`reviewer_simple`): unavailable -> manual self-review fallback (no blocking findings)
+- UI gate (`reviewer_ui_guard` / `reviewer_ui`): unavailable -> UI changesなしで `reviewer_ui` skipped
+- PR URL: https://github.com/LinkLynx-AI/LinkLynx-AI/pull/1034
+- PR base branch: `codex/lin-860`
+- merge/auto-merge status: merged (`2026-03-04T07:36:03Z`)
+
+## LIN-867 progress
+- branch: `codex/LIN-867-authz-rest-ws-invite-dm-moderation`
+- objective: Invite/DM/Moderation 系 REST と WS 接続後操作へ AuthZ 適用し、deny/unavailable 境界（403/503, 1008/1011）を維持
+- delivered:
+  - `rust/apps/api/src/main/http_routes.rs`
+    - 最小 REST endpoint を追加
+      - `GET /v1/guilds/{guild_id}/invites/{invite_code}`
+      - `GET /v1/dms/{channel_id}`
+      - `GET/POST /v1/dms/{channel_id}/messages`
+      - `PATCH /v1/moderation/guilds/{guild_id}/members/{member_id}`
+    - path->resource 写像を拡張
+      - invite path -> `AuthzResource::Guild`
+      - dm path -> `AuthzResource::Channel`
+      - moderation path -> `AuthzResource::Guild`
+  - `rust/apps/api/src/authz/service.rs`
+    - `AuthzResource::Channel` を追加
+    - SpiceDB mapping を追加
+      - `Channel + View/Post/Manage` -> `channel:{id}#can_view/can_post/can_manage`
+  - `rust/apps/api/src/main/ws_routes.rs`
+    - reauth待機外のテキスト/バイナリ処理で `AuthzResource::RestPath { path: \"/ws/stream\" } + View` を追加検証
+    - deny/unavailable 時の close code を `1008/1011` で維持
+  - `rust/apps/api/src/main/tests.rs` / `rust/apps/api/src/authz/tests.rs`
+    - Invite/DM/Moderation allow/deny/unavailable テストを追加
+    - DM channel の SpiceDB request mapping テストを追加
+  - `docs/AUTHZ_API_MATRIX.md` / `docs/AUTHZ.md`
+    - LIN-867 対象 endpoint と WS stream operation のマトリクス・契約注記を追記
+
+## Validation results (LIN-867)
+- `make rust-lint`: passed
+- `make validate`: failed（`typescript` の `node_modules` 未導入により `prettier: command not found`）
+
+## Review results (LIN-867)
+- `reviewer_simple`: unavailable in current execution environment（agent type unavailable）
+- Manual self-review fallback:
+  - Invite/DM/Moderation endpoint が `rest_auth_middleware` を経由することを確認
+  - WS stream operation での AuthZ 拒否時 close code 境界（1008/1011）を確認
+  - `AuthzResource::Channel` の SpiceDB request mapping をテストで固定
+  - blocking findings: none
+- `reviewer_ui_guard`: unavailable in current execution environment（agent type unavailable）
+- UI gate fallback:
+  - changed files are backend/docs only, no frontend/UI files
+  - `reviewer_ui`: skipped（UI changesなし）
+
+## Per-child evidence (LIN-867)
+- issue: `LIN-867`
+- branch: `codex/LIN-867-authz-rest-ws-invite-dm-moderation`
 - validation commands and results:
   - `make rust-lint`: passed
   - `make validate`: failed（environment dependency missing）

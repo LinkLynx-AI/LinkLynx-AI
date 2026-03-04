@@ -215,3 +215,14 @@ v0 での認可関連 SoR:
   - allow TTL: `AUTHZ_CACHE_ALLOW_TTL_MS=5000`
   - deny TTL: `AUTHZ_CACHE_DENY_TTL_MS=1000`
   - retry/backoff: `SPICEDB_CHECK_MAX_RETRIES` / `SPICEDB_CHECK_RETRY_BACKOFF_MS`
+
+## 14. LIN-867 Invite/DM/Moderation/WS apply baseline
+
+- Invite/DM/Moderation 系 REST を `rest_auth_middleware` 保護配下に追加し、既存の `error.code/message/details/requestId` 契約を維持する。
+- path->resource の追加写像（current baseline）は以下で固定する。
+  - `/v1/guilds/{guild_id}/invites/{invite_code}` -> `AuthzResource::Guild { guild_id }`
+  - `/v1/dms/{channel_id}` / `/v1/dms/{channel_id}/messages` -> `AuthzResource::Channel { channel_id }`
+  - `/v1/moderation/guilds/{guild_id}/...` -> `AuthzResource::Guild { guild_id }`
+- WS は handshake/reauth（`Session + Connect`）に加えて、接続後メッセージ処理（`/ws/stream`）でも AuthZ を評価する。
+  - deny: close `1008`（`AUTHZ_DENIED`）
+  - unavailable: close `1011`（`AUTHZ_UNAVAILABLE`）
