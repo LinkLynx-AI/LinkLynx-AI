@@ -209,6 +209,12 @@ The source of truth for SpiceDB namespace/relation/permission design aligned wit
 
 - `database/contracts/lin862_spicedb_namespace_relation_permission_contract.md`
 
+### 2.19 Postgres -> SpiceDB Tuple Mapping/Sync Contract (LIN-864)
+
+The source of truth for Postgres `*_v2` permission data to canonical SpiceDB tuple conversion, initial backfill contract, outbox delta-sync semantics, and full-resync operational hook is:
+
+- `database/contracts/lin864_postgres_spicedb_tuple_sync_contract.md`
+
 ## 3. ScyllaDB の現在状態
 
 基準: `database/scylla/001_lin139_messages.cql`

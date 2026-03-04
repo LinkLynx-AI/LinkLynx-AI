@@ -7,6 +7,7 @@
 - `auth-firebase-principal-operations-runbook.md`: Firebase Auth and `uid -> principal_id` operations baseline (REST/WS error policy, logs/metrics, and outage triage).
 - `authz-noop-allow-all-spicedb-handoff-runbook.md`: Temporary `noop allow-all` exception expiry control and SpiceDB cutover/rollback handoff baseline.
 - `authz-spicedb-local-ci-runtime-runbook.md`: SpiceDB local/CI runtime baseline (env contract, docker startup, health check, and troubleshooting).
+- `authz-spicedb-tuple-sync-operations-runbook.md`: Postgres -> SpiceDB tuple mapping/backfill/outbox delta-sync baseline and full-resync operational hook.
 - `session-resume-dragonfly-operations-runbook.md`: Session/resume/TTL continuity baseline on Dragonfly, including degraded behavior and TTL rollout/rollback procedure.
 - `realtime-nats-core-subject-subscription-runbook.md`: NATS Core subject naming contract, Gateway/Fanout subscribe-unsubscribe lifecycle, reconnect baseline, and outage handling for v0 realtime delivery.
 - `scylla-node-loss-backup-runbook.md`: Scylla node-loss continuity decisions and minimum backup/restore execution baseline for v0.

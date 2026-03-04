@@ -2,7 +2,7 @@
 
 ## Status
 - In progress.
-- Current child issue: `LIN-863`.
+- Current child issue: `LIN-864`.
 
 ## Decisions
 - Parent/child execution order follows LIN-860 definition (`861 -> 868`).
@@ -118,4 +118,52 @@
 - UI gate (`reviewer_ui_guard` / `reviewer_ui`): unavailable -> UI changesなしで `reviewer_ui` skipped
 - PR URL: https://github.com/LinkLynx-AI/LinkLynx-AI/pull/1031
 - PR base branch: `codex/lin-860`
-- merge/auto-merge status: open（auto-merge pending）
+- merge/auto-merge status: merged (`2026-03-04T05:48:16Z`)
+
+## LIN-864 progress
+- branch: `codex/LIN-864-postgres-spicedb-tuple-sync`
+- objective: Postgres `*_v2` 権限データから canonical SpiceDB tuple への写像、initial backfill、outbox差分同期、失敗検知/再同期フックの実装
+- delivered:
+  - `rust/apps/api/src/authz/tuple_sync.rs`（新規）
+    - canonical relation tuple mapping
+    - backfill input/report 生成
+    - outbox event -> tuple mutation 変換
+    - `claim_outbox_events` / `mark_*` を使う同期サービス
+    - metrics snapshot と full resync hook (`authz.tuple.full_resync.v1`)
+  - `rust/apps/api/src/authz.rs`
+    - `tuple_sync` サブモジュール導入と再エクスポート
+  - `rust/apps/api/src/authz/runtime.rs`
+    - `AUTHZ_PROVIDER=spicedb` 時の tuple sync runtime config 検証ログ追加
+  - `rust/apps/api/src/authz/tests.rs`
+    - tuple mapping/backfill/delta sync/failure/full resync のテスト追加
+  - `database/contracts/lin864_postgres_spicedb_tuple_sync_contract.md`（新規）
+  - `docs/runbooks/authz-spicedb-tuple-sync-operations-runbook.md`（新規）
+  - `docs/AUTHZ.md` / `docs/DATABASE.md` / `docs/runbooks/README.md` / `.env.example` 更新
+
+## Validation results (LIN-864)
+- `make rust-lint`: passed
+- `make validate`: failed（`typescript` の `node_modules` 未導入により `prettier: command not found`）
+
+## Review results (LIN-864)
+- `reviewer_simple`: unavailable in current execution environment（agent type unavailable / subagent model unsupported）
+- Manual self-review fallback:
+  - tuple mapping が LIN-862 canonical relation 名に一致することを Rust テストで固定
+  - outbox差分同期の success/failure/full-resync 経路をテストで固定
+  - 同期失敗時の `mark_outbox_event_failed` と metrics 増分を確認
+  - blocking findings: none
+- `reviewer_ui_guard`: unavailable in current execution environment（agent type unavailable）
+- UI gate fallback:
+  - frontend/UI変更なし
+  - `reviewer_ui`: skipped（UI changesなし）
+
+## Per-child evidence (LIN-864)
+- issue: `LIN-864`
+- branch: `codex/LIN-864-postgres-spicedb-tuple-sync`
+- validation commands and results:
+  - `make rust-lint`: passed
+  - `make validate`: failed（environment dependency missing）
+- reviewer gate (`reviewer_simple`): unavailable -> manual self-review fallback (no blocking findings)
+- UI gate (`reviewer_ui_guard` / `reviewer_ui`): unavailable -> UI changesなしで `reviewer_ui` skipped
+- PR URL: not created yet（`gh auth status` reports invalid token on this environment）
+- PR base branch: `codex/lin-860`（planned）
+- merge/auto-merge status: pending（PR未作成）
