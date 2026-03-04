@@ -178,3 +178,9 @@ v0 での認可関連 SoR:
 - LIN-857 で `guild_roles` / `guild_member_roles` / `channel_permission_overrides` / `role_level` を post-cutover で削除し、v2モデルへ単一化する。
 - 本文 3章の v0写像は「移行前契約の履歴情報」として扱い、現行DB SoR は `*_v2` 系を参照する。
 - 削除契約のSSOTは `database/contracts/lin857_legacy_permission_assets_removal_contract.md`。
+
+## 10. LIN-861 API inventory and permission matrix
+
+- 現行実装の API 棚卸しと `principal/resource/action` マトリクスのSSOTは `docs/AUTHZ_API_MATRIX.md`。
+- Public（AuthZ除外）/Protected（AuthZ必須）境界は同文書に固定する。
+- 後続Issue（LIN-862 以降）では同文書を入力として SpiceDB モデル・適用範囲を拡張する。
