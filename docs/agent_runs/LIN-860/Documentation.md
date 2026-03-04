@@ -2,7 +2,7 @@
 
 ## Status
 - In progress.
-- Current child issue: `LIN-862`.
+- Current child issue: `LIN-863`.
 
 ## Decisions
 - Parent/child execution order follows LIN-860 definition (`861 -> 868`).
@@ -76,5 +76,46 @@
 - reviewer gate (`reviewer_simple`): unavailable -> manual self-review fallback (no blocking findings)
 - UI gate (`reviewer_ui_guard` / `reviewer_ui`): unavailable -> UI changesなしで `reviewer_ui` skipped
 - PR URL: https://github.com/LinkLynx-AI/LinkLynx-AI/pull/1030
+- PR base branch: `codex/lin-860`
+- merge/auto-merge status: merged (`2026-03-04T05:35:26Z`)
+
+## LIN-863 progress
+- branch: `codex/LIN-863-spicedb-runtime-foundation`
+- objective: SpiceDB local/CI 実行基盤（設定・環境変数・ヘルスチェック）を整備し、再現可能な手順を固定
+- delivered:
+  - `docker-compose.yml` に `spicedb` service と Rust runtime env baseline を追加
+  - `.env.example` に AuthZ/SpiceDB runtime env を追加
+  - `Makefile` に `authz-spicedb-up/down/health` を追加
+  - `.github/workflows/ci.yml` に SpiceDB runtime foundation job を追加
+  - `rust/apps/api/src/authz/runtime.rs` に SpiceDB runtime config 構築/検証を追加
+  - `rust/apps/api/src/authz/tests.rs` に SpiceDB runtime config テストを追加
+  - `docs/runbooks/authz-spicedb-local-ci-runtime-runbook.md` を新規追加
+  - `docs/runbooks/README.md` / `README.md` / `docs/AUTHZ.md` を更新
+
+## Validation results (LIN-863)
+- `make validate`: failed（`typescript` の `node_modules` 未導入により `prettier: command not found`）
+- `make rust-lint`: passed
+
+## Review results (LIN-863)
+- `reviewer_simple`: unavailable in current execution environment（agent type unavailable）
+- Manual self-review fallback:
+  - runtime env 契約（required/optional/default）と misconfiguration 挙動を `authz/runtime.rs` + runbook で整合
+  - CI job で SpiceDB gRPC endpoint の到達性チェックを追加
+  - Rustテスト追加で runtime config parse/required key を固定
+  - blocking findings: none
+- `reviewer_ui_guard`: unavailable in current execution environment（agent type unavailable）
+- UI gate fallback:
+  - frontend/UI変更なし
+  - `reviewer_ui`: skipped（UI changesなし）
+
+## Per-child evidence (LIN-863)
+- issue: `LIN-863`
+- branch: `codex/LIN-863-spicedb-runtime-foundation`
+- validation commands and results:
+  - `make validate`: failed（environment dependency missing）
+  - `make rust-lint`: passed
+- reviewer gate (`reviewer_simple`): unavailable -> manual self-review fallback (no blocking findings)
+- UI gate (`reviewer_ui_guard` / `reviewer_ui`): unavailable -> UI changesなしで `reviewer_ui` skipped
+- PR URL: https://github.com/LinkLynx-AI/LinkLynx-AI/pull/1031
 - PR base branch: `codex/lin-860`
 - merge/auto-merge status: open（auto-merge pending）

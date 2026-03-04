@@ -25,6 +25,13 @@ mod tests {
             }
             env::set_var(name, value);
         }
+
+        fn unset(&mut self, name: &str) {
+            if !self.backups.iter().any(|(saved, _)| saved == name) {
+                self.backups.push((name.to_owned(), env::var(name).ok()));
+            }
+            env::remove_var(name);
+        }
     }
 
     impl Drop for ScopedEnv {
@@ -127,5 +134,38 @@ mod tests {
 
         let error = authorizer.check(&input).await.unwrap_err();
         assert_eq!(error.kind, AuthzErrorKind::DependencyUnavailable);
+    }
+
+    #[tokio::test]
+    async fn spicedb_runtime_config_requires_preshared_key() {
+        let _guard = env_lock().lock().await;
+        let mut scoped = ScopedEnv::new();
+        scoped.set("SPICEDB_ENDPOINT", "http://localhost:50051");
+        scoped.unset("SPICEDB_PRESHARED_KEY");
+
+        let error = build_spicedb_runtime_config_from_env().unwrap_err();
+        assert!(
+            error.contains("SPICEDB_PRESHARED_KEY is required"),
+            "unexpected error: {error}"
+        );
+    }
+
+    #[tokio::test]
+    async fn spicedb_runtime_config_parses_valid_values() {
+        let _guard = env_lock().lock().await;
+        let mut scoped = ScopedEnv::new();
+        scoped.set("SPICEDB_ENDPOINT", "http://spicedb:50051");
+        scoped.set("SPICEDB_PRESHARED_KEY", "test-key");
+        scoped.set("SPICEDB_REQUEST_TIMEOUT_MS", "1500");
+        scoped.set("SPICEDB_SCHEMA_PATH", "database/contracts/lin862_spicedb_namespace_relation_permission_contract.md");
+
+        let config = build_spicedb_runtime_config_from_env().unwrap();
+        assert_eq!(config.endpoint, "http://spicedb:50051");
+        assert_eq!(config.preshared_key, "test-key");
+        assert_eq!(config.request_timeout_ms, 1500);
+        assert_eq!(
+            config.schema_path,
+            "database/contracts/lin862_spicedb_namespace_relation_permission_contract.md"
+        );
     }
 }
