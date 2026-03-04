@@ -184,3 +184,9 @@ v0 での認可関連 SoR:
 - 現行実装の API 棚卸しと `principal/resource/action` マトリクスのSSOTは `docs/AUTHZ_API_MATRIX.md`。
 - Public（AuthZ除外）/Protected（AuthZ必須）境界は同文書に固定する。
 - 後続Issue（LIN-862 以降）では同文書を入力として SpiceDB モデル・適用範囲を拡張する。
+
+## 11. LIN-862 SpiceDB model design
+
+- SpiceDB の namespace/relation/permission 設計SSOTは `database/contracts/lin862_spicedb_namespace_relation_permission_contract.md`。
+- LIN-632/LIN-633 の tuple写像契約を受け、channel判定の優先順（`user deny > user allow > role deny > role allow > role default > default deny`）を満たす relation/permission を固定する。
+- deny/unavailable の境界は ADR-004 を適用し、判定不能時の fail-open を禁止する。
