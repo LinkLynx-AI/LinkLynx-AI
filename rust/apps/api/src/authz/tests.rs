@@ -361,6 +361,38 @@ mod tests {
         assert_eq!(requests[0]["permission"], "can_post");
     }
 
+    #[tokio::test]
+    async fn runtime_provider_spicedb_maps_dm_channel_post_to_can_post() {
+        let _guard = env_lock().lock().await;
+        let mock = MockSpiceDbServer::start(
+            vec![MockSpiceDbResponse::ok("PERMISSIONSHIP_HAS_PERMISSION")],
+            false,
+        )
+        .await;
+        let mut scoped = ScopedEnv::new();
+        scoped.set("AUTHZ_PROVIDER", "spicedb");
+        scoped.set("SPICEDB_ENDPOINT", "http://spicedb:50051");
+        scoped.set("SPICEDB_CHECK_ENDPOINT", &mock.endpoint());
+        scoped.set("SPICEDB_PRESHARED_KEY", "test-key");
+        scoped.set("SPICEDB_REQUEST_TIMEOUT_MS", "100");
+        scoped.set("SPICEDB_CHECK_MAX_RETRIES", "0");
+
+        let authorizer = build_runtime_authorizer();
+        let input = AuthzCheckInput {
+            principal_id: PrincipalId(4003),
+            resource: AuthzResource::Channel { channel_id: 88 },
+            action: AuthzAction::Post,
+        };
+
+        assert!(authorizer.check(&input).await.is_ok());
+        assert_eq!(mock.request_count(), 1);
+        let requests = mock.requests().await;
+        assert_eq!(requests.len(), 1);
+        assert_eq!(requests[0]["resource"]["objectType"], "channel");
+        assert_eq!(requests[0]["resource"]["objectId"], "88");
+        assert_eq!(requests[0]["permission"], "can_post");
+    }
+
     #[test]
     fn tuple_mapping_uses_canonical_relations() {
         let role_row = GuildRolePermissionRow {
