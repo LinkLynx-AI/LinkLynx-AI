@@ -97,7 +97,17 @@ mod tests {
                         Err(AuthzError::denied("guild_channel_access_denied"))
                     }
                 }
-                _ => Ok(()),
+                (AuthzResource::Channel { .. }, AuthzAction::View | AuthzAction::Post) => {
+                    if input.principal_id.0 == 9001
+                        || input.principal_id.0 == 9002
+                        || input.principal_id.0 == 9003
+                    {
+                        Ok(())
+                    } else {
+                        Err(AuthzError::denied("dm_channel_access_denied"))
+                    }
+                }
+                _ => Err(AuthzError::denied("unsupported_role_scenario")),
             }
         }
     }
@@ -382,6 +392,125 @@ mod tests {
         let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
         assert_eq!(json["code"], "AUTHZ_UNAVAILABLE");
         assert_eq!(json["request_id"], "guild-authz-unavailable-test");
+    }
+
+    #[tokio::test]
+    async fn invite_dm_moderation_endpoints_apply_role_based_allow_and_deny() {
+        let app = app_for_test_with_authorizer(Arc::new(RoleScenarioAuthorizer)).await;
+
+        let owner_token = format!("u-owner:{}", unix_timestamp_seconds() + 300);
+        let owner_invite_response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/v1/guilds/10/invites/invite-abc")
+                    .header("authorization", format!("Bearer {owner_token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(owner_invite_response.status(), StatusCode::OK);
+
+        let member_token = format!("u-member:{}", unix_timestamp_seconds() + 300);
+        let member_dm_get_response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/v1/dms/55/messages")
+                    .header("authorization", format!("Bearer {member_token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(member_dm_get_response.status(), StatusCode::OK);
+
+        let member_dm_post_response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/v1/dms/55/messages")
+                    .header("authorization", format!("Bearer {member_token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(member_dm_post_response.status(), StatusCode::OK);
+
+        let member_moderation_response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("PATCH")
+                    .uri("/v1/moderation/guilds/10/members/9003")
+                    .header("authorization", format!("Bearer {member_token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(member_moderation_response.status(), StatusCode::FORBIDDEN);
+
+        let admin_token = format!("u-admin:{}", unix_timestamp_seconds() + 300);
+        let admin_moderation_response = app
+            .oneshot(
+                Request::builder()
+                    .method("PATCH")
+                    .uri("/v1/moderation/guilds/10/members/9003")
+                    .header("authorization", format!("Bearer {admin_token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(admin_moderation_response.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn moderation_endpoint_returns_unavailable_when_authz_unavailable() {
+        let app = app_for_test_with_authorizer(Arc::new(StaticUnavailableAuthorizer)).await;
+        let token = format!("u-owner:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("PATCH")
+                    .uri("/v1/moderation/guilds/10/members/9003")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("x-request-id", "moderation-authz-unavailable-test")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "AUTHZ_UNAVAILABLE");
+        assert_eq!(json["request_id"], "moderation-authz-unavailable-test");
+    }
+
+    #[test]
+    fn rest_authz_resource_maps_invite_dm_and_moderation_paths() {
+        match rest_authz_resource_from_path("/v1/guilds/10/invites/invite-abc") {
+            AuthzResource::Guild { guild_id } => assert_eq!(guild_id, 10),
+            _ => panic!("invite path should map to guild resource"),
+        }
+
+        match rest_authz_resource_from_path("/v1/dms/55/messages") {
+            AuthzResource::Channel { channel_id } => assert_eq!(channel_id, 55),
+            _ => panic!("dm path should map to channel resource"),
+        }
+
+        match rest_authz_resource_from_path("/v1/moderation/guilds/10/members/9003") {
+            AuthzResource::Guild { guild_id } => assert_eq!(guild_id, 10),
+            _ => panic!("moderation path should map to guild resource"),
+        }
     }
 
     #[test]

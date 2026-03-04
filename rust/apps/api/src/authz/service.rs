@@ -20,6 +20,7 @@ pub enum AuthzResource {
     Session,
     Guild { guild_id: i64 },
     GuildChannel { guild_id: i64, channel_id: i64 },
+    Channel { channel_id: i64 },
     RestPath { path: String },
 }
 
@@ -367,6 +368,30 @@ impl SpiceDbHttpAuthorizer {
             (AuthzResource::GuildChannel { .. }, _) => {
                 return Err(AuthzError::denied("guild_channel_action_not_supported"));
             }
+            (AuthzResource::Channel { channel_id }, AuthzAction::View) => (
+                SpiceDbObjectReference {
+                    object_type: "channel".to_owned(),
+                    object_id: channel_id.to_string(),
+                },
+                "can_view".to_owned(),
+            ),
+            (AuthzResource::Channel { channel_id }, AuthzAction::Post) => (
+                SpiceDbObjectReference {
+                    object_type: "channel".to_owned(),
+                    object_id: channel_id.to_string(),
+                },
+                "can_post".to_owned(),
+            ),
+            (AuthzResource::Channel { channel_id }, AuthzAction::Manage) => (
+                SpiceDbObjectReference {
+                    object_type: "channel".to_owned(),
+                    object_id: channel_id.to_string(),
+                },
+                "can_manage".to_owned(),
+            ),
+            (AuthzResource::Channel { .. }, _) => {
+                return Err(AuthzError::denied("channel_action_not_supported"));
+            }
             (AuthzResource::RestPath { path }, AuthzAction::View) => (
                 SpiceDbObjectReference {
                     object_type: "api_path".to_owned(),
@@ -526,6 +551,7 @@ fn authz_resource_label(resource: &AuthzResource) -> String {
             guild_id,
             channel_id,
         } => format!("guild:{guild_id}/channel:{channel_id}"),
+        AuthzResource::Channel { channel_id } => format!("channel:{channel_id}"),
         AuthzResource::RestPath { path } => path.clone(),
     }
 }
@@ -538,6 +564,7 @@ fn authz_resource_cache_key(resource: &AuthzResource) -> String {
             guild_id,
             channel_id,
         } => format!("guild:{guild_id}/channel:{channel_id}"),
+        AuthzResource::Channel { channel_id } => format!("channel:{channel_id}"),
         AuthzResource::RestPath { path } => format!("api_path:{path}"),
     }
 }
