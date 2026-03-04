@@ -48,6 +48,7 @@ fn app_with_state(state: AppState) -> Router {
         .route("/health", get(health_check))
         .route("/ws", get(ws_handler))
         .route("/internal/auth/metrics", get(auth_metrics_handler))
+        .route("/internal/authz/metrics", get(authz_metrics_handler))
         .merge(protected_routes)
         .with_state(state)
         .layer(cors)
@@ -362,6 +363,14 @@ async fn auth_metrics_handler(State(state): State<AppState>) -> Json<AuthMetrics
     Json(state.auth_service.metrics().snapshot())
 }
 
+/// 認可メトリクスを返す。
+/// @param state アプリケーション状態
+/// @returns 認可メトリクス
+/// @throws なし
+async fn authz_metrics_handler(State(state): State<AppState>) -> Json<AuthzMetricsSnapshot> {
+    Json(state.authz_metrics.snapshot())
+}
+
 /// REST認証ミドルウェアを実行する。
 /// @param state アプリケーション状態
 /// @param request HTTPリクエスト
@@ -427,6 +436,7 @@ async fn rest_auth_middleware(
         action,
     };
     if let Err(error) = state.authorizer.check(&authz_input).await {
+        state.authz_metrics.record_error(&error);
         tracing::warn!(
             decision = %error.decision(),
             request_id = %request_id,
@@ -440,6 +450,7 @@ async fn rest_auth_middleware(
         );
         return authz_error_response(&error, request_id);
     }
+    state.authz_metrics.record_allow();
 
     request.extensions_mut().insert(AuthContext {
         request_id,

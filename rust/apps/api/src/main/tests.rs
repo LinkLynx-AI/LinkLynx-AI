@@ -141,6 +141,7 @@ mod tests {
         let state = AppState {
             auth_service,
             authorizer,
+            authz_metrics: Arc::new(AuthzMetrics::default()),
             ws_reauth_grace: Duration::from_secs(30),
         };
 
@@ -292,6 +293,117 @@ mod tests {
         let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
         assert_eq!(json["code"], "AUTHZ_UNAVAILABLE");
         assert_eq!(json["request_id"], "authz-unavailable-test");
+    }
+
+    #[tokio::test]
+    async fn authz_metrics_endpoint_counts_allow_decisions() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+
+        let _ = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/v1/protected/ping")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/internal/authz/metrics")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["allow_total"], 1);
+        assert_eq!(json["deny_total"], 0);
+        assert_eq!(json["unavailable_total"], 0);
+    }
+
+    #[tokio::test]
+    async fn authz_metrics_endpoint_counts_deny_decisions() {
+        let app = app_for_test_with_authorizer(Arc::new(StaticDenyAuthorizer)).await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+
+        let _ = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/v1/protected/ping")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/internal/authz/metrics")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["allow_total"], 0);
+        assert_eq!(json["deny_total"], 1);
+        assert_eq!(json["unavailable_total"], 0);
+    }
+
+    #[tokio::test]
+    async fn authz_metrics_endpoint_counts_unavailable_decisions() {
+        let app = app_for_test_with_authorizer(Arc::new(StaticUnavailableAuthorizer)).await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+
+        let _ = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/v1/protected/ping")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/internal/authz/metrics")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["allow_total"], 0);
+        assert_eq!(json["deny_total"], 0);
+        assert_eq!(json["unavailable_total"], 1);
     }
 
     #[tokio::test]

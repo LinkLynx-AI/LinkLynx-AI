@@ -1,5 +1,6 @@
 use std::{
     collections::HashMap,
+    sync::atomic::{AtomicU64, Ordering},
     time::{Duration, Instant},
 };
 
@@ -41,6 +42,59 @@ pub trait Authorizer: Send + Sync {
     /// @returns 許可時は `Ok(())`
     /// @throws AuthzError 拒否または依存障害時
     async fn check(&self, input: &AuthzCheckInput) -> Result<(), AuthzError>;
+}
+
+/// 認可判定メトリクスを表現する。
+#[derive(Debug, Default)]
+pub struct AuthzMetrics {
+    allow_total: AtomicU64,
+    deny_total: AtomicU64,
+    unavailable_total: AtomicU64,
+}
+
+/// 認可判定メトリクスのスナップショットを表現する。
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct AuthzMetricsSnapshot {
+    allow_total: u64,
+    deny_total: u64,
+    unavailable_total: u64,
+}
+
+impl AuthzMetrics {
+    /// 認可許可メトリクスを記録する。
+    /// @param なし
+    /// @returns なし
+    /// @throws なし
+    pub fn record_allow(&self) {
+        self.allow_total.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// 認可拒否/判定不能メトリクスを記録する。
+    /// @param error 認可エラー
+    /// @returns なし
+    /// @throws なし
+    pub fn record_error(&self, error: &AuthzError) {
+        match error.kind {
+            AuthzErrorKind::Denied => {
+                self.deny_total.fetch_add(1, Ordering::Relaxed);
+            }
+            AuthzErrorKind::DependencyUnavailable => {
+                self.unavailable_total.fetch_add(1, Ordering::Relaxed);
+            }
+        }
+    }
+
+    /// 現在の認可判定メトリクスを取得する。
+    /// @param なし
+    /// @returns メトリクススナップショット
+    /// @throws なし
+    pub fn snapshot(&self) -> AuthzMetricsSnapshot {
+        AuthzMetricsSnapshot {
+            allow_total: self.allow_total.load(Ordering::Relaxed),
+            deny_total: self.deny_total.load(Ordering::Relaxed),
+            unavailable_total: self.unavailable_total.load(Ordering::Relaxed),
+        }
+    }
 }
 
 /// 暫定の allow-all 認可実装を表現する。

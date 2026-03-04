@@ -53,6 +53,7 @@ async fn ws_handler(
         action: AuthzAction::Connect,
     };
     if let Err(error) = state.authorizer.check(&authz_input).await {
+        state.authz_metrics.record_error(&error);
         tracing::warn!(
             decision = %error.decision(),
             request_id = %request_id,
@@ -72,6 +73,7 @@ async fn ws_handler(
             })
             .into_response();
     }
+    state.authz_metrics.record_allow();
 
     ws.on_upgrade(move |socket| handle_socket(socket, state, authenticated, request_id))
         .into_response()
@@ -243,6 +245,7 @@ async fn handle_socket_message(
                             action: AuthzAction::Connect,
                         };
                         if let Err(error) = state.authorizer.check(&authz_input).await {
+                            state.authz_metrics.record_error(&error);
                             state.auth_service.metrics().record_ws_reauth(false);
                             tracing::warn!(
                                 decision = %error.decision(),
@@ -259,6 +262,7 @@ async fn handle_socket_message(
                                 close_socket(socket, error.ws_close_code(), error.app_code()).await;
                             return false;
                         }
+                        state.authz_metrics.record_allow();
 
                         if next_principal.principal_id != authenticated.principal_id {
                             state.auth_service.metrics().record_ws_reauth(false);
@@ -388,6 +392,7 @@ async fn authorize_ws_stream_operation(
         action: AuthzAction::View,
     };
     if let Err(error) = state.authorizer.check(&authz_input).await {
+        state.authz_metrics.record_error(&error);
         tracing::warn!(
             decision = %error.decision(),
             request_id = %request_id,
@@ -402,5 +407,6 @@ async fn authorize_ws_stream_operation(
         let _ = close_socket(socket, error.ws_close_code(), error.app_code()).await;
         return false;
     }
+    state.authz_metrics.record_allow();
     true
 }

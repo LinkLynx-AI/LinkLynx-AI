@@ -63,6 +63,25 @@ jobs:
           workspaces: rust
       - run: make validate
 
+  authz-spicedb-regression:
+    name: AuthZ SpiceDB Regression
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: rust
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+      - name: Run SpiceDB provider and REST/WS authz regressions
+        run: |
+          cargo test -p linklynx_backend runtime_provider_spicedb_
+          cargo test -p linklynx_backend guild_channel_message_endpoints_apply_role_based_allow_and_deny
+          cargo test -p linklynx_backend invite_dm_moderation_endpoints_apply_role_based_allow_and_deny
+          cargo test -p linklynx_backend moderation_endpoint_returns_unavailable_when_authz_unavailable
+
   python-validate:
     name: Python Validate
     runs-on: ubuntu-latest
