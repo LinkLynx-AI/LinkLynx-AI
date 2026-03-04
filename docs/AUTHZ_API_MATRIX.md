@@ -13,7 +13,7 @@
 - 実装済みの AuthN/AuthZ 適用境界
 
 ### Out of scope
-- 未実装ドメインAPI（Guild/Channel/Message/Invite/DM/Moderation本体）の将来仕様
+- 各ドメインAPIの業務ロジック詳細仕様（本書はAuthZ境界と写像のみを扱う）
 - SpiceDBクライアント実装詳細
 
 ## 2. Endpoint inventory
@@ -25,6 +25,7 @@
 | GET | `/` | Public | なし | なし | ルート疎通 |
 | GET | `/health` | Public | なし | なし | ヘルスチェック |
 | GET | `/internal/auth/metrics` | Public | なし | なし | 認証メトリクス取得 |
+| GET | `/internal/authz/metrics` | Public | なし | なし | 認可メトリクス取得 |
 | GET | `/v1/protected/ping` | Protected | 必須 | 必須 | `rest_auth_middleware` を経由 |
 | GET | `/v1/guilds/:guild_id` | Protected | 必須 | 必須 | Guild参照 |
 | PATCH | `/v1/guilds/:guild_id` | Protected | 必須 | 必須 | Guild管理 |
@@ -49,6 +50,7 @@
 - `GET /`
 - `GET /health`
 - `GET /internal/auth/metrics`
+- `GET /internal/authz/metrics`
 
 ### Protected (AuthZ required)
 - `GET /v1/protected/ping`
@@ -111,4 +113,4 @@
 ## 6. Notes for downstream issues
 
 - `LIN-862` 以降は本マトリクスを入力に SpiceDB スキーマ・Tuple写像を設計する。
-- `LIN-867` で Invite/DM/Moderation/WS の追加適用時は、本ファイルに endpoint を追加する。
+- `LIN-868` では本マトリクスの allow/deny/unavailable 回帰をCIで検知できるよう統合テストを維持する。

@@ -604,6 +604,7 @@ async fn check_ws_connect_authorization(
         action: AuthzAction::Connect,
     };
     if let Err(error) = state.authorizer.check(&authz_input).await {
+        state.authz_metrics.record_error(&error);
         tracing::warn!(
             decision = %error.decision(),
             request_id = %request_id,
@@ -617,6 +618,7 @@ async fn check_ws_connect_authorization(
         );
         return Err(error);
     }
+    state.authz_metrics.record_allow();
 
     Ok(())
 }
@@ -732,6 +734,7 @@ async fn authorize_ws_stream_operation(
         action: AuthzAction::View,
     };
     if let Err(error) = state.authorizer.check(&authz_input).await {
+        state.authz_metrics.record_error(&error);
         tracing::warn!(
             decision = %error.decision(),
             request_id = %request_id,
@@ -746,5 +749,6 @@ async fn authorize_ws_stream_operation(
         let _ = close_socket(socket, error.ws_close_code(), error.app_code()).await;
         return false;
     }
+    state.authz_metrics.record_allow();
     true
 }

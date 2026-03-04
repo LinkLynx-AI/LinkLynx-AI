@@ -226,3 +226,4 @@ v0 での認可関連 SoR:
 - WS は handshake/reauth（`Session + Connect`）に加えて、接続後メッセージ処理（`/ws/stream`）でも AuthZ を評価する。
   - deny: close `1008`（`AUTHZ_DENIED`）
   - unavailable: close `1011`（`AUTHZ_UNAVAILABLE`）
+- 最小観測基盤として `GET /internal/authz/metrics` を追加し、`allow_total` / `deny_total` / `unavailable_total` を公開する。

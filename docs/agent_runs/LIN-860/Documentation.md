@@ -2,7 +2,7 @@
 
 ## Status
 - In progress.
-- Current child issue: `LIN-867`.
+- Current child issue: `LIN-868`.
 
 ## Decisions
 - Parent/child execution order follows LIN-860 definition (`861 -> 868`).
@@ -325,6 +325,58 @@
 - validation commands and results:
   - `make rust-lint`: passed
   - `make validate`: failed（environment dependency missing）
+- reviewer gate (`reviewer_simple`): unavailable -> manual self-review fallback (no blocking findings)
+- UI gate (`reviewer_ui_guard` / `reviewer_ui`): unavailable -> UI changesなしで `reviewer_ui` skipped
+- PR URL: https://github.com/LinkLynx-AI/LinkLynx-AI/pull/1035
+- PR base branch: `codex/lin-860`
+- merge/auto-merge status: merged (`2026-03-04T07:44:34Z`)
+
+## LIN-868 progress
+- branch: `codex/LIN-868-authz-integration-observability-cutover`
+- objective: SpiceDB経路の統合回帰固定、最小観測基盤、cutover/rollback runbook の実運用化
+- delivered:
+  - `rust/apps/api/src/authz/service.rs`
+    - `AuthzMetrics` / `AuthzMetricsSnapshot` を追加（`allow_total` / `deny_total` / `unavailable_total`）
+  - `rust/apps/api/src/main.rs`
+    - `AppState` に `authz_metrics` を追加
+  - `rust/apps/api/src/main/http_routes.rs`
+    - `GET /internal/authz/metrics` を追加
+    - REST authz 判定で allow/deny/unavailable をメトリクス記録
+  - `rust/apps/api/src/main/ws_routes.rs`
+    - handshake/reauth/stream operation のAuthZ判定結果をメトリクス記録
+  - `rust/apps/api/src/main/tests.rs`
+    - `authz_metrics` endpoint の allow/deny/unavailable カウント回帰テスト追加
+  - `.github/workflows/ci.yml`
+    - `AuthZ SpiceDB Regression` job を追加し、provider/REST-WS回帰テストを明示実行
+  - `docs/runbooks/authz-noop-allow-all-spicedb-handoff-runbook.md`
+    - cutover dry-run 手順、rollback 手順、観測/アラート観点を更新
+  - `docs/AUTHZ.md` / `docs/AUTHZ_API_MATRIX.md`
+    - metrics endpoint と LIN-868 downstream note を反映
+
+## Validation results (LIN-868)
+- `make rust-lint`: passed
+- `make validate`: failed（`typescript` の `node_modules` 未導入により `prettier: command not found`）
+- `cd typescript && npm run typecheck`: failed（`tsc: command not found`）
+
+## Review results (LIN-868)
+- `reviewer_simple`: unavailable in current execution environment（agent type unavailable）
+- Manual self-review fallback:
+  - REST/WSのAuthZ判定境界を維持したまま、観測メトリクスを additive に追加
+  - CI job で SpiceDB provider 経路の主要回帰が明示検知されることを確認
+  - handoff runbook の cutover/rollback 手順が staging dry-run 前提で再現可能な記述に更新
+  - blocking findings: none
+- `reviewer_ui_guard`: unavailable in current execution environment（agent type unavailable）
+- UI gate fallback:
+  - changed files are backend/docs/ci only, no frontend/UI files
+  - `reviewer_ui`: skipped（UI changesなし）
+
+## Per-child evidence (LIN-868)
+- issue: `LIN-868`
+- branch: `codex/LIN-868-authz-integration-observability-cutover`
+- validation commands and results:
+  - `make rust-lint`: passed
+  - `make validate`: failed（environment dependency missing）
+  - `cd typescript && npm run typecheck`: failed（environment dependency missing）
 - reviewer gate (`reviewer_simple`): unavailable -> manual self-review fallback (no blocking findings)
 - UI gate (`reviewer_ui_guard` / `reviewer_ui`): unavailable -> UI changesなしで `reviewer_ui` skipped
 - PR URL: pending（to be created）

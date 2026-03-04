@@ -349,6 +349,7 @@ mod tests {
         let state = AppState {
             auth_service,
             authorizer,
+            authz_metrics: Arc::new(AuthzMetrics::default()),
             guild_channel_service: Arc::new(StaticGuildChannelService),
             profile_service,
             ws_reauth_grace: Duration::from_secs(30),
