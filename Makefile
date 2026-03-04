@@ -122,15 +122,15 @@ authz-spicedb-up: ## SpiceDB を起動
 authz-spicedb-down: ## SpiceDB を停止
 	docker compose stop spicedb
 
-authz-spicedb-health: ## SpiceDB gRPC ポートのヘルス確認（localhost:50051）
+authz-spicedb-health: ## SpiceDB gRPC/HTTP ポートのヘルス確認（localhost:50051/8443）
 	@for i in $$(seq 1 30); do \
-		if nc -z 127.0.0.1 50051 >/dev/null 2>&1; then \
-			echo "$(GREEN)SpiceDB gRPC endpoint is ready$(NC)"; \
+		if nc -z 127.0.0.1 50051 >/dev/null 2>&1 && nc -z 127.0.0.1 8443 >/dev/null 2>&1; then \
+			echo "$(GREEN)SpiceDB gRPC/HTTP endpoints are ready$(NC)"; \
 			exit 0; \
 		fi; \
 		sleep 1; \
 	done; \
-	echo "$(RED)SpiceDB gRPC endpoint is not reachable on localhost:50051$(NC)"; \
+	echo "$(RED)SpiceDB gRPC/HTTP endpoints are not reachable on localhost:50051/8443$(NC)"; \
 	docker compose logs spicedb; \
 	exit 1
 
