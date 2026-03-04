@@ -191,3 +191,9 @@ v0 での認可関連 SoR:
 - LIN-632/LIN-633 の tuple写像契約を受け、channel判定の優先順（`user deny > user allow > role deny > role allow > role default > default deny`）を満たす relation/permission を固定する。
 - deny/unavailable の境界は ADR-004 を適用し、判定不能時の fail-open を禁止する。
 - LIN-863 での local/CI 実行基盤手順は `docs/runbooks/authz-spicedb-local-ci-runtime-runbook.md` を参照する。
+
+## 12. LIN-864 Tuple mapping and sync implementation baseline
+
+- Postgres `*_v2` 権限データから canonical relation 名へ変換する実装SSOTは `database/contracts/lin864_postgres_spicedb_tuple_sync_contract.md`。
+- 初期backfill、outbox差分同期、`authz.tuple.full_resync.v1` による最小再同期フックは同契約で固定する。
+- 運用手順は `docs/runbooks/authz-spicedb-tuple-sync-operations-runbook.md` を参照する。
