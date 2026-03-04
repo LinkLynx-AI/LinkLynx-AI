@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 import {
   APP_ROUTES,
   buildChannelRoute,
+  buildGuildRoute,
   buildInviteRoute,
   buildLoginRoute,
   classifyAppRoute,
@@ -27,6 +28,8 @@ describe("routes", () => {
   });
 
   test("channel ルートを生成する", () => {
+    expect(buildGuildRoute("guild-1")).toBe("/channels/guild-1");
+    expect(buildGuildRoute("guild/a")).toBe("/channels/guild%2Fa");
     expect(buildChannelRoute("guild-1", "channel-2")).toBe("/channels/guild-1/channel-2");
     expect(buildChannelRoute("guild/a", "channel b")).toBe("/channels/guild%2Fa/channel%20b");
   });

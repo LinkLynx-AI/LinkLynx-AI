@@ -262,6 +262,90 @@ describe("GuildChannelAPIClient", () => {
     expect(channel.guildId).toBe("2001");
   });
 
+  test("createServer maps created guild response", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          guild: {
+            guild_id: 2010,
+            name: "New Guild",
+            icon_key: null,
+            owner_id: 1001,
+          },
+        }),
+        { status: 201 },
+      ),
+    );
+
+    const client = new GuildChannelAPIClient();
+    const created = await client.createServer({ name: "  New Guild  " });
+
+    expect(created).toEqual({
+      id: "2010",
+      name: "New Guild",
+      icon: null,
+      banner: null,
+      ownerId: "1001",
+      memberCount: 0,
+      boostLevel: 0,
+      boostCount: 0,
+      features: [],
+      description: null,
+    });
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("http://localhost:8080/guilds");
+    expect(init.method).toBe("POST");
+    expect(new Headers(init.headers).get("Authorization")).toBe("Bearer token-1");
+    expect(new Headers(init.headers).get("Content-Type")).toBe("application/json");
+    expect(init.body).toBe(JSON.stringify({ name: "New Guild" }));
+  });
+
+  test("createChannel maps created channel response and updates channel index", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          channel: {
+            channel_id: 3010,
+            guild_id: 2001,
+            name: "release",
+            created_at: "2026-03-03T00:00:00Z",
+          },
+        }),
+        { status: 201 },
+      ),
+    );
+
+    const client = new GuildChannelAPIClient();
+    const created = await client.createChannel("2001", { name: "release", type: 0 });
+    const resolved = await client.getChannel(created.id);
+
+    expect(created.id).toBe("3010");
+    expect(created.guildId).toBe("2001");
+    expect(created.name).toBe("release");
+    expect(resolved.id).toBe("3010");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("http://localhost:8080/guilds/2001/channels");
+    expect(init.method).toBe("POST");
+    expect(new Headers(init.headers).get("Authorization")).toBe("Bearer token-1");
+    expect(new Headers(init.headers).get("Content-Type")).toBe("application/json");
+    expect(init.body).toBe(JSON.stringify({ name: "release" }));
+  });
+
+  test("createChannel rejects unsupported channel types in v1", async () => {
+    const client = new GuildChannelAPIClient();
+
+    await expect(
+      client.createChannel("2001", { name: "voice-room", type: 2 }),
+    ).rejects.toMatchObject({
+      code: "VALIDATION_ERROR",
+      status: 400,
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   test("returns typed error with request_id when backend error contract is returned", async () => {
     fetchMock.mockResolvedValue(
       new Response(

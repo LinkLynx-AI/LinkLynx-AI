@@ -3,6 +3,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { getAPIClient } from "@/shared/api/api-client";
 import type { CreateChannelData } from "@/shared/api/api-client";
+import type { Channel } from "@/shared/model/types";
 
 export function useCreateChannel() {
   const queryClient = useQueryClient();
@@ -11,7 +12,19 @@ export function useCreateChannel() {
   return useMutation({
     mutationFn: ({ serverId, data }: { serverId: string; data: CreateChannelData }) =>
       api.createChannel(serverId, data),
-    onSuccess: (_, { serverId }) => {
+    onSuccess: (createdChannel, { serverId }) => {
+      queryClient.setQueryData<Channel[] | undefined>(["channels", serverId], (currentChannels) => {
+        if (currentChannels === undefined) {
+          return currentChannels;
+        }
+
+        if (currentChannels.some((channel) => channel.id === createdChannel.id)) {
+          return currentChannels;
+        }
+
+        return [...currentChannels, createdChannel];
+      });
+      queryClient.setQueryData(["channel", createdChannel.id], createdChannel);
       queryClient.invalidateQueries({ queryKey: ["channels", serverId] });
     },
   });
