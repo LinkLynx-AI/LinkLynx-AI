@@ -1,6 +1,6 @@
 # AuthZ Contract (v1 pre-SpiceDB)
 
-最終更新: 2026-03-03
+最終更新: 2026-03-04
 
 この文書は `LIN-600` の成果物として、v0 RBAC を v1 AuthZ 入力へ写像する契約を固定する。
 本契約は `LIN-602` での導線実装（Authorizer境界 + noop allow-all）を直接着手可能にするための最小セットである。
@@ -197,3 +197,21 @@ v0 での認可関連 SoR:
 - Postgres `*_v2` 権限データから canonical relation 名へ変換する実装SSOTは `database/contracts/lin864_postgres_spicedb_tuple_sync_contract.md`。
 - 初期backfill、outbox差分同期、`authz.tuple.full_resync.v1` による最小再同期フックは同契約で固定する。
 - 運用手順は `docs/runbooks/authz-spicedb-tuple-sync-operations-runbook.md` を参照する。
+
+## 13. LIN-865 `AUTHZ_PROVIDER=spicedb` fail-close runtime baseline
+
+- `AUTHZ_PROVIDER=spicedb` では `SpiceDB /v1/permissions/check` を使う Authorizer 実装を有効化し、`allow/deny/unavailable` を ADR-004 契約で返す。
+- 判定写像（v1 baseline）は以下で固定する。
+  - `Session + Connect` -> `session:global` / `can_connect`
+  - `RestPath + View` -> `api_path:{path}` / `can_view`
+  - 上記以外の組み合わせは deterministic deny（`403` / WS `1008`）
+- SpiceDB 応答の `permissionship` は以下で解釈する。
+  - `PERMISSIONSHIP_HAS_PERMISSION` -> allow
+  - `PERMISSIONSHIP_NO_PERMISSION` / `PERMISSIONSHIP_CONDITIONAL_PERMISSION` / `PERMISSIONSHIP_UNSPECIFIED` -> deny
+  - 不明値は unavailable（fail-close）
+- 依存障害（timeout/transport/error status/初期化失敗）は unavailable（`503` / WS `1011`）へ写像し、許可へ倒さない。
+- `AUTHZ_PROVIDER=spicedb` 経路で設定不正または初期化失敗が起きた場合、暗黙の `noop allow-all` フォールバックは禁止し、fail-close authorizer を使う。
+- キャッシュと再試行の baseline は ADR-004 に合わせる。
+  - allow TTL: `AUTHZ_CACHE_ALLOW_TTL_MS=5000`
+  - deny TTL: `AUTHZ_CACHE_DENY_TTL_MS=1000`
+  - retry/backoff: `SPICEDB_CHECK_MAX_RETRIES` / `SPICEDB_CHECK_RETRY_BACKOFF_MS`

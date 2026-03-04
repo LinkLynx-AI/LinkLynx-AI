@@ -2,7 +2,7 @@
 
 - Status: Draft
 - Last updated: 2026-03-04
-- Owner scope: LIN-863 local/CI runtime baseline
+- Owner scope: LIN-863 local/CI runtime baseline + LIN-865 fail-close integration
 - References:
   - `database/contracts/lin862_spicedb_namespace_relation_permission_contract.md`
   - `docs/AUTHZ_API_MATRIX.md`
@@ -29,13 +29,19 @@ When `AUTHZ_PROVIDER=spicedb`, use the following baseline:
 - `AUTHZ_PROVIDER=spicedb`
 - `AUTHZ_ALLOW_ALL_UNTIL=2026-06-30` (temporary exception tracking)
 - `SPICEDB_ENDPOINT=http://localhost:50051` (or compose network endpoint)
+- `SPICEDB_CHECK_ENDPOINT=http://localhost:8443` (or compose network endpoint)
 - `SPICEDB_PRESHARED_KEY=<non-empty>`
 - `SPICEDB_REQUEST_TIMEOUT_MS=1000`
+- `SPICEDB_CHECK_MAX_RETRIES=1`
+- `SPICEDB_CHECK_RETRY_BACKOFF_MS=100`
+- `AUTHZ_CACHE_ALLOW_TTL_MS=5000`
+- `AUTHZ_CACHE_DENY_TTL_MS=1000`
+- `SPICEDB_POLICY_VERSION=lin862-v1`
 - `SPICEDB_SCHEMA_PATH=database/contracts/lin862_spicedb_namespace_relation_permission_contract.md`
 
 Misconfiguration behavior (current baseline):
-- Runtime config errors are logged and provider falls back to noop allow-all path.
-- This fallback is temporary and must be removed at LIN-865/LIN-868 completion.
+- Runtime config or authorizer initialization errors are logged and provider moves to fail-close path (`AUTHZ_UNAVAILABLE`).
+- Implicit fallback to `noop allow-all` is prohibited.
 
 ## 3. Local startup and health check
 
@@ -45,7 +51,7 @@ Misconfiguration behavior (current baseline):
 make authz-spicedb-up
 ```
 
-2. Health check (gRPC port):
+2. Health check (gRPC/HTTP ports):
 
 ```bash
 make authz-spicedb-health
@@ -56,19 +62,21 @@ make authz-spicedb-health
 ```bash
 AUTHZ_PROVIDER=spicedb \
 SPICEDB_ENDPOINT=http://localhost:50051 \
+SPICEDB_CHECK_ENDPOINT=http://localhost:8443 \
 SPICEDB_PRESHARED_KEY=replace-with-dev-spicedb-key \
 make rust-dev
 ```
 
 4. Confirm runtime log behavior:
-- if config is valid: `spicedb runtime foundation is configured`
-- if config is invalid: `spicedb runtime foundation is misconfigured`
+- if config is valid: `AUTHZ_PROVIDER=spicedb runtime config is ready`
+- if config is invalid: `AUTHZ_PROVIDER=spicedb runtime config is invalid; fail-close authorizer is active`
+- if authorizer initialization fails: `failed to initialize spicedb authorizer; fail-close authorizer is active`
 
 ## 4. CI baseline
 
 CI baseline job must:
 1. `docker compose up -d spicedb`
-2. verify `localhost:50051` is reachable
+2. verify `localhost:50051` and `localhost:8443` are reachable
 3. print SpiceDB logs and fail when endpoint does not become ready
 4. always stop containers at job end
 
@@ -83,7 +91,17 @@ CI baseline job must:
 ### 5.2 Runtime misconfigured log appears
 - Ensure `SPICEDB_PRESHARED_KEY` is non-empty
 - Ensure `SPICEDB_ENDPOINT` is a valid URL (e.g. `http://localhost:50051`)
+- Ensure `SPICEDB_CHECK_ENDPOINT` is a valid URL (e.g. `http://localhost:8443`)
 - Ensure `SPICEDB_REQUEST_TIMEOUT_MS` is valid `u64`
+- Ensure `SPICEDB_CHECK_MAX_RETRIES` is valid `u32`
+- Ensure `SPICEDB_CHECK_RETRY_BACKOFF_MS` is valid `u64`
+
+### 5.3 Fail-close behavior check
+- Stop SpiceDB and call one protected endpoint.
+- Expected:
+  - REST returns `503` with `AUTHZ_UNAVAILABLE`
+  - WS closes with `1011`
+- If request is accepted, treat as contract violation and rollback latest authz runtime changes.
 
 ## 6. Exit criteria for LIN-863
 
