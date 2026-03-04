@@ -1,17 +1,22 @@
 # Documentation
 
 ## Current status
-- Now: auth 修正・追加テスト・最終レビューまで完了。
-- Next: PR作成と最終説明。
+- Now: `server/guild` Rust バックエンドのレビュー修正ループを完了。
+- Next: 必要ならコミット/PR 化。
 
 ## Decisions
-- AuthZ runtime の fail-close を優先し、allow-all fallback を除去する。
-- 認証状態同期とエラー分類の不整合は frontend 側で明示的に扱う。
+- Start mode は `standalone smallest-unit`。
+- 変更は `guild_channel` 実装と関連テストに限定。
+- 既存API契約（`guild_not_found` と `guild_membership_required` の分類、`VALIDATION_ERROR`）を維持。
 
-## How to run / demo
-- Primary validate: `make validate`
-- Rust tests: `cd rust && cargo test -p linklynx_backend`
-- TS focused tests: `cd typescript && npm run test -- src/entities/auth/api/principal-provisioning.test.ts src/features/route-guard/ui/protected-preview-gate.test.tsx src/features/route-guard/ui/protected-preview-gate.browser.test.tsx src/features/auth-flow/model/error-message.test.ts src/app/providers/auth-bridge.test.tsx`
+## Review gate evidence
+- 初回 `reviewer`: `gate: block`
+- 修正後 `reviewer`（差分対象）: `gate: pass`
+- `reviewer_ui_guard`: 両回とも `run_ui_checks: false`
+
+## Validation evidence
+- `cd rust && cargo test -p linklynx_backend guild_channel`
+- `make validate`
 
 ## Known issues / follow-ups
-- 最終レビュー結果: findings 0件 / blocking なし。
+- なし（今回差分に対する blocking 指摘は解消済み）。

@@ -1,25 +1,24 @@
 # Prompt
 
 ## Goals
-- auth 関連の backend/frontend 実装を探索し、レビューエージェント指摘を解消する。
-- レビュー指摘のうち特に blocking (P1) を優先し、レビューOKになるまで修正を反復する。
+- `server/guild` 機能周辺の Rust バックエンドを探索し、レビューエージェント指摘を解消してレビューOK状態まで到達する。
+- 変更は依頼スコープ（guild/channel 関連）に限定し、既存契約（AuthZ fail-close/DB制約）を維持する。
 
 ## Non-goals
-- auth 以外の機能改善。
-- UI デザイン変更。
+- guild/channel 以外の機能改善やリファクタ。
+- API仕様の破壊的変更。
 
 ## Deliverables
-- AuthZ の fail-close 方針に沿った runtime 挙動。
-- auth 関連エンドポイントの保護強化。
-- frontend 認証状態同期とエラー分類の不整合修正。
-- 追加/更新テストとその実行結果。
+- `rust/apps/api/src/guild_channel/*` と関連ハンドラの必要最小限修正。
+- レビューゲート実行結果（指摘→修正→再レビュー）。
+- 検証結果（`make validate` と必要な追加チェック）。
 
 ## Done when
-- [ ] reviewer 指摘の blocking finding が解消されている。
-- [ ] auth 関連の追加/更新テストが通過している。
-- [ ] reviewer 再実行で重大指摘がなくなる。
+- [x] `reviewer` ゲートで blocking 指摘が 0。
+- [x] 必要な検証コマンドが成功。
+- [x] 変更内容と意図を日本語で説明可能な状態。
 
 ## Constraints
-- Perf: auth 処理のホットパスで不要な追加処理を避ける。
-- Security: ADR-004 fail-close 方針を満たす。
-- Compatibility: auth API 契約を壊さない（必要最小限の挙動修正のみ）。
+- Perf: 不要なクエリ増加やロック競合を導入しない。
+- Security: ADR-004 fail-close 契約（`AUTHZ_DENIED` / `AUTHZ_UNAVAILABLE`）を崩さない。
+- Compatibility: 既存 REST レスポンス契約（status/code/message）を維持する。

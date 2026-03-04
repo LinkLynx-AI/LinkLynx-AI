@@ -1,31 +1,35 @@
 # Plan
 
 ## Rules
-- validation/review で失敗したら次に進まず修正する。
+- Stop-and-fix: レビューまたは検証が失敗した場合は次工程へ進まず修正する。
+- Scope lock: `server/guild` 関連以外は変更しない。
 
 ## Milestones
-### M1: Backend auth hardening
+### M1: 対象特定と前提確認
 - Acceptance criteria:
-  - [x] `AUTHZ_PROVIDER` 未設定/不正/未実装時に allow-all へ落ちない。
-  - [x] auth metrics エンドポイントが認証保護される。
+  - [x] `guild_channel` 周辺の実装と既存契約を把握
+  - [x] 調査対象ファイルを確定
 - Validation:
-  - `cd rust && cargo test -p linklynx_backend`
+  - `rg --files rust/apps/api/src/guild_channel`
 
-### M2: Frontend auth consistency
+### M2: 初回レビューゲート実行
 - Acceptance criteria:
-  - [x] AuthBridge が未認証遷移時に stale user を残さない。
-  - [x] principal provisioning が `token-unavailable` を正しく扱う。
+  - [x] `reviewer` を実行して指摘一覧を取得
+  - [x] UI影響有無を判断（必要時のみ UI review）
 - Validation:
-  - `cd typescript && npm run test -- src/entities/auth/api/principal-provisioning.test.ts src/features/auth-flow/model/error-message.test.ts`
+  - `reviewer` agent result
 
-### M3: Route guard regression tests
+### M3: 指摘修正 + コード検証
 - Acceptance criteria:
-  - [x] route guard の 401/403/503 分岐をカバーするテストが追加される。
+  - [x] blocking 指摘を修正
+  - [x] Rust 検証コマンドが成功
 - Validation:
-  - `cd typescript && npm run test -- src/features/route-guard/ui/protected-preview-gate.test.tsx src/features/route-guard/ui/protected-preview-gate.browser.test.tsx src/app/providers/auth-bridge.test.tsx`
+  - `make validate`
+  - 必要に応じて `cd rust && cargo test -p api guild_channel`
 
-### M4: Review loop
+### M4: 再レビューで収束
 - Acceptance criteria:
-  - [x] `reviewer` 再実行で blocking finding がない。
+  - [x] `reviewer` 再実行で blocking 指摘 0
+  - [x] 実施ログを `Documentation.md` に記録
 - Validation:
-  - `reviewer`: gate=pass（P1以上なし）
+  - `reviewer` agent result (pass)
