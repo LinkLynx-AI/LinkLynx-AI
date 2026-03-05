@@ -6,12 +6,15 @@ import type {
   CreateGuildData,
   CreateInviteData,
   Invite,
+  MyProfile,
   Relationship,
   Role,
   SearchParams,
   SearchResult,
+  UpdateMyProfileInput,
   Webhook,
 } from "./api-client";
+import { createMyProfileValidationError, hasMyProfileUpdateFields } from "./my-profile-validation";
 import type {
   Channel,
   Guild,
@@ -51,6 +54,14 @@ function buildProfile(user: User): UserProfile {
     accentColor: null,
     badges: [],
     createdAt: new Date(0).toISOString(),
+  };
+}
+
+function buildMyProfile(user: User): MyProfile {
+  return {
+    displayName: user.displayName,
+    statusText: user.customStatus,
+    avatarKey: null,
   };
 }
 
@@ -168,6 +179,49 @@ export class NoDataAPIClient implements APIClient {
 
   getUserProfile(userId: string): Promise<UserProfile> {
     return this.getUser(userId).then((user) => buildProfile(user));
+  }
+
+  getMyProfile(): Promise<MyProfile> {
+    try {
+      return Promise.resolve(buildMyProfile(resolveCurrentUserOrThrow()));
+    } catch (error) {
+      return Promise.reject(
+        error instanceof Error ? error : new Error("Unknown profile fetch error."),
+      );
+    }
+  }
+
+  updateMyProfile(input: UpdateMyProfileInput): Promise<MyProfile> {
+    if (!hasMyProfileUpdateFields(input)) {
+      return Promise.reject(createMyProfileValidationError());
+    }
+
+    try {
+      const currentUser = resolveCurrentUserOrThrow();
+      const displayName =
+        input.displayName !== undefined ? input.displayName.trim() : currentUser.displayName;
+      const statusText =
+        input.statusText !== undefined
+          ? (input.statusText?.trim() ?? null)
+          : currentUser.customStatus;
+
+      const updatedUser: User = {
+        ...currentUser,
+        displayName,
+        customStatus: statusText,
+      };
+      useAuthStore.setState({ currentUser: updatedUser, customStatus: statusText });
+
+      return Promise.resolve({
+        displayName,
+        statusText,
+        avatarKey: null,
+      });
+    } catch (error) {
+      return Promise.reject(
+        error instanceof Error ? error : new Error("Unknown profile update error."),
+      );
+    }
   }
 
   getFriends(): Promise<Relationship[]> {

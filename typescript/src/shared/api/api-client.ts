@@ -25,6 +25,18 @@ export type SearchResult = {
   totalResults: number;
 };
 
+export type MyProfile = {
+  displayName: string;
+  statusText: string | null;
+  avatarKey: string | null;
+};
+
+export type UpdateMyProfileInput = {
+  displayName?: string;
+  statusText?: string | null;
+  avatarKey?: string | null;
+};
+
 export type CreateGuildData = {
   name: string;
   icon?: string;
@@ -129,6 +141,8 @@ export type APIClient = {
   // Users
   getUser(userId: string): Promise<User>;
   getUserProfile(userId: string): Promise<UserProfile>;
+  getMyProfile(): Promise<MyProfile>;
+  updateMyProfile(input: UpdateMyProfileInput): Promise<MyProfile>;
 
   // Relationships (Friends)
   getFriends(): Promise<Relationship[]>;
