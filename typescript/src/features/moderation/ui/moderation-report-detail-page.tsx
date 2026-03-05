@@ -10,7 +10,7 @@ import {
 import { useModerationReport } from "@/shared/api/queries";
 import { toApiErrorText } from "@/shared/api/guild-channel-api-client";
 import { buildModerationQueueRoute } from "@/shared/config/routes";
-import { ShellStatePlaceholder } from "@/widgets/app-shell";
+import { ModerationStatePlaceholder } from "./moderation-state-placeholder";
 
 export function ModerationReportDetailPage({
   serverId,
@@ -33,8 +33,7 @@ export function ModerationReportDetailPage({
   if (isLoading) {
     return (
       <div className="p-6">
-        <ShellStatePlaceholder
-          state="loading"
+        <ModerationStatePlaceholder
           title="通報詳細を読み込み中です"
           description="対象通報の状態を確認しています。"
         />
@@ -45,8 +44,7 @@ export function ModerationReportDetailPage({
   if (isError || !report) {
     return (
       <div className="p-6">
-        <ShellStatePlaceholder
-          state="error"
+        <ModerationStatePlaceholder
           title="通報詳細の取得に失敗しました"
           description={toApiErrorText(error, "対象の通報が見つかりません。")}
         />

@@ -10,7 +10,7 @@ import {
 import { useModerationReports } from "@/shared/api/queries";
 import { toApiErrorText } from "@/shared/api/guild-channel-api-client";
 import { buildModerationReportRoute } from "@/shared/config/routes";
-import { ShellStatePlaceholder } from "@/widgets/app-shell";
+import { ModerationStatePlaceholder } from "./moderation-state-placeholder";
 
 export function ModerationQueuePage({ serverId }: { serverId: string }) {
   const { data: reports, isLoading, isError, error } = useModerationReports(serverId);
@@ -51,8 +51,7 @@ export function ModerationQueuePage({ serverId }: { serverId: string }) {
   if (isLoading) {
     return (
       <div className="p-6">
-        <ShellStatePlaceholder
-          state="loading"
+        <ModerationStatePlaceholder
           title="モデレーションキューを読み込み中です"
           description="通報データを取得しています。"
         />
@@ -63,8 +62,7 @@ export function ModerationQueuePage({ serverId }: { serverId: string }) {
   if (isError) {
     return (
       <div className="p-6">
-        <ShellStatePlaceholder
-          state="error"
+        <ModerationStatePlaceholder
           title="モデレーションキューの取得に失敗しました"
           description={toApiErrorText(error, "時間をおいて再試行してください。")}
         />
