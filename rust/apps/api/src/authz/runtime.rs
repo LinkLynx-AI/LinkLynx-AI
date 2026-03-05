@@ -1,4 +1,4 @@
-const DEFAULT_AUTHZ_PROVIDER: &str = "noop_unavailable";
+const DEFAULT_AUTHZ_PROVIDER: &str = "noop";
 const DEFAULT_ALLOW_ALL_UNTIL: &str = "2026-06-30";
 
 /// 実行時向けの認可実装を生成する。

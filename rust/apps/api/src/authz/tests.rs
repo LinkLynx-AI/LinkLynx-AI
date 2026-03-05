@@ -103,7 +103,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn runtime_provider_default_falls_back_to_unavailable() {
+    async fn runtime_provider_default_uses_noop_allow() {
         let _guard = env_lock().lock().await;
         let mut scoped = ScopedEnv::new();
         scoped.remove("AUTHZ_PROVIDER");
@@ -116,8 +116,7 @@ mod tests {
             action: AuthzAction::Connect,
         };
 
-        let error = authorizer.check(&input).await.unwrap_err();
-        assert_eq!(error.kind, AuthzErrorKind::DependencyUnavailable);
+        assert!(authorizer.check(&input).await.is_ok());
     }
 
     #[tokio::test]

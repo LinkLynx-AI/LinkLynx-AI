@@ -24,3 +24,4 @@ export {
 export { useCreateRole, useUpdateRole, useDeleteRole, useReorderRoles } from "./use-role-actions";
 export { useCreateInvite, useRevokeInvite } from "./use-invite-actions";
 export { useUpdateChannel } from "./use-channel-update";
+export { useUpdateMyProfile } from "./use-my-profile";
