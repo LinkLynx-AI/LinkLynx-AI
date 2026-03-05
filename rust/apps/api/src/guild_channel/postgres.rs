@@ -43,6 +43,45 @@ impl PostgresGuildChannelService {
                    ON c.guild_id = m.guild_id
                   AND c.type = 'guild_text'
                  ORDER BY c.created_at ASC NULLS LAST, c.id ASC NULLS LAST";
+    const UPDATE_GUILD_SQL: &str = "WITH target AS (
+                    SELECT id, owner_id
+                    FROM guilds
+                    WHERE id = $1
+                    FOR UPDATE
+                 ),
+                 actor AS (
+                    SELECT
+                      t.id AS guild_id,
+                      (t.owner_id = $2) AS is_owner,
+                      EXISTS (
+                        SELECT 1
+                        FROM guild_member_roles_v2 gmr
+                        JOIN guild_roles_v2 gr
+                          ON gr.guild_id = gmr.guild_id
+                         AND gr.role_key = gmr.role_key
+                        WHERE gmr.guild_id = t.id
+                          AND gmr.user_id = $2
+                          AND gr.allow_manage = TRUE
+                      ) AS can_manage
+                    FROM target t
+                 ),
+                 updated AS (
+                    UPDATE guilds g
+                    SET
+                      name = CASE WHEN $3::boolean THEN $4::text ELSE g.name END,
+                      icon_key = CASE WHEN $5::boolean THEN $6::text ELSE g.icon_key END,
+                      updated_at = now()
+                    FROM actor a
+                    WHERE g.id = a.guild_id
+                      AND (a.is_owner OR a.can_manage)
+                    RETURNING g.id, g.name, g.icon_key, g.owner_id
+                 )
+                 SELECT
+                    id AS guild_id,
+                    name,
+                    icon_key,
+                    owner_id
+                 FROM updated";
     const UPDATE_GUILD_CHANNEL_SQL: &str = "WITH editable AS (
                     SELECT
                        c.id AS channel_id,
@@ -350,6 +389,43 @@ impl PostgresGuildChannelService {
         }
     }
 
+    /// principalがguild管理権限を持つか確認する。
+    /// @param client Postgresクライアント
+    /// @param principal_id 認証済みprincipal_id
+    /// @param guild_id 対象guild_id
+    /// @returns 管理権限がある場合は `true`
+    /// @throws GuildChannelError 依存障害時
+    async fn has_manage_permission(
+        &self,
+        client: &tokio_postgres::Client,
+        principal_id: PrincipalId,
+        guild_id: i64,
+    ) -> Result<bool, GuildChannelError> {
+        match client
+            .query_opt(
+                "SELECT 1
+                 FROM guilds g
+                 WHERE g.id = $1
+                   AND g.owner_id = $2
+                 UNION ALL
+                 SELECT 1
+                 FROM guild_member_roles_v2 gmr
+                 JOIN guild_roles_v2 gr
+                   ON gr.guild_id = gmr.guild_id
+                  AND gr.role_key = gmr.role_key
+                 WHERE gmr.guild_id = $1
+                   AND gmr.user_id = $2
+                   AND gr.allow_manage = TRUE
+                 LIMIT 1",
+                &[&guild_id, &principal_id.0],
+            )
+            .await
+        {
+            Ok(row) => Ok(row.is_some()),
+            Err(error) => Err(self.map_read_error("guild_manage_permission_lookup_failed", error).await),
+        }
+    }
+
     /// 書き込み系DBエラーをAPIエラーへ変換する。
     /// @param context エラー文脈
     /// @param error Postgresエラー
@@ -480,6 +556,80 @@ impl GuildChannelService for PostgresGuildChannelService {
             name: created.get::<&str, String>("name"),
             icon_key: created.get::<&str, Option<String>>("icon_key"),
             owner_id: created.get::<&str, i64>("owner_id"),
+        })
+    }
+
+    /// guild設定を更新する。
+    /// @param principal_id 更新主体
+    /// @param guild_id 対象guild_id
+    /// @param patch 更新入力
+    /// @returns 更新後guild
+    /// @throws GuildChannelError 入力不正/非権限/未存在/依存障害時
+    async fn update_guild(
+        &self,
+        principal_id: PrincipalId,
+        guild_id: i64,
+        patch: GuildPatchInput,
+    ) -> Result<CreatedGuild, GuildChannelError> {
+        if patch.is_empty() {
+            return Err(GuildChannelError::validation("guild_patch_empty"));
+        }
+
+        let normalized_name = match patch.name {
+            Some(name) => Some(normalize_guild_name(&name)?),
+            None => None,
+        };
+        let normalized_icon_key = match patch.icon_key {
+            Some(icon_key) => Some(normalize_icon_key(icon_key)?),
+            None => None,
+        };
+
+        let set_name = normalized_name.is_some();
+        let name_value = normalized_name.as_deref();
+        let set_icon_key = normalized_icon_key.is_some();
+        let icon_key_value = normalized_icon_key.as_ref().and_then(|value| value.as_deref());
+
+        let client = self.select_client().await?;
+        let updated = match client
+            .query_opt(
+                Self::UPDATE_GUILD_SQL,
+                &[
+                    &guild_id,
+                    &principal_id.0,
+                    &set_name,
+                    &name_value,
+                    &set_icon_key,
+                    &icon_key_value,
+                ],
+            )
+            .await
+        {
+            Ok(Some(row)) => row,
+            Ok(None) => {
+                if !self.has_guild(&client, guild_id).await? {
+                    return Err(GuildChannelError::not_found("guild_not_found"));
+                }
+                if !self
+                    .has_manage_permission(&client, principal_id, guild_id)
+                    .await?
+                {
+                    return Err(GuildChannelError::forbidden("guild_manage_permission_required"));
+                }
+                return Err(GuildChannelError::dependency_unavailable(
+                    "guild_update_rejected_without_reason",
+                ));
+            }
+            Err(error) => {
+                self.invalidate_pool().await;
+                return Err(Self::map_write_error("guild_update_query_failed", error));
+            }
+        };
+
+        Ok(CreatedGuild {
+            guild_id: updated.get::<&str, i64>("guild_id"),
+            name: updated.get::<&str, String>("name"),
+            icon_key: updated.get::<&str, Option<String>>("icon_key"),
+            owner_id: updated.get::<&str, i64>("owner_id"),
         })
     }
 

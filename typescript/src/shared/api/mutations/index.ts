@@ -6,7 +6,12 @@ export {
   useRemoveFriend,
   useBlockUser,
 } from "./use-friend-actions";
-export { useCreateServer, useDeleteServer, useLeaveServer } from "./use-server-actions";
+export {
+  useCreateServer,
+  useDeleteServer,
+  useLeaveServer,
+  useUpdateServer,
+} from "./use-server-actions";
 export { useCreateChannel, useDeleteChannel } from "./use-channel-actions";
 export {
   usePinMessage,

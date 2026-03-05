@@ -20,7 +20,7 @@ use auth::{
 };
 use authz::{
     authz_error_response, build_runtime_authorizer, Authorizer, AuthzAction, AuthzCheckInput,
-    AuthzResource,
+    AuthzMetrics, AuthzMetricsSnapshot, AuthzResource,
 };
 use axum::{
     body::Body,
@@ -51,6 +51,7 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 pub(crate) struct AppState {
     auth_service: Arc<AuthService>,
     authorizer: Arc<dyn Authorizer>,
+    authz_metrics: Arc<AuthzMetrics>,
     guild_channel_service: Arc<dyn GuildChannelService>,
     profile_service: Arc<dyn ProfileService>,
     ws_reauth_grace: Duration,
@@ -105,6 +106,7 @@ fn build_runtime_state() -> AppState {
     let metrics = Arc::new(AuthMetrics::default());
     let auth_service = Arc::new(build_runtime_auth_service(Arc::clone(&metrics)));
     let authorizer = build_runtime_authorizer();
+    let authz_metrics = Arc::new(AuthzMetrics::default());
     let guild_channel_service = build_runtime_guild_channel_service();
     let profile_service = build_runtime_profile_service();
     let ws_reauth_grace = Duration::from_secs(
@@ -124,6 +126,7 @@ fn build_runtime_state() -> AppState {
     AppState {
         auth_service,
         authorizer,
+        authz_metrics,
         guild_channel_service,
         profile_service,
         ws_reauth_grace,

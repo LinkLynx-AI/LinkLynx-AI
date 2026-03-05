@@ -71,6 +71,8 @@ Tuple namespace examples:
 Note:
 - `NULL` override は tuple を生成しない（継承扱い）。
 - deny tuple の評価優先順は ADR-004 fail-close と整合するよう、allow より先に評価する。
+- LIN-862 で canonical relation 名（`viewer_role` / `view_deny_role` / `poster_role` / `post_deny_role`）を導入する。
+  本表の `viewer` / `view_deny` / `poster` / `post_deny` は論理写像として維持し、LIN-864 tuple同期実装で canonical relation へ変換する。
 
 ## 3. Migration phases
 

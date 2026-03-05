@@ -42,6 +42,11 @@ export type CreateGuildData = {
   icon?: string;
 };
 
+export type UpdateGuildData = {
+  name?: string;
+  icon?: string | null;
+};
+
 export type CreateChannelData = {
   name: string;
   type: number;
@@ -108,7 +113,7 @@ export type APIClient = {
   getServers(): Promise<Guild[]>;
   getServer(serverId: string): Promise<Guild>;
   createServer(data: CreateGuildData): Promise<Guild>;
-  updateServer(serverId: string, data: Partial<Guild>): Promise<Guild>;
+  updateServer(serverId: string, data: UpdateGuildData): Promise<Guild>;
   deleteServer(serverId: string): Promise<void>;
   leaveServer(serverId: string): Promise<void>;
 
