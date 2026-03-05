@@ -1,7 +1,13 @@
 import { z } from "zod";
 import { getFirebaseAuth } from "@/shared/lib";
 import type { Channel, Guild } from "@/shared/model/types";
-import type { CreateChannelData, CreateGuildData } from "./api-client";
+import type {
+  CreateChannelData,
+  CreateGuildData,
+  MyProfile,
+  UpdateMyProfileInput,
+} from "./api-client";
+import { hasMyProfileUpdateFields } from "./my-profile-validation";
 import { NoDataAPIClient } from "./no-data-api-client";
 
 const API_BASE_URL_SCHEMA = z.string().url();
@@ -36,6 +42,14 @@ const CHANNEL_CREATE_RESPONSE_SCHEMA = z.object({
 });
 const CHANNEL_PATCH_RESPONSE_SCHEMA = z.object({
   channel: CHANNEL_SUMMARY_SCHEMA,
+});
+const MY_PROFILE_SCHEMA = z.object({
+  display_name: z.string(),
+  status_text: z.string().nullable(),
+  avatar_key: z.string().nullable(),
+});
+const MY_PROFILE_RESPONSE_SCHEMA = z.object({
+  profile: MY_PROFILE_SCHEMA,
 });
 const BACKEND_ERROR_RESPONSE_SCHEMA = z.object({
   code: z.string().trim().min(1),
@@ -83,6 +97,7 @@ type GuildListResponse = z.infer<typeof GUILD_LIST_RESPONSE_SCHEMA>;
 type GuildCreateResponse = z.infer<typeof GUILD_CREATE_RESPONSE_SCHEMA>;
 type ChannelListResponse = z.infer<typeof CHANNEL_LIST_RESPONSE_SCHEMA>;
 type ChannelSummaryResponse = z.infer<typeof CHANNEL_SUMMARY_SCHEMA>;
+type MyProfileResponse = z.infer<typeof MY_PROFILE_RESPONSE_SCHEMA>;
 type SupportedChannelType = (typeof SUPPORTED_CHANNEL_TYPES)[number];
 
 type GuildChannelApiErrorParams = {
@@ -326,6 +341,14 @@ function mapChannel(summary: ChannelListResponse["channels"][number], position: 
   };
 }
 
+function mapMyProfile(response: MyProfileResponse): MyProfile {
+  return {
+    displayName: response.profile.display_name,
+    statusText: response.profile.status_text,
+    avatarKey: response.profile.avatar_key,
+  };
+}
+
 function isSupportedChannelType(type: CreateChannelData["type"]): type is SupportedChannelType {
   return SUPPORTED_CHANNEL_TYPES.some((supportedType) => supportedType === type);
 }
@@ -472,7 +495,6 @@ export class GuildChannelAPIClient extends NoDataAPIClient {
       expectedStatus: 200,
     });
   }
-
   private buildUpdatedChannel(
     summary: ChannelSummaryResponse,
     current: Channel | undefined,
@@ -511,7 +533,6 @@ export class GuildChannelAPIClient extends NoDataAPIClient {
     nextChannels[index] = channel;
     this.channelCacheByGuild.set(guildId, nextChannels);
   }
-
   private async fetchGuilds(options: { resetChannelCache: boolean }): Promise<Guild[]> {
     const response = await this.getJson("/guilds", GUILD_LIST_RESPONSE_SCHEMA);
     const guilds = response.guilds.map(mapGuild);
@@ -673,6 +694,34 @@ export class GuildChannelAPIClient extends NoDataAPIClient {
       status: 404,
       code: "CHANNEL_NOT_FOUND",
     });
+  }
+
+  async getMyProfile(): Promise<MyProfile> {
+    const response = await this.getJson("/users/me/profile", MY_PROFILE_RESPONSE_SCHEMA);
+    return mapMyProfile(response);
+  }
+
+  async updateMyProfile(input: UpdateMyProfileInput): Promise<MyProfile> {
+    if (!hasMyProfileUpdateFields(input)) {
+      throw new GuildChannelApiError("No profile fields provided.", {
+        status: 400,
+        code: "VALIDATION_ERROR",
+      });
+    }
+
+    const body: Record<string, unknown> = {};
+    if (input.displayName !== undefined) {
+      body.display_name = input.displayName;
+    }
+    if (input.statusText !== undefined) {
+      body.status_text = input.statusText;
+    }
+    if (input.avatarKey !== undefined) {
+      body.avatar_key = input.avatarKey;
+    }
+
+    const response = await this.patchJson("/users/me/profile", body, MY_PROFILE_RESPONSE_SCHEMA);
+    return mapMyProfile(response);
   }
 
   async createServer(data: CreateGuildData): Promise<Guild> {
