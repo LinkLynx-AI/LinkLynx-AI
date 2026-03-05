@@ -32,7 +32,7 @@ use axum::{
     http::{HeaderMap, Request, StatusCode},
     middleware::{self, Next},
     response::{IntoResponse, Response},
-    routing::{get, post},
+    routing::{get, patch, post},
     Json, Router,
 };
 use guild_channel::{

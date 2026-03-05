@@ -301,6 +301,56 @@ describe("GuildChannelAPIClient", () => {
     expect(init.body).toBe(JSON.stringify({ name: "New Guild" }));
   });
 
+  test("updateServer sends patch request and maps updated guild response", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          guild: {
+            guild_id: 2001,
+            name: "Renamed Guild",
+            icon_key: "icons/new.png",
+            owner_id: 1001,
+          },
+        }),
+        { status: 200 },
+      ),
+    );
+
+    const client = new GuildChannelAPIClient();
+    const updated = await client.updateServer("2001", { name: "  Renamed Guild  " });
+
+    expect(updated).toEqual({
+      id: "2001",
+      name: "Renamed Guild",
+      icon: "icons/new.png",
+      banner: null,
+      ownerId: "1001",
+      memberCount: 0,
+      boostLevel: 0,
+      boostCount: 0,
+      features: [],
+      description: null,
+    });
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("http://localhost:8080/guilds/2001");
+    expect(init.method).toBe("PATCH");
+    expect(new Headers(init.headers).get("Authorization")).toBe("Bearer token-1");
+    expect(new Headers(init.headers).get("Content-Type")).toBe("application/json");
+    expect(init.body).toBe(JSON.stringify({ name: "Renamed Guild" }));
+  });
+
+  test("updateServer rejects too long name before network call", async () => {
+    const client = new GuildChannelAPIClient();
+    const tooLongName = "a".repeat(101);
+
+    await expect(client.updateServer("2001", { name: tooLongName })).rejects.toMatchObject({
+      code: "VALIDATION_ERROR",
+      status: 400,
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   test("createChannel maps created channel response and updates channel index", async () => {
     fetchMock.mockResolvedValue(
       new Response(

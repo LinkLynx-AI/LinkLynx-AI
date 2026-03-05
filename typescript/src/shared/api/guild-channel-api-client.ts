@@ -5,6 +5,7 @@ import type {
   CreateChannelData,
   CreateGuildData,
   MyProfile,
+  UpdateGuildData,
   UpdateMyProfileInput,
 } from "./api-client";
 import { hasMyProfileUpdateFields } from "./my-profile-validation";
@@ -28,6 +29,7 @@ const GUILD_CREATE_RESPONSE_SCHEMA = z.object({
     owner_id: z.number().int().positive(),
   }),
 });
+const GUILD_UPDATE_RESPONSE_SCHEMA = GUILD_CREATE_RESPONSE_SCHEMA;
 const CHANNEL_SUMMARY_SCHEMA = z.object({
   channel_id: z.number().int().positive(),
   guild_id: z.number().int().positive(),
@@ -83,6 +85,7 @@ const CREATE_ERROR_MESSAGES = {
 
 type GuildListResponse = z.infer<typeof GUILD_LIST_RESPONSE_SCHEMA>;
 type GuildCreateResponse = z.infer<typeof GUILD_CREATE_RESPONSE_SCHEMA>;
+type GuildUpdateResponse = z.infer<typeof GUILD_UPDATE_RESPONSE_SCHEMA>;
 type ChannelListResponse = z.infer<typeof CHANNEL_LIST_RESPONSE_SCHEMA>;
 type MyProfileResponse = z.infer<typeof MY_PROFILE_RESPONSE_SCHEMA>;
 type SupportedChannelType = (typeof SUPPORTED_CHANNEL_TYPES)[number];
@@ -661,6 +664,49 @@ export class GuildChannelAPIClient extends NoDataAPIClient {
     return mapCreatedGuild(response.guild);
   }
 
+  async updateServer(serverId: string, data: UpdateGuildData): Promise<Guild> {
+    const normalizedServerId = serverId.trim();
+    if (normalizedServerId.length === 0) {
+      throw new GuildChannelApiError(CREATE_ERROR_MESSAGES.guildNotFound, {
+        status: 404,
+        code: "GUILD_NOT_FOUND",
+      });
+    }
+
+    const body: Record<string, unknown> = {};
+    if (data.name !== undefined) {
+      const normalizedName = data.name.trim();
+      if (normalizedName.length === 0 || normalizedName.length > 100) {
+        throw new GuildChannelApiError(CREATE_ERROR_MESSAGES.validation, {
+          status: 400,
+          code: "VALIDATION_ERROR",
+        });
+      }
+      body.name = normalizedName;
+    }
+    if (data.icon !== undefined) {
+      if (data.icon === null) {
+        body.icon_key = null;
+      } else {
+        const normalizedIcon = data.icon.trim();
+        body.icon_key = normalizedIcon.length > 0 ? normalizedIcon : null;
+      }
+    }
+    if (Object.keys(body).length === 0) {
+      throw new GuildChannelApiError(CREATE_ERROR_MESSAGES.validation, {
+        status: 400,
+        code: "VALIDATION_ERROR",
+      });
+    }
+
+    const response = await this.patchJson(
+      `/guilds/${encodeURIComponent(normalizedServerId)}`,
+      body,
+      GUILD_UPDATE_RESPONSE_SCHEMA,
+    );
+    return mapUpdatedGuild(response);
+  }
+
   async createChannel(serverId: string, data: CreateChannelData): Promise<Channel> {
     const normalizedServerId = serverId.trim();
     if (normalizedServerId.length === 0) {
@@ -701,4 +747,8 @@ export class GuildChannelAPIClient extends NoDataAPIClient {
 
     return channel;
   }
+}
+
+function mapUpdatedGuild(response: GuildUpdateResponse): Guild {
+  return mapCreatedGuild(response.guild);
 }

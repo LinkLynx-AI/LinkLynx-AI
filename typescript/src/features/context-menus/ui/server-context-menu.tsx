@@ -31,7 +31,7 @@ export function ServerContextMenu({ data }: { data: { server: Guild } }) {
       </MenuItem>
       <MenuItem
         onClick={() => {
-          openModal("server-settings");
+          openModal("server-settings", { serverId: data.server.id });
           hideContextMenu();
         }}
       >

@@ -39,6 +39,40 @@ mod tests {
     }
 
     #[test]
+    fn normalize_guild_name_rejects_too_long_value() {
+        let long_name = "a".repeat(101);
+        let result = normalize_guild_name(&long_name);
+
+        assert!(matches!(
+            result,
+            Err(GuildChannelError {
+                kind: GuildChannelErrorKind::Validation,
+                reason,
+            }) if reason == "guild_name_too_long"
+        ));
+    }
+
+    #[test]
+    fn normalize_icon_key_normalizes_blank_to_none() {
+        let result = normalize_icon_key(Some("   ".to_owned())).unwrap();
+
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn normalize_icon_key_rejects_invalid_format() {
+        let result = normalize_icon_key(Some("bad key".to_owned()));
+
+        assert!(matches!(
+            result,
+            Err(GuildChannelError {
+                kind: GuildChannelErrorKind::Validation,
+                reason,
+            }) if reason == "icon_key_invalid_format"
+        ));
+    }
+
+    #[test]
     fn create_guild_channel_sql_requires_membership_lookup() {
         let sql = PostgresGuildChannelService::CREATE_GUILD_CHANNEL_SQL;
 
@@ -54,5 +88,14 @@ mod tests {
         assert!(sql.contains("FROM guild_members"));
         assert!(sql.contains("LEFT JOIN channels"));
         assert!(sql.contains("FOR KEY SHARE"));
+    }
+
+    #[test]
+    fn update_guild_sql_requires_manage_boundary_lookup() {
+        let sql = PostgresGuildChannelService::UPDATE_GUILD_SQL;
+
+        assert!(sql.contains("guild_member_roles_v2"));
+        assert!(sql.contains("guild_roles_v2"));
+        assert!(sql.contains("allow_manage = TRUE"));
     }
 }
