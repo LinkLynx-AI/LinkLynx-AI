@@ -7,6 +7,8 @@ import { useChannel } from "@/shared/api/queries/use-channels";
 import { Button } from "@/shared/ui/button";
 import { Input } from "@/shared/ui/input";
 
+const CHANNEL_NAME_MAX_CHARS = 100;
+
 export function ChannelEditOverview({
   channelId,
   onSaved,
@@ -37,6 +39,10 @@ export function ChannelEditOverview({
       setSubmitError("入力内容を確認してください。");
       return;
     }
+    if (normalizedName.length > CHANNEL_NAME_MAX_CHARS) {
+      setSubmitError("チャンネル名は100文字以内で入力してください。");
+      return;
+    }
 
     setSubmitError(null);
     try {
@@ -51,10 +57,14 @@ export function ChannelEditOverview({
   };
 
   const normalizedName = name.trim();
+  const overMaxNameLength = normalizedName.length > CHANNEL_NAME_MAX_CHARS;
+  const inputError =
+    submitError ?? (overMaxNameLength ? "チャンネル名は100文字以内で入力してください。" : null);
   const canSave =
     channelId !== undefined &&
     channel !== undefined &&
     normalizedName.length > 0 &&
+    !overMaxNameLength &&
     normalizedName !== channel.name &&
     !updateChannel.isPending;
 
@@ -72,7 +82,7 @@ export function ChannelEditOverview({
             setSubmitError(null);
           }
         }}
-        error={submitError ?? undefined}
+        error={inputError ?? undefined}
         fullWidth
       />
       <div className="flex justify-end">

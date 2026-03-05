@@ -86,4 +86,18 @@ describe("ChannelEditOverview", () => {
 
     expect(screen.getByRole("button", { name: "変更を保存" })).toHaveProperty("disabled", true);
   });
+
+  test("shows inline error when name exceeds max length", async () => {
+    render(<ChannelEditOverview channelId="3001" />);
+
+    const input = screen.getByRole("textbox");
+    await userEvent.clear(input);
+    await userEvent.type(input, "a".repeat(101));
+    await userEvent.click(screen.getByRole("button", { name: "変更を保存" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("チャンネル名は100文字以内で入力してください。")).not.toBeNull();
+    });
+    expect(mutateAsyncMock).not.toHaveBeenCalled();
+  });
 });
