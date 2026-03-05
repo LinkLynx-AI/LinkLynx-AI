@@ -6,6 +6,37 @@ on:
       - main
 
 jobs:
+  spicedb-runtime:
+    name: SpiceDB Runtime Foundation
+    runs-on: ubuntu-latest
+    env:
+      NEXT_PUBLIC_FIREBASE_API_KEY: ci-dummy-api-key
+      NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ci-dummy.firebaseapp.com
+      NEXT_PUBLIC_FIREBASE_PROJECT_ID: ci-dummy-project
+      NEXT_PUBLIC_FIREBASE_APP_ID: ci-dummy-app-id
+      NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ci-dummy-sender
+      NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: ci-dummy.appspot.com
+      FIREBASE_PROJECT_ID: ci-dummy-project
+      AUTH_ALLOW_POSTGRES_NOTLS: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Start SpiceDB
+        run: docker compose up -d spicedb
+      - name: Wait for SpiceDB gRPC/HTTP endpoints
+        run: |
+          for i in {1..30}; do
+            if nc -z 127.0.0.1 50051 && nc -z 127.0.0.1 8443; then
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "SpiceDB gRPC/HTTP endpoints did not become ready on localhost:50051/8443" >&2
+          docker compose logs spicedb >&2
+          exit 1
+      - name: Stop SpiceDB
+        if: always()
+        run: docker compose down
+
   typescript-validate:
     name: TypeScript Validate
     runs-on: ubuntu-latest
@@ -40,6 +71,25 @@ jobs:
         with:
           workspaces: rust
       - run: make validate
+
+  authz-spicedb-regression:
+    name: AuthZ SpiceDB Regression
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: rust
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+      - name: Run SpiceDB provider and REST/WS authz regressions
+        run: |
+          cargo test -p linklynx_backend runtime_provider_spicedb_
+          cargo test -p linklynx_backend guild_channel_message_endpoints_apply_role_based_allow_and_deny
+          cargo test -p linklynx_backend invite_dm_moderation_endpoints_apply_role_based_allow_and_deny
+          cargo test -p linklynx_backend moderation_endpoint_returns_unavailable_when_authz_unavailable
 
   python-validate:
     name: Python Validate

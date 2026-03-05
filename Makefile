@@ -1,6 +1,7 @@
 .PHONY: help setup setup-db-tools setup-bootstrap setup-check dev build up down logs clean test format lint ci validate gen
 .PHONY: ts-dev ts-build ts-format ts-lint ts-test ts-validate ts-fsd-check rust-dev rust-build rust-test rust-fmt rust-clippy rust-lint rust-ci rust-validate py-dev py-install py-format py-lint py-test py-validate elixir-dev elixir-build
 .PHONY: db-up db-down db-reset db-migrate db-migrate-revert db-migrate-info db-schema db-schema-check db-seed db-table-regex db-doc worktree-sync-env codex-worktree
+.PHONY: authz-spicedb-up authz-spicedb-down authz-spicedb-health
 
 # 色設定
 GREEN  := \033[0;32m
@@ -114,6 +115,24 @@ logs-py: ## Python のログを表示
 
 logs-elixir: ## Elixir のログを表示
 	docker compose logs -f elixir
+
+authz-spicedb-up: ## SpiceDB を起動
+	docker compose up -d spicedb
+
+authz-spicedb-down: ## SpiceDB を停止
+	docker compose stop spicedb
+
+authz-spicedb-health: ## SpiceDB gRPC/HTTP ポートのヘルス確認（localhost:50051/8443）
+	@for i in $$(seq 1 30); do \
+		if nc -z 127.0.0.1 50051 >/dev/null 2>&1 && nc -z 127.0.0.1 8443 >/dev/null 2>&1; then \
+			echo "$(GREEN)SpiceDB gRPC/HTTP endpoints are ready$(NC)"; \
+			exit 0; \
+		fi; \
+		sleep 1; \
+	done; \
+	echo "$(RED)SpiceDB gRPC/HTTP endpoints are not reachable on localhost:50051/8443$(NC)"; \
+	docker compose logs spicedb; \
+	exit 1
 
 clean: ## コンテナ・ボリューム・イメージを削除
 	docker compose down -v --rmi local

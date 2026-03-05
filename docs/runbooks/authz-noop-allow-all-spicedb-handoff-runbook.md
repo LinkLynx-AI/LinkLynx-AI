@@ -1,7 +1,7 @@
 # AuthZ noop allow-all Exception and SpiceDB Handoff Runbook
 
 - Status: Draft
-- Last updated: 2026-02-28
+- Last updated: 2026-03-04
 - Owner scope: v1 pre-release AuthZ exception management and SpiceDB cutover handoff
 - References:
   - [ADR-004 AuthZ Fail-Close Policy and Cache Strategy](../adr/ADR-004-authz-fail-close-and-cache-strategy.md)
@@ -29,7 +29,8 @@ Out of scope:
 
 - `AUTHZ_PROVIDER=noop` (default)
 - `AUTHZ_ALLOW_ALL_UNTIL=2026-06-30` (UTC date baseline)
-- `AUTHZ_PROVIDER=spicedb` is currently mapped to noop fallback until SpiceDB implementation is delivered.
+- `AUTHZ_PROVIDER=spicedb` uses active SpiceDB authorizer path and fail-close semantics.
+- implicit fallback from `spicedb` to `noop allow-all` is prohibited.
 
 ### 2.2 Risk statement
 
@@ -54,7 +55,7 @@ Out of scope:
 1. Confirm runtime logs include:
 - `AUTHZ_PROVIDER`
 - `AUTHZ_ALLOW_ALL_UNTIL`
-- fallback warning when `AUTHZ_PROVIDER=spicedb`
+- decision logs on deny/unavailable paths (`request_id`, `principal_id`, `resource`, `action`, `decision`, `error_class`)
 
 2. Confirm release gate check (required before release):
 - Run `printenv AUTHZ_PROVIDER` on release environment and confirm value is **not** `noop`.
@@ -85,8 +86,12 @@ Out of scope:
 Cutover readiness requires all items:
 - `AUTHZ_PROVIDER=spicedb` path returns deterministic deny/unavailable mapping per ADR-004.
 - Noop allow-all path is disabled in release configuration.
+- CI can detect SpiceDB path regressions via Rust tests (`make rust-lint`).
+- CI job `AuthZ SpiceDB Regression` runs focused provider/REST-path regressions.
 - Observability fields exist on AuthZ deny/unavailable paths:
   - `request_id`, `principal_id`, `resource`, `action`, `decision`, `decision_source`, `error_class`
+- Metrics endpoint exposes decision counters:
+  - `GET /internal/authz/metrics` -> `allow_total`, `deny_total`, `unavailable_total`
 - Validation gates pass:
   - `cd rust && cargo test -p linklynx_backend --locked`
   - `make rust-lint`
@@ -97,8 +102,13 @@ Cutover readiness requires all items:
 1. Freeze AuthZ-related config changes.
 2. Deploy SpiceDB-capable build to staging.
 3. Switch staging `AUTHZ_PROVIDER` from `noop` to `spicedb`.
-4. Run deny/unavailable scenario checks (REST + WS).
-5. Verify metrics and logs for decision quality.
+4. Execute dry-run checks:
+  - allow path: protected REST endpoint returns `2xx`
+  - deny path: protected REST endpoint returns `403` (`AUTHZ_DENIED`)
+  - unavailable path: stop SpiceDB and confirm REST `503` / WS `1011`
+5. Verify observability:
+  - logs include required decision fields
+  - `GET /internal/authz/metrics` counters increase in expected buckets
 6. Roll forward to production only after staged acceptance pass.
 
 ## 6. Rollback procedure
@@ -110,18 +120,24 @@ Rollback trigger examples:
 
 Rollback steps:
 1. Switch `AUTHZ_PROVIDER` back to `noop`.
-2. Confirm service stability and expected response mappings.
-3. Record incident, owner, and follow-up action with target date.
+2. Re-run smoke checks:
+  - protected REST baseline succeeds for known test principal
+  - WS handshake/reauth baseline succeeds
+3. Confirm `unavailable_total` increase has stopped and error logs stabilized.
+4. Record incident, owner, and follow-up action with target date.
 
 ## 7. Observability minimum
 
 During exception and cutover windows, monitor at minimum:
 - request-level authz reject logs with required fields
-- ratio of unavailable decisions
+- decision counters from `GET /internal/authz/metrics`
+  - `allow_total`
+  - `deny_total`
+  - `unavailable_total`
 - ws close code distribution (`1008`, `1011`)
 
 Alert viewpoints:
-1. sudden increase of unavailable decisions
+1. sudden increase of `unavailable_total` growth rate
 2. mismatch between expected deny and observed unavailable
 3. handshake/reauth close-code mismatch in WS logs
 

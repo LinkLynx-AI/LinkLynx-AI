@@ -582,6 +582,9 @@ async fn handle_ready_message(
                 let _ = close_socket(socket, 1008, "reauth_required").await;
                 return false;
             }
+            if !authorize_ws_stream_operation(state, authenticated, request_id, socket).await {
+                return false;
+            }
             true
         }
         Message::Ping(payload) => socket.send(Message::Pong(payload)).await.is_ok(),
@@ -601,6 +604,7 @@ async fn check_ws_connect_authorization(
         action: AuthzAction::Connect,
     };
     if let Err(error) = state.authorizer.check(&authz_input).await {
+        state.authz_metrics.record_error(&error);
         tracing::warn!(
             decision = %error.decision(),
             request_id = %request_id,
@@ -614,6 +618,7 @@ async fn check_ws_connect_authorization(
         );
         return Err(error);
     }
+    state.authz_metrics.record_allow();
 
     Ok(())
 }
@@ -706,4 +711,44 @@ async fn close_socket(socket: &mut WebSocket, code: u16, reason: &str) -> Result
         .send(Message::Close(Some(frame)))
         .await
         .map_err(|_| ())
+}
+
+/// WS接続後メッセージ操作の認可を検証する。
+/// @param state アプリケーション状態
+/// @param authenticated 認証済み主体
+/// @param request_id 接続識別子
+/// @param socket WebSocket接続
+/// @returns 継続可否
+/// @throws なし
+async fn authorize_ws_stream_operation(
+    state: &AppState,
+    authenticated: &AuthenticatedPrincipal,
+    request_id: &str,
+    socket: &mut WebSocket,
+) -> bool {
+    let authz_input = AuthzCheckInput {
+        principal_id: authenticated.principal_id,
+        resource: AuthzResource::RestPath {
+            path: "/ws/stream".to_owned(),
+        },
+        action: AuthzAction::View,
+    };
+    if let Err(error) = state.authorizer.check(&authz_input).await {
+        state.authz_metrics.record_error(&error);
+        tracing::warn!(
+            decision = %error.decision(),
+            request_id = %request_id,
+            principal_id = authenticated.principal_id.0,
+            error_class = %error.log_class(),
+            reason = %error.reason,
+            resource = "/ws/stream",
+            action = "view",
+            decision_source = "authorizer",
+            "WS authz rejected at stream operation"
+        );
+        let _ = close_socket(socket, error.ws_close_code(), error.app_code()).await;
+        return false;
+    }
+    state.authz_metrics.record_allow();
+    true
 }

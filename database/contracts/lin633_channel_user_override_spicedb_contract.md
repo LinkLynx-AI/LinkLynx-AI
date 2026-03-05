@@ -63,6 +63,8 @@ Namespace:
 
 Rule:
 - `NULL` は tuple を生成しない（継承）。
+- LIN-862 で canonical relation 名（`viewer_user` / `view_deny_user` / `poster_user` / `post_deny_user`）を導入する。
+  本表の `viewer` / `view_deny` / `poster` / `post_deny` は論理写像として維持し、LIN-864 tuple同期実装で canonical relation へ変換する。
 
 ## 3. Evaluation precedence (fail-close compatible)
 
