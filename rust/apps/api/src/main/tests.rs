@@ -11,7 +11,7 @@ mod tests {
     use authz::{Authorizer, AuthzCheckInput, AuthzError};
     use guild_channel::{
         ChannelSummary, CreatedChannel, CreatedGuild, GuildChannelError, GuildChannelService,
-        GuildSummary,
+        GuildPatchInput, GuildSummary,
     };
     use profile::{ProfileError, ProfilePatchInput, ProfileService, ProfileSettings};
     use axum::{body::to_bytes, http::StatusCode};
@@ -108,6 +108,54 @@ mod tests {
                 icon_key: None,
                 owner_id: principal_id.0,
             })
+        }
+
+        async fn update_guild(
+            &self,
+            principal_id: PrincipalId,
+            guild_id: i64,
+            patch: GuildPatchInput,
+        ) -> Result<CreatedGuild, GuildChannelError> {
+            if guild_id != 2001 {
+                return Err(GuildChannelError::not_found("guild_not_found"));
+            }
+            if principal_id.0 != 1001 {
+                return Err(GuildChannelError::forbidden("guild_manage_permission_required"));
+            }
+            if patch.is_empty() {
+                return Err(GuildChannelError::validation("guild_patch_empty"));
+            }
+
+            let mut guild = CreatedGuild {
+                guild_id,
+                name: "LinkLynx Developers".to_owned(),
+                icon_key: Some("icons/original.png".to_owned()),
+                owner_id: 1001,
+            };
+
+            if let Some(name) = patch.name {
+                let normalized = name.trim();
+                if normalized.is_empty() {
+                    return Err(GuildChannelError::validation("guild_name_required"));
+                }
+                if normalized.chars().count() > 100 {
+                    return Err(GuildChannelError::validation("guild_name_too_long"));
+                }
+                guild.name = normalized.to_owned();
+            }
+
+            if let Some(icon_key) = patch.icon_key {
+                guild.icon_key = icon_key.and_then(|value| {
+                    let normalized = value.trim().to_owned();
+                    if normalized.is_empty() {
+                        None
+                    } else {
+                        Some(normalized)
+                    }
+                });
+            }
+
+            Ok(guild)
         }
 
         async fn list_guild_channels(
@@ -802,6 +850,188 @@ mod tests {
         assert_eq!(json["guild"]["guild_id"], 2002);
         assert_eq!(json["guild"]["name"], "My Guild");
         assert_eq!(json["guild"]["owner_id"], 1001);
+    }
+
+    #[tokio::test]
+    async fn patch_guild_updates_name_for_authorized_principal() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("PATCH")
+                    .uri("/guilds/2001")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"name":"  New Guild Name  "}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["guild"]["guild_id"], 2001);
+        assert_eq!(json["guild"]["name"], "New Guild Name");
+        assert_eq!(json["guild"]["owner_id"], 1001);
+    }
+
+    #[tokio::test]
+    async fn patch_guild_returns_forbidden_for_non_manager() {
+        let app = app_for_test().await;
+        let token = format!("u-unknown:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("PATCH")
+                    .uri("/guilds/2001")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .header("x-request-id", "guild-patch-forbidden-test")
+                    .body(Body::from(r#"{"name":"test"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "AUTHZ_DENIED");
+        assert_eq!(json["request_id"], "guild-patch-forbidden-test");
+    }
+
+    #[tokio::test]
+    async fn patch_guild_rejects_empty_payload() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("PATCH")
+                    .uri("/guilds/2001")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "VALIDATION_ERROR");
+    }
+
+    #[tokio::test]
+    async fn patch_guild_rejects_too_long_name() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let too_long_name = "a".repeat(101);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("PATCH")
+                    .uri("/guilds/2001")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(format!(r#"{{"name":"{too_long_name}"}}"#)))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "VALIDATION_ERROR");
+    }
+
+    #[tokio::test]
+    async fn patch_guild_updates_icon_key_for_authorized_principal() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("PATCH")
+                    .uri("/guilds/2001")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"icon_key":"  icons/new.png  "}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["guild"]["guild_id"], 2001);
+        assert_eq!(json["guild"]["icon_key"], "icons/new.png");
+    }
+
+    #[tokio::test]
+    async fn patch_guild_clears_icon_key_when_null_is_provided() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("PATCH")
+                    .uri("/guilds/2001")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"icon_key":null}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["guild"]["guild_id"], 2001);
+        assert!(json["guild"]["icon_key"].is_null());
+    }
+
+    #[tokio::test]
+    async fn patch_guild_rejects_invalid_icon_key_type() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("PATCH")
+                    .uri("/guilds/2001")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"icon_key":123}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "VALIDATION_ERROR");
     }
 
     #[tokio::test]

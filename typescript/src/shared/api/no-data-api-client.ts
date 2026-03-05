@@ -4,6 +4,7 @@ import type {
   AuditLogEntry,
   CreateChannelData,
   CreateGuildData,
+  UpdateGuildData,
   CreateInviteData,
   Invite,
   Relationship,
@@ -80,7 +81,7 @@ export class NoDataAPIClient implements APIClient {
     return unsupportedPromise("createServer");
   }
 
-  updateServer(_serverId: string, _data: Partial<Guild>): Promise<Guild> {
+  updateServer(_serverId: string, _data: UpdateGuildData): Promise<Guild> {
     return unsupportedPromise("updateServer");
   }
 

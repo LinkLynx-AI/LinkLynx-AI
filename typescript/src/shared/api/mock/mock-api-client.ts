@@ -1,6 +1,7 @@
 import type {
   APIClient,
   CreateGuildData,
+  UpdateGuildData,
   CreateChannelData,
   CreateInviteData,
   Invite,
@@ -85,11 +86,16 @@ export class MockAPIClient implements APIClient {
     return guild;
   }
 
-  async updateServer(serverId: string, data: Partial<Guild>): Promise<Guild> {
+  async updateServer(serverId: string, data: UpdateGuildData): Promise<Guild> {
     await this.simulateDelay();
     const idx = mockServers.findIndex((s) => s.id === serverId);
     if (idx === -1) throw new Error("Server not found");
-    mockServers[idx] = { ...mockServers[idx], ...data };
+    const current = mockServers[idx];
+    mockServers[idx] = {
+      ...current,
+      ...(data.name !== undefined ? { name: data.name } : {}),
+      ...(data.icon !== undefined ? { icon: data.icon } : {}),
+    };
     return mockServers[idx];
   }
 

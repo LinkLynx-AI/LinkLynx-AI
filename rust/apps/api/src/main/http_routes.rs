@@ -12,6 +12,7 @@ fn app_with_state(state: AppState) -> Router {
         .route("/protected/ping", get(protected_ping))
         .route("/internal/auth/metrics", get(auth_metrics_handler))
         .route("/guilds", get(list_guilds).post(create_guild))
+        .route("/guilds/{guild_id}", patch(patch_guild))
         .route(
             "/guilds/{guild_id}/channels",
             get(list_guild_channels).post(create_guild_channel),
@@ -200,6 +201,11 @@ struct GuildCreateResponse {
     guild: guild_channel::CreatedGuild,
 }
 
+#[derive(Debug, Serialize)]
+struct GuildUpdateResponse {
+    guild: guild_channel::CreatedGuild,
+}
+
 #[derive(Debug, Deserialize)]
 struct GuildPathParams {
     guild_id: String,
@@ -273,6 +279,44 @@ fn parse_profile_patch_payload(
         status_text,
         avatar_key,
     })
+}
+
+/// JSON入力を検証してguild更新ペイロードを取得する。
+/// @param payload JSON抽出結果
+/// @returns 検証済みguild更新入力
+/// @throws GuildChannelError JSON不正時
+fn parse_guild_patch_payload(
+    payload: Result<Json<serde_json::Value>, JsonRejection>,
+) -> Result<guild_channel::GuildPatchInput, GuildChannelError> {
+    let payload = payload
+        .map(|Json(value)| value)
+        .map_err(|_| GuildChannelError::validation("request_body_invalid"))?;
+    let payload = payload
+        .as_object()
+        .ok_or_else(|| GuildChannelError::validation("request_body_invalid"))?;
+
+    let name = match payload.get("name") {
+        Some(serde_json::Value::String(value)) => Some(value.clone()),
+        Some(serde_json::Value::Null) => {
+            return Err(GuildChannelError::validation("guild_name_null_not_allowed"));
+        }
+        Some(_) => return Err(GuildChannelError::validation("guild_name_invalid_type")),
+        None => None,
+    };
+
+    let icon_key = match payload.get("icon_key") {
+        Some(serde_json::Value::String(value)) => Some(Some(value.clone())),
+        Some(serde_json::Value::Null) => Some(None),
+        Some(_) => return Err(GuildChannelError::validation("icon_key_invalid_type")),
+        None => None,
+    };
+
+    let patch = guild_channel::GuildPatchInput { name, icon_key };
+    if patch.is_empty() {
+        return Err(GuildChannelError::validation("guild_patch_empty"));
+    }
+
+    Ok(patch)
 }
 
 /// display_name更新フィールドを解釈する。
@@ -354,6 +398,90 @@ async fn create_guild(
     {
         Ok(guild) => (StatusCode::CREATED, Json(GuildCreateResponse { guild })).into_response(),
         Err(error) => guild_channel_error_response(&error, request_id),
+    }
+}
+
+/// guild設定を更新する。
+/// @param state アプリケーション状態
+/// @param auth_context 認証文脈
+/// @param params パスパラメータ
+/// @param payload 更新入力
+/// @returns 更新結果レスポンス
+/// @throws なし
+async fn patch_guild(
+    State(state): State<AppState>,
+    Extension(auth_context): Extension<AuthContext>,
+    Path(params): Path<GuildPathParams>,
+    payload: Result<Json<serde_json::Value>, JsonRejection>,
+) -> Response {
+    let request_id = auth_context.request_id.clone();
+    let guild_id = match parse_guild_id(&params.guild_id) {
+        Ok(value) => value,
+        Err(error) => return guild_channel_error_response(&error, request_id),
+    };
+    let patch = match parse_guild_patch_payload(payload) {
+        Ok(value) => value,
+        Err(error) => {
+            tracing::warn!(
+                decision = "deny",
+                request_id = %request_id,
+                principal_id = auth_context.principal_id.0,
+                guild_id = guild_id,
+                error_class = "validation_invalid_input",
+                reason = %error.reason,
+                action = "manage",
+                resource = "guild",
+                decision_source = "request_validation",
+                "guild update rejected at request validation"
+            );
+            return guild_channel_error_response(&error, request_id);
+        }
+    };
+
+    match state
+        .guild_channel_service
+        .update_guild(auth_context.principal_id, guild_id, patch)
+        .await
+    {
+        Ok(guild) => {
+            tracing::info!(
+                decision = "allow",
+                request_id = %request_id,
+                principal_id = auth_context.principal_id.0,
+                guild_id = guild_id,
+                error_class = "none",
+                action = "manage",
+                resource = "guild",
+                decision_source = "guild_service",
+                "guild update accepted"
+            );
+            Json(GuildUpdateResponse { guild }).into_response()
+        }
+        Err(error) => {
+            let (decision, error_class) = match error.kind {
+                guild_channel::GuildChannelErrorKind::Validation => {
+                    ("deny", "validation_invalid_input")
+                }
+                guild_channel::GuildChannelErrorKind::Forbidden => ("deny", "authz_denied"),
+                guild_channel::GuildChannelErrorKind::NotFound => ("deny", "resource_not_found"),
+                guild_channel::GuildChannelErrorKind::DependencyUnavailable => {
+                    ("unavailable", "dependency_unavailable")
+                }
+            };
+            tracing::warn!(
+                decision = decision,
+                request_id = %request_id,
+                principal_id = auth_context.principal_id.0,
+                guild_id = guild_id,
+                error_class = error_class,
+                reason = %error.reason,
+                action = "manage",
+                resource = "guild",
+                decision_source = "guild_service",
+                "guild update rejected"
+            );
+            guild_channel_error_response(&error, request_id)
+        }
     }
 }
 

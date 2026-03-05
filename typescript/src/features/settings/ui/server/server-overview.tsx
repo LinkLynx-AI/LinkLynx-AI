@@ -1,11 +1,14 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Input } from "@/shared/ui/input";
 import { Textarea } from "@/shared/ui/textarea";
 import { Select } from "@/shared/ui/select";
 import { Button } from "@/shared/ui/button";
 import { Avatar } from "@/shared/ui/avatar";
+import { toApiErrorText } from "@/shared/api/guild-channel-api-client";
+import { useUpdateServer } from "@/shared/api/mutations/use-server-actions";
+import { useServer } from "@/shared/api/queries/use-servers";
 import { Upload, Zap } from "lucide-react";
 
 const notificationOptions = [
@@ -34,14 +37,84 @@ const afkTimeoutOptions = [
   { value: "3600", label: "1時間" },
 ];
 
+const SERVER_NAME_MAX_LENGTH = 100;
+
+function validateServerName(value: string): string | null {
+  const normalized = value.trim();
+  if (normalized.length === 0) {
+    return "サーバー名を入力してください。";
+  }
+  if (normalized.length > SERVER_NAME_MAX_LENGTH) {
+    return `サーバー名は${SERVER_NAME_MAX_LENGTH}文字以内で入力してください。`;
+  }
+
+  return null;
+}
+
 export function ServerOverview({ serverId }: { serverId: string }) {
-  const [serverName, setServerName] = useState("My Server");
+  const { data: server, isLoading, isError, error } = useServer(serverId);
+  const updateServer = useUpdateServer();
+  const [serverName, setServerName] = useState("");
+  const [isNameDirty, setIsNameDirty] = useState(false);
   const [description, setDescription] = useState("");
   const [systemChannel, setSystemChannel] = useState("general");
   const [defaultNotifications, setDefaultNotifications] = useState("all");
   const [afkChannel, setAfkChannel] = useState("");
   const [afkTimeout, setAfkTimeout] = useState("300");
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [saveSuccessMessage, setSaveSuccessMessage] = useState<string | null>(null);
   const iconInputRef = useRef<HTMLInputElement>(null);
+  const nameValidationError = validateServerName(serverName);
+
+  useEffect(() => {
+    setIsNameDirty(false);
+  }, [serverId]);
+
+  useEffect(() => {
+    if (server !== undefined && !isNameDirty) {
+      setServerName(server.name);
+    }
+  }, [isNameDirty, server]);
+
+  const handleSave = async () => {
+    if (nameValidationError !== null) {
+      setSaveSuccessMessage(null);
+      return;
+    }
+    if (serverId.trim().length === 0) {
+      setSubmitError("サーバーを選択してから再試行してください。");
+      setSaveSuccessMessage(null);
+      return;
+    }
+
+    setSubmitError(null);
+    setSaveSuccessMessage(null);
+    try {
+      await updateServer.mutateAsync({
+        serverId,
+        data: {
+          name: serverName.trim(),
+        },
+      });
+      setServerName(serverName.trim());
+      setIsNameDirty(false);
+      setSaveSuccessMessage("サーバー設定を保存しました。");
+    } catch (updateError: unknown) {
+      setSubmitError(toApiErrorText(updateError, "サーバー設定の保存に失敗しました。"));
+    }
+  };
+
+  if (isLoading) {
+    return <p className="text-sm text-discord-text-muted">サーバー設定を読み込み中です...</p>;
+  }
+
+  if (isError) {
+    return (
+      <p className="text-sm text-discord-brand-red">
+        {toApiErrorText(error, "サーバー設定の読み込みに失敗しました。")}
+      </p>
+    );
+  }
 
   return (
     <div>
@@ -86,7 +159,17 @@ export function ServerOverview({ serverId }: { serverId: string }) {
           <Input
             label="サーバー名"
             value={serverName}
-            onChange={(e) => setServerName(e.target.value)}
+            onChange={(e) => {
+              setServerName(e.target.value);
+              setIsNameDirty(true);
+              if (submitError !== null) {
+                setSubmitError(null);
+              }
+              if (saveSuccessMessage !== null) {
+                setSaveSuccessMessage(null);
+              }
+            }}
+            error={nameValidationError ?? undefined}
             fullWidth
           />
         </div>
@@ -162,6 +245,19 @@ export function ServerOverview({ serverId }: { serverId: string }) {
           <span className="text-sm font-medium text-discord-text-normal">レベル 1</span>
           <span className="text-xs text-discord-text-muted">・ ブースト 2/7</span>
         </div>
+      </div>
+
+      <div className="flex items-center justify-end gap-3">
+        {saveSuccessMessage !== null && (
+          <p className="text-xs text-discord-status-online">{saveSuccessMessage}</p>
+        )}
+        {submitError !== null && <p className="text-xs text-discord-brand-red">{submitError}</p>}
+        <Button
+          onClick={() => void handleSave()}
+          disabled={updateServer.isPending || nameValidationError !== null}
+        >
+          {updateServer.isPending ? "保存中..." : "変更を保存"}
+        </Button>
       </div>
     </div>
   );
