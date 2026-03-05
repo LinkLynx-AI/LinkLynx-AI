@@ -9,6 +9,15 @@ jobs:
   spicedb-runtime:
     name: SpiceDB Runtime Foundation
     runs-on: ubuntu-latest
+    env:
+      NEXT_PUBLIC_FIREBASE_API_KEY: ci-dummy-api-key
+      NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ci-dummy.firebaseapp.com
+      NEXT_PUBLIC_FIREBASE_PROJECT_ID: ci-dummy-project
+      NEXT_PUBLIC_FIREBASE_APP_ID: ci-dummy-app-id
+      NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ci-dummy-sender
+      NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: ci-dummy.appspot.com
+      FIREBASE_PROJECT_ID: ci-dummy-project
+      AUTH_ALLOW_POSTGRES_NOTLS: "true"
     steps:
       - uses: actions/checkout@v4
       - name: Start SpiceDB
