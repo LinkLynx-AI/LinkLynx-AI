@@ -8,6 +8,8 @@ export const APP_ROUTES = {
   channels: {
     me: "/channels/me",
     guildChannel: "/channels/[guildId]/[channelId]",
+    moderationQueue: "/channels/[guildId]/moderation",
+    moderationReport: "/channels/[guildId]/moderation/[reportId]",
   },
   settings: {
     profile: "/settings/profile",
@@ -218,4 +220,15 @@ export function buildChannelRoute(guildId: string, channelId: string): string {
   const encodedChannelId = encodeURIComponent(channelId.trim());
 
   return `/channels/${encodedGuildId}/${encodedChannelId}`;
+}
+
+export function buildModerationQueueRoute(guildId: string): string {
+  const encodedGuildId = encodeURIComponent(guildId.trim());
+  return `/channels/${encodedGuildId}/moderation`;
+}
+
+export function buildModerationReportRoute(guildId: string, reportId: string): string {
+  const encodedGuildId = encodeURIComponent(guildId.trim());
+  const encodedReportId = encodeURIComponent(reportId.trim());
+  return `/channels/${encodedGuildId}/moderation/${encodedReportId}`;
 }

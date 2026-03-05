@@ -88,6 +88,45 @@ export type Relationship = {
   user: User;
 };
 
+export type ModerationTargetType = "message" | "user";
+export type ModerationReportStatus = "open" | "resolved";
+
+export type ModerationReport = {
+  reportId: string;
+  guildId: string;
+  reporterId: string;
+  targetType: ModerationTargetType;
+  targetId: string;
+  reason: string;
+  status: ModerationReportStatus;
+  resolvedBy: string | null;
+  resolvedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ModerationMute = {
+  muteId: string;
+  guildId: string;
+  targetUserId: string;
+  reason: string;
+  createdBy: string;
+  expiresAt: string | null;
+  createdAt: string;
+};
+
+export type CreateModerationReportData = {
+  targetType: ModerationTargetType;
+  targetId: string;
+  reason: string;
+};
+
+export type CreateModerationMuteData = {
+  targetUserId: string;
+  reason: string;
+  expiresAt?: string | null;
+};
+
 export type APIClient = {
   // Auth
   getCurrentUser(): Promise<User>;
@@ -177,6 +216,17 @@ export type APIClient = {
   banMember(serverId: string, userId: string, data?: { deleteMessageDays?: number }): Promise<void>;
   timeoutMember(serverId: string, userId: string, until: string | null): Promise<void>;
   updateMemberNickname(serverId: string, userId: string, nickname: string): Promise<void>;
+
+  // Moderation reports and mutes
+  getModerationReports(serverId: string): Promise<ModerationReport[]>;
+  getModerationReport(serverId: string, reportId: string): Promise<ModerationReport>;
+  createModerationReport(
+    serverId: string,
+    data: CreateModerationReportData,
+  ): Promise<ModerationReport>;
+  resolveModerationReport(serverId: string, reportId: string): Promise<ModerationReport>;
+  reopenModerationReport(serverId: string, reportId: string): Promise<ModerationReport>;
+  createModerationMute(serverId: string, data: CreateModerationMuteData): Promise<ModerationMute>;
 
   // Typing
   triggerTyping(channelId: string): Promise<void>;

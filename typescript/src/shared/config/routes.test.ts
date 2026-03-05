@@ -5,6 +5,8 @@ import {
   buildGuildRoute,
   buildInviteRoute,
   buildLoginRoute,
+  buildModerationQueueRoute,
+  buildModerationReportRoute,
   classifyAppRoute,
   normalizeReturnToPath,
   parseGuildChannelRoute,
@@ -19,6 +21,8 @@ describe("routes", () => {
     expect(APP_ROUTES.verifyEmail).toBe("/verify-email");
     expect(APP_ROUTES.passwordReset).toBe("/password-reset");
     expect(APP_ROUTES.channels.me).toBe("/channels/me");
+    expect(APP_ROUTES.channels.moderationQueue).toBe("/channels/[guildId]/moderation");
+    expect(APP_ROUTES.channels.moderationReport).toBe("/channels/[guildId]/moderation/[reportId]");
     expect(APP_ROUTES.settings.profile).toBe("/settings/profile");
   });
 
@@ -32,6 +36,10 @@ describe("routes", () => {
     expect(buildGuildRoute("guild/a")).toBe("/channels/guild%2Fa");
     expect(buildChannelRoute("guild-1", "channel-2")).toBe("/channels/guild-1/channel-2");
     expect(buildChannelRoute("guild/a", "channel b")).toBe("/channels/guild%2Fa/channel%20b");
+    expect(buildModerationQueueRoute("guild-1")).toBe("/channels/guild-1/moderation");
+    expect(buildModerationReportRoute("guild-1", "report-2")).toBe(
+      "/channels/guild-1/moderation/report-2",
+    );
   });
 
   test("guild/channel ルートから選択状態を抽出する", () => {

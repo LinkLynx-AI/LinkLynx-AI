@@ -2,10 +2,14 @@ import { useAuthStore } from "@/shared/model/stores/auth-store";
 import type {
   APIClient,
   AuditLogEntry,
+  CreateModerationMuteData,
+  CreateModerationReportData,
   CreateChannelData,
   CreateGuildData,
   CreateInviteData,
   Invite,
+  ModerationMute,
+  ModerationReport,
   Relationship,
   Role,
   SearchParams,
@@ -282,6 +286,36 @@ export class NoDataAPIClient implements APIClient {
 
   updateMemberNickname(_serverId: string, _userId: string, _nickname: string): Promise<void> {
     return unsupportedPromise("updateMemberNickname");
+  }
+
+  getModerationReports(_serverId: string): Promise<ModerationReport[]> {
+    return Promise.resolve([]);
+  }
+
+  getModerationReport(_serverId: string, _reportId: string): Promise<ModerationReport> {
+    return unsupportedPromise("getModerationReport");
+  }
+
+  createModerationReport(
+    _serverId: string,
+    _data: CreateModerationReportData,
+  ): Promise<ModerationReport> {
+    return unsupportedPromise("createModerationReport");
+  }
+
+  resolveModerationReport(_serverId: string, _reportId: string): Promise<ModerationReport> {
+    return unsupportedPromise("resolveModerationReport");
+  }
+
+  reopenModerationReport(_serverId: string, _reportId: string): Promise<ModerationReport> {
+    return unsupportedPromise("reopenModerationReport");
+  }
+
+  createModerationMute(
+    _serverId: string,
+    _data: CreateModerationMuteData,
+  ): Promise<ModerationMute> {
+    return unsupportedPromise("createModerationMute");
   }
 
   triggerTyping(_channelId: string): Promise<void> {
