@@ -333,6 +333,9 @@ mod tests {
 
         let store = Arc::new(InMemoryPrincipalStore::default());
         store.insert("firebase", "u-1", PrincipalId(1001)).await;
+        store.insert("firebase", "u-owner", PrincipalId(9001)).await;
+        store.insert("firebase", "u-admin", PrincipalId(9002)).await;
+        store.insert("firebase", "u-member", PrincipalId(9003)).await;
         let store_resolver: Arc<dyn PrincipalStore> = store.clone();
         let provisioner: Arc<dyn PrincipalProvisioner> = store.clone();
 
