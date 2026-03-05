@@ -60,7 +60,9 @@ backfillソースは以下順序で取得する。
 ### 2.2 Backfill output
 
 - 出力は `Vec<SpiceDbTuple>` とし、重複を除去する。
-- sink適用時は `Upsert` mutation のみを発行する。
+- full resync 時は sink 現在状態との差分を計算し、`Delete(unexpected)` + `Upsert(missing)` を発行する。
+- 差分計算対象の `observed` は tuple-sync 管理対象（`role/guild/channel` の canonical relation）のみに限定し、管理外 tuple を削除しない。
+- sink が現在状態スナップショットを提供できない場合は full resync を失敗させる（silent success を禁止）。
 - 実行結果として最低限以下を返す:
   - 各source行数
   - 生成tuple件数
@@ -91,6 +93,7 @@ backfillソースは以下順序で取得する。
 - claim: `claim_outbox_events(limit, lease_seconds)`
 - success: `mark_outbox_event_sent(id)`
 - failure: `mark_outbox_event_failed(id, retry_seconds)`
+- `mark_outbox_event_sent` が失敗した場合は同一イベントを `mark_outbox_event_failed` へフォールバックし、再試行可能状態へ戻す（idempotent 再実行前提）。
 
 同期設定の環境変数:
 - `SPICEDB_TUPLE_SYNC_OUTBOX_CLAIM_LIMIT` (default `100`)

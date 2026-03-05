@@ -533,6 +533,7 @@ pub trait TupleSyncOutboxStore: Send + Sync {
 #[async_trait]
 pub trait TupleMutationSink: Send + Sync {
     async fn apply_mutations(&self, mutations: Vec<SpiceDbTupleMutation>) -> Result<(), String>;
+    async fn list_current_tuples(&self) -> Result<Vec<SpiceDbTuple>, String>;
 }
 
 /// Postgresからbackfillソースを読み取る実装を表現する。
@@ -750,6 +751,10 @@ impl TupleMutationSink for NoopTupleMutationSink {
         );
         Ok(())
     }
+
+    async fn list_current_tuples(&self) -> Result<Vec<SpiceDbTuple>, String> {
+        Err("tuple_snapshot_unsupported".to_owned())
+    }
 }
 
 /// テスト/検証用のインメモリtuple sinkを表現する。
@@ -766,6 +771,17 @@ impl InMemoryTupleMutationSink {
     /// @throws なし
     pub async fn snapshot(&self) -> Vec<SpiceDbTuple> {
         self.tuples.read().await.iter().cloned().collect()
+    }
+
+    /// テスト用に初期tupleを投入する。
+    /// @param tuples 追加するtuple一覧
+    /// @returns なし
+    /// @throws なし
+    pub async fn seed_tuples(&self, tuples: Vec<SpiceDbTuple>) {
+        let mut current = self.tuples.write().await;
+        for tuple in tuples {
+            current.insert(tuple);
+        }
     }
 
     /// mutation適用時に返す失敗理由を設定する。
@@ -797,6 +813,10 @@ impl TupleMutationSink for InMemoryTupleMutationSink {
         }
 
         Ok(())
+    }
+
+    async fn list_current_tuples(&self) -> Result<Vec<SpiceDbTuple>, String> {
+        Ok(self.snapshot().await)
     }
 }
 
@@ -962,17 +982,26 @@ impl AuthzTupleSyncService {
             channel_user_overrides,
         };
 
-        let tuples = build_backfill_tuples(&input);
-        let generated_tuple_count = tuples.len() as u64;
-        let mutations: Vec<SpiceDbTupleMutation> = tuples
+        let expected_tuples = build_backfill_tuples(&input);
+        let generated_tuple_count = expected_tuples.len() as u64;
+        let observed_tuples = self
+            .sink
+            .list_current_tuples()
+            .await
+            .map_err(|error| format!("tuple_backfill_list_current_tuples_failed:{error}"))?;
+        let observed_managed_tuples: Vec<SpiceDbTuple> = observed_tuples
             .into_iter()
-            .map(SpiceDbTupleMutation::Upsert)
+            .filter(is_tuple_sync_managed_tuple)
             .collect();
+        let drift_report = detect_tuple_drift(&expected_tuples, &observed_managed_tuples);
+        let mutations = build_resync_mutations(&drift_report);
 
         let applied_mutation_count = mutations.len() as u64;
-        if let Err(error) = self.sink.apply_mutations(mutations).await {
-            self.metrics.record_sync_apply_failure();
-            return Err(format!("tuple_backfill_apply_failed:{error}"));
+        if !mutations.is_empty() {
+            if let Err(error) = self.sink.apply_mutations(mutations).await {
+                self.metrics.record_sync_apply_failure();
+                return Err(format!("tuple_backfill_apply_failed:{error}"));
+            }
         }
 
         self.metrics
@@ -985,6 +1014,8 @@ impl AuthzTupleSyncService {
             channel_user_override_rows = input.channel_user_overrides.len(),
             generated_tuple_count,
             applied_mutation_count,
+            missing_tuple_count = drift_report.missing_tuples.len(),
+            unexpected_tuple_count = drift_report.unexpected_tuples.len(),
             "authz tuple backfill completed"
         );
 
@@ -1022,10 +1053,26 @@ impl AuthzTupleSyncService {
             match self.process_claimed_event(&event).await {
                 Ok(result) => {
                     if let Err(error) = self.outbox_store.mark_outbox_event_sent(event.id).await {
-                        return Err(format!(
-                            "tuple_sync_mark_sent_failed:event_id={} reason={}",
-                            event.id, error
-                        ));
+                        self.metrics.record_outbox_failed();
+                        report.failed_events += 1;
+                        tracing::warn!(
+                            event_id = event.id,
+                            event_type = %event.event_type,
+                            aggregate_id = %event.aggregate_id,
+                            reason = %error,
+                            "authz tuple sync mark sent failed; scheduling retry"
+                        );
+                        if let Err(mark_error) = self
+                            .outbox_store
+                            .mark_outbox_event_failed(event.id, self.config.outbox_retry_seconds)
+                            .await
+                        {
+                            return Err(format!(
+                                "tuple_sync_mark_sent_recover_failed:event_id={} reason={} mark_error={}",
+                                event.id, error, mark_error
+                            ));
+                        }
+                        continue;
                     }
 
                     report.succeeded_events += 1;
@@ -1360,4 +1407,39 @@ fn role_member_subject(guild_id: i64, role_key: &str) -> String {
 
 fn user_subject(user_id: i64) -> String {
     format!("user:{user_id}")
+}
+
+fn is_tuple_sync_managed_tuple(tuple: &SpiceDbTuple) -> bool {
+    let object = tuple.object.as_str();
+    let relation = tuple.relation.as_str();
+
+    if object.starts_with("role:") && relation == ROLE_MEMBER_RELATION {
+        return true;
+    }
+    if object.starts_with("guild:")
+        && matches!(
+            relation,
+            GUILD_MANAGER_RELATION | GUILD_VIEWER_RELATION | GUILD_POSTER_RELATION
+        )
+    {
+        return true;
+    }
+    if object.starts_with("channel:")
+        && matches!(
+            relation,
+            CHANNEL_GUILD_RELATION
+                | CHANNEL_VIEWER_ROLE_RELATION
+                | CHANNEL_VIEW_DENY_ROLE_RELATION
+                | CHANNEL_POSTER_ROLE_RELATION
+                | CHANNEL_POST_DENY_ROLE_RELATION
+                | CHANNEL_VIEWER_USER_RELATION
+                | CHANNEL_VIEW_DENY_USER_RELATION
+                | CHANNEL_POSTER_USER_RELATION
+                | CHANNEL_POST_DENY_USER_RELATION
+        )
+    {
+        return true;
+    }
+
+    false
 }

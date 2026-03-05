@@ -649,6 +649,12 @@ mod tests {
             }),
         }]));
         let sink = Arc::new(InMemoryTupleMutationSink::default());
+        sink.seed_tuples(vec![SpiceDbTuple::new(
+            "guild:999",
+            "viewer",
+            "role:999/ghost#member",
+        )])
+        .await;
         let backfill_source = Arc::new(StaticTupleBackfillSource {
             guild_roles: vec![GuildRolePermissionRow {
                 guild_id: 1,
@@ -693,11 +699,111 @@ mod tests {
         assert!(compact.contains("role:1/member#member@user:88"));
         assert!(compact.contains("guild:1#viewer@role:1/member#member"));
         assert!(compact.contains("channel:55#guild@guild:1"));
+        assert!(!compact.contains("guild:999#viewer@role:999/ghost#member"));
 
         let metrics = service.metrics().snapshot();
         assert_eq!(metrics.outbox_full_resync_total, 1);
         assert_eq!(metrics.backfill_runs_total, 1);
         assert_eq!(metrics.backfill_generated_tuples_total, 3);
+    }
+
+    #[tokio::test]
+    async fn tuple_sync_service_retries_when_mark_sent_fails() {
+        let outbox_store = Arc::new(InMemoryTupleSyncOutboxStore::new(vec![TupleSyncOutboxEvent {
+            id: 4,
+            event_type: AUTHZ_TUPLE_EVENT_GUILD_MEMBER_ROLE.to_owned(),
+            aggregate_id: "guild:10/user:20/role:member".to_owned(),
+            payload: json!({
+                "op": "upsert",
+                "guild_id": 10,
+                "user_id": 20,
+                "role_key": "member"
+            }),
+        }]));
+        outbox_store.fail_mark_sent_times(4, 1).await;
+
+        let sink = Arc::new(InMemoryTupleMutationSink::default());
+        let service = AuthzTupleSyncService::new(
+            Arc::clone(&outbox_store) as Arc<dyn TupleSyncOutboxStore>,
+            Arc::new(StaticTupleBackfillSource::default()),
+            Arc::clone(&sink) as Arc<dyn TupleMutationSink>,
+            Arc::new(AuthzTupleSyncMetrics::default()),
+            SpiceDbTupleSyncRuntimeConfig::default(),
+        );
+
+        let first = service.run_sync_once().await.unwrap();
+        assert_eq!(first.claimed_events, 1);
+        assert_eq!(first.succeeded_events, 0);
+        assert_eq!(first.failed_events, 1);
+        assert_eq!(first.applied_mutations, 0);
+        assert_eq!(
+            outbox_store.failed_entries().await,
+            vec![(4, SpiceDbTupleSyncRuntimeConfig::default().outbox_retry_seconds)]
+        );
+        assert!(outbox_store.sent_ids().await.is_empty());
+
+        let second = service.run_sync_once().await.unwrap();
+        assert_eq!(second.claimed_events, 1);
+        assert_eq!(second.succeeded_events, 1);
+        assert_eq!(second.failed_events, 0);
+        assert_eq!(second.applied_mutations, 2);
+        assert_eq!(outbox_store.sent_ids().await, vec![4]);
+
+        let tuples = sink.snapshot().await;
+        let compact: std::collections::BTreeSet<String> =
+            tuples.iter().map(SpiceDbTuple::compact).collect();
+        assert!(compact.contains("role:10/member#member@user:20"));
+    }
+
+    #[tokio::test]
+    async fn tuple_sync_service_full_resync_does_not_delete_unmanaged_tuples() {
+        let outbox_store = Arc::new(InMemoryTupleSyncOutboxStore::new(vec![TupleSyncOutboxEvent {
+            id: 5,
+            event_type: AUTHZ_TUPLE_EVENT_FULL_RESYNC.to_owned(),
+            aggregate_id: "guild:all".to_owned(),
+            payload: json!({
+                "reason": "drift_detected"
+            }),
+        }]));
+        let sink = Arc::new(InMemoryTupleMutationSink::default());
+        sink.seed_tuples(vec![SpiceDbTuple::new(
+            "api_path:/v1/protected/ping",
+            "viewer",
+            "user:1",
+        )])
+        .await;
+
+        let service = AuthzTupleSyncService::new(
+            Arc::clone(&outbox_store) as Arc<dyn TupleSyncOutboxStore>,
+            Arc::new(StaticTupleBackfillSource::default()),
+            Arc::clone(&sink) as Arc<dyn TupleMutationSink>,
+            Arc::new(AuthzTupleSyncMetrics::default()),
+            SpiceDbTupleSyncRuntimeConfig::default(),
+        );
+
+        let report = service.run_sync_once().await.unwrap();
+        assert_eq!(report.claimed_events, 1);
+        assert_eq!(report.succeeded_events, 1);
+        assert_eq!(report.failed_events, 0);
+
+        let tuples = sink.snapshot().await;
+        let compact: std::collections::BTreeSet<String> =
+            tuples.iter().map(SpiceDbTuple::compact).collect();
+        assert!(compact.contains("api_path:/v1/protected/ping#viewer@user:1"));
+    }
+
+    #[tokio::test]
+    async fn run_backfill_once_fails_when_sink_snapshot_is_unsupported() {
+        let service = AuthzTupleSyncService::new(
+            Arc::new(InMemoryTupleSyncOutboxStore::new(Vec::new())) as Arc<dyn TupleSyncOutboxStore>,
+            Arc::new(StaticTupleBackfillSource::default()),
+            Arc::new(SnapshotUnsupportedTupleSink) as Arc<dyn TupleMutationSink>,
+            Arc::new(AuthzTupleSyncMetrics::default()),
+            SpiceDbTupleSyncRuntimeConfig::default(),
+        );
+
+        let error = service.run_backfill_once().await.unwrap_err();
+        assert!(error.contains("tuple_backfill_list_current_tuples_failed:tuple_snapshot_unsupported"));
     }
 
     #[tokio::test]
@@ -848,16 +954,20 @@ mod tests {
 
     struct InMemoryTupleSyncOutboxStore {
         events: tokio::sync::Mutex<Vec<TupleSyncOutboxEvent>>,
+        claimed_events: tokio::sync::Mutex<std::collections::BTreeMap<i64, TupleSyncOutboxEvent>>,
         sent_ids: tokio::sync::Mutex<Vec<i64>>,
         failed_entries: tokio::sync::Mutex<Vec<(i64, u32)>>,
+        mark_sent_failures_remaining: tokio::sync::Mutex<std::collections::BTreeMap<i64, u32>>,
     }
 
     impl InMemoryTupleSyncOutboxStore {
         fn new(events: Vec<TupleSyncOutboxEvent>) -> Self {
             Self {
                 events: tokio::sync::Mutex::new(events),
+                claimed_events: tokio::sync::Mutex::new(std::collections::BTreeMap::new()),
                 sent_ids: tokio::sync::Mutex::new(Vec::new()),
                 failed_entries: tokio::sync::Mutex::new(Vec::new()),
+                mark_sent_failures_remaining: tokio::sync::Mutex::new(std::collections::BTreeMap::new()),
             }
         }
 
@@ -867,6 +977,13 @@ mod tests {
 
         async fn failed_entries(&self) -> Vec<(i64, u32)> {
             self.failed_entries.lock().await.clone()
+        }
+
+        async fn fail_mark_sent_times(&self, event_id: i64, times: u32) {
+            self.mark_sent_failures_remaining
+                .lock()
+                .await
+                .insert(event_id, times);
         }
     }
 
@@ -879,10 +996,28 @@ mod tests {
         ) -> Result<Vec<TupleSyncOutboxEvent>, String> {
             let mut events = self.events.lock().await;
             let take = usize::min(events.len(), limit as usize);
-            Ok(events.drain(..take).collect())
+            let claimed: Vec<TupleSyncOutboxEvent> = events.drain(..take).collect();
+            drop(events);
+
+            let mut in_flight = self.claimed_events.lock().await;
+            for event in &claimed {
+                in_flight.insert(event.id, event.clone());
+            }
+
+            Ok(claimed)
         }
 
         async fn mark_outbox_event_sent(&self, event_id: i64) -> Result<(), String> {
+            let mut failure = self.mark_sent_failures_remaining.lock().await;
+            if let Some(remaining) = failure.get_mut(&event_id) {
+                if *remaining > 0 {
+                    *remaining -= 1;
+                    return Err("injected_mark_sent_failure".to_owned());
+                }
+            }
+            drop(failure);
+
+            self.claimed_events.lock().await.remove(&event_id);
             self.sent_ids.lock().await.push(event_id);
             Ok(())
         }
@@ -896,7 +1031,28 @@ mod tests {
                 .lock()
                 .await
                 .push((event_id, retry_seconds));
+            let claimed = self.claimed_events.lock().await.remove(&event_id);
+            if let Some(event) = claimed {
+                self.events.lock().await.push(event);
+            }
             Ok(())
+        }
+    }
+
+    #[derive(Default)]
+    struct SnapshotUnsupportedTupleSink;
+
+    #[async_trait]
+    impl TupleMutationSink for SnapshotUnsupportedTupleSink {
+        async fn apply_mutations(
+            &self,
+            _mutations: Vec<SpiceDbTupleMutation>,
+        ) -> Result<(), String> {
+            Ok(())
+        }
+
+        async fn list_current_tuples(&self) -> Result<Vec<SpiceDbTuple>, String> {
+            Err("tuple_snapshot_unsupported".to_owned())
         }
     }
 }

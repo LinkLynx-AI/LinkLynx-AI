@@ -75,6 +75,7 @@ Supported event types:
 Operation rules:
 - `op=upsert`: `Delete(candidate tuples)` + `Upsert(desired tuples)`
 - `op=delete`: `Delete(candidate tuples)`
+- `mark_outbox_event_sent` 失敗時: 同一イベントを `mark_outbox_event_failed` へフォールバックして再試行可能状態へ戻す（処理は idempotent 前提）
 
 ## 5. Full resync trigger (minimum hook)
 
@@ -93,7 +94,9 @@ VALUES (
 ```
 
 Expected behavior:
-- consumer executes one full backfill
+- consumer executes one differential full backfill (`Delete(unexpected)` + `Upsert(missing)`)
+- drift 計算は tuple-sync 管理対象 relation のみに限定し、管理外 tuple は削除対象に含めない
+- sink が current tuple snapshot を返せない場合、full resync は失敗として扱う
 - success -> `mark_outbox_event_sent`
 - failure -> `mark_outbox_event_failed`
 
