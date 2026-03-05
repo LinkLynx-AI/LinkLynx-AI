@@ -430,6 +430,7 @@ mod tests {
         assert!(compact.contains("channel:200#poster_role@role:10/member#member"));
         assert!(compact.contains("channel:200#viewer_user@user:3000"));
         assert!(compact.contains("channel:200#post_deny_user@user:3000"));
+        assert!(compact.contains("channel:200#guild@guild:10"));
     }
 
     #[test]
@@ -502,6 +503,38 @@ mod tests {
         assert!(compact.contains("delete:guild:44#poster@role:44/member#member"));
         assert!(compact.contains("upsert:guild:44#viewer@role:44/member#member"));
         assert_eq!(compact.len(), 4);
+    }
+
+    #[test]
+    fn tuple_sync_command_channel_override_upsert_includes_channel_guild_tuple() {
+        let event = TupleSyncOutboxEvent {
+            id: 102,
+            event_type: AUTHZ_TUPLE_EVENT_CHANNEL_ROLE_OVERRIDE.to_owned(),
+            aggregate_id: "channel:200/role:member".to_owned(),
+            payload: json!({
+                "op": "upsert",
+                "channel_id": 200,
+                "guild_id": 10,
+                "role_key": "member",
+                "can_view": null,
+                "can_post": null
+            }),
+        };
+
+        let command = build_tuple_sync_command(&event).unwrap();
+        let TupleSyncCommand::Mutations(mutations) = command else {
+            panic!("unexpected sync command");
+        };
+
+        let compact: std::collections::BTreeSet<String> = mutations
+            .iter()
+            .map(|mutation| match mutation {
+                SpiceDbTupleMutation::Delete(tuple) => format!("delete:{}", tuple.compact()),
+                SpiceDbTupleMutation::Upsert(tuple) => format!("upsert:{}", tuple.compact()),
+            })
+            .collect();
+
+        assert!(compact.contains("upsert:channel:200#guild@guild:10"));
     }
 
     #[test]
@@ -630,7 +663,13 @@ mod tests {
                 role_key: "member".to_owned(),
             }],
             channel_role_overrides: Vec::new(),
-            channel_user_overrides: Vec::new(),
+            channel_user_overrides: vec![ChannelUserOverrideRow {
+                channel_id: 55,
+                guild_id: 1,
+                user_id: 88,
+                can_view: None,
+                can_post: None,
+            }],
         });
 
         let service = AuthzTupleSyncService::new(
@@ -653,11 +692,12 @@ mod tests {
             tuples.iter().map(SpiceDbTuple::compact).collect();
         assert!(compact.contains("role:1/member#member@user:88"));
         assert!(compact.contains("guild:1#viewer@role:1/member#member"));
+        assert!(compact.contains("channel:55#guild@guild:1"));
 
         let metrics = service.metrics().snapshot();
         assert_eq!(metrics.outbox_full_resync_total, 1);
         assert_eq!(metrics.backfill_runs_total, 1);
-        assert_eq!(metrics.backfill_generated_tuples_total, 2);
+        assert_eq!(metrics.backfill_generated_tuples_total, 3);
     }
 
     #[tokio::test]

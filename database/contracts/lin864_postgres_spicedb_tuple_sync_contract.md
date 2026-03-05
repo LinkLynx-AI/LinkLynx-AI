@@ -30,6 +30,7 @@ Out of scope:
 | `guild_roles_v2` | `allow_manage=true` | `guild:{guild_id}#manager@role:{guild_id}/{role_key}#member` |
 | `guild_roles_v2` | `allow_view=true` | `guild:{guild_id}#viewer@role:{guild_id}/{role_key}#member` |
 | `guild_roles_v2` | `allow_post=true` | `guild:{guild_id}#poster@role:{guild_id}/{role_key}#member` |
+| `channel_role_permission_overrides_v2` / `channel_user_permission_overrides_v2` | row exists | `channel:{channel_id}#guild@guild:{guild_id}` |
 | `channel_role_permission_overrides_v2` | `can_view=true` | `channel:{channel_id}#viewer_role@role:{guild_id}/{role_key}#member` |
 | `channel_role_permission_overrides_v2` | `can_view=false` | `channel:{channel_id}#view_deny_role@role:{guild_id}/{role_key}#member` |
 | `channel_role_permission_overrides_v2` | `can_post=true` | `channel:{channel_id}#poster_role@role:{guild_id}/{role_key}#member` |
@@ -79,6 +80,7 @@ backfillソースは以下順序で取得する。
 
 - `op=upsert`
   - 対象行の候補tupleを先に `Delete` し、現行状態tupleを `Upsert` する（置換型同期）。
+  - `channel_role_permission_overrides_v2` / `channel_user_permission_overrides_v2` 由来のイベントでは、`channel:{id}#guild@guild:{id}` を常に `Upsert` して guild baseline 継承を維持する。
 - `op=delete`
   - 対象行に紐づく候補tupleを `Delete` する。
 - `authz.tuple.full_resync.v1`

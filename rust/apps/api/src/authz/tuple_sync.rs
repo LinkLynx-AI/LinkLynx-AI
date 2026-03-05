@@ -27,6 +27,7 @@ const CHANNEL_VIEWER_ROLE_RELATION: &str = "viewer_role";
 const CHANNEL_VIEW_DENY_ROLE_RELATION: &str = "view_deny_role";
 const CHANNEL_POSTER_ROLE_RELATION: &str = "poster_role";
 const CHANNEL_POST_DENY_ROLE_RELATION: &str = "post_deny_role";
+const CHANNEL_GUILD_RELATION: &str = "guild";
 
 const CHANNEL_VIEWER_USER_RELATION: &str = "viewer_user";
 const CHANNEL_VIEW_DENY_USER_RELATION: &str = "view_deny_user";
@@ -325,7 +326,7 @@ pub fn map_guild_role_permissions_to_tuples(row: &GuildRolePermissionRow) -> Vec
 pub fn map_channel_role_override_to_tuples(row: &ChannelRoleOverrideRow) -> Vec<SpiceDbTuple> {
     let object = channel_object(row.channel_id);
     let role_subject = role_member_subject(row.guild_id, &row.role_key);
-    let mut tuples = Vec::new();
+    let mut tuples = vec![map_channel_guild_tuple(row.channel_id, row.guild_id)];
 
     match row.can_view {
         Some(true) => tuples.push(SpiceDbTuple::new(
@@ -365,7 +366,7 @@ pub fn map_channel_role_override_to_tuples(row: &ChannelRoleOverrideRow) -> Vec<
 pub fn map_channel_user_override_to_tuples(row: &ChannelUserOverrideRow) -> Vec<SpiceDbTuple> {
     let object = channel_object(row.channel_id);
     let subject = user_subject(row.user_id);
-    let mut tuples = Vec::new();
+    let mut tuples = vec![map_channel_guild_tuple(row.channel_id, row.guild_id)];
 
     match row.can_view {
         Some(true) => tuples.push(SpiceDbTuple::new(
@@ -1331,6 +1332,14 @@ fn channel_user_override_candidate_tuples(channel_id: i64, user_id: i64) -> Vec<
         ),
         SpiceDbTuple::new(object, CHANNEL_POST_DENY_USER_RELATION, subject),
     ]
+}
+
+fn map_channel_guild_tuple(channel_id: i64, guild_id: i64) -> SpiceDbTuple {
+    SpiceDbTuple::new(
+        channel_object(channel_id),
+        CHANNEL_GUILD_RELATION,
+        guild_object(guild_id),
+    )
 }
 
 fn role_object(guild_id: i64, role_key: &str) -> String {
