@@ -18,6 +18,7 @@ jobs:
       NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: ci-dummy.appspot.com
       FIREBASE_PROJECT_ID: ci-dummy-project
       AUTH_ALLOW_POSTGRES_NOTLS: "true"
+      SPICEDB_PRESHARED_KEY: linklynx-dev-spicedb-key
     steps:
       - uses: actions/checkout@v4
       - name: Start SpiceDB
@@ -33,6 +34,51 @@ jobs:
           echo "SpiceDB gRPC/HTTP endpoints did not become ready on localhost:50051/8443" >&2
           docker compose logs spicedb >&2
           exit 1
+      - name: Check SpiceDB auth and permissions/check contract
+        run: |
+          set -euo pipefail
+          check_payload='{"resource":{"objectType":"guild","objectId":"1"},"permission":"read","subject":{"object":{"objectType":"principal","objectId":"1"}}}'
+          curl_with_retry() {
+            local output_file="$1"
+            local expected_status="$2"
+            shift 2
+            local status=""
+
+            for attempt in {1..10}; do
+              status=$(curl -sS -m 5 -o "${output_file}" -w "%{http_code}" "$@" || true)
+              if [ "${status}" = "${expected_status}" ]; then
+                return 0
+              fi
+              sleep 1
+            done
+
+            echo "SpiceDB contract check expected ${expected_status} but got ${status}" >&2
+            if [ -f "${output_file}" ]; then
+              cat "${output_file}" >&2
+            fi
+            return 1
+          }
+
+          curl_with_retry /tmp/spicedb-unauth.json 401 -X POST \
+            "http://127.0.0.1:8443/v1/permissions/check" \
+            -H "Content-Type: application/json" \
+            -d "$check_payload"
+          grep -q '"code":16' /tmp/spicedb-unauth.json
+
+          schema_payload='{"schema":"definition principal {}\ndefinition guild {\n  relation member: principal\n  permission read = member\n}"}'
+          curl_with_retry /tmp/spicedb-schema-write.json 200 -X POST \
+            "http://127.0.0.1:8443/v1/schema/write" \
+            -H "Authorization: Bearer ${SPICEDB_PRESHARED_KEY}" \
+            -H "Content-Type: application/json" \
+            -d "$schema_payload"
+          grep -q '"writtenAt"' /tmp/spicedb-schema-write.json
+
+          curl_with_retry /tmp/spicedb-auth.json 200 -X POST \
+            "http://127.0.0.1:8443/v1/permissions/check" \
+            -H "Authorization: Bearer ${SPICEDB_PRESHARED_KEY}" \
+            -H "Content-Type: application/json" \
+            -d "$check_payload"
+          grep -q '"permissionship":"PERMISSIONSHIP_NO_PERMISSION"' /tmp/spicedb-auth.json
       - name: Stop SpiceDB
         if: always()
         run: docker compose down
@@ -84,12 +130,49 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: rust
-      - name: Run SpiceDB provider and REST/WS authz regressions
+      - name: Run AuthZ regressions with zero-match filter guard
         run: |
-          cargo test -p linklynx_backend runtime_provider_spicedb_
-          cargo test -p linklynx_backend guild_channel_message_endpoints_apply_role_based_allow_and_deny
-          cargo test -p linklynx_backend invite_dm_moderation_endpoints_apply_role_based_allow_and_deny
-          cargo test -p linklynx_backend moderation_endpoint_returns_unavailable_when_authz_unavailable
+          set -euo pipefail
+
+          run_filtered_test() {
+            local filter="$1"
+            local log_file="/tmp/authz-regression-${filter//[^a-zA-Z0-9_-]/_}.log"
+            local executed
+
+            echo "::group::cargo test filter=${filter}"
+            cargo test -p linklynx_backend "${filter}" -- --nocapture 2>&1 | tee "${log_file}"
+            echo "::endgroup::"
+
+            executed=$(awk '/^running [0-9]+ tests?$/ { sum += $2 } END { print sum + 0 }' "${log_file}")
+            if [ "${executed}" -eq 0 ]; then
+              echo "::error title=AuthZ CI test filter matched zero tests::filter '${filter}' matched zero tests. Failing to prevent false green."
+              if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+                echo "- \`${filter}\`: 0 tests (failed)" >> "${GITHUB_STEP_SUMMARY}"
+              fi
+              exit 1
+            fi
+
+            echo "::notice title=AuthZ CI test filter matched::filter '${filter}' executed ${executed} test(s)"
+            if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+              echo "- \`${filter}\`: ${executed} tests" >> "${GITHUB_STEP_SUMMARY}"
+            fi
+          }
+
+          if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+            {
+              echo "### AuthZ regression filter check"
+              echo "- started at: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+            } >> "${GITHUB_STEP_SUMMARY}"
+          fi
+
+          run_filtered_test "runtime_provider_spicedb_"
+          run_filtered_test "list_guild_channels_returns_forbidden_for_non_member"
+          run_filtered_test "invite_dm_moderation_endpoints_apply_role_based_allow_and_deny"
+          run_filtered_test "moderation_endpoint_returns_unavailable_when_authz_unavailable"
+
+          run_filtered_test "runtime_provider_unknown_is_fail_closed"
+          run_filtered_test "spicedb_runtime_config_"
+          run_filtered_test "spicedb_tuple_sync_runtime_config_"
 
   python-validate:
     name: Python Validate
