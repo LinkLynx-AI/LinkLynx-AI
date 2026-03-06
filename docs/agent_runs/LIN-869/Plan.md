@@ -53,8 +53,8 @@
 
 ### M7: LIN-881 WS/Internal authz bypass解消
 - Acceptance criteria:
-  - [ ] WS text経路認可境界統一
-  - [ ] /internal/authz/metrics保護
+  - [x] WS text経路認可境界統一
+  - [x] /internal/authz/metrics保護
 - Validation:
   - `make rust-lint`
   - `cargo test -p linklynx_backend ws_`

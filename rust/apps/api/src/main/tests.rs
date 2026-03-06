@@ -8,7 +8,7 @@ mod tests {
         PrincipalProvisioner, PrincipalResolver, PrincipalStore, TokenVerifier, TokenVerifyError,
         VerifiedToken,
     };
-    use authz::{Authorizer, AuthzAction, AuthzCheckInput, AuthzError, AuthzResource};
+    use authz::{Authorizer, AuthzAction, AuthzCheckInput, AuthzError, AuthzErrorKind, AuthzResource};
     use guild_channel::{
         ChannelSummary, CreatedChannel, CreatedGuild, GuildChannelError, GuildChannelService,
         GuildSummary,
@@ -327,10 +327,14 @@ mod tests {
         app_for_test_with_authorizer_and_profile(authorizer, Arc::new(StaticProfileService)).await
     }
 
-    async fn app_for_test_with_authorizer_and_profile(
+    async fn state_for_test_with_authorizer(authorizer: Arc<dyn Authorizer>) -> AppState {
+        state_for_test_with_authorizer_and_profile(authorizer, Arc::new(StaticProfileService)).await
+    }
+
+    async fn state_for_test_with_authorizer_and_profile(
         authorizer: Arc<dyn Authorizer>,
         profile_service: Arc<dyn ProfileService>,
-    ) -> Router {
+    ) -> AppState {
         let metrics = Arc::new(AuthMetrics::default());
         let verifier: Arc<dyn TokenVerifier> = Arc::new(StaticTokenVerifier);
 
@@ -352,7 +356,7 @@ mod tests {
         ));
 
         let auth_service = Arc::new(AuthService::new(verifier, resolver, metrics));
-        let state = AppState {
+        AppState {
             auth_service,
             authorizer,
             authz_metrics: Arc::new(AuthzMetrics::default()),
@@ -374,8 +378,14 @@ mod tests {
                 "http://localhost:3000".to_owned(),
                 "http://127.0.0.1:3000".to_owned(),
             ]))),
-        };
+        }
+    }
 
+    async fn app_for_test_with_authorizer_and_profile(
+        authorizer: Arc<dyn Authorizer>,
+        profile_service: Arc<dyn ProfileService>,
+    ) -> Router {
+        let state = state_for_test_with_authorizer_and_profile(authorizer, profile_service).await;
         app_with_state(state)
     }
 
@@ -511,6 +521,76 @@ mod tests {
         let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
         assert!(json.get("token_verify_success_total").is_some());
         assert!(json.get("principal_cache_hit_ratio").is_some());
+    }
+
+    #[tokio::test]
+    async fn internal_authz_metrics_endpoint_rejects_missing_token() {
+        let app = app_for_test().await;
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/internal/authz/metrics")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn internal_authz_metrics_endpoint_accepts_valid_token() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/internal/authz/metrics")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert!(json.get("allow_total").is_some());
+        assert!(json.get("deny_total").is_some());
+        assert!(json.get("unavailable_total").is_some());
+    }
+
+    #[tokio::test]
+    async fn ws_stream_access_denies_when_authorizer_denies() {
+        let state = state_for_test_with_authorizer(Arc::new(StaticDenyAuthorizer)).await;
+        let authenticated = AuthenticatedPrincipal {
+            principal_id: PrincipalId(9003),
+            firebase_uid: "u-member".to_owned(),
+            expires_at_epoch: unix_timestamp_seconds() + 300,
+        };
+
+        let error = authorize_ws_stream_access(&state, &authenticated, "ws-test")
+            .await
+            .unwrap_err();
+        assert_eq!(error.kind, AuthzErrorKind::Denied);
+    }
+
+    #[tokio::test]
+    async fn ws_stream_access_allows_when_authorizer_allows() {
+        let state = state_for_test_with_authorizer(Arc::new(StaticAllowAllAuthorizer)).await;
+        let authenticated = AuthenticatedPrincipal {
+            principal_id: PrincipalId(9001),
+            firebase_uid: "u-owner".to_owned(),
+            expires_at_epoch: unix_timestamp_seconds() + 300,
+        };
+
+        assert!(authorize_ws_stream_access(&state, &authenticated, "ws-test")
+            .await
+            .is_ok());
     }
 
     #[tokio::test]

@@ -1,6 +1,6 @@
 ## Current status
-- Now: LIN-882 実装/検証/review loop 完了、親branch取り込み待ち。
-- Next: LIN-881 を開始。
+- Now: LIN-881 実装/検証/review loop 完了、親branch取り込み待ち。
+- Next: LIN-876 を開始。
 
 ## Decisions
 - Parent issue LIN-869 was moved to In Progress before execution.
@@ -76,4 +76,18 @@
   - `cd rust && cargo test -p linklynx_backend runtime_provider_spicedb_` (pass)
 - Review gate:
   - reviewer: pass（初回P1「cache hit時の整合性チェック迂回」を修正後に再review pass）
+  - reviewer_ui_guard: backend-only差分のためskip（かつ model unsupported）
+
+## LIN-881 progress
+- Branch: `codex/LIN-881-ws-internal-authz-bypass-fix`
+- Scope:
+  - WS text passthrough 分岐で stream と同一認可境界を適用（未許可時は `1008/1011` へ遷移）
+  - `/internal/authz/metrics` を protected routes へ移設し、無認証アクセス不可化
+  - 回帰テスト追加（`internal_authz_metrics_*`, `ws_stream_access_*`）
+- Validation:
+  - `make rust-lint` (pass)
+  - `cd rust && cargo test -p linklynx_backend ws_` (pass)
+  - `cd rust && cargo test -p linklynx_backend internal_authz_metrics_` (pass)
+- Review gate:
+  - reviewer: pass（P1+なし）
   - reviewer_ui_guard: backend-only差分のためskip（かつ model unsupported）
