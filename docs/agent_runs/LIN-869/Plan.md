@@ -68,8 +68,8 @@
 
 ### M9: LIN-884 CI gate hardening
 - Acceptance criteria:
-  - [ ] name-filter誤緑防止
-  - [ ] env validation回帰
+  - [x] name-filter誤緑防止
+  - [x] env validation回帰
 - Validation:
   - `make validate`
   - `cargo test -p linklynx_backend runtime_provider_spicedb_`

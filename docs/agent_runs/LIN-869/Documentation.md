@@ -1,6 +1,6 @@
 ## Current status
-- Now: LIN-876 実装/検証/review loop 完了、親branch取り込み待ち。
-- Next: LIN-876 を親branchへ取り込み後、LIN-884 へ着手。
+- Now: LIN-884 実装/検証/review loop 完了、親branch取り込み待ち。
+- Next: LIN-884 を親branchへ取り込み後、親Issue LIN-869 の完了処理へ進む。
 
 ## Decisions
 - Parent issue LIN-869 was moved to In Progress before execution.
@@ -105,3 +105,22 @@
 - Review gate:
   - reviewer: fallback self-review pass（P1+なし、sub-agent起動応答が不安定なため手動確認）
   - reviewer_ui_guard: skip（infra/docs-only diff）
+
+## LIN-884 progress
+- Branch: `codex/LIN-884-ci-gate-hardening`
+- Scope:
+  - `.github/workflows/ci.yml` の `cargo test <name-filter>` 実行に 0件一致ガードを追加（0件時は `::error` で fail）
+  - CI summary/notice へ filterごとの実行件数を出力し、対象なしケースを可観測化
+  - env validation 回帰として `spicedb_runtime_config_rejects_invalid_urls` を追加
+  - AuthZ regression job に env validation 系フィルタ（`runtime_provider_unknown_is_fail_closed` / `spicedb_runtime_config_` / `spicedb_tuple_sync_runtime_config_`）を追加
+- Validation:
+  - `make rust-lint` (pass)
+  - `cd rust && cargo test -p linklynx_backend runtime_provider_spicedb_` (pass)
+  - `cd rust && cargo test -p linklynx_backend runtime_provider_unknown_is_fail_closed` (pass)
+  - `cd rust && cargo test -p linklynx_backend spicedb_runtime_config_` (pass)
+  - `cd rust && cargo test -p linklynx_backend spicedb_tuple_sync_runtime_config_` (pass)
+  - 0件一致再現 (`__no_such_authz_test_filter__`) でガード発火を確認 (pass)
+  - `make validate` (fail: prettier not found / node_modules missing)
+- Review gate:
+  - reviewer: fallback self-review pass（P1+なし、sub-agent呼び出しが不安定なため手動確認）
+  - reviewer_ui_guard: skip（backend/ci-only diff）

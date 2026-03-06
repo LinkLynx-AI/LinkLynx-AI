@@ -113,12 +113,49 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: rust
-      - name: Run SpiceDB provider and REST/WS authz regressions
+      - name: Run AuthZ regressions with zero-match filter guard
         run: |
-          cargo test -p linklynx_backend runtime_provider_spicedb_
-          cargo test -p linklynx_backend guild_channel_message_endpoints_apply_role_based_allow_and_deny
-          cargo test -p linklynx_backend invite_dm_moderation_endpoints_apply_role_based_allow_and_deny
-          cargo test -p linklynx_backend moderation_endpoint_returns_unavailable_when_authz_unavailable
+          set -euo pipefail
+
+          run_filtered_test() {
+            local filter="$1"
+            local log_file="/tmp/authz-regression-${filter//[^a-zA-Z0-9_-]/_}.log"
+            local executed
+
+            echo "::group::cargo test filter=${filter}"
+            cargo test -p linklynx_backend "${filter}" -- --nocapture 2>&1 | tee "${log_file}"
+            echo "::endgroup::"
+
+            executed=$(awk '/^running [0-9]+ tests$/ { sum += $2 } END { print sum + 0 }' "${log_file}")
+            if [ "${executed}" -eq 0 ]; then
+              echo "::error title=AuthZ CI test filter matched zero tests::filter '${filter}' matched zero tests. Failing to prevent false green."
+              if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+                echo "- \`${filter}\`: 0 tests (failed)" >> "${GITHUB_STEP_SUMMARY}"
+              fi
+              exit 1
+            fi
+
+            echo "::notice title=AuthZ CI test filter matched::filter '${filter}' executed ${executed} test(s)"
+            if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+              echo "- \`${filter}\`: ${executed} tests" >> "${GITHUB_STEP_SUMMARY}"
+            fi
+          }
+
+          if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+            {
+              echo "### AuthZ regression filter check"
+              echo "- started at: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+            } >> "${GITHUB_STEP_SUMMARY}"
+          fi
+
+          run_filtered_test "runtime_provider_spicedb_"
+          run_filtered_test "guild_channel_message_endpoints_apply_role_based_allow_and_deny"
+          run_filtered_test "invite_dm_moderation_endpoints_apply_role_based_allow_and_deny"
+          run_filtered_test "moderation_endpoint_returns_unavailable_when_authz_unavailable"
+
+          run_filtered_test "runtime_provider_unknown_is_fail_closed"
+          run_filtered_test "spicedb_runtime_config_"
+          run_filtered_test "spicedb_tuple_sync_runtime_config_"
 
   python-validate:
     name: Python Validate

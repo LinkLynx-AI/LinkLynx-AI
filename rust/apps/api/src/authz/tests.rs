@@ -179,6 +179,29 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn spicedb_runtime_config_rejects_invalid_urls() {
+        let _guard = env_lock().lock().await;
+        let mut scoped = ScopedEnv::new();
+        scoped.set("SPICEDB_ENDPOINT", "not-a-url");
+        scoped.set("SPICEDB_CHECK_ENDPOINT", "http://localhost:8443");
+        scoped.set("SPICEDB_PRESHARED_KEY", "test-key");
+
+        let endpoint_error = build_spicedb_runtime_config_from_env().unwrap_err();
+        assert!(
+            endpoint_error.contains("SPICEDB_ENDPOINT must be a valid URL"),
+            "unexpected error: {endpoint_error}"
+        );
+
+        scoped.set("SPICEDB_ENDPOINT", "http://localhost:50051");
+        scoped.set("SPICEDB_CHECK_ENDPOINT", "not-a-url");
+        let check_endpoint_error = build_spicedb_runtime_config_from_env().unwrap_err();
+        assert!(
+            check_endpoint_error.contains("SPICEDB_CHECK_ENDPOINT must be a valid URL"),
+            "unexpected error: {check_endpoint_error}"
+        );
+    }
+
+    #[tokio::test]
     async fn spicedb_runtime_config_parses_valid_values() {
         let _guard = env_lock().lock().await;
         let mut scoped = ScopedEnv::new();
