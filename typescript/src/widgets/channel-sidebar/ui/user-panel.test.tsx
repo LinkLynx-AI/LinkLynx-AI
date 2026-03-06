@@ -19,6 +19,7 @@ describe("UserPanel", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     usePathnameMock.mockReturnValue("/channels/2001/3001");
+
     act(() => {
       useAuthStore.setState({
         currentUser: {
