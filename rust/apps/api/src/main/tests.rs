@@ -1,6 +1,7 @@
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ratelimit::RestRateLimitConfig;
     use async_trait::async_trait;
     use std::collections::HashSet;
     use auth::{
@@ -17,7 +18,7 @@ mod tests {
     use profile::{ProfileError, ProfilePatchInput, ProfileService, ProfileSettings};
     use axum::{
         body::to_bytes,
-        http::{Method, StatusCode},
+        http::{header::RETRY_AFTER, Method, StatusCode},
     };
     use linklynx_shared::PrincipalId;
     use tower::ServiceExt;
@@ -478,6 +479,9 @@ mod tests {
                 "http://localhost:3000".to_owned(),
                 "http://127.0.0.1:3000".to_owned(),
             ]))),
+            rest_rate_limit_service: Arc::new(RestRateLimitService::new(
+                RestRateLimitConfig::default(),
+            )),
         }
     }
 
@@ -1995,6 +1999,116 @@ mod tests {
         let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
         assert_eq!(json["code"], "AUTHZ_UNAVAILABLE");
         assert_eq!(json["request_id"], "moderation-authz-unavailable-test");
+    }
+
+    #[tokio::test]
+    async fn invite_endpoint_returns_retry_after_when_rate_limited() {
+        let app = app_for_test_with_authorizer(Arc::new(RoleScenarioAuthorizer)).await;
+        let token = format!("u-owner:{}", unix_timestamp_seconds() + 300);
+        let mut last_response = None;
+
+        for _ in 0..11 {
+            last_response = Some(
+                app.clone()
+                    .oneshot(
+                        Request::builder()
+                            .uri("/v1/guilds/10/invites/invite-abc")
+                            .header("authorization", format!("Bearer {token}"))
+                            .body(Body::empty())
+                            .unwrap(),
+                    )
+                    .await
+                    .unwrap(),
+            );
+        }
+
+        let response = last_response.unwrap();
+        assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
+        assert_eq!(
+            response
+                .headers()
+                .get(RETRY_AFTER)
+                .and_then(|value| value.to_str().ok()),
+            Some("60")
+        );
+    }
+
+    #[tokio::test]
+    async fn moderation_endpoint_fail_closes_when_ratelimit_degraded() {
+        let state = state_for_test_with_authorizer(Arc::new(RoleScenarioAuthorizer)).await;
+        state.rest_rate_limit_service.set_degraded_for_test(true).await;
+        let app = app_with_state(state);
+        let token = format!("u-admin:{}", unix_timestamp_seconds() + 300);
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("PATCH")
+                    .uri("/v1/moderation/guilds/10/members/9003")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
+        assert_eq!(
+            response
+                .headers()
+                .get(RETRY_AFTER)
+                .and_then(|value| value.to_str().ok()),
+            Some("60")
+        );
+    }
+
+    #[tokio::test]
+    async fn message_create_continues_with_l1_when_ratelimit_degraded() {
+        let state = state_for_test_with_authorizer(Arc::new(RoleScenarioAuthorizer)).await;
+        state.rest_rate_limit_service.set_degraded_for_test(true).await;
+        let app = app_with_state(state);
+        let token = format!("u-member:{}", unix_timestamp_seconds() + 300);
+        let first_response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/v1/dms/55/messages")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(first_response.status(), StatusCode::OK);
+
+        let mut last_response = None;
+
+        for _ in 0..30 {
+            last_response = Some(
+                app.clone()
+                    .oneshot(
+                        Request::builder()
+                            .method("POST")
+                            .uri("/v1/dms/55/messages")
+                            .header("authorization", format!("Bearer {token}"))
+                            .body(Body::empty())
+                            .unwrap(),
+                    )
+                    .await
+                    .unwrap(),
+            );
+        }
+
+        let response = last_response.unwrap();
+        assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
+        assert_eq!(
+            response
+                .headers()
+                .get(RETRY_AFTER)
+                .and_then(|value| value.to_str().ok()),
+            Some("60")
+        );
     }
 
     #[test]

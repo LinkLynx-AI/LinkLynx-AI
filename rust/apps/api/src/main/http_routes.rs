@@ -520,6 +520,31 @@ struct ApiErrorResponse {
     request_id: String,
 }
 
+/// レート制限エラー応答を生成する。
+/// @param code エラーコード
+/// @param message エラーメッセージ
+/// @param request_id リクエストID
+/// @param retry_after_seconds Retry-After秒
+/// @returns RESTエラーレスポンス
+/// @throws なし
+fn rate_limit_error_response(
+    code: &'static str,
+    message: &'static str,
+    request_id: String,
+    retry_after_seconds: u64,
+) -> Response {
+    let body = ApiErrorResponse {
+        code,
+        message,
+        request_id,
+    };
+    let mut response = (StatusCode::TOO_MANY_REQUESTS, Json(body)).into_response();
+    if let Ok(retry_after_value) = HeaderValue::from_str(&retry_after_seconds.max(1).to_string()) {
+        response.headers_mut().insert(RETRY_AFTER, retry_after_value);
+    }
+    response
+}
+
 /// WS identify用ワンタイムチケットを発行する。
 /// @param state アプリケーション状態
 /// @param headers HTTPヘッダー
@@ -1161,6 +1186,50 @@ async fn rest_auth_middleware(
         email_verified = true,
         "REST auth accepted"
     );
+
+    if let Some(rate_limit_action) = rest_rate_limit_action_for_request(&request_method, &request_path)
+    {
+        let decision = state
+            .rest_rate_limit_service
+            .evaluate(authenticated.principal_id, rate_limit_action)
+            .await;
+        if !decision.allowed() {
+            let error_class = if decision.is_fail_close() {
+                "rate_limit_fail_close"
+            } else {
+                "rate_limited"
+            };
+            let reason = if decision.is_fail_close() {
+                "dragonfly_degraded_fail_close"
+            } else {
+                "rate_limit_exceeded"
+            };
+            let message = if decision.is_fail_close() {
+                "request rejected while rate-limit dependency is degraded"
+            } else {
+                "request rate limit exceeded"
+            };
+            tracing::warn!(
+                decision = "deny",
+                request_id = %request_id,
+                principal_id = authenticated.principal_id.0,
+                error_class = error_class,
+                reason = reason,
+                resource = %request_path,
+                action = decision.action().label(),
+                operation_class = ?decision.operation_class(),
+                degraded = decision.degraded(),
+                decision_source = "rest_rate_limit_service",
+                "REST request rejected by rate limit"
+            );
+            return rate_limit_error_response(
+                "RATE_LIMITED",
+                message,
+                request_id,
+                decision.retry_after_seconds().unwrap_or(1),
+            );
+        }
+    }
 
     let action = rest_authz_action_for_request(&request_method, &request_path);
     let action_label = match action {
