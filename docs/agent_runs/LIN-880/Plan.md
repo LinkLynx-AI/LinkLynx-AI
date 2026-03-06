@@ -19,7 +19,7 @@
   - [x] server settings に danger zone と確認ダイアログを追加する。
   - [x] 削除後の cache cleanup と fallback routing を実装する。
 - Validation:
-  - `npm -C typescript run test -- src/shared/api/guild-channel-api-client.test.ts src/features/settings/ui/server/server-overview.test.tsx src/features/context-menus/ui/server-context-menu.test.tsx src/features/modals/ui/server-delete-modal.test.tsx`
+  - `npm -C typescript run test -- src/shared/api/guild-channel-api-client.test.ts src/features/settings/ui/server/server-overview.test.tsx src/features/settings/ui/server/server-delete-modal.test.tsx`
 
 ### M3: Full checks and gates
 - Acceptance criteria:

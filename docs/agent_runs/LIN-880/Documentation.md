@@ -2,9 +2,9 @@
 
 ## Current status
 - Now:
-  - 実装と主要検証は完了。
+  - 実装と品質ゲートは完了。
 - Next:
-  - commit / PR 用の整理のみ。
+  - reviewer 系の非同期結果が必要なら追記して PR 用に整理する。
 
 ## Decisions
 - 削除確認フローは単一確認ダイアログを採用する。
@@ -43,12 +43,13 @@
 - `make rust-lint`: pass
   - sandbox では既存 SpiceDB/AuthZ 系テストが `Operation not permitted` になるため、昇格実行で確認
 - `make validate`: pass
-  - sandbox では Docker socket 制約があるため、昇格実行で確認
+  - sandbox では既存 SpiceDB/AuthZ 系テストが `Operation not permitted` になるため、昇格実行で確認
 
 ## Review results
-- reviewer: manual pass
+- reviewer: unavailable in this turn
+  - manual pass
   - no blocking findings
-  - sub-agent orchestration が安定せず reviewer 出力を回収できなかったため、変更差分を手動で再読して P1 以上の問題がないことを確認した
+  - reviewer を依頼したが、この turn では出力を回収できなかったため変更差分を手動で再読して P1 以上の問題がないことを確認した
 - reviewer_ui_guard: true
   - matched files: `typescript/src/features/settings/ui/server/server-overview.tsx`, `typescript/src/features/settings/ui/server/server-delete-modal.tsx`, `typescript/src/features/settings/ui/settings-layout.tsx`
   - rationale: server settings UI と modal に直接変更が入っている
@@ -58,20 +59,14 @@
 
 ## Runtime smoke
 - `make dev`: failed
-  - frontend 側で `next: command not found` が出て停止し、repo の dev stack は最後まで上がらなかった
-- `make rust-dev`: failed
-  - `Address already in use` で `:8080` bind に失敗した
+  - `pnpm install` 中に `ERR_PNPM_ENOTEMPTY` が発生し、`typescript/node_modules/.pnpm/.../next/.../node_modules/next` の削除で停止した
 - local HTTP probe:
-  - `curl -i -sS http://127.0.0.1:8080/health` => `200 OK`
-  - `curl -i -sS http://127.0.0.1:3000/channels/me` => `404 Not Found`
+  - `curl -i -sS http://127.0.0.1:8080/health` => 接続失敗
+  - `curl -i -sS http://127.0.0.1:3000/channels/me` => 接続失敗
 - environment assessment:
-  - `lsof -nP -iTCP:8080 -sTCP:LISTEN` で既存 `linklynx_backend` listener が存在
-  - `lsof -nP -iTCP:3000 -sTCP:LISTEN` で別 Node app が存在し、返却 HTML もこの repo の UI ではなかった
-  - そのため route-level smoke / Playwright smoke は今回の worktree 差分に対して完了不能
-  - current assessment: targeted tests、typecheck、`make rust-lint`、`make validate` は通過しているが、local runtime smoke は既存プロセス競合と frontend 実行環境の問題で incomplete
+  - `make dev` の失敗は実装差分ではなく worktree の既存 `node_modules` 状態に依存する
+  - dev server が起動しなかったため route-level smoke / Playwright smoke は今回の worktree 差分に対して完了不能
+  - current assessment: targeted tests、typecheck、`make rust-lint`、`make validate` は通過しているが、local runtime smoke は frontend 実行環境の問題で incomplete
 
 ## Known issues / follow-ups
-- local runtime smoke は環境競合で完了していない。`3000/8080` の既存 listener を整理し、frontend の `next` 実行環境が揃った状態で再試行すると UI 実機確認まで進める。
-
-## Known issues / follow-ups
-- None yet.
+- local runtime smoke は worktree の `typescript/node_modules` 状態により完了していない。依存ディレクトリをクリーンにしてから `make dev` を再試行すると UI 実機確認まで進める。
