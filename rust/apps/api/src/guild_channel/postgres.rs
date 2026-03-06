@@ -11,6 +11,63 @@ pub struct PostgresGuildChannelService {
 impl PostgresGuildChannelService {
     const DEFAULT_POOL_SIZE: usize = 4;
     const MAX_POOL_SIZE: usize = 100;
+    const CREATE_GUILD_SQL: &str = "WITH created_guild AS (
+                    INSERT INTO guilds (name, owner_id)
+                    VALUES ($1, $2)
+                    RETURNING id, name, icon_key, owner_id
+                 ),
+                 owner_member AS (
+                    INSERT INTO guild_members (guild_id, user_id)
+                    SELECT id, $2 FROM created_guild
+                    ON CONFLICT (guild_id, user_id) DO NOTHING
+                 ),
+                 role_seed AS (
+                    INSERT INTO guild_roles_v2 (
+                      guild_id,
+                      role_key,
+                      name,
+                      priority,
+                      allow_view,
+                      allow_post,
+                      allow_manage,
+                      is_system
+                    )
+                    SELECT
+                      id,
+                      role_key,
+                      role_name,
+                      priority,
+                      TRUE,
+                      TRUE,
+                      allow_manage,
+                      TRUE
+                    FROM created_guild
+                    CROSS JOIN (
+                      VALUES
+                        ('owner'::text, 'Owner'::text, 300::int, TRUE),
+                        ('admin'::text, 'Admin'::text, 200::int, TRUE),
+                        ('member'::text, 'Member'::text, 100::int, FALSE)
+                    ) AS roles(role_key, role_name, priority, allow_manage)
+                    ON CONFLICT (guild_id, role_key) DO UPDATE
+                    SET
+                      name = EXCLUDED.name,
+                      priority = EXCLUDED.priority,
+                      allow_view = EXCLUDED.allow_view,
+                      allow_post = EXCLUDED.allow_post,
+                      allow_manage = EXCLUDED.allow_manage,
+                      is_system = EXCLUDED.is_system
+                 ),
+                 owner_role AS (
+                    INSERT INTO guild_member_roles_v2 (guild_id, user_id, role_key)
+                    SELECT id, $2, 'owner'::text FROM created_guild
+                    ON CONFLICT (guild_id, user_id, role_key) DO NOTHING
+                 )
+                 SELECT
+                    id AS guild_id,
+                    name,
+                    icon_key,
+                    owner_id
+                 FROM created_guild";
     const CREATE_GUILD_CHANNEL_SQL: &str = "INSERT INTO channels (type, guild_id, name, created_by)
                  SELECT
                     'guild_text',
@@ -504,44 +561,7 @@ impl GuildChannelService for PostgresGuildChannelService {
         let normalized_name = normalize_non_empty_name(&name, "guild_name_required")?;
         let client = self.select_client().await?;
         let created = match client
-            .query_one(
-                "WITH created_guild AS (
-                    INSERT INTO guilds (name, owner_id)
-                    VALUES ($1, $2)
-                    RETURNING id, name, icon_key, owner_id
-                 ),
-                 owner_member AS (
-                    INSERT INTO guild_members (guild_id, user_id)
-                    SELECT id, $2 FROM created_guild
-                    ON CONFLICT (guild_id, user_id) DO NOTHING
-                 ),
-                 role_seed AS (
-                    INSERT INTO guild_roles (guild_id, level, name)
-                    SELECT id, level, role_name
-                    FROM created_guild
-                    CROSS JOIN (
-                      VALUES
-                        ('owner'::role_level, 'Owner'::text),
-                        ('admin'::role_level, 'Admin'::text),
-                        ('member'::role_level, 'Member'::text)
-                    ) AS roles(level, role_name)
-                    ON CONFLICT (guild_id, level) DO UPDATE
-                    SET name = EXCLUDED.name
-                 ),
-                 owner_role AS (
-                    INSERT INTO guild_member_roles (guild_id, user_id, level)
-                    SELECT id, $2, 'owner'::role_level FROM created_guild
-                    ON CONFLICT (guild_id, user_id) DO UPDATE
-                    SET level = EXCLUDED.level
-                 )
-                 SELECT
-                    id AS guild_id,
-                    name,
-                    icon_key,
-                    owner_id
-                 FROM created_guild",
-                &[&normalized_name, &principal_id.0],
-            )
+            .query_one(Self::CREATE_GUILD_SQL, &[&normalized_name, &principal_id.0])
             .await
         {
             Ok(row) => row,
