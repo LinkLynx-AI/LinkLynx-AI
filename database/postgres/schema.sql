@@ -540,6 +540,7 @@ CREATE TABLE public.users (
     email text NOT NULL,
     display_name text NOT NULL,
     avatar_key text,
+    banner_key text,
     status_text text,
     theme text DEFAULT 'dark'::text NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
@@ -932,6 +933,5 @@ ALTER TABLE ONLY public.invites
 
 ALTER TABLE ONLY public.invites
     ADD CONSTRAINT invites_guild_id_fkey FOREIGN KEY (guild_id) REFERENCES public.guilds(id) ON DELETE CASCADE;
-
 
 

@@ -49,6 +49,7 @@ const MY_PROFILE_SCHEMA = z.object({
   display_name: z.string(),
   status_text: z.string().nullable(),
   avatar_key: z.string().nullable(),
+  banner_key: z.string().nullable(),
 });
 const MY_PROFILE_RESPONSE_SCHEMA = z.object({
   profile: MY_PROFILE_SCHEMA,
@@ -376,6 +377,7 @@ function mapMyProfile(response: MyProfileResponse): MyProfile {
     displayName: response.profile.display_name,
     statusText: response.profile.status_text,
     avatarKey: response.profile.avatar_key,
+    bannerKey: response.profile.banner_key,
   };
 }
 
@@ -795,6 +797,9 @@ export class GuildChannelAPIClient extends NoDataAPIClient {
     }
     if (input.avatarKey !== undefined) {
       body.avatar_key = input.avatarKey;
+    }
+    if (input.bannerKey !== undefined) {
+      body.banner_key = input.bannerKey;
     }
 
     const response = await this.patchJson("/users/me/profile", body, MY_PROFILE_RESPONSE_SCHEMA);

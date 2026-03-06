@@ -29,12 +29,14 @@ export type MyProfile = {
   displayName: string;
   statusText: string | null;
   avatarKey: string | null;
+  bannerKey: string | null;
 };
 
 export type UpdateMyProfileInput = {
   displayName?: string;
   statusText?: string | null;
   avatarKey?: string | null;
+  bannerKey?: string | null;
 };
 
 export type CreateGuildData = {

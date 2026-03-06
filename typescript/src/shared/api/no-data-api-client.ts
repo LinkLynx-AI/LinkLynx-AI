@@ -47,6 +47,8 @@ function resolveCurrentUserOrThrow(): User {
   return user;
 }
 
+const noDataMyProfiles = new Map<string, MyProfile>();
+
 function buildProfile(user: User): UserProfile {
   return {
     ...user,
@@ -59,10 +61,12 @@ function buildProfile(user: User): UserProfile {
 }
 
 function buildMyProfile(user: User): MyProfile {
+  const savedProfile = noDataMyProfiles.get(user.id);
   return {
-    displayName: user.displayName,
-    statusText: user.customStatus,
-    avatarKey: null,
+    displayName: savedProfile?.displayName ?? user.displayName,
+    statusText: savedProfile?.statusText ?? user.customStatus,
+    avatarKey: savedProfile?.avatarKey ?? null,
+    bannerKey: savedProfile?.bannerKey ?? null,
   };
 }
 
@@ -199,12 +203,17 @@ export class NoDataAPIClient implements APIClient {
 
     try {
       const currentUser = resolveCurrentUserOrThrow();
+      const savedProfile = buildMyProfile(currentUser);
       const displayName =
         input.displayName !== undefined ? input.displayName.trim() : currentUser.displayName;
       const statusText =
         input.statusText !== undefined
           ? (input.statusText?.trim() ?? null)
           : currentUser.customStatus;
+      const avatarKey =
+        input.avatarKey !== undefined ? (input.avatarKey?.trim() ?? null) : savedProfile.avatarKey;
+      const bannerKey =
+        input.bannerKey !== undefined ? (input.bannerKey?.trim() ?? null) : savedProfile.bannerKey;
 
       const updatedUser: User = {
         ...currentUser,
@@ -212,11 +221,18 @@ export class NoDataAPIClient implements APIClient {
         customStatus: statusText,
       };
       useAuthStore.setState({ currentUser: updatedUser, customStatus: statusText });
+      noDataMyProfiles.set(currentUser.id, {
+        displayName,
+        statusText,
+        avatarKey,
+        bannerKey,
+      });
 
       return Promise.resolve({
         displayName,
         statusText,
-        avatarKey: null,
+        avatarKey,
+        bannerKey,
       });
     } catch (error) {
       return Promise.reject(

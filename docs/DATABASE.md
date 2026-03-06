@@ -31,6 +31,7 @@
 10. `0009_lin633_channel_user_overrides_spicedb`
 11. `0010_lin634_channel_hierarchy_category_thread`
 12. `0011_lin857_drop_legacy_permission_assets_post_cutover`
+13. `0012_lin886_profile_banner_key`
 
 ### 2.1 型（ENUM）
 

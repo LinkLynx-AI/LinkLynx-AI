@@ -1,19 +1,46 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { UpdateMyProfileInput } from "@/shared/api/api-client";
 import { toApiErrorText } from "@/shared/api/guild-channel-api-client";
 import { useUpdateMyProfile } from "@/shared/api/mutations";
-import { useMyProfile } from "@/shared/api/queries";
+import { useMyProfile, useStorageObjectUrl } from "@/shared/api/queries";
 import { Avatar } from "@/shared/ui/avatar";
 import { Button } from "@/shared/ui/button";
-import { ImageCropModal } from "@/shared/ui/image-crop-modal";
+import { ImageCropModal, type CroppedImageResult } from "@/shared/ui/image-crop-modal";
 import { Input } from "@/shared/ui/input";
 import { Textarea } from "@/shared/ui/textarea";
 import { useAuthStore } from "@/shared/model/stores/auth-store";
 import { cn } from "@/shared/lib/cn";
+import {
+  cleanupUploadedProfileMediaKeys,
+  uploadProfileMediaFile,
+} from "@/features/settings/model/profile-media";
 
 const BIO_MAX = 190;
 const BIO_WARN = 180;
+
+type CropImageState = {
+  file: File;
+  url: string;
+  shape: "circle" | "rectangle";
+  aspectRatio?: number;
+  target: "avatar" | "banner";
+};
+
+function revokeObjectUrlIfNeeded(value: string | null): void {
+  if (value !== null && value.startsWith("blob:")) {
+    URL.revokeObjectURL(value);
+  }
+}
+
+function toProfileSaveErrorText(error: unknown): string {
+  if (error instanceof Error && error.name === "FirebaseError") {
+    return "プロフィール画像のアップロードに失敗しました。";
+  }
+
+  return toApiErrorText(error, "プロフィールの更新に失敗しました。");
+}
 
 export function UserProfile() {
   const currentUser = useAuthStore((s) => s.currentUser);
@@ -28,6 +55,8 @@ export function UserProfile() {
     refetch: refetchProfile,
   } = useMyProfile(currentUserId);
   const updateMyProfile = useUpdateMyProfile(currentUserId);
+  const { data: resolvedAvatarUrl } = useStorageObjectUrl(myProfile?.avatarKey ?? null);
+  const { data: resolvedBannerUrl } = useStorageObjectUrl(myProfile?.bannerKey ?? null);
 
   const [displayName, setDisplayName] = useState(currentUser?.displayName ?? "");
   const [bio, setBio] = useState("");
@@ -37,20 +66,59 @@ export function UserProfile() {
     text: string;
   } | null>(null);
 
-  const [cropImage, setCropImage] = useState<{
-    url: string;
-    shape: "circle" | "rectangle";
-    aspectRatio?: number;
-    target: "avatar" | "banner";
-  } | null>(null);
+  const [cropImage, setCropImage] = useState<CropImageState | null>(null);
 
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const bannerInputRef = useRef<HTMLInputElement>(null);
   const hydratedUserIdRef = useRef<string | null>(null);
   const hasHydratedProfileRef = useRef(false);
+  const avatarPreviewUrlRef = useRef<string | null>(null);
+  const bannerPreviewUrlRef = useRef<string | null>(null);
+  const cropImageUrlRef = useRef<string | null>(null);
 
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
-  const [bannerUrl, setBannerUrl] = useState<string | null>(null);
+  const [pendingAvatarFile, setPendingAvatarFile] = useState<File | null>(null);
+  const [pendingBannerFile, setPendingBannerFile] = useState<File | null>(null);
+  const [avatarPreviewUrl, setAvatarPreviewUrl] = useState<string | null>(null);
+  const [bannerPreviewUrl, setBannerPreviewUrl] = useState<string | null>(null);
+
+  const replaceAvatarPreviewUrl = useCallback((nextValue: string | null) => {
+    setAvatarPreviewUrl((currentValue) => {
+      if (currentValue !== nextValue) {
+        revokeObjectUrlIfNeeded(currentValue);
+      }
+      return nextValue;
+    });
+  }, []);
+
+  const replaceBannerPreviewUrl = useCallback((nextValue: string | null) => {
+    setBannerPreviewUrl((currentValue) => {
+      if (currentValue !== nextValue) {
+        revokeObjectUrlIfNeeded(currentValue);
+      }
+      return nextValue;
+    });
+  }, []);
+
+  useEffect(() => {
+    avatarPreviewUrlRef.current = avatarPreviewUrl;
+  }, [avatarPreviewUrl]);
+
+  useEffect(() => {
+    bannerPreviewUrlRef.current = bannerPreviewUrl;
+  }, [bannerPreviewUrl]);
+
+  useEffect(() => {
+    cropImageUrlRef.current = cropImage?.url ?? null;
+  }, [cropImage]);
+
+  useEffect(
+    () => () => {
+      revokeObjectUrlIfNeeded(avatarPreviewUrlRef.current);
+      revokeObjectUrlIfNeeded(bannerPreviewUrlRef.current);
+      revokeObjectUrlIfNeeded(cropImageUrlRef.current);
+    },
+    [],
+  );
 
   useEffect(() => {
     if (hydratedUserIdRef.current === currentUserId) {
@@ -61,7 +129,24 @@ export function UserProfile() {
     setDisplayName(currentUser?.displayName ?? "");
     setBio(currentUser?.customStatus ?? "");
     setSaveMessage(null);
-  }, [currentUser?.customStatus, currentUser?.displayName, currentUserId]);
+    setPendingAvatarFile(null);
+    setPendingBannerFile(null);
+    replaceAvatarPreviewUrl(currentUser?.avatar ?? null);
+    replaceBannerPreviewUrl(null);
+    setCropImage((currentCropImage) => {
+      if (currentCropImage !== null) {
+        revokeObjectUrlIfNeeded(currentCropImage.url);
+      }
+      return null;
+    });
+  }, [
+    currentUser?.avatar,
+    currentUser?.customStatus,
+    currentUser?.displayName,
+    currentUserId,
+    replaceAvatarPreviewUrl,
+    replaceBannerPreviewUrl,
+  ]);
 
   useEffect(() => {
     if (!myProfile || hasHydratedProfileRef.current) {
@@ -72,9 +157,46 @@ export function UserProfile() {
     setBio(myProfile.statusText ?? "");
   }, [myProfile]);
 
+  useEffect(() => {
+    const currentAvatar = currentUser?.avatar ?? null;
+
+    if (pendingAvatarFile !== null) {
+      return;
+    }
+    if (myProfile?.avatarKey !== null && resolvedAvatarUrl === undefined) {
+      if (currentAvatar !== null) {
+        replaceAvatarPreviewUrl(currentAvatar);
+      }
+      return;
+    }
+
+    replaceAvatarPreviewUrl(resolvedAvatarUrl ?? currentAvatar);
+  }, [
+    currentUser?.avatar,
+    myProfile?.avatarKey,
+    pendingAvatarFile,
+    replaceAvatarPreviewUrl,
+    resolvedAvatarUrl,
+  ]);
+
+  useEffect(() => {
+    if (pendingBannerFile !== null) {
+      return;
+    }
+    if (myProfile?.bannerKey !== null && resolvedBannerUrl === undefined) {
+      return;
+    }
+
+    replaceBannerPreviewUrl(resolvedBannerUrl ?? null);
+  }, [myProfile?.bannerKey, pendingBannerFile, replaceBannerPreviewUrl, resolvedBannerUrl]);
+
   const handleFileSelect = (file: File, target: "avatar" | "banner") => {
     const url = URL.createObjectURL(file);
+    if (cropImage !== null) {
+      revokeObjectUrlIfNeeded(cropImage.url);
+    }
     setCropImage({
+      file,
       url,
       shape: target === "avatar" ? "circle" : "rectangle",
       aspectRatio: target === "banner" ? 16 / 6 : undefined,
@@ -82,12 +204,19 @@ export function UserProfile() {
     });
   };
 
-  const handleCrop = (croppedUrl: string) => {
-    if (cropImage?.target === "avatar") {
-      setAvatarUrl(croppedUrl);
-    } else {
-      setBannerUrl(croppedUrl);
+  const handleCrop = (croppedImage: CroppedImageResult) => {
+    if (cropImage === null) {
+      return;
     }
+
+    if (cropImage?.target === "avatar") {
+      setPendingAvatarFile(croppedImage.file);
+      replaceAvatarPreviewUrl(croppedImage.url);
+    } else {
+      setPendingBannerFile(croppedImage.file);
+      replaceBannerPreviewUrl(croppedImage.url);
+    }
+    setSaveMessage(null);
     setCropImage(null);
   };
 
@@ -99,15 +228,26 @@ export function UserProfile() {
   const normalizedBio = bio.trim();
   const hasPendingChanges =
     normalizedDisplayName !== normalizedPersistedDisplayName ||
-    normalizedBio !== normalizedPersistedStatusText;
+    normalizedBio !== normalizedPersistedStatusText ||
+    pendingAvatarFile !== null ||
+    pendingBannerFile !== null;
   const canSave =
     isProfileLoading === false && hasPendingChanges && updateMyProfile.isPending === false;
 
+  const previewAvatarUrl = avatarPreviewUrl ?? resolvedAvatarUrl ?? currentUser?.avatar ?? null;
+  const previewBannerUrl = bannerPreviewUrl ?? resolvedBannerUrl ?? null;
+
   const handleSave = async () => {
-    const input: {
-      displayName?: string;
-      statusText?: string | null;
-    } = {};
+    if (currentUserId === null) {
+      setSaveMessage({
+        type: "error",
+        text: "ログイン状態を確認してから再試行してください。",
+      });
+      return;
+    }
+
+    const input: UpdateMyProfileInput = {};
+    const uploadedObjectKeys: string[] = [];
 
     if (normalizedDisplayName !== normalizedPersistedDisplayName) {
       input.displayName = normalizedDisplayName;
@@ -115,31 +255,51 @@ export function UserProfile() {
     if (normalizedBio !== normalizedPersistedStatusText) {
       input.statusText = normalizedBio.length === 0 ? null : normalizedBio;
     }
-    if (Object.keys(input).length === 0) {
-      return;
-    }
 
     setSaveMessage(null);
     try {
+      if (pendingAvatarFile !== null) {
+        const avatarKey = await uploadProfileMediaFile(currentUserId, "avatar", pendingAvatarFile);
+        uploadedObjectKeys.push(avatarKey);
+        input.avatarKey = avatarKey;
+      }
+      if (pendingBannerFile !== null) {
+        const bannerKey = await uploadProfileMediaFile(currentUserId, "banner", pendingBannerFile);
+        uploadedObjectKeys.push(bannerKey);
+        input.bannerKey = bannerKey;
+      }
+      if (Object.keys(input).length === 0) {
+        return;
+      }
+
       const updatedProfile = await updateMyProfile.mutateAsync(input);
       if (currentUser !== null) {
         setCurrentUser({
           ...currentUser,
           displayName: updatedProfile.displayName,
           customStatus: updatedProfile.statusText,
+          avatar:
+            input.avatarKey !== undefined
+              ? (avatarPreviewUrl ?? currentUser.avatar ?? null)
+              : currentUser.avatar,
         });
       }
       setCustomStatus(updatedProfile.statusText);
       setDisplayName(updatedProfile.displayName);
       setBio(updatedProfile.statusText ?? "");
+      setPendingAvatarFile(null);
+      setPendingBannerFile(null);
       setSaveMessage({
         type: "success",
         text: "プロフィールを更新しました。",
       });
     } catch (error) {
+      if (uploadedObjectKeys.length > 0) {
+        await cleanupUploadedProfileMediaKeys(uploadedObjectKeys);
+      }
       setSaveMessage({
         type: "error",
-        text: toApiErrorText(error, "プロフィールの更新に失敗しました。"),
+        text: toProfileSaveErrorText(error),
       });
     }
   };
@@ -180,6 +340,7 @@ export function UserProfile() {
               ref={avatarInputRef}
               type="file"
               accept="image/*"
+              aria-label="アバター画像ファイル"
               className="hidden"
               onChange={(e) => {
                 const file = e.target.files?.[0];
@@ -200,6 +361,7 @@ export function UserProfile() {
               ref={bannerInputRef}
               type="file"
               accept="image/*"
+              aria-label="バナー画像ファイル"
               className="hidden"
               onChange={(e) => {
                 const file = e.target.files?.[0];
@@ -290,14 +452,14 @@ export function UserProfile() {
             <div
               className="h-[60px] bg-cover bg-center"
               style={{
-                backgroundColor: bannerUrl ? undefined : themeColor,
-                backgroundImage: bannerUrl ? `url(${bannerUrl})` : undefined,
+                backgroundColor: previewBannerUrl ? undefined : themeColor,
+                backgroundImage: previewBannerUrl ? `url(${previewBannerUrl})` : undefined,
               }}
             />
             <div className="relative px-4 pb-4">
               <div className="-mt-8 mb-2">
                 <Avatar
-                  src={avatarUrl ?? currentUser?.avatar ?? undefined}
+                  src={previewAvatarUrl ?? undefined}
                   alt={displayName || "User"}
                   size={80}
                   className="rounded-full border-[6px] border-discord-bg-secondary"
@@ -324,10 +486,14 @@ export function UserProfile() {
       {cropImage && (
         <ImageCropModal
           imageUrl={cropImage.url}
+          sourceFile={cropImage.file}
           shape={cropImage.shape}
           aspectRatio={cropImage.aspectRatio}
           onCrop={handleCrop}
-          onClose={() => setCropImage(null)}
+          onClose={() => {
+            revokeObjectUrlIfNeeded(cropImage.url);
+            setCropImage(null);
+          }}
         />
       )}
     </div>

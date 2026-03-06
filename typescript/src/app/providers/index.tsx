@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState } from "react";
 import { AuthProvider } from "@/entities/auth";
 import { AuthBridge } from "./auth-bridge";
+import { ProfileBridge } from "./profile-bridge";
 import { WsAuthBridge } from "./ws-auth-bridge";
 
 export function Providers({ children }: { children: React.ReactNode }) {
@@ -23,6 +24,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <AuthBridge />
+        <ProfileBridge />
         <WsAuthBridge />
         {children}
       </AuthProvider>

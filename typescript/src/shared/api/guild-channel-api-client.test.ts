@@ -504,6 +504,7 @@ describe("GuildChannelAPIClient", () => {
             display_name: "alice",
             status_text: "busy coding",
             avatar_key: "avatar/alice.png",
+            banner_key: "banner/alice.png",
           },
         }),
         { status: 200 },
@@ -517,6 +518,7 @@ describe("GuildChannelAPIClient", () => {
       displayName: "alice",
       statusText: "busy coding",
       avatarKey: "avatar/alice.png",
+      bannerKey: "banner/alice.png",
     });
 
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
@@ -533,6 +535,7 @@ describe("GuildChannelAPIClient", () => {
             display_name: "new-name",
             status_text: null,
             avatar_key: null,
+            banner_key: null,
           },
         }),
         { status: 200 },
@@ -549,6 +552,7 @@ describe("GuildChannelAPIClient", () => {
       displayName: "new-name",
       statusText: null,
       avatarKey: null,
+      bannerKey: null,
     });
 
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
@@ -567,6 +571,7 @@ describe("GuildChannelAPIClient", () => {
             display_name: "old-name",
             status_text: "focus mode",
             avatar_key: null,
+            banner_key: "banner/original.png",
           },
         }),
         { status: 200 },
@@ -582,6 +587,7 @@ describe("GuildChannelAPIClient", () => {
       displayName: "old-name",
       statusText: "focus mode",
       avatarKey: null,
+      bannerKey: "banner/original.png",
     });
 
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
@@ -590,6 +596,47 @@ describe("GuildChannelAPIClient", () => {
     expect(new Headers(init.headers).get("Authorization")).toBe("Bearer token-1");
     expect(new Headers(init.headers).get("Content-Type")).toBe("application/json");
     expect(init.body).toBe(JSON.stringify({ status_text: "focus mode" }));
+  });
+
+  test("updateMyProfile sends media patch body", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          profile: {
+            display_name: "old-name",
+            status_text: "focus mode",
+            avatar_key: "profiles/u-1/avatar/new.png",
+            banner_key: "profiles/u-1/banner/new.png",
+          },
+        }),
+        { status: 200 },
+      ),
+    );
+
+    const client = new GuildChannelAPIClient();
+    const profile = await client.updateMyProfile({
+      avatarKey: "profiles/u-1/avatar/new.png",
+      bannerKey: "profiles/u-1/banner/new.png",
+    });
+
+    expect(profile).toEqual({
+      displayName: "old-name",
+      statusText: "focus mode",
+      avatarKey: "profiles/u-1/avatar/new.png",
+      bannerKey: "profiles/u-1/banner/new.png",
+    });
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("http://localhost:8080/users/me/profile");
+    expect(init.method).toBe("PATCH");
+    expect(new Headers(init.headers).get("Authorization")).toBe("Bearer token-1");
+    expect(new Headers(init.headers).get("Content-Type")).toBe("application/json");
+    expect(init.body).toBe(
+      JSON.stringify({
+        avatar_key: "profiles/u-1/avatar/new.png",
+        banner_key: "profiles/u-1/banner/new.png",
+      }),
+    );
   });
 
   test("updateMyProfile rejects empty payload", async () => {
