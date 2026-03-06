@@ -61,8 +61,8 @@
 
 ### M8: LIN-876 runtime reproducibility
 - Acceptance criteria:
-  - [ ] SpiceDB image pin
-  - [ ] CI契約チェック追加
+  - [x] SpiceDB image pin
+  - [x] CI契約チェック追加
 - Validation:
   - `make rust-lint`
 

@@ -1,6 +1,6 @@
 ## Current status
-- Now: LIN-881 実装/検証/review loop 完了、親branch取り込み待ち。
-- Next: LIN-876 を開始。
+- Now: LIN-876 実装/検証/review loop 完了、親branch取り込み待ち。
+- Next: LIN-876 を親branchへ取り込み後、LIN-884 へ着手。
 
 ## Decisions
 - Parent issue LIN-869 was moved to In Progress before execution.
@@ -91,3 +91,17 @@
 - Review gate:
   - reviewer: pass（P1+なし）
   - reviewer_ui_guard: backend-only差分のためskip（かつ model unsupported）
+
+## LIN-876 progress
+- Branch: `codex/LIN-876-spicedb-runtime-reproducibility`
+- Scope:
+  - `docker-compose.yml` の SpiceDB image を `v1.49.2@sha256:b3ff...` に pin
+  - CI `spicedb-runtime` jobへ `/v1/permissions/check` 最小契約チェック（未認証401 / 認証あり200+permissionship）を追加
+  - `docs/runbooks/authz-spicedb-local-ci-runtime-runbook.md` に image pin 更新手順と検証手順を追記
+- Validation:
+  - `make rust-lint` (pass)
+  - CI相当ローカル契約チェック（curl）(pass: unauth=401, auth=200)
+  - `make validate` (fail: prettier not found / node_modules missing)
+- Review gate:
+  - reviewer: fallback self-review pass（P1+なし、sub-agent起動応答が不安定なため手動確認）
+  - reviewer_ui_guard: skip（infra/docs-only diff）

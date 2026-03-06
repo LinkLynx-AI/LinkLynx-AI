@@ -115,7 +115,7 @@ services:
 
   # SpiceDB (AuthZ runtime foundation)
   spicedb:
-    image: authzed/spicedb:latest
+    image: authzed/spicedb:v1.49.2@sha256:b3ff822f5bd583d5a7e91753b6d2958f1ceb0c79113f5228c8e66f7a29e6da7d
     command:
       - serve
       - --http-enabled

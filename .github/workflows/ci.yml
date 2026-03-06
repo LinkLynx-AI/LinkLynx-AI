@@ -18,6 +18,7 @@ jobs:
       NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: ci-dummy.appspot.com
       FIREBASE_PROJECT_ID: ci-dummy-project
       AUTH_ALLOW_POSTGRES_NOTLS: "true"
+      SPICEDB_PRESHARED_KEY: linklynx-dev-spicedb-key
     steps:
       - uses: actions/checkout@v4
       - name: Start SpiceDB
@@ -33,6 +34,34 @@ jobs:
           echo "SpiceDB gRPC/HTTP endpoints did not become ready on localhost:50051/8443" >&2
           docker compose logs spicedb >&2
           exit 1
+      - name: Check SpiceDB auth and permissions/check contract
+        run: |
+          set -euo pipefail
+          check_payload='{"resource":{"objectType":"guild","objectId":"1"},"permission":"read","subject":{"object":{"objectType":"principal","objectId":"1"}}}'
+
+          unauth_status=$(curl -sS -o /tmp/spicedb-unauth.json -w "%{http_code}" -X POST \
+            "http://127.0.0.1:8443/v1/permissions/check" \
+            -H "Content-Type: application/json" \
+            -d "$check_payload")
+          test "$unauth_status" = "401"
+          grep -q '"code":16' /tmp/spicedb-unauth.json
+
+          schema_payload='{"schema":"definition principal {}\ndefinition guild {\n  relation member: principal\n  permission read = member\n}"}'
+          schema_status=$(curl -sS -o /tmp/spicedb-schema-write.json -w "%{http_code}" -X POST \
+            "http://127.0.0.1:8443/v1/schema/write" \
+            -H "Authorization: Bearer ${SPICEDB_PRESHARED_KEY}" \
+            -H "Content-Type: application/json" \
+            -d "$schema_payload")
+          test "$schema_status" = "200"
+          grep -q '"writtenAt"' /tmp/spicedb-schema-write.json
+
+          auth_status=$(curl -sS -o /tmp/spicedb-auth.json -w "%{http_code}" -X POST \
+            "http://127.0.0.1:8443/v1/permissions/check" \
+            -H "Authorization: Bearer ${SPICEDB_PRESHARED_KEY}" \
+            -H "Content-Type: application/json" \
+            -d "$check_payload")
+          test "$auth_status" = "200"
+          grep -q '"permissionship":"PERMISSIONSHIP_NO_PERMISSION"' /tmp/spicedb-auth.json
       - name: Stop SpiceDB
         if: always()
         run: docker compose down
