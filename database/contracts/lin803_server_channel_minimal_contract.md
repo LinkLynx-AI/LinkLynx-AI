@@ -58,12 +58,14 @@ Representative queries this issue optimizes for:
 ## Operations and compatibility
 
 - Follows LIN-588 forward-only migration policy.
-- Existing migrations are not modified; only `0008_lin803_server_channel_minimal_contract` is appended.
+- Current repository artifact is `0015_lin803_server_channel_minimal_contract`.
+- Historical implementation references may still mention `0008_lin803_server_channel_minimal_contract`; it was renumbered on 2026-03-07 to resolve duplicate `sqlx` migration versions without changing schema intent.
 - This change is additive/non-breaking for downstream issues.
 
 ## References
 
 - `docs/DATABASE.md`
-- `database/postgres/migrations/0008_lin803_server_channel_minimal_contract.up.sql`
-- `database/postgres/migrations/0008_lin803_server_channel_minimal_contract.down.sql`
+- `docs/V1_TRACEABILITY.md`
+- `database/postgres/migrations/0015_lin803_server_channel_minimal_contract.up.sql`
+- `database/postgres/migrations/0015_lin803_server_channel_minimal_contract.down.sql`
 - `database/contracts/lin588_postgres_operations_baseline.md`

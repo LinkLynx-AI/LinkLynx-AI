@@ -4,6 +4,7 @@
 - Now: 実装完了。Rust/TSの主要品質ゲートを通過。
 - PR repair completed on 2026-03-06 by merging `origin/main`, resolving inherited conflicts, and re-running the full validation gate.
 - Next: `main` 向けPRのため human review 待ちに戻す。
+- Current repository traceability note: the moderation migration is now stored as `0016_lin822_minimal_moderation` after 2026-03-07 collision resolution.
 
 ## Decisions
 - `LIN-817` が Canceled のため、LIN-802内では fail-close 契約を保持した暫定先行実装とした。
@@ -26,8 +27,8 @@
 
 ## Changed artifacts
 - Added migration:
-  - `database/postgres/migrations/0012_lin822_minimal_moderation.up.sql`
-  - `database/postgres/migrations/0012_lin822_minimal_moderation.down.sql`
+  - `database/postgres/migrations/0016_lin822_minimal_moderation.up.sql`
+  - `database/postgres/migrations/0016_lin822_minimal_moderation.down.sql`
 - Added Rust moderation module:
   - `rust/apps/api/src/moderation.rs`
   - `rust/apps/api/src/moderation/*`
@@ -42,7 +43,8 @@
   - `typescript/src/shared/api/mutations/use-moderation-actions.ts`
 
 ## Known issues / follow-ups
-- `database/postgres/schema.sql` と `database/postgres/generated/*` の再生成は未実施（DB起動前提）。
+- `database/postgres/generated/*` の再生成は必要に応じて別途実施する。
+- Historical references to `0012_lin822_minimal_moderation` were renumbered to `0016_lin822_minimal_moderation` on 2026-03-07 to resolve duplicate `sqlx` migration versions without changing schema intent.
 - PR repair action:
   - merged `origin/main` into `codex/lin-802`
   - resolved conflicts in `rust/apps/api/src/main/http_routes.rs`, `rust/apps/api/src/main/tests.rs`, `typescript/src/shared/api/guild-channel-api-client.ts`, `typescript/src/shared/api/mock/mock-api-client.ts`, `typescript/src/shared/api/no-data-api-client.ts`, `typescript/src/shared/config/routes.ts`, `typescript/src/shared/config/routes.test.ts`

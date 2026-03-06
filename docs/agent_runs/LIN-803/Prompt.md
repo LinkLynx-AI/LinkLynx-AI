@@ -11,6 +11,9 @@
 - Backend API/Frontend導線の実装。
 
 ## Done conditions
-- `0008_lin803_server_channel_minimal_contract` migration が追加されている。
+- `0015_lin803_server_channel_minimal_contract` migration が追加されている。
 - `docs/DATABASE.md` に LIN-803 差分が反映されている。
 - LIN-806 受け渡し可能な DB 契約ドキュメントが追加されている。
+
+## Traceability note
+- Historical references to `0008_lin803_server_channel_minimal_contract` should be read as the same schema intent now stored under `0015_lin803_server_channel_minimal_contract`.
