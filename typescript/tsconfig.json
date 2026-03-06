@@ -4,9 +4,6 @@
     "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
-    "noUncheckedIndexedAccess": true,
-    "exactOptionalPropertyTypes": true,
-    "noImplicitOverride": true,
     "noEmit": true,
     "esModuleInterop": true,
     "module": "esnext",
@@ -14,6 +11,7 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "jsx": "react-jsx",
+    "types": ["vitest/globals"],
     "incremental": true,
     "plugins": [
       {

@@ -1,4 +1,4 @@
-.PHONY: setup install format lint test validate coverage coverage-check
+.PHONY: setup install format lint test validate coverage coverage-check fsd-check
 
 setup:
 	@if [ -f pnpm-lock.yaml ]; then \
@@ -9,10 +9,14 @@ setup:
 
 install: setup
 
+fsd-check:
+	pnpm run fsd:check
+
 format:
 	pnpm run format
 
 lint:
+	pnpm run fsd:check
 	pnpm run lint
 	pnpm run format:check
 

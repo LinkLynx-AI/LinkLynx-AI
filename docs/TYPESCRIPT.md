@@ -131,6 +131,7 @@
 - No non-null assertion: ESLint (`@typescript-eslint/no-non-null-assertion`)
 - Prefer `type`: ESLint (`@typescript-eslint/consistent-type-definitions`)
 - No deep imports: ESLint (`no-restricted-imports`, `import/no-internal-modules`)
+- FSD layer/Public API boundaries: custom checker (`pnpm run fsd:check` / `make ts-fsd-check`)
 - No circular dependencies: ESLint (`import/no-cycle`)
 - No default export: ESLint (`import/no-default-export`)
 - React Hooks compliance: ESLint (`react-hooks`)

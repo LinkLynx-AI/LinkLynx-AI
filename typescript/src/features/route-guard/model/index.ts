@@ -15,7 +15,12 @@ function toSingleValue(value: SearchParamValue): string | null {
 }
 
 function isGuardKind(value: string): value is GuardKind {
-  return value === "unauthenticated" || value === "forbidden" || value === "not-found";
+  return (
+    value === "unauthenticated" ||
+    value === "forbidden" ||
+    value === "not-found" ||
+    value === "service-unavailable"
+  );
 }
 
 function isPlaceholderState(value: string): value is PlaceholderState {
