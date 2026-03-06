@@ -12,5 +12,8 @@ use tracing::warn;
 
 include!("authz/errors.rs");
 include!("authz/service.rs");
+#[allow(dead_code)]
+mod tuple_sync;
+pub use tuple_sync::*;
 include!("authz/runtime.rs");
 include!("authz/tests.rs");

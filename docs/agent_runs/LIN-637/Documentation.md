@@ -2,6 +2,7 @@
 
 ## Status
 - Implementation completed (attachment metadata persistence schema).
+- PR repair completed on 2026-03-06 by merging the latest `codex/LIN-636-message-reaction-persistence` into this branch and resolving the inherited `docs/DATABASE.md` conflict.
 
 ## Scope
 - Added migration:
@@ -18,6 +19,7 @@
 - `make db-schema-check`: passed（上記と同じ `POSTGRES_DUMP_CMD` 上書き）。
 - `make gen`: passed。
 - `make validate`: passed。
+- PR repair re-validation on 2026-03-06: `make validate` passed.
 
 ## Data checks
 - SQL verification（transaction rollback）:
@@ -37,3 +39,4 @@
 - reviewer gate: unavailable (manual self-review fallback)
 - UI gate: skipped (UI changesなし)
 - planned PR base branch: `codex/LIN-636-message-reaction-persistence`
+- PR repair action: merged latest `codex/LIN-636-message-reaction-persistence` into this branch and resolved the inherited `docs/DATABASE.md` conflict.

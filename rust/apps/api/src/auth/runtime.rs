@@ -21,6 +21,11 @@ pub fn validate_runtime_auth_env() -> Result<(), String> {
     validate_optional_u64_env("AUTH_PRINCIPAL_STORE_MAX_RETRIES", &mut errors);
     validate_optional_u64_env("AUTH_PRINCIPAL_STORE_RETRY_BASE_BACKOFF_MS", &mut errors);
     validate_optional_u64_env("WS_REAUTH_GRACE_SECONDS", &mut errors);
+    validate_optional_u64_env("WS_TICKET_TTL_SECONDS", &mut errors);
+    validate_optional_u64_env("AUTH_IDENTIFY_TIMEOUT_SECONDS", &mut errors);
+    validate_optional_u64_env("WS_TICKET_RATE_LIMIT_MAX_PER_MINUTE", &mut errors);
+    validate_optional_u64_env("WS_IDENTIFY_RATE_LIMIT_MAX_PER_MINUTE", &mut errors);
+    validate_optional_ws_allowed_origins_env("WS_ALLOWED_ORIGINS", &mut errors);
 
     if errors.is_empty() {
         return Ok(());
@@ -81,6 +86,19 @@ fn validate_required_bool_env(name: &str, errors: &mut Vec<String>) {
             }
         }
         Err(_) => errors.push(format!("{name} is required")),
+    }
+}
+
+fn validate_optional_ws_allowed_origins_env(name: &str, errors: &mut Vec<String>) {
+    if let Ok(value) = env::var(name) {
+        if value.trim().is_empty() {
+            errors.push(format!("{name} must not be empty when set"));
+            return;
+        }
+
+        if let Err(reason) = parse_ws_origin_allowlist(&value) {
+            errors.push(format!("{name} is invalid (reason: {reason})"));
+        }
     }
 }
 

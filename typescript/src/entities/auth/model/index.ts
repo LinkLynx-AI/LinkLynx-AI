@@ -1,3 +1,28 @@
+export {
+  createManualAuthActionError,
+  type AuthActionError,
+  type AuthActionErrorCode,
+  type AuthActionResult,
+} from "./auth-action-error";
+export {
+  createPrincipalProvisionError,
+  type PrincipalProvisionError,
+  type PrincipalProvisionErrorCode,
+  type PrincipalProvisionResult,
+} from "./principal-provisioning";
+export {
+  createAuthenticatedFetchError,
+  type AuthenticatedFetchError,
+  type AuthenticatedFetchErrorCode,
+  type AuthenticatedFetchResult,
+} from "./authenticated-fetch";
+export {
+  createInitialWsConnectionState,
+  type WsCloseKind,
+  type WsConnectionState,
+  type WsConnectionStatePhase,
+} from "./ws-connection";
+
 export type AuthSessionStatus = "initializing" | "authenticated" | "unauthenticated";
 
 export type AuthUser = {
