@@ -14,7 +14,10 @@ mod tests {
         GuildSummary,
     };
     use profile::{ProfileError, ProfilePatchInput, ProfileService, ProfileSettings};
-    use axum::{body::to_bytes, http::StatusCode};
+    use axum::{
+        body::to_bytes,
+        http::{Method, StatusCode},
+    };
     use linklynx_shared::PrincipalId;
     use tower::ServiceExt;
 
@@ -1244,6 +1247,18 @@ mod tests {
             AuthzResource::Guild { guild_id } => assert_eq!(guild_id, 10),
             _ => panic!("moderation path should map to guild resource"),
         }
+    }
+
+    #[test]
+    fn rest_authz_action_maps_internal_cache_invalidation_post_to_view() {
+        assert!(matches!(
+            rest_authz_action_for_request(&Method::POST, "/internal/authz/cache/invalidate"),
+            AuthzAction::View
+        ));
+        assert!(matches!(
+            rest_authz_action_for_request(&Method::POST, "/v1/dms/55/messages"),
+            AuthzAction::Post
+        ));
     }
 
     #[test]

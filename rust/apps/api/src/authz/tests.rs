@@ -190,6 +190,7 @@ mod tests {
         scoped.set("SPICEDB_CHECK_RETRY_BACKOFF_MS", "120");
         scoped.set("AUTHZ_CACHE_ALLOW_TTL_MS", "4000");
         scoped.set("AUTHZ_CACHE_DENY_TTL_MS", "900");
+        scoped.set("AUTHZ_CACHE_MAX_ENTRIES", "123");
         scoped.set("SPICEDB_POLICY_VERSION", "lin862-v1-test");
         scoped.set("SPICEDB_SCHEMA_PATH", "database/contracts/lin862_spicedb_namespace_relation_permission_contract.md");
 
@@ -202,6 +203,7 @@ mod tests {
         assert_eq!(config.check_retry_backoff_ms, 120);
         assert_eq!(config.cache_allow_ttl_ms, 4000);
         assert_eq!(config.cache_deny_ttl_ms, 900);
+        assert_eq!(config.cache_max_entries, 123);
         assert_eq!(config.policy_version, "lin862-v1-test");
         assert_eq!(
             config.schema_path,
@@ -291,6 +293,129 @@ mod tests {
         assert!(authorizer.check(&input).await.is_ok());
         assert!(authorizer.check(&input).await.is_ok());
         assert_eq!(mock.request_count(), 1);
+    }
+
+    #[tokio::test]
+    async fn spicedb_runtime_config_rejects_zero_cache_max_entries() {
+        let _guard = env_lock().lock().await;
+        let mut scoped = ScopedEnv::new();
+        scoped.set("SPICEDB_ENDPOINT", "http://spicedb:50051");
+        scoped.set("SPICEDB_CHECK_ENDPOINT", "http://spicedb:8443");
+        scoped.set("SPICEDB_PRESHARED_KEY", "test-key");
+        scoped.set("AUTHZ_CACHE_MAX_ENTRIES", "0");
+
+        let error = build_spicedb_runtime_config_from_env().unwrap_err();
+        assert!(error.contains("AUTHZ_CACHE_MAX_ENTRIES"));
+        assert!(error.contains("greater than 0"));
+    }
+
+    #[tokio::test]
+    async fn runtime_provider_spicedb_invalidation_event_evicts_cached_entry_immediately() {
+        let _guard = env_lock().lock().await;
+        let mock = MockSpiceDbServer::start(
+            vec![
+                MockSpiceDbResponse::ok("PERMISSIONSHIP_HAS_PERMISSION"),
+                MockSpiceDbResponse::ok("PERMISSIONSHIP_NO_PERMISSION"),
+            ],
+            false,
+        )
+        .await;
+
+        let config = SpiceDbRuntimeConfig {
+            endpoint: "http://spicedb:50051".to_owned(),
+            check_endpoint: mock.endpoint(),
+            preshared_key: "test-key".to_owned(),
+            request_timeout_ms: 100,
+            check_max_retries: 0,
+            check_retry_backoff_ms: 10,
+            cache_allow_ttl_ms: 60_000,
+            cache_deny_ttl_ms: 60_000,
+            cache_max_entries: 100,
+            policy_version: "lin862-v1".to_owned(),
+            schema_path:
+                "database/contracts/lin862_spicedb_namespace_relation_permission_contract.md"
+                    .to_owned(),
+        };
+        let authorizer = SpiceDbHttpAuthorizer::new(&config).unwrap();
+
+        let input = AuthzCheckInput {
+            principal_id: PrincipalId(3200),
+            resource: AuthzResource::GuildChannel {
+                guild_id: 10,
+                channel_id: 77,
+            },
+            action: AuthzAction::View,
+        };
+
+        assert!(authorizer.check(&input).await.is_ok());
+        assert!(authorizer.check(&input).await.is_ok());
+        assert_eq!(mock.request_count(), 1);
+
+        let report = authorizer
+            .apply_cache_invalidation_event(&AuthzCacheInvalidationEvent {
+                kind: AuthzCacheInvalidationEventKind::ChannelRoleOverrideChanged {
+                    guild_id: 10,
+                    channel_id: 77,
+                },
+                occurred_at: std::time::SystemTime::now(),
+            })
+            .await;
+        assert_eq!(report.evicted_keys, 1);
+
+        let error = authorizer.check(&input).await.unwrap_err();
+        assert_eq!(error.kind, AuthzErrorKind::Denied);
+        assert_eq!(mock.request_count(), 2);
+
+        let metrics = authorizer.invalidation_metrics_snapshot();
+        assert_eq!(metrics.events_total, 1);
+        assert_eq!(metrics.evicted_keys_total, 1);
+    }
+
+    #[tokio::test]
+    async fn runtime_provider_spicedb_cache_max_entries_bounds_growth() {
+        let _guard = env_lock().lock().await;
+        let mock = MockSpiceDbServer::start(
+            vec![
+                MockSpiceDbResponse::ok("PERMISSIONSHIP_HAS_PERMISSION"),
+                MockSpiceDbResponse::ok("PERMISSIONSHIP_HAS_PERMISSION"),
+                MockSpiceDbResponse::ok("PERMISSIONSHIP_HAS_PERMISSION"),
+            ],
+            false,
+        )
+        .await;
+
+        let config = SpiceDbRuntimeConfig {
+            endpoint: "http://spicedb:50051".to_owned(),
+            check_endpoint: mock.endpoint(),
+            preshared_key: "test-key".to_owned(),
+            request_timeout_ms: 100,
+            check_max_retries: 0,
+            check_retry_backoff_ms: 10,
+            cache_allow_ttl_ms: 60_000,
+            cache_deny_ttl_ms: 60_000,
+            cache_max_entries: 1,
+            policy_version: "lin862-v1".to_owned(),
+            schema_path:
+                "database/contracts/lin862_spicedb_namespace_relation_permission_contract.md"
+                    .to_owned(),
+        };
+        let authorizer = SpiceDbHttpAuthorizer::new(&config).unwrap();
+
+        let first = AuthzCheckInput {
+            principal_id: PrincipalId(4301),
+            resource: AuthzResource::Guild { guild_id: 1 },
+            action: AuthzAction::View,
+        };
+        let second = AuthzCheckInput {
+            principal_id: PrincipalId(4302),
+            resource: AuthzResource::Guild { guild_id: 2 },
+            action: AuthzAction::View,
+        };
+
+        assert!(authorizer.check(&first).await.is_ok());
+        assert!(authorizer.check(&second).await.is_ok());
+        assert!(authorizer.check(&first).await.is_ok());
+        assert_eq!(mock.request_count(), 3);
     }
 
     #[tokio::test]

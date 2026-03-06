@@ -1,7 +1,7 @@
 use std::{
     collections::HashMap,
     sync::atomic::{AtomicU64, Ordering},
-    time::{Duration, Instant},
+    time::{Duration, Instant, SystemTime},
 };
 
 use serde::Deserialize;
@@ -42,6 +42,25 @@ pub trait Authorizer: Send + Sync {
     /// @returns 許可時は `Ok(())`
     /// @throws AuthzError 拒否または依存障害時
     async fn check(&self, input: &AuthzCheckInput) -> Result<(), AuthzError>;
+
+    /// 認可キャッシュ invalidation イベントを適用する。
+    /// @param _event invalidationイベント
+    /// @returns invalidation適用結果
+    /// @throws なし
+    async fn invalidate_cache(
+        &self,
+        _event: &AuthzCacheInvalidationEvent,
+    ) -> AuthzCacheInvalidationReport {
+        AuthzCacheInvalidationReport::default()
+    }
+
+    /// 認可キャッシュ invalidation メトリクスを取得する。
+    /// @param なし
+    /// @returns invalidationメトリクス
+    /// @throws なし
+    fn cache_invalidation_metrics(&self) -> AuthzCacheInvalidationMetricsSnapshot {
+        AuthzCacheInvalidationMetricsSnapshot::default()
+    }
 }
 
 /// 認可判定メトリクスを表現する。
@@ -246,6 +265,44 @@ enum CachedDecision {
 struct CachedAuthzDecision {
     decision: CachedDecision,
     expires_at: Instant,
+    inserted_at: Instant,
+}
+
+/// 認可キャッシュ invalidation イベント種別を表現する。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AuthzCacheInvalidationEventKind {
+    GuildRoleChanged { guild_id: i64 },
+    GuildMemberRoleChanged { guild_id: i64, user_id: i64 },
+    ChannelRoleOverrideChanged { guild_id: i64, channel_id: i64 },
+    ChannelUserOverrideChanged {
+        guild_id: i64,
+        channel_id: i64,
+        user_id: i64,
+    },
+    PolicyVersionChanged { policy_version: String },
+    All,
+}
+
+/// 認可キャッシュ invalidation イベントを表現する。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AuthzCacheInvalidationEvent {
+    pub kind: AuthzCacheInvalidationEventKind,
+    pub occurred_at: SystemTime,
+}
+
+/// 認可キャッシュ invalidation 実行結果を表現する。
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct AuthzCacheInvalidationReport {
+    pub evicted_keys: u64,
+    pub lag_ms: u64,
+}
+
+/// 認可キャッシュ invalidation メトリクスのスナップショットを表現する。
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct AuthzCacheInvalidationMetricsSnapshot {
+    pub events_total: u64,
+    pub evicted_keys_total: u64,
+    pub last_lag_ms: u64,
 }
 
 /// SpiceDB HTTP API 経由で認可判定を行う実装を表現する。
@@ -257,9 +314,13 @@ pub struct SpiceDbHttpAuthorizer {
     check_retry_backoff: Duration,
     cache_allow_ttl: Duration,
     cache_deny_ttl: Duration,
+    cache_max_entries: usize,
     policy_version: String,
     client: reqwest::Client,
     cache: RwLock<HashMap<String, CachedAuthzDecision>>,
+    cache_invalidation_events_total: AtomicU64,
+    cache_invalidation_evicted_total: AtomicU64,
+    cache_invalidation_last_lag_ms: AtomicU64,
 }
 
 impl SpiceDbHttpAuthorizer {
@@ -286,9 +347,13 @@ impl SpiceDbHttpAuthorizer {
             check_retry_backoff: Duration::from_millis(config.check_retry_backoff_ms),
             cache_allow_ttl: Duration::from_millis(config.cache_allow_ttl_ms),
             cache_deny_ttl: Duration::from_millis(config.cache_deny_ttl_ms),
+            cache_max_entries: config.cache_max_entries,
             policy_version: config.policy_version.clone(),
             client,
             cache: RwLock::new(HashMap::new()),
+            cache_invalidation_events_total: AtomicU64::new(0),
+            cache_invalidation_evicted_total: AtomicU64::new(0),
+            cache_invalidation_last_lag_ms: AtomicU64::new(0),
         })
     }
 
@@ -329,15 +394,81 @@ impl SpiceDbHttpAuthorizer {
             CachedDecision::Deny => self.cache_deny_ttl,
         };
 
-        let expires_at = Instant::now() + ttl;
+        let now = Instant::now();
+        let expires_at = now + ttl;
         let mut cache = self.cache.write().await;
+        cache.retain(|_, cached| cached.expires_at > now);
+        if !cache.contains_key(&cache_key) && cache.len() >= self.cache_max_entries {
+            if let Some(victim_key) = cache
+                .iter()
+                .min_by_key(|(_, cached)| cached.inserted_at)
+                .map(|(key, _)| key.clone())
+            {
+                cache.remove(&victim_key);
+            }
+        }
         cache.insert(
             cache_key,
             CachedAuthzDecision {
                 decision,
                 expires_at,
+                inserted_at: now,
             },
         );
+    }
+
+    /// invalidation イベントを適用して対象キャッシュを即時削除する。
+    /// @param event invalidationイベント
+    /// @returns 削除件数とイベント遅延
+    /// @throws なし
+    pub async fn apply_cache_invalidation_event(
+        &self,
+        event: &AuthzCacheInvalidationEvent,
+    ) -> AuthzCacheInvalidationReport {
+        let lag_ms = SystemTime::now()
+            .duration_since(event.occurred_at)
+            .map(|duration| duration.as_millis() as u64)
+            .unwrap_or(0);
+
+        let mut cache = self.cache.write().await;
+        let before = cache.len();
+        cache.retain(|cache_key, _| {
+            !should_evict_cache_key(cache_key, &event.kind, self.policy_version.as_str())
+        });
+        let evicted_keys = before.saturating_sub(cache.len()) as u64;
+
+        self.cache_invalidation_events_total
+            .fetch_add(1, Ordering::Relaxed);
+        self.cache_invalidation_evicted_total
+            .fetch_add(evicted_keys, Ordering::Relaxed);
+        self.cache_invalidation_last_lag_ms
+            .store(lag_ms, Ordering::Relaxed);
+
+        tracing::info!(
+            event_kind = ?event.kind,
+            evicted_keys,
+            lag_ms,
+            "authz cache invalidation event applied"
+        );
+
+        AuthzCacheInvalidationReport {
+            evicted_keys,
+            lag_ms,
+        }
+    }
+
+    /// invalidation メトリクスのスナップショットを返す。
+    /// @param なし
+    /// @returns invalidationメトリクス
+    /// @throws なし
+    pub fn invalidation_metrics_snapshot(&self) -> AuthzCacheInvalidationMetricsSnapshot {
+        AuthzCacheInvalidationMetricsSnapshot {
+            events_total: self
+                .cache_invalidation_events_total
+                .load(Ordering::Relaxed),
+            evicted_keys_total: self.cache_invalidation_evicted_total.load(Ordering::Relaxed),
+            last_lag_ms: self.cache_invalidation_last_lag_ms.load(Ordering::Relaxed),
+        }
     }
 
     fn build_spicedb_check_request(
@@ -586,6 +717,25 @@ impl Authorizer for SpiceDbHttpAuthorizer {
             CachedDecision::Deny => Err(AuthzError::denied("spicedb_no_permission")),
         }
     }
+
+    /// 認可キャッシュ invalidation イベントを適用する。
+    /// @param event invalidationイベント
+    /// @returns invalidation適用結果
+    /// @throws なし
+    async fn invalidate_cache(
+        &self,
+        event: &AuthzCacheInvalidationEvent,
+    ) -> AuthzCacheInvalidationReport {
+        self.apply_cache_invalidation_event(event).await
+    }
+
+    /// 認可キャッシュ invalidation メトリクスを返す。
+    /// @param なし
+    /// @returns invalidationメトリクス
+    /// @throws なし
+    fn cache_invalidation_metrics(&self) -> AuthzCacheInvalidationMetricsSnapshot {
+        self.invalidation_metrics_snapshot()
+    }
 }
 
 fn authz_action_label(action: AuthzAction) -> &'static str {
@@ -620,5 +770,73 @@ fn authz_resource_cache_key(resource: &AuthzResource) -> String {
         } => format!("guild:{guild_id}/channel:{channel_id}"),
         AuthzResource::Channel { channel_id } => format!("channel:{channel_id}"),
         AuthzResource::RestPath { path } => format!("api_path:{path}"),
+    }
+}
+
+struct ParsedAuthzCacheKey<'a> {
+    principal_id: i64,
+    resource_key: &'a str,
+    policy_version: &'a str,
+}
+
+fn parse_authz_cache_key(cache_key: &str) -> Option<ParsedAuthzCacheKey<'_>> {
+    let mut parts = cache_key.splitn(4, '|');
+    let principal_id = parts.next()?.parse::<i64>().ok()?;
+    let resource_key = parts.next()?;
+    let _action = parts.next()?;
+    let policy_version = parts.next()?;
+
+    Some(ParsedAuthzCacheKey {
+        principal_id,
+        resource_key,
+        policy_version,
+    })
+}
+
+fn should_evict_cache_key(
+    cache_key: &str,
+    event_kind: &AuthzCacheInvalidationEventKind,
+    current_policy_version: &str,
+) -> bool {
+    let Some(parsed) = parse_authz_cache_key(cache_key) else {
+        return false;
+    };
+
+    match event_kind {
+        AuthzCacheInvalidationEventKind::All => true,
+        AuthzCacheInvalidationEventKind::PolicyVersionChanged { policy_version } => {
+            policy_version != current_policy_version || parsed.policy_version != policy_version
+        }
+        AuthzCacheInvalidationEventKind::GuildRoleChanged { guild_id } => {
+            let guild_prefix = format!("guild:{guild_id}");
+            parsed.resource_key == guild_prefix
+                || parsed.resource_key.starts_with(&format!("{guild_prefix}/channel:"))
+        }
+        AuthzCacheInvalidationEventKind::GuildMemberRoleChanged { guild_id, user_id } => {
+            if parsed.principal_id != *user_id {
+                return false;
+            }
+            let guild_prefix = format!("guild:{guild_id}");
+            parsed.resource_key == guild_prefix
+                || parsed.resource_key.starts_with(&format!("{guild_prefix}/channel:"))
+        }
+        AuthzCacheInvalidationEventKind::ChannelRoleOverrideChanged {
+            guild_id,
+            channel_id,
+        } => {
+            parsed.resource_key == format!("guild:{guild_id}/channel:{channel_id}")
+                || parsed.resource_key == format!("channel:{channel_id}")
+        }
+        AuthzCacheInvalidationEventKind::ChannelUserOverrideChanged {
+            guild_id,
+            channel_id,
+            user_id,
+        } => {
+            if parsed.principal_id != *user_id {
+                return false;
+            }
+            parsed.resource_key == format!("guild:{guild_id}/channel:{channel_id}")
+                || parsed.resource_key == format!("channel:{channel_id}")
+        }
     }
 }

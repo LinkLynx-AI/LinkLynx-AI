@@ -19,8 +19,9 @@ use auth::{
     WsOriginAllowlist, WsTicketStore, DEFAULT_WS_ALLOWED_ORIGINS,
 };
 use authz::{
-    authz_error_response, build_runtime_authorizer, Authorizer, AuthzAction, AuthzCheckInput,
-    AuthzMetrics, AuthzMetricsSnapshot, AuthzResource,
+    authz_error_response, build_runtime_authorizer, Authorizer, AuthzAction,
+    AuthzCacheInvalidationEvent, AuthzCacheInvalidationEventKind, AuthzCheckInput, AuthzMetrics,
+    AuthzMetricsSnapshot, AuthzResource,
 };
 use axum::{
     body::Body,

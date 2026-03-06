@@ -12,6 +12,10 @@ fn app_with_state(state: AppState) -> Router {
         .route("/protected/ping", get(protected_ping))
         .route("/v1/protected/ping", get(protected_ping))
         .route("/internal/auth/metrics", get(auth_metrics_handler))
+        .route(
+            "/internal/authz/cache/invalidate",
+            post(authz_cache_invalidate_handler),
+        )
         .route("/guilds", get(list_guilds).post(create_guild))
         .route(
             "/guilds/{guild_id}/channels",
@@ -380,6 +384,121 @@ async fn auth_metrics_handler(State(state): State<AppState>) -> Json<AuthMetrics
 /// @throws なし
 async fn authz_metrics_handler(State(state): State<AppState>) -> Json<AuthzMetricsSnapshot> {
     Json(state.authz_metrics.snapshot())
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "snake_case")]
+struct AuthzCacheInvalidationRequest {
+    kind: String,
+    guild_id: Option<i64>,
+    channel_id: Option<i64>,
+    user_id: Option<i64>,
+    policy_version: Option<String>,
+    occurred_at_unix_ms: Option<u64>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AuthzCacheInvalidationResponse {
+    evicted_keys: u64,
+    lag_ms: u64,
+    events_total: u64,
+    evicted_keys_total: u64,
+    last_lag_ms: u64,
+}
+
+/// 認可キャッシュ invalidation イベントを適用する。
+/// @param state アプリケーション状態
+/// @param auth_context 認証文脈
+/// @param payload invalidationイベント入力
+/// @returns invalidation適用結果
+/// @throws なし
+async fn authz_cache_invalidate_handler(
+    State(state): State<AppState>,
+    Extension(auth_context): Extension<AuthContext>,
+    payload: Result<Json<AuthzCacheInvalidationRequest>, JsonRejection>,
+) -> Response {
+    let request_id = auth_context.request_id;
+    let payload = match payload {
+        Ok(Json(value)) => value,
+        Err(_) => {
+            let body = ApiErrorResponse {
+                code: "AUTHZ_CACHE_INVALIDATION_INVALID",
+                message: "invalidation payload is invalid",
+                request_id,
+            };
+            return (StatusCode::BAD_REQUEST, Json(body)).into_response();
+        }
+    };
+
+    let event = match build_authz_cache_invalidation_event(payload) {
+        Ok(value) => value,
+        Err(reason) => {
+            let body = ApiErrorResponse {
+                code: "AUTHZ_CACHE_INVALIDATION_INVALID",
+                message: reason,
+                request_id,
+            };
+            return (StatusCode::BAD_REQUEST, Json(body)).into_response();
+        }
+    };
+
+    let report = state.authorizer.invalidate_cache(&event).await;
+    let metrics = state.authorizer.cache_invalidation_metrics();
+
+    Json(AuthzCacheInvalidationResponse {
+        evicted_keys: report.evicted_keys,
+        lag_ms: report.lag_ms,
+        events_total: metrics.events_total,
+        evicted_keys_total: metrics.evicted_keys_total,
+        last_lag_ms: metrics.last_lag_ms,
+    })
+    .into_response()
+}
+
+/// invalidation入力をAuthZイベントへ変換する。
+/// @param payload invalidation入力
+/// @returns AuthZ invalidationイベント
+/// @throws &'static str 必須フィールド不備時
+fn build_authz_cache_invalidation_event(
+    payload: AuthzCacheInvalidationRequest,
+) -> Result<AuthzCacheInvalidationEvent, &'static str> {
+    let kind = match payload.kind.as_str() {
+        "guild_role_changed" => AuthzCacheInvalidationEventKind::GuildRoleChanged {
+            guild_id: payload.guild_id.ok_or("guild_id is required")?,
+        },
+        "guild_member_role_changed" => AuthzCacheInvalidationEventKind::GuildMemberRoleChanged {
+            guild_id: payload.guild_id.ok_or("guild_id is required")?,
+            user_id: payload.user_id.ok_or("user_id is required")?,
+        },
+        "channel_role_override_changed" => AuthzCacheInvalidationEventKind::ChannelRoleOverrideChanged {
+            guild_id: payload.guild_id.ok_or("guild_id is required")?,
+            channel_id: payload.channel_id.ok_or("channel_id is required")?,
+        },
+        "channel_user_override_changed" => AuthzCacheInvalidationEventKind::ChannelUserOverrideChanged {
+            guild_id: payload.guild_id.ok_or("guild_id is required")?,
+            channel_id: payload.channel_id.ok_or("channel_id is required")?,
+            user_id: payload.user_id.ok_or("user_id is required")?,
+        },
+        "policy_version_changed" => AuthzCacheInvalidationEventKind::PolicyVersionChanged {
+            policy_version: payload
+                .policy_version
+                .as_ref()
+                .map(|value| value.trim())
+                .filter(|value| !value.is_empty())
+                .ok_or("policy_version is required")?
+                .to_owned(),
+        },
+        "all" => AuthzCacheInvalidationEventKind::All,
+        _ => return Err("kind is invalid"),
+    };
+
+    let occurred_at = payload
+        .occurred_at_unix_ms
+        .map(|unix_ms| std::time::UNIX_EPOCH + Duration::from_millis(unix_ms))
+        .unwrap_or_else(std::time::SystemTime::now);
+
+    Ok(AuthzCacheInvalidationEvent { kind, occurred_at })
 }
 
 #[derive(Debug, Serialize)]
@@ -813,7 +932,7 @@ async fn rest_auth_middleware(
         "REST auth accepted"
     );
 
-    let action = rest_authz_action_from_method(&request_method);
+    let action = rest_authz_action_for_request(&request_method, &request_path);
     let action_label = match action {
         AuthzAction::Connect => "connect",
         AuthzAction::View => "view",
@@ -849,6 +968,18 @@ async fn rest_auth_middleware(
     });
 
     next.run(request).await
+}
+
+/// RESTメソッドから AuthZ action を決定する。
+/// @param method HTTP メソッド
+/// @param path リクエストパス
+/// @returns AuthZ action
+/// @throws なし
+fn rest_authz_action_for_request(method: &axum::http::Method, path: &str) -> AuthzAction {
+    if path == "/internal/authz/cache/invalidate" {
+        return AuthzAction::View;
+    }
+    rest_authz_action_from_method(method)
 }
 
 /// RESTメソッドから AuthZ action を決定する。
