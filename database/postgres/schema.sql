@@ -379,6 +379,20 @@ UNION ALL
 
 
 
+CREATE TABLE public.channel_pins_v2 (
+    channel_id bigint NOT NULL,
+    message_id bigint NOT NULL,
+    pinned_at timestamp with time zone DEFAULT now() NOT NULL,
+    pinned_by bigint,
+    unpinned_at timestamp with time zone,
+    unpinned_by bigint,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chk_ch_pins_v2_unpin_pair CHECK ((((unpinned_at IS NULL) AND (unpinned_by IS NULL)) OR (unpinned_at IS NOT NULL))),
+    CONSTRAINT chk_ch_pins_v2_unpin_time CHECK (((unpinned_at IS NULL) OR (unpinned_at >= pinned_at)))
+);
+
+
+
 CREATE TABLE public.channel_reads (
     channel_id bigint NOT NULL,
     user_id bigint NOT NULL,
@@ -520,6 +534,20 @@ CREATE TABLE public.invites (
 
 
 
+CREATE TABLE public.message_references_v2 (
+    message_id bigint NOT NULL,
+    channel_id bigint NOT NULL,
+    reply_to_message_id bigint NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chk_msg_refs_v2_not_self CHECK ((message_id <> reply_to_message_id))
+);
+
+
+
+COMMENT ON COLUMN public.message_references_v2.reply_to_message_id IS 'Scylla SoR上の参照先message_id。削除済み参照先のトゥームストーン表示整合のためFKを張らない。';
+
+
+
 CREATE TABLE public.outbox_events (
     id bigint NOT NULL,
     event_type text NOT NULL,
@@ -594,6 +622,11 @@ ALTER TABLE ONLY public.channel_last_message
 
 
 
+ALTER TABLE ONLY public.channel_pins_v2
+    ADD CONSTRAINT channel_pins_v2_pkey PRIMARY KEY (channel_id, message_id);
+
+
+
 ALTER TABLE ONLY public.channel_reads
     ADD CONSTRAINT channel_reads_pkey PRIMARY KEY (channel_id, user_id);
 
@@ -659,6 +692,11 @@ ALTER TABLE ONLY public.invites
 
 
 
+ALTER TABLE ONLY public.message_references_v2
+    ADD CONSTRAINT message_references_v2_pkey PRIMARY KEY (message_id);
+
+
+
 ALTER TABLE ONLY public.outbox_events
     ADD CONSTRAINT outbox_events_pkey PRIMARY KEY (id);
 
@@ -684,6 +722,14 @@ CREATE INDEX idx_audit_guild_time ON public.audit_logs USING btree (guild_id, cr
 
 
 CREATE INDEX idx_auth_identities_principal_id ON public.auth_identities USING btree (principal_id);
+
+
+
+CREATE INDEX idx_ch_pins_v2_active ON public.channel_pins_v2 USING btree (channel_id, pinned_at DESC, message_id DESC) WHERE (unpinned_at IS NULL);
+
+
+
+CREATE INDEX idx_ch_pins_v2_message ON public.channel_pins_v2 USING btree (message_id);
 
 
 
@@ -741,6 +787,10 @@ CREATE INDEX idx_invites_expires ON public.invites USING btree (expires_at) WHER
 
 
 CREATE INDEX idx_invites_guild ON public.invites USING btree (guild_id);
+
+
+
+CREATE INDEX idx_msg_refs_v2_channel_reply ON public.message_references_v2 USING btree (channel_id, reply_to_message_id, message_id DESC);
 
 
 
@@ -812,6 +862,21 @@ ALTER TABLE ONLY public.channel_hierarchies_v2
 
 ALTER TABLE ONLY public.channel_last_message
     ADD CONSTRAINT channel_last_message_channel_id_fkey FOREIGN KEY (channel_id) REFERENCES public.channels(id) ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY public.channel_pins_v2
+    ADD CONSTRAINT channel_pins_v2_channel_id_fkey FOREIGN KEY (channel_id) REFERENCES public.channels(id) ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY public.channel_pins_v2
+    ADD CONSTRAINT channel_pins_v2_pinned_by_fkey FOREIGN KEY (pinned_by) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+
+ALTER TABLE ONLY public.channel_pins_v2
+    ADD CONSTRAINT channel_pins_v2_unpinned_by_fkey FOREIGN KEY (unpinned_by) REFERENCES public.users(id) ON DELETE SET NULL;
 
 
 
@@ -935,3 +1000,5 @@ ALTER TABLE ONLY public.invites
 
 
 
+ALTER TABLE ONLY public.message_references_v2
+    ADD CONSTRAINT message_references_v2_channel_id_fkey FOREIGN KEY (channel_id) REFERENCES public.channels(id) ON DELETE CASCADE;
