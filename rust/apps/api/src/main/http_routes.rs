@@ -18,7 +18,7 @@ fn app_with_state(state: AppState) -> Router {
             post(authz_cache_invalidate_handler),
         )
         .route("/guilds", get(list_guilds).post(create_guild))
-        .route("/guilds/{guild_id}", patch(patch_guild))
+        .route("/guilds/{guild_id}", patch(patch_guild).delete(delete_guild))
         .route(
             "/guilds/{guild_id}/channels",
             get(list_guild_channels).post(create_guild_channel),
@@ -26,6 +26,26 @@ fn app_with_state(state: AppState) -> Router {
         .route(
             "/channels/{channel_id}",
             patch(update_guild_channel).delete(delete_guild_channel),
+        )
+        .route(
+            "/guilds/{guild_id}/moderation/reports",
+            get(list_moderation_reports).post(create_moderation_report),
+        )
+        .route(
+            "/guilds/{guild_id}/moderation/mutes",
+            post(create_moderation_mute),
+        )
+        .route(
+            "/guilds/{guild_id}/moderation/reports/{report_id}",
+            get(get_moderation_report),
+        )
+        .route(
+            "/guilds/{guild_id}/moderation/reports/{report_id}/resolve",
+            post(resolve_moderation_report),
+        )
+        .route(
+            "/guilds/{guild_id}/moderation/reports/{report_id}/reopen",
+            post(reopen_moderation_report),
         )
         .route(
             "/users/me/profile",
@@ -520,6 +540,31 @@ struct ApiErrorResponse {
     request_id: String,
 }
 
+/// レート制限エラー応答を生成する。
+/// @param code エラーコード
+/// @param message エラーメッセージ
+/// @param request_id リクエストID
+/// @param retry_after_seconds Retry-After秒
+/// @returns RESTエラーレスポンス
+/// @throws なし
+fn rate_limit_error_response(
+    code: &'static str,
+    message: &'static str,
+    request_id: String,
+    retry_after_seconds: u64,
+) -> Response {
+    let body = ApiErrorResponse {
+        code,
+        message,
+        request_id,
+    };
+    let mut response = (StatusCode::TOO_MANY_REQUESTS, Json(body)).into_response();
+    if let Ok(retry_after_value) = HeaderValue::from_str(&retry_after_seconds.max(1).to_string()) {
+        response.headers_mut().insert(RETRY_AFTER, retry_after_value);
+    }
+    response
+}
+
 /// WS identify用ワンタイムチケットを発行する。
 /// @param state アプリケーション状態
 /// @param headers HTTPヘッダー
@@ -670,6 +715,46 @@ struct ProfileResponse {
     profile: profile::ProfileSettings,
 }
 
+#[derive(Debug, Deserialize)]
+struct ModerationGuildPathParams {
+    guild_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct ModerationReportPathParams {
+    guild_id: String,
+    report_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct CreateModerationReportRequest {
+    target_type: String,
+    target_id: i64,
+    reason: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct CreateModerationMuteRequest {
+    target_user_id: i64,
+    reason: String,
+    expires_at: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+struct ModerationReportResponse {
+    report: moderation::ModerationReport,
+}
+
+#[derive(Debug, Serialize)]
+struct ModerationReportListResponse {
+    reports: Vec<moderation::ModerationReport>,
+}
+
+#[derive(Debug, Serialize)]
+struct ModerationMuteResponse {
+    mute: moderation::ModerationMute,
+}
+
 /// guild_idパスパラメータを検証する。
 /// @param raw_guild_id 生のguild_id文字列
 /// @returns 検証済みguild_id
@@ -809,6 +894,48 @@ fn parse_nullable_string_patch_field(
     }
 }
 
+/// guild_idパスパラメータをモデレーション向けに検証する。
+/// @param raw_guild_id 生のguild_id文字列
+/// @returns 検証済みguild_id
+/// @throws ModerationError パラメータ不正時
+fn parse_moderation_guild_id(raw_guild_id: &str) -> Result<i64, ModerationError> {
+    let parsed = raw_guild_id
+        .parse::<i64>()
+        .map_err(|_| ModerationError::validation("guild_id_invalid"))?;
+    if parsed <= 0 {
+        return Err(ModerationError::validation("guild_id_must_be_positive"));
+    }
+
+    Ok(parsed)
+}
+
+/// report_idパスパラメータを検証する。
+/// @param raw_report_id 生のreport_id文字列
+/// @returns 検証済みreport_id
+/// @throws ModerationError パラメータ不正時
+fn parse_report_id(raw_report_id: &str) -> Result<i64, ModerationError> {
+    let parsed = raw_report_id
+        .parse::<i64>()
+        .map_err(|_| ModerationError::validation("report_id_invalid"))?;
+    if parsed <= 0 {
+        return Err(ModerationError::validation("report_id_must_be_positive"));
+    }
+
+    Ok(parsed)
+}
+
+/// JSON入力を検証してモデレーションペイロードを取得する。
+/// @param payload JSON抽出結果
+/// @returns 検証済みJSONペイロード
+/// @throws ModerationError JSON不正時
+fn parse_moderation_json_payload<T>(
+    payload: Result<Json<T>, JsonRejection>,
+) -> Result<T, ModerationError> {
+    payload
+        .map(|Json(value)| value)
+        .map_err(|_| ModerationError::validation("request_body_invalid"))
+}
+
 /// principalが所属するguild一覧を返す。
 /// @param state アプリケーション状態
 /// @param auth_context 認証文脈
@@ -944,6 +1071,73 @@ async fn patch_guild(
     }
 }
 
+/// guildを削除する。
+/// @param state アプリケーション状態
+/// @param auth_context 認証文脈
+/// @param params パスパラメータ
+/// @returns 削除成功時は 204 No Content
+/// @throws なし
+async fn delete_guild(
+    State(state): State<AppState>,
+    Extension(auth_context): Extension<AuthContext>,
+    Path(params): Path<GuildPathParams>,
+) -> Response {
+    let request_id = auth_context.request_id.clone();
+    let guild_id = match parse_guild_id(&params.guild_id) {
+        Ok(value) => value,
+        Err(error) => return guild_channel_error_response(&error, request_id),
+    };
+
+    match state
+        .guild_channel_service
+        .delete_guild(auth_context.principal_id, guild_id)
+        .await
+    {
+        Ok(()) => {
+            tracing::info!(
+                decision = "allow",
+                request_id = %request_id,
+                principal_id = auth_context.principal_id.0,
+                guild_id = guild_id,
+                error_class = "none",
+                action = "manage",
+                resource = "guild",
+                decision_source = "guild_service",
+                "guild delete accepted"
+            );
+            StatusCode::NO_CONTENT.into_response()
+        }
+        Err(error) => {
+            let (decision, error_class) = match error.kind {
+                guild_channel::GuildChannelErrorKind::Validation => {
+                    ("deny", "validation_invalid_input")
+                }
+                guild_channel::GuildChannelErrorKind::Forbidden => ("deny", "authz_denied"),
+                guild_channel::GuildChannelErrorKind::NotFound => ("deny", "resource_not_found"),
+                guild_channel::GuildChannelErrorKind::ChannelNotFound => {
+                    ("deny", "resource_not_found")
+                }
+                guild_channel::GuildChannelErrorKind::DependencyUnavailable => {
+                    ("unavailable", "dependency_unavailable")
+                }
+            };
+            tracing::warn!(
+                decision = decision,
+                request_id = %request_id,
+                principal_id = auth_context.principal_id.0,
+                guild_id = guild_id,
+                error_class = error_class,
+                reason = %error.reason,
+                action = "manage",
+                resource = "guild",
+                decision_source = "guild_service",
+                "guild delete rejected"
+            );
+            guild_channel_error_response(&error, request_id)
+        }
+    }
+}
+
 /// guild配下のchannel一覧を返す。
 /// @param state アプリケーション状態
 /// @param auth_context 認証文脈
@@ -1068,6 +1262,214 @@ async fn delete_guild_channel(
     }
 }
 
+/// guild配下のモデレーション通報キューを返す。
+/// @param state アプリケーション状態
+/// @param auth_context 認証文脈
+/// @param params パスパラメータ
+/// @returns 通報キューレスポンス
+/// @throws なし
+async fn list_moderation_reports(
+    State(state): State<AppState>,
+    Extension(auth_context): Extension<AuthContext>,
+    Path(params): Path<ModerationGuildPathParams>,
+) -> Response {
+    let request_id = auth_context.request_id.clone();
+    let guild_id = match parse_moderation_guild_id(&params.guild_id) {
+        Ok(value) => value,
+        Err(error) => return moderation_error_response(&error, request_id),
+    };
+
+    match state
+        .moderation_service
+        .list_reports(auth_context.principal_id, guild_id)
+        .await
+    {
+        Ok(reports) => Json(ModerationReportListResponse { reports }).into_response(),
+        Err(error) => moderation_error_response(&error, request_id),
+    }
+}
+
+/// モデレーション通報を作成する。
+/// @param state アプリケーション状態
+/// @param auth_context 認証文脈
+/// @param params パスパラメータ
+/// @param payload 作成入力
+/// @returns 作成済み通報レスポンス
+/// @throws なし
+async fn create_moderation_report(
+    State(state): State<AppState>,
+    Extension(auth_context): Extension<AuthContext>,
+    Path(params): Path<ModerationGuildPathParams>,
+    payload: Result<Json<CreateModerationReportRequest>, JsonRejection>,
+) -> Response {
+    let request_id = auth_context.request_id.clone();
+    let guild_id = match parse_moderation_guild_id(&params.guild_id) {
+        Ok(value) => value,
+        Err(error) => return moderation_error_response(&error, request_id),
+    };
+    let payload = match parse_moderation_json_payload(payload) {
+        Ok(value) => value,
+        Err(error) => return moderation_error_response(&error, request_id),
+    };
+    let target_type = match moderation::ModerationTargetType::parse_api_label(&payload.target_type) {
+        Some(value) => value,
+        None => {
+            return moderation_error_response(
+                &ModerationError::validation("target_type_invalid"),
+                request_id,
+            );
+        }
+    };
+
+    let input = moderation::CreateModerationReportInput {
+        guild_id,
+        target_type,
+        target_id: payload.target_id,
+        reason: payload.reason,
+    };
+
+    match state
+        .moderation_service
+        .create_report(auth_context.principal_id, input)
+        .await
+    {
+        Ok(report) => (StatusCode::CREATED, Json(ModerationReportResponse { report })).into_response(),
+        Err(error) => moderation_error_response(&error, request_id),
+    }
+}
+
+/// モデレーションミュートを作成または更新する。
+/// @param state アプリケーション状態
+/// @param auth_context 認証文脈
+/// @param params パスパラメータ
+/// @param payload 作成入力
+/// @returns 作成済みミュートレスポンス
+/// @throws なし
+async fn create_moderation_mute(
+    State(state): State<AppState>,
+    Extension(auth_context): Extension<AuthContext>,
+    Path(params): Path<ModerationGuildPathParams>,
+    payload: Result<Json<CreateModerationMuteRequest>, JsonRejection>,
+) -> Response {
+    let request_id = auth_context.request_id.clone();
+    let guild_id = match parse_moderation_guild_id(&params.guild_id) {
+        Ok(value) => value,
+        Err(error) => return moderation_error_response(&error, request_id),
+    };
+    let payload = match parse_moderation_json_payload(payload) {
+        Ok(value) => value,
+        Err(error) => return moderation_error_response(&error, request_id),
+    };
+    let input = moderation::CreateModerationMuteInput {
+        guild_id,
+        target_user_id: payload.target_user_id,
+        reason: payload.reason,
+        expires_at: payload.expires_at,
+    };
+
+    match state
+        .moderation_service
+        .create_mute(auth_context.principal_id, input)
+        .await
+    {
+        Ok(mute) => (StatusCode::CREATED, Json(ModerationMuteResponse { mute })).into_response(),
+        Err(error) => moderation_error_response(&error, request_id),
+    }
+}
+
+/// 通報詳細を返す。
+/// @param state アプリケーション状態
+/// @param auth_context 認証文脈
+/// @param params パスパラメータ
+/// @returns 通報詳細レスポンス
+/// @throws なし
+async fn get_moderation_report(
+    State(state): State<AppState>,
+    Extension(auth_context): Extension<AuthContext>,
+    Path(params): Path<ModerationReportPathParams>,
+) -> Response {
+    let request_id = auth_context.request_id.clone();
+    let guild_id = match parse_moderation_guild_id(&params.guild_id) {
+        Ok(value) => value,
+        Err(error) => return moderation_error_response(&error, request_id),
+    };
+    let report_id = match parse_report_id(&params.report_id) {
+        Ok(value) => value,
+        Err(error) => return moderation_error_response(&error, request_id),
+    };
+
+    match state
+        .moderation_service
+        .get_report(auth_context.principal_id, guild_id, report_id)
+        .await
+    {
+        Ok(report) => Json(ModerationReportResponse { report }).into_response(),
+        Err(error) => moderation_error_response(&error, request_id),
+    }
+}
+
+/// 通報をresolveへ遷移する。
+/// @param state アプリケーション状態
+/// @param auth_context 認証文脈
+/// @param params パスパラメータ
+/// @returns 更新済み通報レスポンス
+/// @throws なし
+async fn resolve_moderation_report(
+    State(state): State<AppState>,
+    Extension(auth_context): Extension<AuthContext>,
+    Path(params): Path<ModerationReportPathParams>,
+) -> Response {
+    let request_id = auth_context.request_id.clone();
+    let guild_id = match parse_moderation_guild_id(&params.guild_id) {
+        Ok(value) => value,
+        Err(error) => return moderation_error_response(&error, request_id),
+    };
+    let report_id = match parse_report_id(&params.report_id) {
+        Ok(value) => value,
+        Err(error) => return moderation_error_response(&error, request_id),
+    };
+
+    match state
+        .moderation_service
+        .resolve_report(auth_context.principal_id, guild_id, report_id)
+        .await
+    {
+        Ok(report) => Json(ModerationReportResponse { report }).into_response(),
+        Err(error) => moderation_error_response(&error, request_id),
+    }
+}
+
+/// 通報をreopenへ遷移する。
+/// @param state アプリケーション状態
+/// @param auth_context 認証文脈
+/// @param params パスパラメータ
+/// @returns 更新済み通報レスポンス
+/// @throws なし
+async fn reopen_moderation_report(
+    State(state): State<AppState>,
+    Extension(auth_context): Extension<AuthContext>,
+    Path(params): Path<ModerationReportPathParams>,
+) -> Response {
+    let request_id = auth_context.request_id.clone();
+    let guild_id = match parse_moderation_guild_id(&params.guild_id) {
+        Ok(value) => value,
+        Err(error) => return moderation_error_response(&error, request_id),
+    };
+    let report_id = match parse_report_id(&params.report_id) {
+        Ok(value) => value,
+        Err(error) => return moderation_error_response(&error, request_id),
+    };
+
+    match state
+        .moderation_service
+        .reopen_report(auth_context.principal_id, guild_id, report_id)
+        .await
+    {
+        Ok(report) => Json(ModerationReportResponse { report }).into_response(),
+        Err(error) => moderation_error_response(&error, request_id),
+    }
+}
+
 /// 認証済みprincipalのプロフィールを返す。
 /// @param state アプリケーション状態
 /// @param auth_context 認証文脈
@@ -1163,6 +1565,50 @@ async fn rest_auth_middleware(
         email_verified = true,
         "REST auth accepted"
     );
+
+    if let Some(rate_limit_action) = rest_rate_limit_action_for_request(&request_method, &request_path)
+    {
+        let decision = state
+            .rest_rate_limit_service
+            .evaluate(authenticated.principal_id, rate_limit_action)
+            .await;
+        if !decision.allowed() {
+            let error_class = if decision.is_fail_close() {
+                "rate_limit_fail_close"
+            } else {
+                "rate_limited"
+            };
+            let reason = if decision.is_fail_close() {
+                "dragonfly_degraded_fail_close"
+            } else {
+                "rate_limit_exceeded"
+            };
+            let message = if decision.is_fail_close() {
+                "request rejected while rate-limit dependency is degraded"
+            } else {
+                "request rate limit exceeded"
+            };
+            tracing::warn!(
+                decision = "deny",
+                request_id = %request_id,
+                principal_id = authenticated.principal_id.0,
+                error_class = error_class,
+                reason = reason,
+                resource = %request_path,
+                action = decision.action().label(),
+                operation_class = ?decision.operation_class(),
+                degraded = decision.degraded(),
+                decision_source = "rest_rate_limit_service",
+                "REST request rejected by rate limit"
+            );
+            return rate_limit_error_response(
+                "RATE_LIMITED",
+                message,
+                request_id,
+                decision.retry_after_seconds().unwrap_or(1),
+            );
+        }
+    }
 
     let action = rest_authz_action_for_request(&request_method, &request_path);
     let action_label = match action {
@@ -1263,13 +1709,11 @@ fn parse_guild_path(path: &str) -> Option<i64> {
         .trim_matches('/')
         .split('/')
         .collect::<Vec<_>>();
-    if segments.len() != 3 {
-        return None;
+    match segments.as_slice() {
+        ["guilds", guild_id] => guild_id.parse::<i64>().ok(),
+        ["v1", "guilds", guild_id] => guild_id.parse::<i64>().ok(),
+        _ => None,
     }
-    if segments[0] != "v1" || segments[1] != "guilds" {
-        return None;
-    }
-    segments[2].parse::<i64>().ok()
 }
 
 /// ギルドチャンネルパスから guild_id/channel_id を抽出する。

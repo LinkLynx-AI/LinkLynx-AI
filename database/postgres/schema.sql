@@ -379,6 +379,20 @@ UNION ALL
 
 
 
+CREATE TABLE public.channel_pins_v2 (
+    channel_id bigint NOT NULL,
+    message_id bigint NOT NULL,
+    pinned_at timestamp with time zone DEFAULT now() NOT NULL,
+    pinned_by bigint,
+    unpinned_at timestamp with time zone,
+    unpinned_by bigint,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chk_ch_pins_v2_unpin_pair CHECK ((((unpinned_at IS NULL) AND (unpinned_by IS NULL)) OR (unpinned_at IS NOT NULL))),
+    CONSTRAINT chk_ch_pins_v2_unpin_time CHECK (((unpinned_at IS NULL) OR (unpinned_at >= pinned_at)))
+);
+
+
+
 CREATE TABLE public.channel_reads (
     channel_id bigint NOT NULL,
     user_id bigint NOT NULL,
@@ -520,6 +534,54 @@ CREATE TABLE public.invites (
 
 
 
+CREATE TABLE public.message_attachments_v2 (
+    message_id bigint NOT NULL,
+    channel_id bigint NOT NULL,
+    object_key text NOT NULL,
+    mime_type text NOT NULL,
+    size_bytes bigint NOT NULL,
+    sha256 text NOT NULL,
+    uploaded_by bigint,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    deleted_at timestamp with time zone,
+    retention_until timestamp with time zone,
+    CONSTRAINT chk_msg_att_v2_deleted_at_order CHECK (((deleted_at IS NULL) OR (deleted_at >= created_at))),
+    CONSTRAINT chk_msg_att_v2_mime_non_empty CHECK ((length(mime_type) > 0)),
+    CONSTRAINT chk_msg_att_v2_object_key_non_empty CHECK ((length(object_key) > 0)),
+    CONSTRAINT chk_msg_att_v2_object_key_prefix CHECK ((object_key ~~ 'v0/tenant/%'::text)),
+    CONSTRAINT chk_msg_att_v2_retention_order CHECK (((retention_until IS NULL) OR (retention_until >= created_at))),
+    CONSTRAINT chk_msg_att_v2_sha256_format CHECK ((sha256 ~ '^[0-9A-Fa-f]{64}$'::text)),
+    CONSTRAINT chk_msg_att_v2_size_non_negative CHECK ((size_bytes >= 0))
+);
+
+
+
+CREATE TABLE public.message_reactions_v2 (
+    message_id bigint NOT NULL,
+    channel_id bigint NOT NULL,
+    emoji text NOT NULL,
+    user_id bigint NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chk_msg_reactions_v2_emoji_len CHECK ((length(emoji) <= 128)),
+    CONSTRAINT chk_msg_reactions_v2_emoji_non_empty CHECK ((length(emoji) > 0))
+);
+
+
+
+CREATE TABLE public.message_references_v2 (
+    message_id bigint NOT NULL,
+    channel_id bigint NOT NULL,
+    reply_to_message_id bigint NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chk_msg_refs_v2_not_self CHECK ((message_id <> reply_to_message_id))
+);
+
+
+
+COMMENT ON COLUMN public.message_references_v2.reply_to_message_id IS 'Scylla SoR上の参照先message_id。削除済み参照先のトゥームストーン表示整合のためFKを張らない。';
+
+
+
 CREATE TABLE public.outbox_events (
     id bigint NOT NULL,
     event_type text NOT NULL,
@@ -595,6 +657,11 @@ ALTER TABLE ONLY public.channel_last_message
 
 
 
+ALTER TABLE ONLY public.channel_pins_v2
+    ADD CONSTRAINT channel_pins_v2_pkey PRIMARY KEY (channel_id, message_id);
+
+
+
 ALTER TABLE ONLY public.channel_reads
     ADD CONSTRAINT channel_reads_pkey PRIMARY KEY (channel_id, user_id);
 
@@ -660,6 +727,21 @@ ALTER TABLE ONLY public.invites
 
 
 
+ALTER TABLE ONLY public.message_attachments_v2
+    ADD CONSTRAINT message_attachments_v2_pkey PRIMARY KEY (message_id, object_key);
+
+
+
+ALTER TABLE ONLY public.message_reactions_v2
+    ADD CONSTRAINT message_reactions_v2_pkey PRIMARY KEY (message_id, emoji, user_id);
+
+
+
+ALTER TABLE ONLY public.message_references_v2
+    ADD CONSTRAINT message_references_v2_pkey PRIMARY KEY (message_id);
+
+
+
 ALTER TABLE ONLY public.outbox_events
     ADD CONSTRAINT outbox_events_pkey PRIMARY KEY (id);
 
@@ -685,6 +767,14 @@ CREATE INDEX idx_audit_guild_time ON public.audit_logs USING btree (guild_id, cr
 
 
 CREATE INDEX idx_auth_identities_principal_id ON public.auth_identities USING btree (principal_id);
+
+
+
+CREATE INDEX idx_ch_pins_v2_active ON public.channel_pins_v2 USING btree (channel_id, pinned_at DESC, message_id DESC) WHERE (unpinned_at IS NULL);
+
+
+
+CREATE INDEX idx_ch_pins_v2_message ON public.channel_pins_v2 USING btree (message_id);
 
 
 
@@ -745,6 +835,26 @@ CREATE INDEX idx_invites_guild ON public.invites USING btree (guild_id);
 
 
 
+CREATE INDEX idx_msg_att_v2_deleted_at ON public.message_attachments_v2 USING btree (deleted_at) WHERE (deleted_at IS NOT NULL);
+
+
+
+CREATE INDEX idx_msg_att_v2_message_created ON public.message_attachments_v2 USING btree (message_id, created_at DESC, object_key);
+
+
+
+CREATE INDEX idx_msg_att_v2_retention_active ON public.message_attachments_v2 USING btree (retention_until) WHERE ((retention_until IS NOT NULL) AND (deleted_at IS NULL));
+
+
+
+CREATE INDEX idx_msg_reactions_v2_msg_emoji_created ON public.message_reactions_v2 USING btree (message_id, emoji, created_at DESC);
+
+
+
+CREATE INDEX idx_msg_refs_v2_channel_reply ON public.message_references_v2 USING btree (channel_id, reply_to_message_id, message_id DESC);
+
+
+
 CREATE INDEX idx_outbox_failed ON public.outbox_events USING btree (status, created_at DESC) WHERE (status = 'FAILED'::public.outbox_status);
 
 
@@ -754,6 +864,10 @@ CREATE INDEX idx_outbox_pending ON public.outbox_events USING btree (status, nex
 
 
 CREATE UNIQUE INDEX uq_channel_hierarchies_v2_thread_parent_message ON public.channel_hierarchies_v2 USING btree (guild_id, parent_channel_id, parent_message_id) WHERE (hierarchy_kind = 'thread'::public.channel_hierarchy_kind);
+
+
+
+CREATE UNIQUE INDEX uq_msg_att_v2_object_key ON public.message_attachments_v2 USING btree (object_key);
 
 
 
@@ -813,6 +927,21 @@ ALTER TABLE ONLY public.channel_hierarchies_v2
 
 ALTER TABLE ONLY public.channel_last_message
     ADD CONSTRAINT channel_last_message_channel_id_fkey FOREIGN KEY (channel_id) REFERENCES public.channels(id) ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY public.channel_pins_v2
+    ADD CONSTRAINT channel_pins_v2_channel_id_fkey FOREIGN KEY (channel_id) REFERENCES public.channels(id) ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY public.channel_pins_v2
+    ADD CONSTRAINT channel_pins_v2_pinned_by_fkey FOREIGN KEY (pinned_by) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+
+ALTER TABLE ONLY public.channel_pins_v2
+    ADD CONSTRAINT channel_pins_v2_unpinned_by_fkey FOREIGN KEY (unpinned_by) REFERENCES public.users(id) ON DELETE SET NULL;
 
 
 
@@ -934,4 +1063,25 @@ ALTER TABLE ONLY public.invites
 ALTER TABLE ONLY public.invites
     ADD CONSTRAINT invites_guild_id_fkey FOREIGN KEY (guild_id) REFERENCES public.guilds(id) ON DELETE CASCADE;
 
+ALTER TABLE ONLY public.message_attachments_v2
+    ADD CONSTRAINT message_attachments_v2_channel_id_fkey FOREIGN KEY (channel_id) REFERENCES public.channels(id) ON DELETE CASCADE;
 
+
+
+ALTER TABLE ONLY public.message_attachments_v2
+    ADD CONSTRAINT message_attachments_v2_uploaded_by_fkey FOREIGN KEY (uploaded_by) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+
+ALTER TABLE ONLY public.message_reactions_v2
+    ADD CONSTRAINT message_reactions_v2_channel_id_fkey FOREIGN KEY (channel_id) REFERENCES public.channels(id) ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY public.message_reactions_v2
+    ADD CONSTRAINT message_reactions_v2_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY public.message_references_v2
+    ADD CONSTRAINT message_references_v2_channel_id_fkey FOREIGN KEY (channel_id) REFERENCES public.channels(id) ON DELETE CASCADE;

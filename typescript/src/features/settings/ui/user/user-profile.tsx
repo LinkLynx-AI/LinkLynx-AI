@@ -41,7 +41,9 @@ function toProfileSaveErrorText(error: unknown): string {
 
   return toApiErrorText(error, "プロフィールの更新に失敗しました。");
 }
-
+/**
+ * ユーザープロフィール設定フォームを表示する。
+ */
 export function UserProfile() {
   const currentUser = useAuthStore((s) => s.currentUser);
   const setCurrentUser = useAuthStore((s) => s.setCurrentUser);

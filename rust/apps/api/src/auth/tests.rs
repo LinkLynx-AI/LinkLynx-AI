@@ -473,6 +473,19 @@ mod tests {
         assert!(!limiter.check_and_record("k-1").await);
     }
 
+    #[tokio::test]
+    async fn fixed_window_rate_limiter_returns_retry_after_when_limited() {
+        let limiter = FixedWindowRateLimiter::new(1, Duration::from_secs(60));
+        let allowed = limiter.check_and_record_with_retry_after("k-2").await;
+        let limited = limiter.check_and_record_with_retry_after("k-2").await;
+
+        assert!(allowed.allowed);
+        assert_eq!(allowed.retry_after, None);
+        assert!(!limited.allowed);
+        assert!(limited.retry_after.is_some());
+        assert!(limited.retry_after.unwrap() > Duration::from_secs(0));
+    }
+
     #[test]
     fn parse_ws_origin_allowlist_normalizes_entries() {
         let parsed =

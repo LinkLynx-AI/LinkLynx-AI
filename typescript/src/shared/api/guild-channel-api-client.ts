@@ -4,7 +4,11 @@ import type { Channel, Guild } from "@/shared/model/types";
 import type {
   CreateChannelData,
   CreateGuildData,
+  CreateModerationMuteData,
+  CreateModerationReportData,
   MyProfile,
+  ModerationMute,
+  ModerationReport,
   UpdateGuildData,
   UpdateMyProfileInput,
 } from "./api-client";
@@ -44,6 +48,37 @@ const CHANNEL_CREATE_RESPONSE_SCHEMA = z.object({
 });
 const CHANNEL_PATCH_RESPONSE_SCHEMA = z.object({
   channel: CHANNEL_SUMMARY_SCHEMA,
+});
+const MODERATION_REPORT_SCHEMA = z.object({
+  report_id: z.number().int().positive(),
+  guild_id: z.number().int().positive(),
+  reporter_id: z.number().int().positive(),
+  target_type: z.enum(["message", "user"]),
+  target_id: z.number().int().positive(),
+  reason: z.string().trim().min(1),
+  status: z.enum(["open", "resolved"]),
+  resolved_by: z.number().int().positive().nullable().optional(),
+  resolved_at: z.string().trim().min(1).nullable().optional(),
+  created_at: z.string().trim().min(1),
+  updated_at: z.string().trim().min(1),
+});
+const MODERATION_REPORT_LIST_RESPONSE_SCHEMA = z.object({
+  reports: z.array(MODERATION_REPORT_SCHEMA),
+});
+const MODERATION_REPORT_RESPONSE_SCHEMA = z.object({
+  report: MODERATION_REPORT_SCHEMA,
+});
+const MODERATION_MUTE_SCHEMA = z.object({
+  mute_id: z.number().int().positive(),
+  guild_id: z.number().int().positive(),
+  target_user_id: z.number().int().positive(),
+  reason: z.string().trim().min(1),
+  created_by: z.number().int().positive(),
+  expires_at: z.string().trim().min(1).nullable().optional(),
+  created_at: z.string().trim().min(1),
+});
+const MODERATION_MUTE_RESPONSE_SCHEMA = z.object({
+  mute: MODERATION_MUTE_SCHEMA,
 });
 const MY_PROFILE_SCHEMA = z.object({
   display_name: z.string(),
@@ -95,6 +130,14 @@ const UPDATE_ERROR_MESSAGES = {
   authRequired: "ログイン状態を確認してから再試行してください。",
   network: "ネットワーク接続を確認してから再試行してください。",
 } as const;
+const DELETE_ERROR_MESSAGES = {
+  authzDenied: "この操作を行う権限がありません。",
+  authzUnavailable: "認可サービスが一時的に利用できません。しばらくしてから再試行してください。",
+  guildNotFound: "対象のサーバーが見つかりません。",
+  channelNotFound: "対象のチャンネルが見つかりません。",
+  authRequired: "ログイン状態を確認してから再試行してください。",
+  network: "ネットワーク接続を確認してから再試行してください。",
+} as const;
 
 type GuildListResponse = z.infer<typeof GUILD_LIST_RESPONSE_SCHEMA>;
 type GuildCreateResponse = z.infer<typeof GUILD_CREATE_RESPONSE_SCHEMA>;
@@ -103,6 +146,8 @@ type ChannelListResponse = z.infer<typeof CHANNEL_LIST_RESPONSE_SCHEMA>;
 type ChannelSummaryResponse = z.infer<typeof CHANNEL_SUMMARY_SCHEMA>;
 type MyProfileResponse = z.infer<typeof MY_PROFILE_RESPONSE_SCHEMA>;
 type SupportedChannelType = (typeof SUPPORTED_CHANNEL_TYPES)[number];
+type ModerationReportApi = z.infer<typeof MODERATION_REPORT_SCHEMA>;
+type ModerationMuteApi = z.infer<typeof MODERATION_MUTE_SCHEMA>;
 
 type GuildChannelApiErrorParams = {
   status: number | null;
@@ -240,19 +285,22 @@ export function toDeleteActionErrorText(error: unknown, fallbackMessage: string)
   }
 
   if (error.code === "AUTHZ_DENIED") {
-    return attachRequestId(UPDATE_ERROR_MESSAGES.authzDenied, error.requestId);
+    return attachRequestId(DELETE_ERROR_MESSAGES.authzDenied, error.requestId);
   }
   if (error.code === "AUTHZ_UNAVAILABLE") {
-    return attachRequestId(UPDATE_ERROR_MESSAGES.authzUnavailable, error.requestId);
+    return attachRequestId(DELETE_ERROR_MESSAGES.authzUnavailable, error.requestId);
+  }
+  if (error.code === "GUILD_NOT_FOUND") {
+    return attachRequestId(DELETE_ERROR_MESSAGES.guildNotFound, error.requestId);
   }
   if (error.code === "CHANNEL_NOT_FOUND") {
-    return attachRequestId(UPDATE_ERROR_MESSAGES.channelNotFound, error.requestId);
+    return attachRequestId(DELETE_ERROR_MESSAGES.channelNotFound, error.requestId);
   }
   if (error.code === "unauthenticated" || error.code === "token-unavailable") {
-    return attachRequestId(UPDATE_ERROR_MESSAGES.authRequired, error.requestId);
+    return attachRequestId(DELETE_ERROR_MESSAGES.authRequired, error.requestId);
   }
   if (error.code === "network-request-failed") {
-    return attachRequestId(UPDATE_ERROR_MESSAGES.network, error.requestId);
+    return attachRequestId(DELETE_ERROR_MESSAGES.network, error.requestId);
   }
 
   return attachRequestId(fallbackMessage, error.requestId);
@@ -383,6 +431,34 @@ function mapMyProfile(response: MyProfileResponse): MyProfile {
 
 function isSupportedChannelType(type: CreateChannelData["type"]): type is SupportedChannelType {
   return SUPPORTED_CHANNEL_TYPES.some((supportedType) => supportedType === type);
+}
+
+function mapModerationReport(report: ModerationReportApi): ModerationReport {
+  return {
+    reportId: String(report.report_id),
+    guildId: String(report.guild_id),
+    reporterId: String(report.reporter_id),
+    targetType: report.target_type,
+    targetId: String(report.target_id),
+    reason: report.reason,
+    status: report.status,
+    resolvedBy: report.resolved_by == null ? null : String(report.resolved_by),
+    resolvedAt: report.resolved_at ?? null,
+    createdAt: report.created_at,
+    updatedAt: report.updated_at,
+  };
+}
+
+function mapModerationMute(mute: ModerationMuteApi): ModerationMute {
+  return {
+    muteId: String(mute.mute_id),
+    guildId: String(mute.guild_id),
+    targetUserId: String(mute.target_user_id),
+    reason: mute.reason,
+    createdBy: String(mute.created_by),
+    expiresAt: mute.expires_at ?? null,
+    createdAt: mute.created_at,
+  };
 }
 
 /**
@@ -608,6 +684,16 @@ export class GuildChannelAPIClient extends NoDataAPIClient {
       if (nextChannels.length !== cachedChannels.length) {
         this.channelCacheByGuild.set(cachedGuildId, nextChannels);
         return;
+      }
+    }
+  }
+
+  private removeGuildFromCache(serverId: string): void {
+    this.channelCacheByGuild.delete(serverId);
+
+    for (const [channelId, channel] of this.channelIndex.entries()) {
+      if (channel.guildId === serverId) {
+        this.channelIndex.delete(channelId);
       }
     }
   }
@@ -866,6 +952,19 @@ export class GuildChannelAPIClient extends NoDataAPIClient {
     return mapUpdatedGuild(response);
   }
 
+  async deleteServer(serverId: string): Promise<void> {
+    const normalizedServerId = serverId.trim();
+    if (normalizedServerId.length === 0) {
+      throw new GuildChannelApiError(CREATE_ERROR_MESSAGES.guildNotFound, {
+        status: 404,
+        code: "GUILD_NOT_FOUND",
+      });
+    }
+
+    await this.deleteNoContent(`/guilds/${encodeURIComponent(normalizedServerId)}`);
+    this.removeGuildFromCache(normalizedServerId);
+  }
+
   async createChannel(serverId: string, data: CreateChannelData): Promise<Channel> {
     const normalizedServerId = serverId.trim();
     if (normalizedServerId.length === 0) {
@@ -905,6 +1004,149 @@ export class GuildChannelAPIClient extends NoDataAPIClient {
     this.channelIndex.set(channel.id, channel);
 
     return channel;
+  }
+
+  async getModerationReports(serverId: string): Promise<ModerationReport[]> {
+    const normalizedServerId = serverId.trim();
+    if (normalizedServerId.length === 0) {
+      return [];
+    }
+
+    const response = await this.getJson(
+      `/guilds/${encodeURIComponent(normalizedServerId)}/moderation/reports`,
+      MODERATION_REPORT_LIST_RESPONSE_SCHEMA,
+    );
+    return response.reports.map(mapModerationReport);
+  }
+
+  async getModerationReport(serverId: string, reportId: string): Promise<ModerationReport> {
+    const normalizedServerId = serverId.trim();
+    const normalizedReportId = reportId.trim();
+    if (normalizedServerId.length === 0 || normalizedReportId.length === 0) {
+      throw new GuildChannelApiError("Moderation report not found.", {
+        status: 404,
+        code: "MODERATION_NOT_FOUND",
+      });
+    }
+
+    const response = await this.getJson(
+      `/guilds/${encodeURIComponent(normalizedServerId)}/moderation/reports/${encodeURIComponent(
+        normalizedReportId,
+      )}`,
+      MODERATION_REPORT_RESPONSE_SCHEMA,
+    );
+
+    return mapModerationReport(response.report);
+  }
+
+  async createModerationReport(
+    serverId: string,
+    data: CreateModerationReportData,
+  ): Promise<ModerationReport> {
+    const normalizedServerId = serverId.trim();
+    const normalizedReason = data.reason.trim();
+    const normalizedTargetId = data.targetId.trim();
+    if (
+      normalizedServerId.length === 0 ||
+      normalizedReason.length === 0 ||
+      normalizedTargetId.length === 0
+    ) {
+      throw new GuildChannelApiError(CREATE_ERROR_MESSAGES.validation, {
+        status: 400,
+        code: "VALIDATION_ERROR",
+      });
+    }
+
+    const targetIdNumber = Number.parseInt(normalizedTargetId, 10);
+    if (!Number.isInteger(targetIdNumber) || targetIdNumber <= 0) {
+      throw new GuildChannelApiError(CREATE_ERROR_MESSAGES.validation, {
+        status: 400,
+        code: "VALIDATION_ERROR",
+      });
+    }
+
+    const response = await this.requestJson({
+      path: `/guilds/${encodeURIComponent(normalizedServerId)}/moderation/reports`,
+      method: "POST",
+      expectedStatus: 201,
+      body: {
+        target_type: data.targetType,
+        target_id: targetIdNumber,
+        reason: normalizedReason,
+      },
+      schema: MODERATION_REPORT_RESPONSE_SCHEMA,
+    });
+
+    return mapModerationReport(response.report);
+  }
+
+  async resolveModerationReport(serverId: string, reportId: string): Promise<ModerationReport> {
+    const normalizedServerId = serverId.trim();
+    const normalizedReportId = reportId.trim();
+    const response = await this.requestJson({
+      path: `/guilds/${encodeURIComponent(normalizedServerId)}/moderation/reports/${encodeURIComponent(
+        normalizedReportId,
+      )}/resolve`,
+      method: "POST",
+      expectedStatus: 200,
+      schema: MODERATION_REPORT_RESPONSE_SCHEMA,
+    });
+    return mapModerationReport(response.report);
+  }
+
+  async reopenModerationReport(serverId: string, reportId: string): Promise<ModerationReport> {
+    const normalizedServerId = serverId.trim();
+    const normalizedReportId = reportId.trim();
+    const response = await this.requestJson({
+      path: `/guilds/${encodeURIComponent(normalizedServerId)}/moderation/reports/${encodeURIComponent(
+        normalizedReportId,
+      )}/reopen`,
+      method: "POST",
+      expectedStatus: 200,
+      schema: MODERATION_REPORT_RESPONSE_SCHEMA,
+    });
+    return mapModerationReport(response.report);
+  }
+
+  async createModerationMute(
+    serverId: string,
+    data: CreateModerationMuteData,
+  ): Promise<ModerationMute> {
+    const normalizedServerId = serverId.trim();
+    const normalizedTargetUserId = data.targetUserId.trim();
+    const normalizedReason = data.reason.trim();
+    if (
+      normalizedServerId.length === 0 ||
+      normalizedTargetUserId.length === 0 ||
+      normalizedReason.length === 0
+    ) {
+      throw new GuildChannelApiError(CREATE_ERROR_MESSAGES.validation, {
+        status: 400,
+        code: "VALIDATION_ERROR",
+      });
+    }
+
+    const targetUserIdNumber = Number.parseInt(normalizedTargetUserId, 10);
+    if (!Number.isInteger(targetUserIdNumber) || targetUserIdNumber <= 0) {
+      throw new GuildChannelApiError(CREATE_ERROR_MESSAGES.validation, {
+        status: 400,
+        code: "VALIDATION_ERROR",
+      });
+    }
+
+    const response = await this.requestJson({
+      path: `/guilds/${encodeURIComponent(normalizedServerId)}/moderation/mutes`,
+      method: "POST",
+      expectedStatus: 201,
+      body: {
+        target_user_id: targetUserIdNumber,
+        reason: normalizedReason,
+        expires_at: data.expiresAt ?? null,
+      },
+      schema: MODERATION_MUTE_RESPONSE_SCHEMA,
+    });
+
+    return mapModerationMute(response.mute);
   }
 
   async updateChannel(channelId: string, data: Partial<Channel>): Promise<Channel> {
