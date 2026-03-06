@@ -82,6 +82,44 @@ impl PostgresGuildChannelService {
                     icon_key,
                     owner_id
                  FROM updated";
+    const UPDATE_GUILD_CHANNEL_SQL: &str = "WITH editable AS (
+                    SELECT
+                       c.id AS channel_id,
+                       c.guild_id
+                    FROM channels c
+                    WHERE c.id = $1
+                      AND c.type = 'guild_text'
+                      AND EXISTS (
+                        SELECT 1
+                        FROM guild_members gm
+                        WHERE gm.guild_id = c.guild_id
+                          AND gm.user_id = $2
+                        FOR KEY SHARE
+                      )
+                      AND EXISTS (
+                        SELECT 1
+                        FROM guild_member_roles_v2 gmr
+                        JOIN guild_roles_v2 gr
+                          ON gr.guild_id = gmr.guild_id
+                         AND gr.role_key = gmr.role_key
+                        WHERE gmr.guild_id = c.guild_id
+                          AND gmr.user_id = $2
+                          AND gmr.role_key IN ('owner', 'admin')
+                          AND gr.allow_manage = TRUE
+                      )
+                 )
+                 UPDATE channels c
+                 SET
+                    name = $3,
+                    updated_at = now()
+                 FROM editable e
+                 WHERE c.id = e.channel_id
+                   AND c.guild_id = e.guild_id
+                 RETURNING
+                    c.id AS channel_id,
+                    c.guild_id,
+                    c.name,
+                    to_char(c.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS created_at";
 
     /// Postgresサービスを生成する。
     /// @param database_url 接続文字列
@@ -262,6 +300,92 @@ impl PostgresGuildChannelService {
         {
             Ok(row) => Ok(row.is_some()),
             Err(error) => Err(self.map_read_error("guild_lookup_failed", error).await),
+        }
+    }
+
+    /// channelの所属guild_idを取得する。
+    /// @param client Postgresクライアント
+    /// @param channel_id 対象channel_id
+    /// @returns channelが存在する場合は `Some(guild_id)`
+    /// @throws GuildChannelError 依存障害時
+    async fn find_channel_guild_id(
+        &self,
+        client: &tokio_postgres::Client,
+        channel_id: i64,
+    ) -> Result<Option<i64>, GuildChannelError> {
+        match client
+            .query_opt(
+                "SELECT guild_id
+                 FROM channels
+                 WHERE id = $1
+                   AND type = 'guild_text'
+                   AND guild_id IS NOT NULL",
+                &[&channel_id],
+            )
+            .await
+        {
+            Ok(Some(row)) => Ok(Some(row.get::<&str, i64>("guild_id"))),
+            Ok(None) => Ok(None),
+            Err(error) => Err(self.map_read_error("channel_lookup_failed", error).await),
+        }
+    }
+
+    /// guildメンバー所属を確認する。
+    /// @param client Postgresクライアント
+    /// @param guild_id 対象guild_id
+    /// @param user_id 対象user_id
+    /// @returns メンバー所属がある場合は `true`
+    /// @throws GuildChannelError 依存障害時
+    async fn has_guild_membership(
+        &self,
+        client: &tokio_postgres::Client,
+        guild_id: i64,
+        user_id: i64,
+    ) -> Result<bool, GuildChannelError> {
+        match client
+            .query_opt(
+                "SELECT 1
+                 FROM guild_members
+                 WHERE guild_id = $1
+                   AND user_id = $2",
+                &[&guild_id, &user_id],
+            )
+            .await
+        {
+            Ok(row) => Ok(row.is_some()),
+            Err(error) => Err(self.map_read_error("guild_membership_lookup_failed", error).await),
+        }
+    }
+
+    /// guildの管理権限を確認する。
+    /// @param client Postgresクライアント
+    /// @param guild_id 対象guild_id
+    /// @param user_id 対象user_id
+    /// @returns owner/admin管理権限を持つ場合は `true`
+    /// @throws GuildChannelError 依存障害時
+    async fn has_guild_manage_role(
+        &self,
+        client: &tokio_postgres::Client,
+        guild_id: i64,
+        user_id: i64,
+    ) -> Result<bool, GuildChannelError> {
+        match client
+            .query_opt(
+                "SELECT 1
+                 FROM guild_member_roles_v2 gmr
+                 JOIN guild_roles_v2 gr
+                   ON gr.guild_id = gmr.guild_id
+                  AND gr.role_key = gmr.role_key
+                 WHERE gmr.guild_id = $1
+                   AND gmr.user_id = $2
+                   AND gmr.role_key IN ('owner', 'admin')
+                   AND gr.allow_manage = TRUE",
+                &[&guild_id, &user_id],
+            )
+            .await
+        {
+            Ok(row) => Ok(row.is_some()),
+            Err(error) => Err(self.map_read_error("guild_manage_role_lookup_failed", error).await),
         }
     }
 
@@ -589,6 +713,64 @@ impl GuildChannelService for PostgresGuildChannelService {
         };
 
         Ok(CreatedChannel {
+            channel_id: row.get::<&str, i64>("channel_id"),
+            guild_id: row.get::<&str, i64>("guild_id"),
+            name: row.get::<&str, String>("name"),
+            created_at: row.get::<&str, String>("created_at"),
+        })
+    }
+
+    /// channelを更新する。
+    /// @param principal_id 更新主体
+    /// @param channel_id 対象channel_id
+    /// @param patch 更新入力
+    /// @returns 更新結果
+    /// @throws GuildChannelError 入力不正/境界違反/未存在/依存障害時
+    async fn update_guild_channel(
+        &self,
+        principal_id: PrincipalId,
+        channel_id: i64,
+        patch: ChannelPatchInput,
+    ) -> Result<ChannelSummary, GuildChannelError> {
+        let normalized_name = normalize_channel_patch_input(patch)?;
+        let client = self.select_client().await?;
+
+        let row = match client
+            .query_opt(
+                Self::UPDATE_GUILD_CHANNEL_SQL,
+                &[&channel_id, &principal_id.0, &normalized_name],
+            )
+            .await
+        {
+            Ok(Some(row)) => row,
+            Ok(None) => {
+                let Some(guild_id) = self.find_channel_guild_id(&client, channel_id).await? else {
+                    return Err(GuildChannelError::channel_not_found("channel_not_found"));
+                };
+
+                if !self
+                    .has_guild_membership(&client, guild_id, principal_id.0)
+                    .await?
+                {
+                    return Err(GuildChannelError::forbidden("guild_membership_required"));
+                }
+
+                if !self
+                    .has_guild_manage_role(&client, guild_id, principal_id.0)
+                    .await?
+                {
+                    return Err(GuildChannelError::forbidden("channel_manage_permission_required"));
+                }
+
+                return Err(GuildChannelError::channel_not_found("channel_not_found"));
+            }
+            Err(error) => {
+                self.invalidate_pool().await;
+                return Err(Self::map_write_error("channel_update_query_failed", error));
+            }
+        };
+
+        Ok(ChannelSummary {
             channel_id: row.get::<&str, i64>("channel_id"),
             guild_id: row.get::<&str, i64>("guild_id"),
             name: row.get::<&str, String>("name"),

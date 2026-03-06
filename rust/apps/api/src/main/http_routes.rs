@@ -18,6 +18,7 @@ fn app_with_state(state: AppState) -> Router {
             "/guilds/{guild_id}/channels",
             get(list_guild_channels).post(create_guild_channel),
         )
+        .route("/channels/{channel_id}", patch(update_guild_channel))
         .route(
             "/users/me/profile",
             get(get_my_profile).patch(patch_my_profile),
@@ -526,6 +527,22 @@ struct ChannelCreateResponse {
     channel: guild_channel::CreatedChannel,
 }
 
+#[derive(Debug, Deserialize)]
+struct ChannelPathParams {
+    channel_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PatchChannelRequest {
+    name: String,
+}
+
+#[derive(Debug, Serialize)]
+struct ChannelPatchResponse {
+    channel: guild_channel::ChannelSummary,
+}
+
 #[derive(Debug, Serialize)]
 struct ProfileResponse {
     profile: profile::ProfileSettings,
@@ -541,6 +558,21 @@ fn parse_guild_id(raw_guild_id: &str) -> Result<i64, GuildChannelError> {
         .map_err(|_| GuildChannelError::validation("guild_id_invalid"))?;
     if parsed <= 0 {
         return Err(GuildChannelError::validation("guild_id_must_be_positive"));
+    }
+
+    Ok(parsed)
+}
+
+/// channel_idパスパラメータを検証する。
+/// @param raw_channel_id 生のchannel_id文字列
+/// @returns 検証済みchannel_id
+/// @throws GuildChannelError パラメータ不正時
+fn parse_channel_id(raw_channel_id: &str) -> Result<i64, GuildChannelError> {
+    let parsed = raw_channel_id
+        .parse::<i64>()
+        .map_err(|_| GuildChannelError::validation("channel_id_invalid"))?;
+    if parsed <= 0 {
+        return Err(GuildChannelError::validation("channel_id_must_be_positive"));
     }
 
     Ok(parsed)
@@ -764,6 +796,9 @@ async fn patch_guild(
                 }
                 guild_channel::GuildChannelErrorKind::Forbidden => ("deny", "authz_denied"),
                 guild_channel::GuildChannelErrorKind::NotFound => ("deny", "resource_not_found"),
+                guild_channel::GuildChannelErrorKind::ChannelNotFound => {
+                    ("deny", "resource_not_found")
+                }
                 guild_channel::GuildChannelErrorKind::DependencyUnavailable => {
                     ("unavailable", "dependency_unavailable")
                 }
@@ -841,6 +876,43 @@ async fn create_guild_channel(
         .await
     {
         Ok(channel) => (StatusCode::CREATED, Json(ChannelCreateResponse { channel })).into_response(),
+        Err(error) => guild_channel_error_response(&error, request_id),
+    }
+}
+
+/// channelを更新する。
+/// @param state アプリケーション状態
+/// @param auth_context 認証文脈
+/// @param params パスパラメータ
+/// @param payload 更新入力
+/// @returns 更新後channelレスポンス
+/// @throws なし
+async fn update_guild_channel(
+    State(state): State<AppState>,
+    Extension(auth_context): Extension<AuthContext>,
+    Path(params): Path<ChannelPathParams>,
+    payload: Result<Json<PatchChannelRequest>, JsonRejection>,
+) -> Response {
+    let request_id = auth_context.request_id.clone();
+    let channel_id = match parse_channel_id(&params.channel_id) {
+        Ok(value) => value,
+        Err(error) => return guild_channel_error_response(&error, request_id),
+    };
+    let payload = match parse_json_payload(payload) {
+        Ok(value) => value,
+        Err(error) => return guild_channel_error_response(&error, request_id),
+    };
+
+    match state
+        .guild_channel_service
+        .update_guild_channel(
+            auth_context.principal_id,
+            channel_id,
+            guild_channel::ChannelPatchInput { name: payload.name },
+        )
+        .await
+    {
+        Ok(channel) => Json(ChannelPatchResponse { channel }).into_response(),
         Err(error) => guild_channel_error_response(&error, request_id),
     }
 }

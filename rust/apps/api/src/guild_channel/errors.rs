@@ -3,6 +3,7 @@
 pub enum GuildChannelErrorKind {
     Validation,
     NotFound,
+    ChannelNotFound,
     Forbidden,
     DependencyUnavailable,
 }
@@ -37,6 +38,17 @@ impl GuildChannelError {
         }
     }
 
+    /// channel未存在エラーを生成する。
+    /// @param reason 失敗理由
+    /// @returns 未存在エラー
+    /// @throws なし
+    pub fn channel_not_found(reason: impl Into<String>) -> Self {
+        Self {
+            kind: GuildChannelErrorKind::ChannelNotFound,
+            reason: reason.into(),
+        }
+    }
+
     /// メンバー境界違反エラーを生成する。
     /// @param reason 失敗理由
     /// @returns 権限拒否エラー
@@ -67,6 +79,7 @@ impl GuildChannelError {
         match self.kind {
             GuildChannelErrorKind::Validation => StatusCode::BAD_REQUEST,
             GuildChannelErrorKind::NotFound => StatusCode::NOT_FOUND,
+            GuildChannelErrorKind::ChannelNotFound => StatusCode::NOT_FOUND,
             GuildChannelErrorKind::Forbidden => StatusCode::FORBIDDEN,
             GuildChannelErrorKind::DependencyUnavailable => StatusCode::SERVICE_UNAVAILABLE,
         }
@@ -80,6 +93,7 @@ impl GuildChannelError {
         match self.kind {
             GuildChannelErrorKind::Validation => "VALIDATION_ERROR",
             GuildChannelErrorKind::NotFound => "GUILD_NOT_FOUND",
+            GuildChannelErrorKind::ChannelNotFound => "CHANNEL_NOT_FOUND",
             GuildChannelErrorKind::Forbidden => "AUTHZ_DENIED",
             GuildChannelErrorKind::DependencyUnavailable => "AUTHZ_UNAVAILABLE",
         }
@@ -93,6 +107,7 @@ impl GuildChannelError {
         match self.kind {
             GuildChannelErrorKind::Validation => "request payload is invalid",
             GuildChannelErrorKind::NotFound => "guild resource was not found",
+            GuildChannelErrorKind::ChannelNotFound => "channel resource was not found",
             GuildChannelErrorKind::Forbidden => "access is denied by authorization policy",
             GuildChannelErrorKind::DependencyUnavailable => {
                 "authorization dependency is unavailable"
