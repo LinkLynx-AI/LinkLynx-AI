@@ -124,3 +124,11 @@
 - Review gate:
   - reviewer: fallback self-review pass（P1+なし、sub-agent呼び出しが不安定なため手動確認）
   - reviewer_ui_guard: skip（backend/ci-only diff）
+
+## Post-review follow-up
+- Scope:
+  - 親Issueレビューで検出した `AuthZ regression` 集計ロジックの単数形取りこぼしを修正。
+  - `.github/workflows/ci.yml` の `awk` パターンを `tests?` へ変更し、`running 1 test` と `running N tests` を両方カウント。
+- Validation:
+  - `cargo test -p linklynx_backend runtime_provider_unknown_is_fail_closed` のログ集計が `1` になることを確認。
+  - `cargo test -p linklynx_backend runtime_provider_spicedb_` のログ集計が `12` になることを確認。
