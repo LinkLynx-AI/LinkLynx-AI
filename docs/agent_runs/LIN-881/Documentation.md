@@ -1,8 +1,8 @@
 # Documentation.md (Status / audit log)
 
 ## Current status
-- Now: Implementation and validation are complete on `codex/lin-881-authz-bypass-fix`.
-- Next: Finish review gates and create the PR.
+- Now: PR is open and `LIN-881` is `In Review`.
+- Next: Human review on PR #1062.
 
 ## Decisions
 - `LIN-881` was reopened and moved back to `In Progress`.
@@ -37,3 +37,8 @@
   - `reviewer_ui_guard`: `false` (no UI review required).
   - `reviewer`: pass, no blocking findings.
   - Follow-up addressed: added unavailable-path regression for `/internal/authz/metrics`.
+- Delivery result:
+  - Branch: `codex/lin-881-authz-bypass-fix`
+  - PR: `https://github.com/LinkLynx-AI/LinkLynx-AI/pull/1062`
+  - Base branch: `main`
+  - Merge policy: `main` 向けのため auto-merge は使わず human approval 待ち

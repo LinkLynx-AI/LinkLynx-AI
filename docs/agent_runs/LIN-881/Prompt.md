@@ -21,7 +21,7 @@
 - [x] Current behavior is compared against `LIN-881` acceptance criteria.
 - [x] Relevant ADR-004 contract impact is called out.
 - [x] Targeted regression tests are added and passing.
-- [ ] PR is created with validation and review evidence.
+- [x] PR is created with validation and review evidence.
 
 ## Constraints
 - Perf: Keep the WS text fix on the existing fast path with no broader refactor.

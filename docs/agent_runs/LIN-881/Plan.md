@@ -25,7 +25,7 @@
   - [x] `make rust-lint` passes.
   - [x] `make validate` passes.
   - [x] Reviewer gate is completed.
-  - [ ] PR is created in Japanese with validation evidence.
+  - [x] PR is created in Japanese with validation evidence.
 - Validation:
   - `make rust-lint`
   - `make validate`
