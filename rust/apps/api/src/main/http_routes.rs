@@ -18,7 +18,10 @@ fn app_with_state(state: AppState) -> Router {
             "/guilds/{guild_id}/channels",
             get(list_guild_channels).post(create_guild_channel),
         )
-        .route("/channels/{channel_id}", patch(update_guild_channel))
+        .route(
+            "/channels/{channel_id}",
+            patch(update_guild_channel).delete(delete_guild_channel),
+        )
         .route(
             "/users/me/profile",
             get(get_my_profile).patch(patch_my_profile),
@@ -913,6 +916,33 @@ async fn update_guild_channel(
         .await
     {
         Ok(channel) => Json(ChannelPatchResponse { channel }).into_response(),
+        Err(error) => guild_channel_error_response(&error, request_id),
+    }
+}
+
+/// channelを削除する。
+/// @param state アプリケーション状態
+/// @param auth_context 認証文脈
+/// @param params パスパラメータ
+/// @returns 削除成功時は 204 No Content
+/// @throws なし
+async fn delete_guild_channel(
+    State(state): State<AppState>,
+    Extension(auth_context): Extension<AuthContext>,
+    Path(params): Path<ChannelPathParams>,
+) -> Response {
+    let request_id = auth_context.request_id.clone();
+    let channel_id = match parse_channel_id(&params.channel_id) {
+        Ok(value) => value,
+        Err(error) => return guild_channel_error_response(&error, request_id),
+    };
+
+    match state
+        .guild_channel_service
+        .delete_guild_channel(auth_context.principal_id, channel_id)
+        .await
+    {
+        Ok(()) => StatusCode::NO_CONTENT.into_response(),
         Err(error) => guild_channel_error_response(&error, request_id),
     }
 }

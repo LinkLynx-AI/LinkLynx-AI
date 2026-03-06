@@ -120,6 +120,37 @@ impl PostgresGuildChannelService {
                     c.guild_id,
                     c.name,
                     to_char(c.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS created_at";
+    const DELETE_GUILD_CHANNEL_SQL: &str = "WITH deletable AS (
+                    SELECT
+                       c.id AS channel_id,
+                       c.guild_id
+                    FROM channels c
+                    WHERE c.id = $1
+                      AND c.type = 'guild_text'
+                      AND EXISTS (
+                        SELECT 1
+                        FROM guild_members gm
+                        WHERE gm.guild_id = c.guild_id
+                          AND gm.user_id = $2
+                        FOR KEY SHARE
+                      )
+                      AND EXISTS (
+                        SELECT 1
+                        FROM guild_member_roles_v2 gmr
+                        JOIN guild_roles_v2 gr
+                          ON gr.guild_id = gmr.guild_id
+                         AND gr.role_key = gmr.role_key
+                        WHERE gmr.guild_id = c.guild_id
+                          AND gmr.user_id = $2
+                          AND gmr.role_key IN ('owner', 'admin')
+                          AND gr.allow_manage = TRUE
+                      )
+                 )
+                 DELETE FROM channels c
+                 USING deletable d
+                 WHERE c.id = d.channel_id
+                   AND c.guild_id = d.guild_id
+                 RETURNING c.id AS channel_id";
 
     /// Postgresサービスを生成する。
     /// @param database_url 接続文字列
@@ -776,5 +807,50 @@ impl GuildChannelService for PostgresGuildChannelService {
             name: row.get::<&str, String>("name"),
             created_at: row.get::<&str, String>("created_at"),
         })
+    }
+
+    /// channelを削除する。
+    /// @param principal_id 削除主体
+    /// @param channel_id 対象channel_id
+    /// @returns なし
+    /// @throws GuildChannelError 境界違反/未存在/依存障害時
+    async fn delete_guild_channel(
+        &self,
+        principal_id: PrincipalId,
+        channel_id: i64,
+    ) -> Result<(), GuildChannelError> {
+        let client = self.select_client().await?;
+
+        match client
+            .query_opt(Self::DELETE_GUILD_CHANNEL_SQL, &[&channel_id, &principal_id.0])
+            .await
+        {
+            Ok(Some(_)) => Ok(()),
+            Ok(None) => {
+                let Some(guild_id) = self.find_channel_guild_id(&client, channel_id).await? else {
+                    return Err(GuildChannelError::channel_not_found("channel_not_found"));
+                };
+
+                if !self
+                    .has_guild_membership(&client, guild_id, principal_id.0)
+                    .await?
+                {
+                    return Err(GuildChannelError::forbidden("guild_membership_required"));
+                }
+
+                if !self
+                    .has_guild_manage_role(&client, guild_id, principal_id.0)
+                    .await?
+                {
+                    return Err(GuildChannelError::forbidden("channel_manage_permission_required"));
+                }
+
+                Err(GuildChannelError::channel_not_found("channel_not_found"))
+            }
+            Err(error) => {
+                self.invalidate_pool().await;
+                Err(Self::map_write_error("channel_delete_query_failed", error))
+            }
+        }
     }
 }

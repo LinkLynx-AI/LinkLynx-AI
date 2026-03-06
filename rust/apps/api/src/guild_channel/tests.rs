@@ -156,4 +156,15 @@ mod tests {
         assert!(sql.contains("role_key IN ('owner', 'admin')"));
         assert!(sql.contains("allow_manage = TRUE"));
     }
+
+    #[test]
+    fn delete_guild_channel_sql_requires_manage_role_lookup() {
+        let sql = PostgresGuildChannelService::DELETE_GUILD_CHANNEL_SQL;
+
+        assert!(sql.contains("DELETE FROM channels"));
+        assert!(sql.contains("guild_member_roles_v2"));
+        assert!(sql.contains("guild_roles_v2"));
+        assert!(sql.contains("role_key IN ('owner', 'admin')"));
+        assert!(sql.contains("allow_manage = TRUE"));
+    }
 }

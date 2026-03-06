@@ -10,6 +10,7 @@ vi.mock("@/shared/lib", () => ({
 import {
   GuildChannelAPIClient,
   GuildChannelApiError,
+  toDeleteActionErrorText,
   toUpdateActionErrorText,
 } from "./guild-channel-api-client";
 
@@ -457,6 +458,44 @@ describe("GuildChannelAPIClient", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  test("deleteChannel sends delete request and removes cached channel", async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            channels: [
+              {
+                channel_id: 3001,
+                guild_id: 2001,
+                name: "general",
+                created_at: "2026-03-03T00:00:00Z",
+              },
+              {
+                channel_id: 3002,
+                guild_id: 2001,
+                name: "random",
+                created_at: "2026-03-03T00:00:30Z",
+              },
+            ],
+          }),
+          { status: 200 },
+        ),
+      )
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+
+    const client = new GuildChannelAPIClient();
+    await client.getChannels("2001");
+    await client.deleteChannel("3001");
+    const channels = await client.getChannels("2001");
+
+    expect(channels.map((channel) => channel.id)).toEqual(["3002"]);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const [url, init] = fetchMock.mock.calls[1] as [string, RequestInit];
+    expect(url).toBe("http://localhost:8080/channels/3001");
+    expect(init.method).toBe("DELETE");
+    expect(new Headers(init.headers).get("Authorization")).toBe("Bearer token-1");
+  });
+
   test("getMyProfile maps profile response", async () => {
     fetchMock.mockResolvedValue(
       new Response(
@@ -630,6 +669,17 @@ describe("GuildChannelAPIClient", () => {
 
     expect(toUpdateActionErrorText(error, "更新に失敗しました。")).toBe(
       "対象のチャンネルが見つかりません。 (request_id: req-channel-404)",
+    );
+  });
+
+  test("toDeleteActionErrorText maps backend authz code", () => {
+    const error = new GuildChannelApiError("denied", {
+      code: "AUTHZ_DENIED",
+      requestId: "req-delete-403",
+    });
+
+    expect(toDeleteActionErrorText(error, "削除に失敗しました。")).toBe(
+      "この操作を行う権限がありません。 (request_id: req-delete-403)",
     );
   });
 });

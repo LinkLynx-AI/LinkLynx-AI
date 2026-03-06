@@ -5,15 +5,30 @@ import { GuildChannelApiError } from "@/shared/api/guild-channel-api-client";
 import { ChannelEditOverview } from "./channel-edit-overview";
 
 const useChannelMock = vi.hoisted(() => vi.fn());
+const useChannelsMock = vi.hoisted(() => vi.fn());
 const useUpdateChannelMock = vi.hoisted(() => vi.fn());
+const useDeleteChannelMock = vi.hoisted(() => vi.fn());
 const mutateAsyncMock = vi.hoisted(() => vi.fn());
+const deleteMutateAsyncMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/shared/api/queries/use-channels", () => ({
   useChannel: useChannelMock,
+  useChannels: useChannelsMock,
 }));
 
 vi.mock("@/shared/api/mutations/use-channel-update", () => ({
   useUpdateChannel: useUpdateChannelMock,
+}));
+
+vi.mock("@/shared/api/mutations/use-channel-actions", () => ({
+  useDeleteChannel: useDeleteChannelMock,
+}));
+
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/channels/2001/3001",
+  useRouter: () => ({
+    replace: vi.fn(),
+  }),
 }));
 
 function createChannel(name: string) {
@@ -38,9 +53,16 @@ describe("ChannelEditOverview", () => {
       data: createChannel("general"),
       isLoading: false,
     });
+    useChannelsMock.mockReturnValue({
+      data: [createChannel("general")],
+    });
     useUpdateChannelMock.mockReturnValue({
       isPending: false,
       mutateAsync: mutateAsyncMock,
+    });
+    useDeleteChannelMock.mockReturnValue({
+      isPending: false,
+      mutateAsync: deleteMutateAsyncMock,
     });
   });
 
@@ -99,5 +121,16 @@ describe("ChannelEditOverview", () => {
       expect(screen.getByText("チャンネル名は100文字以内で入力してください。")).not.toBeNull();
     });
     expect(mutateAsyncMock).not.toHaveBeenCalled();
+  });
+
+  test("opens channel delete modal from danger zone", async () => {
+    render(<ChannelEditOverview channelId="3001" />);
+
+    await userEvent.click(
+      screen.getAllByRole("button", { name: "チャンネルを削除" })[0] as HTMLButtonElement,
+    );
+
+    expect(screen.getByText("#general を削除します。")).not.toBeNull();
+    expect(screen.getAllByRole("button", { name: "チャンネルを削除" })).toHaveLength(2);
   });
 });
