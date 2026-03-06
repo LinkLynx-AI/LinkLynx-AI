@@ -8,7 +8,7 @@ use std::{
 };
 
 use async_trait::async_trait;
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 use tokio::sync::RwLock;
 use tokio_postgres::Client;
@@ -254,8 +254,10 @@ struct ChannelRoleOverrideOutboxPayload {
     channel_id: i64,
     guild_id: i64,
     role_key: String,
-    can_view: Option<bool>,
-    can_post: Option<bool>,
+    #[serde(default, deserialize_with = "deserialize_payload_bool_field")]
+    can_view: PayloadBoolField,
+    #[serde(default, deserialize_with = "deserialize_payload_bool_field")]
+    can_post: PayloadBoolField,
 }
 
 #[derive(Debug, Deserialize)]
@@ -264,13 +266,23 @@ struct ChannelUserOverrideOutboxPayload {
     channel_id: i64,
     guild_id: i64,
     user_id: i64,
-    can_view: Option<bool>,
-    can_post: Option<bool>,
+    #[serde(default, deserialize_with = "deserialize_payload_bool_field")]
+    can_view: PayloadBoolField,
+    #[serde(default, deserialize_with = "deserialize_payload_bool_field")]
+    can_post: PayloadBoolField,
 }
 
 #[derive(Debug, Deserialize, Default)]
 struct FullResyncOutboxPayload {
     reason: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+enum PayloadBoolField {
+    #[default]
+    Missing,
+    Null,
+    Value(bool),
 }
 
 /// guild_member_roles_v2 の1行を tuple へ写像する。
@@ -485,13 +497,13 @@ pub fn build_tuple_sync_command(event: &TupleSyncOutboxEvent) -> Result<TupleSyn
         AUTHZ_TUPLE_EVENT_CHANNEL_ROLE_OVERRIDE => {
             let payload: ChannelRoleOverrideOutboxPayload = parse_json_payload(event)?;
             Ok(TupleSyncCommand::Mutations(
-                build_channel_role_override_mutations(payload),
+                build_channel_role_override_mutations(payload)?,
             ))
         }
         AUTHZ_TUPLE_EVENT_CHANNEL_USER_OVERRIDE => {
             let payload: ChannelUserOverrideOutboxPayload = parse_json_payload(event)?;
             Ok(TupleSyncCommand::Mutations(
-                build_channel_user_override_mutations(payload),
+                build_channel_user_override_mutations(payload)?,
             ))
         }
         AUTHZ_TUPLE_EVENT_FULL_RESYNC => {
@@ -1209,7 +1221,7 @@ fn build_guild_member_role_mutations(
 
 fn build_channel_role_override_mutations(
     payload: ChannelRoleOverrideOutboxPayload,
-) -> Vec<SpiceDbTupleMutation> {
+) -> Result<Vec<SpiceDbTupleMutation>, String> {
     let candidates = channel_role_override_candidate_tuples(
         payload.channel_id,
         payload.guild_id,
@@ -1217,36 +1229,56 @@ fn build_channel_role_override_mutations(
     );
 
     match payload.op {
-        TupleSyncOperation::Delete => build_delete_mutations(candidates),
+        TupleSyncOperation::Delete => Ok(build_delete_mutations(candidates)),
         TupleSyncOperation::Upsert => {
+            let can_view = require_payload_nullable_bool(
+                payload.can_view,
+                "can_view",
+                AUTHZ_TUPLE_EVENT_CHANNEL_ROLE_OVERRIDE,
+            )?;
+            let can_post = require_payload_nullable_bool(
+                payload.can_post,
+                "can_post",
+                AUTHZ_TUPLE_EVENT_CHANNEL_ROLE_OVERRIDE,
+            )?;
             let desired = map_channel_role_override_to_tuples(&ChannelRoleOverrideRow {
                 channel_id: payload.channel_id,
                 guild_id: payload.guild_id,
                 role_key: payload.role_key,
-                can_view: payload.can_view,
-                can_post: payload.can_post,
+                can_view,
+                can_post,
             });
-            build_replace_mutations(candidates, desired)
+            Ok(build_replace_mutations(candidates, desired))
         }
     }
 }
 
 fn build_channel_user_override_mutations(
     payload: ChannelUserOverrideOutboxPayload,
-) -> Vec<SpiceDbTupleMutation> {
+) -> Result<Vec<SpiceDbTupleMutation>, String> {
     let candidates = channel_user_override_candidate_tuples(payload.channel_id, payload.user_id);
 
     match payload.op {
-        TupleSyncOperation::Delete => build_delete_mutations(candidates),
+        TupleSyncOperation::Delete => Ok(build_delete_mutations(candidates)),
         TupleSyncOperation::Upsert => {
+            let can_view = require_payload_nullable_bool(
+                payload.can_view,
+                "can_view",
+                AUTHZ_TUPLE_EVENT_CHANNEL_USER_OVERRIDE,
+            )?;
+            let can_post = require_payload_nullable_bool(
+                payload.can_post,
+                "can_post",
+                AUTHZ_TUPLE_EVENT_CHANNEL_USER_OVERRIDE,
+            )?;
             let desired = map_channel_user_override_to_tuples(&ChannelUserOverrideRow {
                 channel_id: payload.channel_id,
                 guild_id: payload.guild_id,
                 user_id: payload.user_id,
-                can_view: payload.can_view,
-                can_post: payload.can_post,
+                can_view,
+                can_post,
             });
-            build_replace_mutations(candidates, desired)
+            Ok(build_replace_mutations(candidates, desired))
         }
     }
 }
@@ -1258,9 +1290,13 @@ fn parse_optional_u32_env(name: &str, default: u32) -> Result<u32, String> {
             if trimmed.is_empty() {
                 return Err(format!("{name} must not be empty when set"));
             }
-            trimmed
+            let parsed = trimmed
                 .parse::<u32>()
-                .map_err(|error| format!("{name} must be a valid u32 (reason: {error})"))
+                .map_err(|error| format!("{name} must be a valid u32 (reason: {error})"))?;
+            if parsed == 0 {
+                return Err(format!("{name} must be greater than 0"));
+            }
+            Ok(parsed)
         }
         Err(_) => Ok(default),
     }
@@ -1295,6 +1331,30 @@ fn require_payload_bool(
     event_type: &str,
 ) -> Result<bool, String> {
     value.ok_or_else(|| format!("{event_type} requires bool field: {field}"))
+}
+
+fn require_payload_nullable_bool(
+    value: PayloadBoolField,
+    field: &str,
+    event_type: &str,
+) -> Result<Option<bool>, String> {
+    match value {
+        PayloadBoolField::Missing => Err(format!("{event_type} requires field: {field}")),
+        PayloadBoolField::Null => Ok(None),
+        PayloadBoolField::Value(value) => Ok(Some(value)),
+    }
+}
+
+fn deserialize_payload_bool_field<'de, D>(deserializer: D) -> Result<PayloadBoolField, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let value = Value::deserialize(deserializer)?;
+    if value.is_null() {
+        return Ok(PayloadBoolField::Null);
+    }
+    let parsed = bool::deserialize(value).map_err(serde::de::Error::custom)?;
+    Ok(PayloadBoolField::Value(parsed))
 }
 
 fn build_replace_mutations(

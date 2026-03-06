@@ -32,6 +32,7 @@ Tuple sync runtime config uses the following env keys:
 
 Notes:
 - Current baseline validates and logs these values in Rust runtime.
+- all three values must be `> 0` (`0` is rejected as runtime config error).
 - Actual service wiring/execution loop is performed by follow-up integration work.
 
 ## 3. Backfill procedure (foundation)

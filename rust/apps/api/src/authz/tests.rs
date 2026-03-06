@@ -538,6 +538,44 @@ mod tests {
     }
 
     #[test]
+    fn tuple_sync_command_rejects_partial_channel_role_override_upsert_payload() {
+        let event = TupleSyncOutboxEvent {
+            id: 103,
+            event_type: AUTHZ_TUPLE_EVENT_CHANNEL_ROLE_OVERRIDE.to_owned(),
+            aggregate_id: "channel:200/role:member".to_owned(),
+            payload: json!({
+                "op": "upsert",
+                "channel_id": 200,
+                "guild_id": 10,
+                "role_key": "member",
+                "can_view": true
+            }),
+        };
+
+        let error = build_tuple_sync_command(&event).unwrap_err();
+        assert!(error.contains("requires field: can_post"));
+    }
+
+    #[test]
+    fn tuple_sync_command_rejects_partial_channel_user_override_upsert_payload() {
+        let event = TupleSyncOutboxEvent {
+            id: 104,
+            event_type: AUTHZ_TUPLE_EVENT_CHANNEL_USER_OVERRIDE.to_owned(),
+            aggregate_id: "channel:200/user:3000".to_owned(),
+            payload: json!({
+                "op": "upsert",
+                "channel_id": 200,
+                "guild_id": 10,
+                "user_id": 3000,
+                "can_post": false
+            }),
+        };
+
+        let error = build_tuple_sync_command(&event).unwrap_err();
+        assert!(error.contains("requires field: can_view"));
+    }
+
+    #[test]
     fn tuple_drift_report_and_resync_mutation_are_consistent() {
         let expected = vec![
             SpiceDbTuple::new("guild:1", "viewer", "role:1/member#member"),
@@ -818,6 +856,28 @@ mod tests {
         assert_eq!(config.outbox_claim_limit, 250);
         assert_eq!(config.outbox_lease_seconds, 45);
         assert_eq!(config.outbox_retry_seconds, 20);
+    }
+
+    #[tokio::test]
+    async fn spicedb_tuple_sync_runtime_config_rejects_zero_values() {
+        let _guard = env_lock().lock().await;
+        let mut scoped = ScopedEnv::new();
+        scoped.set("SPICEDB_TUPLE_SYNC_OUTBOX_CLAIM_LIMIT", "0");
+        let claim_error = build_spicedb_tuple_sync_runtime_config_from_env().unwrap_err();
+        assert!(claim_error.contains("SPICEDB_TUPLE_SYNC_OUTBOX_CLAIM_LIMIT"));
+        assert!(claim_error.contains("greater than 0"));
+
+        scoped.unset("SPICEDB_TUPLE_SYNC_OUTBOX_CLAIM_LIMIT");
+        scoped.set("SPICEDB_TUPLE_SYNC_OUTBOX_LEASE_SECONDS", "0");
+        let lease_error = build_spicedb_tuple_sync_runtime_config_from_env().unwrap_err();
+        assert!(lease_error.contains("SPICEDB_TUPLE_SYNC_OUTBOX_LEASE_SECONDS"));
+        assert!(lease_error.contains("greater than 0"));
+
+        scoped.unset("SPICEDB_TUPLE_SYNC_OUTBOX_LEASE_SECONDS");
+        scoped.set("SPICEDB_TUPLE_SYNC_OUTBOX_RETRY_SECONDS", "0");
+        let retry_error = build_spicedb_tuple_sync_runtime_config_from_env().unwrap_err();
+        assert!(retry_error.contains("SPICEDB_TUPLE_SYNC_OUTBOX_RETRY_SECONDS"));
+        assert!(retry_error.contains("greater than 0"));
     }
 
     #[derive(Clone)]

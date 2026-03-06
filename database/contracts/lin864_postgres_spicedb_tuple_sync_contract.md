@@ -99,6 +99,7 @@ backfillソースは以下順序で取得する。
 - `SPICEDB_TUPLE_SYNC_OUTBOX_CLAIM_LIMIT` (default `100`)
 - `SPICEDB_TUPLE_SYNC_OUTBOX_LEASE_SECONDS` (default `30`)
 - `SPICEDB_TUPLE_SYNC_OUTBOX_RETRY_SECONDS` (default `15`)
+- いずれも `> 0` を必須とし、`0` は起動時設定エラーとして拒否する。
 
 ## 4. Drift detection and resync hook
 
