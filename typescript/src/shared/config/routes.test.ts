@@ -5,6 +5,7 @@ import {
   buildGuildRoute,
   buildInviteRoute,
   buildLoginRoute,
+  buildSettingsRoute,
   classifyAppRoute,
   normalizeReturnToPath,
   parseGuildChannelRoute,
@@ -32,6 +33,17 @@ describe("routes", () => {
     expect(buildGuildRoute("guild/a")).toBe("/channels/guild%2Fa");
     expect(buildChannelRoute("guild-1", "channel-2")).toBe("/channels/guild-1/channel-2");
     expect(buildChannelRoute("guild/a", "channel b")).toBe("/channels/guild%2Fa/channel%20b");
+  });
+
+  test("settings ルートを生成する", () => {
+    expect(buildSettingsRoute("profile")).toBe("/settings/profile");
+    expect(buildSettingsRoute("appearance")).toBe("/settings/appearance");
+    expect(buildSettingsRoute("profile", { returnTo: "/channels/1001/3001" })).toBe(
+      "/settings/profile?returnTo=%2Fchannels%2F1001%2F3001",
+    );
+    expect(buildSettingsRoute("appearance", { returnTo: "https://example.com" })).toBe(
+      "/settings/appearance",
+    );
   });
 
   test("guild/channel ルートから選択状態を抽出する", () => {
