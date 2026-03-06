@@ -1,8 +1,8 @@
 # Documentation.md (Status / audit log)
 
 ## Current status
-- Now: LIN-885 implemented and validated.
-- Next: explain changes and hand off.
+- Now: LIN-885 implemented, validated, and PR created.
+- Next: hand off for human review on `main`.
 
 ## Decisions
 - 通常導線はモーダルではなく `/settings/profile` route を採用する。
@@ -22,3 +22,8 @@
 ## Known issues / follow-ups
 - `reviewer_simple` では blocking / high-confidence issue なし。
 - `typescript/src/features/settings/ui/user/user-profile.test.tsx` の既存 `act(...)` warning は full test でも継続して出るが、今回差分で悪化はしていない。
+
+## PR / merge policy
+- PR: https://github.com/LinkLynx-AI/LinkLynx-AI/pull/1070
+- Base branch: `main`
+- Policy state: `main` 向けのため auto-merge は設定せず、人手レビュー待ちで停止する。
