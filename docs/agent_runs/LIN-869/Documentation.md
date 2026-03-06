@@ -1,6 +1,6 @@
 ## Current status
-- Now: LIN-884 実装/検証/review loop 完了、親branch取り込み待ち。
-- Next: LIN-884 を親branchへ取り込み後、親Issue LIN-869 の完了処理へ進む。
+- Now: 全対象子Issue（LIN-873/883/875/874/882/881/876/884）の実装・検証・review loop・親branch統合まで完了。
+- Next: 親Issue LIN-869 は Done。必要であれば `codex/lin-869-patch-spicedb_review_result` から main 向けPRを作成し、人手承認で取り込む。
 
 ## Decisions
 - Parent issue LIN-869 was moved to In Progress before execution.
