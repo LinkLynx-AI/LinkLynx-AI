@@ -2,9 +2,9 @@
 
 ## Current status
 - Now:
-  - 実装と品質ゲートは完了。
+  - 実装、品質ゲート、記録更新は完了。
 - Next:
-  - reviewer 系の非同期結果が必要なら追記して PR 用に整理する。
+  - 必要なら commit / PR 化する。
 
 ## Decisions
 - 削除確認フローは単一確認ダイアログを採用する。
@@ -60,13 +60,17 @@
 ## Runtime smoke
 - `make dev`: failed
   - `pnpm install` 中に `ERR_PNPM_ENOTEMPTY` が発生し、`typescript/node_modules/.pnpm/.../next/.../node_modules/next` の削除で停止した
+- `make rust-dev`: failed
+  - sandbox 実行では `Operation not permitted`、昇格実行では `Address already in use` で `:8080` bind に失敗した
 - local HTTP probe:
   - `curl -i -sS http://127.0.0.1:8080/health` => 接続失敗
+  - `curl -i -sS http://127.0.0.1:8080/guilds` => 接続失敗
   - `curl -i -sS http://127.0.0.1:3000/channels/me` => 接続失敗
 - environment assessment:
   - `make dev` の失敗は実装差分ではなく worktree の既存 `node_modules` 状態に依存する
-  - dev server が起動しなかったため route-level smoke / Playwright smoke は今回の worktree 差分に対して完了不能
-  - current assessment: targeted tests、typecheck、`make rust-lint`、`make validate` は通過しているが、local runtime smoke は frontend 実行環境の問題で incomplete
+  - backend も bind 制約と port 競合で local route-level smoke を完了できなかった
+  - dev server が起動しなかったため Playwright smoke は今回の worktree 差分に対して未実施
+  - current assessment: targeted tests、typecheck、`make rust-lint`、`make validate` は通過しているが、local runtime smoke は環境要因で incomplete
 
 ## Known issues / follow-ups
-- local runtime smoke は worktree の `typescript/node_modules` 状態により完了していない。依存ディレクトリをクリーンにしてから `make dev` を再試行すると UI 実機確認まで進める。
+- local runtime smoke は worktree の `typescript/node_modules` 状態と `3000/8080` の bind 条件により完了していない。依存ディレクトリをクリーンにし、port 利用状態を整理してから再試行すると UI 実機確認まで進める。
