@@ -315,6 +315,9 @@ mod tests {
         let mock = MockSpiceDbServer::start(
             vec![
                 MockSpiceDbResponse::ok("PERMISSIONSHIP_HAS_PERMISSION"),
+                MockSpiceDbResponse::ok("PERMISSIONSHIP_HAS_PERMISSION"),
+                MockSpiceDbResponse::ok("PERMISSIONSHIP_HAS_PERMISSION"),
+                MockSpiceDbResponse::ok("PERMISSIONSHIP_HAS_PERMISSION"),
                 MockSpiceDbResponse::ok("PERMISSIONSHIP_NO_PERMISSION"),
             ],
             false,
@@ -349,7 +352,7 @@ mod tests {
 
         assert!(authorizer.check(&input).await.is_ok());
         assert!(authorizer.check(&input).await.is_ok());
-        assert_eq!(mock.request_count(), 1);
+        assert_eq!(mock.request_count(), 3);
 
         let report = authorizer
             .apply_cache_invalidation_event(&AuthzCacheInvalidationEvent {
@@ -364,7 +367,7 @@ mod tests {
 
         let error = authorizer.check(&input).await.unwrap_err();
         assert_eq!(error.kind, AuthzErrorKind::Denied);
-        assert_eq!(mock.request_count(), 2);
+        assert_eq!(mock.request_count(), 5);
 
         let metrics = authorizer.invalidation_metrics_snapshot();
         assert_eq!(metrics.events_total, 1);
@@ -454,7 +457,10 @@ mod tests {
     async fn runtime_provider_spicedb_maps_channel_post_to_can_post() {
         let _guard = env_lock().lock().await;
         let mock = MockSpiceDbServer::start(
-            vec![MockSpiceDbResponse::ok("PERMISSIONSHIP_HAS_PERMISSION")],
+            vec![
+                MockSpiceDbResponse::ok("PERMISSIONSHIP_HAS_PERMISSION"),
+                MockSpiceDbResponse::ok("PERMISSIONSHIP_HAS_PERMISSION"),
+            ],
             false,
         )
         .await;
@@ -477,12 +483,131 @@ mod tests {
         };
 
         assert!(authorizer.check(&input).await.is_ok());
+        assert_eq!(mock.request_count(), 2);
+        let requests = mock.requests().await;
+        assert_eq!(requests.len(), 2);
+        assert_eq!(requests[0]["resource"]["objectType"], "channel");
+        assert_eq!(requests[0]["resource"]["objectId"], "77");
+        assert_eq!(requests[0]["permission"], "guild");
+        assert_eq!(requests[0]["subject"]["object"]["objectType"], "guild");
+        assert_eq!(requests[0]["subject"]["object"]["objectId"], "10");
+        assert_eq!(requests[1]["resource"]["objectType"], "channel");
+        assert_eq!(requests[1]["resource"]["objectId"], "77");
+        assert_eq!(requests[1]["permission"], "can_post");
+    }
+
+    #[tokio::test]
+    async fn runtime_provider_spicedb_denies_cross_guild_channel_mismatch() {
+        let _guard = env_lock().lock().await;
+        let mock = MockSpiceDbServer::start(
+            vec![MockSpiceDbResponse::ok("PERMISSIONSHIP_NO_PERMISSION")],
+            false,
+        )
+        .await;
+        let mut scoped = ScopedEnv::new();
+        scoped.set("AUTHZ_PROVIDER", "spicedb");
+        scoped.set("SPICEDB_ENDPOINT", "http://spicedb:50051");
+        scoped.set("SPICEDB_CHECK_ENDPOINT", &mock.endpoint());
+        scoped.set("SPICEDB_PRESHARED_KEY", "test-key");
+        scoped.set("SPICEDB_REQUEST_TIMEOUT_MS", "100");
+        scoped.set("SPICEDB_CHECK_MAX_RETRIES", "0");
+
+        let authorizer = build_runtime_authorizer();
+        let input = AuthzCheckInput {
+            principal_id: PrincipalId(4501),
+            resource: AuthzResource::GuildChannel {
+                guild_id: 999,
+                channel_id: 77,
+            },
+            action: AuthzAction::View,
+        };
+
+        let error = authorizer.check(&input).await.unwrap_err();
+        assert_eq!(error.kind, AuthzErrorKind::Denied);
+        assert_eq!(error.reason, "spicedb_channel_guild_mismatch");
         assert_eq!(mock.request_count(), 1);
         let requests = mock.requests().await;
         assert_eq!(requests.len(), 1);
-        assert_eq!(requests[0]["resource"]["objectType"], "channel");
-        assert_eq!(requests[0]["resource"]["objectId"], "77");
-        assert_eq!(requests[0]["permission"], "can_post");
+        assert_eq!(requests[0]["permission"], "guild");
+        assert_eq!(requests[0]["subject"]["object"]["objectType"], "guild");
+        assert_eq!(requests[0]["subject"]["object"]["objectId"], "999");
+    }
+
+    #[tokio::test]
+    async fn runtime_provider_spicedb_denies_guild_channel_not_found() {
+        let _guard = env_lock().lock().await;
+        let mock = MockSpiceDbServer::start(
+            vec![MockSpiceDbResponse::ok("PERMISSIONSHIP_NO_PERMISSION")],
+            false,
+        )
+        .await;
+        let mut scoped = ScopedEnv::new();
+        scoped.set("AUTHZ_PROVIDER", "spicedb");
+        scoped.set("SPICEDB_ENDPOINT", "http://spicedb:50051");
+        scoped.set("SPICEDB_CHECK_ENDPOINT", &mock.endpoint());
+        scoped.set("SPICEDB_PRESHARED_KEY", "test-key");
+        scoped.set("SPICEDB_REQUEST_TIMEOUT_MS", "100");
+        scoped.set("SPICEDB_CHECK_MAX_RETRIES", "0");
+
+        let authorizer = build_runtime_authorizer();
+        let input = AuthzCheckInput {
+            principal_id: PrincipalId(4502),
+            resource: AuthzResource::GuildChannel {
+                guild_id: 10,
+                channel_id: 999_999,
+            },
+            action: AuthzAction::Post,
+        };
+
+        let error = authorizer.check(&input).await.unwrap_err();
+        assert_eq!(error.kind, AuthzErrorKind::Denied);
+        assert_eq!(error.reason, "spicedb_channel_guild_mismatch");
+        assert_eq!(mock.request_count(), 1);
+    }
+
+    #[tokio::test]
+    async fn runtime_provider_spicedb_rechecks_guild_consistency_on_cache_hit() {
+        let _guard = env_lock().lock().await;
+        let mock = MockSpiceDbServer::start(
+            vec![
+                MockSpiceDbResponse::ok("PERMISSIONSHIP_HAS_PERMISSION"),
+                MockSpiceDbResponse::ok("PERMISSIONSHIP_HAS_PERMISSION"),
+                MockSpiceDbResponse::ok("PERMISSIONSHIP_NO_PERMISSION"),
+            ],
+            false,
+        )
+        .await;
+
+        let config = SpiceDbRuntimeConfig {
+            endpoint: "http://spicedb:50051".to_owned(),
+            check_endpoint: mock.endpoint(),
+            preshared_key: "test-key".to_owned(),
+            request_timeout_ms: 100,
+            check_max_retries: 0,
+            check_retry_backoff_ms: 10,
+            cache_allow_ttl_ms: 60_000,
+            cache_deny_ttl_ms: 60_000,
+            cache_max_entries: 100,
+            policy_version: "lin862-v1".to_owned(),
+            schema_path:
+                "database/contracts/lin862_spicedb_namespace_relation_permission_contract.md"
+                    .to_owned(),
+        };
+        let authorizer = SpiceDbHttpAuthorizer::new(&config).unwrap();
+        let input = AuthzCheckInput {
+            principal_id: PrincipalId(4600),
+            resource: AuthzResource::GuildChannel {
+                guild_id: 10,
+                channel_id: 77,
+            },
+            action: AuthzAction::View,
+        };
+
+        assert!(authorizer.check(&input).await.is_ok());
+        let error = authorizer.check(&input).await.unwrap_err();
+        assert_eq!(error.kind, AuthzErrorKind::Denied);
+        assert_eq!(error.reason, "spicedb_channel_guild_mismatch");
+        assert_eq!(mock.request_count(), 3);
     }
 
     #[tokio::test]

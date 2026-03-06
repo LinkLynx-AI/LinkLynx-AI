@@ -599,6 +599,48 @@ impl SpiceDbHttpAuthorizer {
         })
     }
 
+    fn build_channel_guild_consistency_request(
+        &self,
+        guild_id: i64,
+        channel_id: i64,
+    ) -> SpiceDbCheckPermissionRequest {
+        SpiceDbCheckPermissionRequest {
+            consistency: SpiceDbConsistency {
+                fully_consistent: true,
+            },
+            resource: SpiceDbObjectReference {
+                object_type: "channel".to_owned(),
+                object_id: channel_id.to_string(),
+            },
+            permission: "guild".to_owned(),
+            subject: SpiceDbSubjectReference {
+                object: SpiceDbObjectReference {
+                    object_type: "guild".to_owned(),
+                    object_id: guild_id.to_string(),
+                },
+                optional_relation: None,
+            },
+        }
+    }
+
+    /// guild/channel の整合性を検証する。
+    /// @param guild_id 要求されたguild_id
+    /// @param channel_id 要求されたchannel_id
+    /// @returns 整合時は `Ok(())`
+    /// @throws AuthzError guild不整合または依存障害時
+    async fn ensure_guild_channel_consistency(
+        &self,
+        guild_id: i64,
+        channel_id: i64,
+    ) -> Result<(), AuthzError> {
+        let payload = self.build_channel_guild_consistency_request(guild_id, channel_id);
+        let decision = self.execute_check_with_retry(&payload).await?;
+        match decision {
+            CachedDecision::Allow => Ok(()),
+            CachedDecision::Deny => Err(AuthzError::denied("spicedb_channel_guild_mismatch")),
+        }
+    }
+
     async fn execute_check_with_retry(
         &self,
         payload: &SpiceDbCheckPermissionRequest,
@@ -692,6 +734,15 @@ impl Authorizer for SpiceDbHttpAuthorizer {
     /// @returns 許可時は `Ok(())`
     /// @throws AuthzError 判定拒否または依存障害時
     async fn check(&self, input: &AuthzCheckInput) -> Result<(), AuthzError> {
+        if let AuthzResource::GuildChannel {
+            guild_id,
+            channel_id,
+        } = &input.resource
+        {
+            self.ensure_guild_channel_consistency(*guild_id, *channel_id)
+                .await?;
+        }
+
         let cache_key = self.build_cache_key(input);
 
         if let Some(cached_decision) = self.read_cached_decision(&cache_key).await {

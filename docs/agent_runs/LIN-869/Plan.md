@@ -46,7 +46,7 @@
 
 ### M6: LIN-882 guild整合チェック
 - Acceptance criteria:
-  - [ ] cross-guild deny
+  - [x] cross-guild deny
 - Validation:
   - `make rust-lint`
   - `cargo test -p linklynx_backend guild_channel_`

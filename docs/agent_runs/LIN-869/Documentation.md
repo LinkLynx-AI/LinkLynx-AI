@@ -1,6 +1,6 @@
 ## Current status
-- Now: LIN-874 実装/検証/review loop 完了、親branch取り込み待ち。
-- Next: LIN-882 を開始。
+- Now: LIN-882 実装/検証/review loop 完了、親branch取り込み待ち。
+- Next: LIN-881 を開始。
 
 ## Decisions
 - Parent issue LIN-869 was moved to In Progress before execution.
@@ -62,3 +62,18 @@
 - Review gate:
   - reviewer: pass（初回P1: internal invalidate POSTのaction mapping不整合を修正済み）
   - reviewer_ui_guard: failed（model unsupported）。backend-only差分のためUI reviewはskip記録
+
+## LIN-882 progress
+- Branch: `codex/LIN-882-guild-channel-cross-guild-deny`
+- Scope:
+  - `GuildChannel` 認可の前段で `channel#guild` 整合性チェックを必須化
+  - cross-guild mismatch / not-found を明示 deny (`spicedb_channel_guild_mismatch`)
+  - cache hit時でも整合性チェックを再評価する回帰を追加
+- Validation:
+  - `make rust-lint` (pass)
+  - `cd rust && cargo test -p linklynx_backend guild_channel_` (pass)
+  - `cd rust && cargo test -p linklynx_backend authz_service_` (pass: 0 test filtered)
+  - `cd rust && cargo test -p linklynx_backend runtime_provider_spicedb_` (pass)
+- Review gate:
+  - reviewer: pass（初回P1「cache hit時の整合性チェック迂回」を修正後に再review pass）
+  - reviewer_ui_guard: backend-only差分のためskip（かつ model unsupported）
