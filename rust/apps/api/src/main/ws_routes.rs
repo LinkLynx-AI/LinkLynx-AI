@@ -509,6 +509,10 @@ async fn handle_ready_message(
                         let _ = close_socket(socket, 1008, "reauth_required").await;
                         return false;
                     }
+                    if !authorize_ws_stream_operation(state, authenticated, request_id, socket).await
+                    {
+                        return false;
+                    }
                     return socket.send(Message::Text(text.into())).await.is_ok();
                 }
             }
