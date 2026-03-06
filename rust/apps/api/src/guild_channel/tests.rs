@@ -129,6 +129,20 @@ mod tests {
     }
 
     #[test]
+    fn create_guild_sql_bootstraps_v2_system_roles() {
+        let sql = PostgresGuildChannelService::CREATE_GUILD_SQL;
+
+        assert!(sql.contains("INSERT INTO guild_roles_v2"));
+        assert!(sql.contains("INSERT INTO guild_member_roles_v2"));
+        assert!(sql.contains("('owner'::text, 'Owner'::text, 300::int, TRUE)"));
+        assert!(sql.contains("('member'::text, 'Member'::text, 100::int, FALSE)"));
+        assert!(sql.contains("is_system"));
+        assert!(!sql.contains("INSERT INTO guild_roles ("));
+        assert!(!sql.contains("INSERT INTO guild_member_roles ("));
+        assert!(!sql.contains("role_level"));
+    }
+
+    #[test]
     fn list_guild_channels_sql_requires_membership_lookup() {
         let sql = PostgresGuildChannelService::LIST_GUILD_CHANNELS_SQL;
 
