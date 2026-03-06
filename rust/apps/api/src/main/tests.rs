@@ -15,6 +15,10 @@ mod tests {
         GuildPatchInput, GuildSummary,
         GuildChannelService,
     };
+    use moderation::{
+        CreateModerationMuteInput, CreateModerationReportInput, ModerationError, ModerationReport,
+        ModerationReportStatus, ModerationService, ModerationTargetType,
+    };
     use profile::{ProfileError, ProfilePatchInput, ProfileService, ProfileSettings};
     use axum::{
         body::to_bytes,
@@ -30,6 +34,7 @@ mod tests {
     struct StaticDenyAuthorizer;
     struct StaticUnavailableAuthorizer;
     struct StaticGuildChannelService;
+    struct StaticModerationService;
     struct StaticProfileService;
     struct StaticUnavailableProfileService;
     struct RoleScenarioAuthorizer;
@@ -430,6 +435,190 @@ mod tests {
         }
     }
 
+    #[async_trait]
+    impl ModerationService for StaticModerationService {
+        async fn create_report(
+            &self,
+            principal_id: PrincipalId,
+            input: CreateModerationReportInput,
+        ) -> Result<ModerationReport, ModerationError> {
+            if input.guild_id != 2001 {
+                return Err(ModerationError::not_found("guild_not_found"));
+            }
+            if input.target_id <= 0 {
+                return Err(ModerationError::validation("target_id_must_be_positive"));
+            }
+            let reason = input.reason.trim();
+            if reason.is_empty() {
+                return Err(ModerationError::validation("report_reason_required"));
+            }
+
+            Ok(ModerationReport {
+                report_id: 4001,
+                guild_id: 2001,
+                reporter_id: principal_id.0,
+                target_type: input.target_type,
+                target_id: input.target_id,
+                reason: reason.to_owned(),
+                status: ModerationReportStatus::Open,
+                resolved_by: None,
+                resolved_at: None,
+                created_at: "2026-03-05T00:00:00Z".to_owned(),
+                updated_at: "2026-03-05T00:00:00Z".to_owned(),
+            })
+        }
+
+        async fn create_mute(
+            &self,
+            principal_id: PrincipalId,
+            input: CreateModerationMuteInput,
+        ) -> Result<moderation::ModerationMute, ModerationError> {
+            if input.guild_id != 2001 {
+                return Err(ModerationError::not_found("guild_not_found"));
+            }
+            if principal_id.0 != 1001 {
+                return Err(ModerationError::forbidden("moderation_role_required"));
+            }
+            if input.target_user_id <= 0 {
+                return Err(ModerationError::validation("target_user_id_must_be_positive"));
+            }
+            let reason = input.reason.trim();
+            if reason.is_empty() {
+                return Err(ModerationError::validation("mute_reason_required"));
+            }
+
+            Ok(moderation::ModerationMute {
+                mute_id: 5001,
+                guild_id: 2001,
+                target_user_id: input.target_user_id,
+                reason: reason.to_owned(),
+                created_by: principal_id.0,
+                expires_at: input.expires_at,
+                created_at: "2026-03-05T00:00:00Z".to_owned(),
+            })
+        }
+
+        async fn list_reports(
+            &self,
+            principal_id: PrincipalId,
+            guild_id: i64,
+        ) -> Result<Vec<ModerationReport>, ModerationError> {
+            if guild_id != 2001 {
+                return Err(ModerationError::not_found("guild_not_found"));
+            }
+            if principal_id.0 != 1001 {
+                return Err(ModerationError::forbidden("moderation_role_required"));
+            }
+
+            Ok(vec![ModerationReport {
+                report_id: 4001,
+                guild_id,
+                reporter_id: 1002,
+                target_type: ModerationTargetType::Message,
+                target_id: 9001,
+                reason: "spam".to_owned(),
+                status: ModerationReportStatus::Open,
+                resolved_by: None,
+                resolved_at: None,
+                created_at: "2026-03-05T00:00:00Z".to_owned(),
+                updated_at: "2026-03-05T00:00:00Z".to_owned(),
+            }])
+        }
+
+        async fn get_report(
+            &self,
+            principal_id: PrincipalId,
+            guild_id: i64,
+            report_id: i64,
+        ) -> Result<ModerationReport, ModerationError> {
+            if guild_id != 2001 {
+                return Err(ModerationError::not_found("guild_not_found"));
+            }
+            if principal_id.0 != 1001 {
+                return Err(ModerationError::forbidden("moderation_role_required"));
+            }
+            if report_id != 4001 {
+                return Err(ModerationError::not_found("report_not_found"));
+            }
+
+            Ok(ModerationReport {
+                report_id,
+                guild_id,
+                reporter_id: 1002,
+                target_type: ModerationTargetType::Message,
+                target_id: 9001,
+                reason: "spam".to_owned(),
+                status: ModerationReportStatus::Open,
+                resolved_by: None,
+                resolved_at: None,
+                created_at: "2026-03-05T00:00:00Z".to_owned(),
+                updated_at: "2026-03-05T00:00:00Z".to_owned(),
+            })
+        }
+
+        async fn resolve_report(
+            &self,
+            principal_id: PrincipalId,
+            guild_id: i64,
+            report_id: i64,
+        ) -> Result<ModerationReport, ModerationError> {
+            if guild_id != 2001 {
+                return Err(ModerationError::not_found("guild_not_found"));
+            }
+            if principal_id.0 != 1001 {
+                return Err(ModerationError::forbidden("moderation_role_required"));
+            }
+            if report_id != 4001 {
+                return Err(ModerationError::not_found("report_not_found"));
+            }
+
+            Ok(ModerationReport {
+                report_id,
+                guild_id,
+                reporter_id: 1002,
+                target_type: ModerationTargetType::Message,
+                target_id: 9001,
+                reason: "spam".to_owned(),
+                status: ModerationReportStatus::Resolved,
+                resolved_by: Some(principal_id.0),
+                resolved_at: Some("2026-03-05T00:01:00Z".to_owned()),
+                created_at: "2026-03-05T00:00:00Z".to_owned(),
+                updated_at: "2026-03-05T00:01:00Z".to_owned(),
+            })
+        }
+
+        async fn reopen_report(
+            &self,
+            principal_id: PrincipalId,
+            guild_id: i64,
+            report_id: i64,
+        ) -> Result<ModerationReport, ModerationError> {
+            if guild_id != 2001 {
+                return Err(ModerationError::not_found("guild_not_found"));
+            }
+            if principal_id.0 != 1001 {
+                return Err(ModerationError::forbidden("moderation_role_required"));
+            }
+            if report_id != 4001 {
+                return Err(ModerationError::not_found("report_not_found"));
+            }
+
+            Ok(ModerationReport {
+                report_id,
+                guild_id,
+                reporter_id: 1002,
+                target_type: ModerationTargetType::Message,
+                target_id: 9001,
+                reason: "spam".to_owned(),
+                status: ModerationReportStatus::Open,
+                resolved_by: None,
+                resolved_at: None,
+                created_at: "2026-03-05T00:00:00Z".to_owned(),
+                updated_at: "2026-03-05T00:02:00Z".to_owned(),
+            })
+        }
+    }
+
     async fn app_for_test() -> Router {
         app_for_test_with_authorizer_and_profile(
             Arc::new(StaticAllowAllAuthorizer),
@@ -477,6 +666,7 @@ mod tests {
             authorizer,
             authz_metrics: Arc::new(AuthzMetrics::default()),
             guild_channel_service: Arc::new(StaticGuildChannelService),
+            moderation_service: Arc::new(StaticModerationService),
             profile_service,
             ws_reauth_grace: Duration::from_secs(30),
             ws_ticket_ttl: Duration::from_secs(60),
@@ -1788,6 +1978,138 @@ mod tests {
             .unwrap();
         let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
         assert_eq!(json["code"], "VALIDATION_ERROR");
+    }
+
+    #[tokio::test]
+    async fn create_moderation_report_returns_created() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/guilds/2001/moderation/reports")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        r#"{"target_type":"message","target_id":9001,"reason":"spam"}"#,
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::CREATED);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["report"]["report_id"], 4001);
+        assert_eq!(json["report"]["status"], "open");
+        assert_eq!(json["report"]["target_type"], "message");
+    }
+
+    #[tokio::test]
+    async fn list_moderation_reports_returns_forbidden_for_non_moderator() {
+        let app = app_for_test().await;
+        let token = format!("u-unknown:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/guilds/2001/moderation/reports")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("x-request-id", "moderation-forbidden-test")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "AUTHZ_DENIED");
+        assert_eq!(json["request_id"], "moderation-forbidden-test");
+    }
+
+    #[tokio::test]
+    async fn resolve_moderation_report_returns_resolved_status() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/guilds/2001/moderation/reports/4001/resolve")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["report"]["status"], "resolved");
+        assert_eq!(json["report"]["resolved_by"], 1001);
+    }
+
+    #[tokio::test]
+    async fn reopen_moderation_report_returns_open_status() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/guilds/2001/moderation/reports/4001/reopen")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["report"]["status"], "open");
+        assert_eq!(json["report"]["resolved_by"], serde_json::Value::Null);
+    }
+
+    #[tokio::test]
+    async fn create_moderation_mute_returns_created() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/guilds/2001/moderation/mutes")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        r#"{"target_user_id":1002,"reason":"abuse","expires_at":"2026-04-01T00:00:00Z"}"#,
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::CREATED);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["mute"]["mute_id"], 5001);
+        assert_eq!(json["mute"]["target_user_id"], 1002);
     }
 
     #[tokio::test]

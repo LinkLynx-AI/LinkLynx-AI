@@ -1,10 +1,15 @@
 import type {
   APIClient,
+  CreateModerationMuteData,
+  CreateModerationReportData,
   CreateGuildData,
   UpdateGuildData,
   CreateChannelData,
   CreateInviteData,
   Invite,
+  ModerationMute,
+  ModerationReport,
+  ModerationReportStatus,
   MyProfile,
   Role,
   UpdateMyProfileInput,
@@ -43,6 +48,8 @@ import {
 
 export class MockAPIClient implements APIClient {
   private delay = 100;
+  private moderationReports: ModerationReport[] = [];
+  private moderationMutes: ModerationMute[] = [];
 
   private async simulateDelay(): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, this.delay));
@@ -50,6 +57,10 @@ export class MockAPIClient implements APIClient {
 
   private generateId(): string {
     return Date.now().toString() + Math.random().toString(36).substring(2, 9);
+  }
+
+  private nowIsoString(): string {
+    return new Date().toISOString();
   }
 
   // Auth
@@ -569,6 +580,106 @@ export class MockAPIClient implements APIClient {
 
   async updateMemberNickname(_serverId: string, _userId: string, _nickname: string): Promise<void> {
     await this.simulateDelay();
+  }
+
+  async getModerationReports(serverId: string): Promise<ModerationReport[]> {
+    await this.simulateDelay();
+    return this.moderationReports
+      .filter((report) => report.guildId === serverId)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
+
+  async getModerationReport(serverId: string, reportId: string): Promise<ModerationReport> {
+    await this.simulateDelay();
+    const report = this.moderationReports.find(
+      (candidate) => candidate.guildId === serverId && candidate.reportId === reportId,
+    );
+    if (!report) {
+      throw new Error("Moderation report not found");
+    }
+    return report;
+  }
+
+  async createModerationReport(
+    serverId: string,
+    data: CreateModerationReportData,
+  ): Promise<ModerationReport> {
+    await this.simulateDelay();
+    const now = this.nowIsoString();
+    const status: ModerationReportStatus = "open";
+    const report: ModerationReport = {
+      reportId: this.generateId(),
+      guildId: serverId,
+      reporterId: mockCurrentUser.id,
+      targetType: data.targetType,
+      targetId: data.targetId,
+      reason: data.reason.trim(),
+      status,
+      resolvedBy: null,
+      resolvedAt: null,
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.moderationReports.unshift(report);
+    return report;
+  }
+
+  async resolveModerationReport(serverId: string, reportId: string): Promise<ModerationReport> {
+    await this.simulateDelay();
+    const index = this.moderationReports.findIndex(
+      (candidate) => candidate.guildId === serverId && candidate.reportId === reportId,
+    );
+    if (index < 0) {
+      throw new Error("Moderation report not found");
+    }
+
+    const now = this.nowIsoString();
+    this.moderationReports[index] = {
+      ...this.moderationReports[index],
+      status: "resolved",
+      resolvedBy: mockCurrentUser.id,
+      resolvedAt: now,
+      updatedAt: now,
+    };
+    return this.moderationReports[index];
+  }
+
+  async reopenModerationReport(serverId: string, reportId: string): Promise<ModerationReport> {
+    await this.simulateDelay();
+    const index = this.moderationReports.findIndex(
+      (candidate) => candidate.guildId === serverId && candidate.reportId === reportId,
+    );
+    if (index < 0) {
+      throw new Error("Moderation report not found");
+    }
+
+    const now = this.nowIsoString();
+    this.moderationReports[index] = {
+      ...this.moderationReports[index],
+      status: "open",
+      resolvedBy: null,
+      resolvedAt: null,
+      updatedAt: now,
+    };
+    return this.moderationReports[index];
+  }
+
+  async createModerationMute(
+    serverId: string,
+    data: CreateModerationMuteData,
+  ): Promise<ModerationMute> {
+    await this.simulateDelay();
+    const mute: ModerationMute = {
+      muteId: this.generateId(),
+      guildId: serverId,
+      targetUserId: data.targetUserId,
+      reason: data.reason.trim(),
+      createdBy: mockCurrentUser.id,
+      expiresAt: data.expiresAt ?? null,
+      createdAt: this.nowIsoString(),
+    };
+    this.moderationMutes.push(mute);
+    return mute;
   }
 
   // Typing

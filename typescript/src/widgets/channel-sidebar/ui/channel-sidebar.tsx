@@ -1,9 +1,10 @@
 "use client";
 
 import { useMemo } from "react";
+import Link from "next/link";
 import { useChannels } from "@/shared/api/queries/use-channels";
 import { toApiErrorText } from "@/shared/api/guild-channel-api-client";
-import { parseGuildChannelRoute } from "@/shared/config/routes";
+import { buildModerationQueueRoute, parseGuildChannelRoute } from "@/shared/config/routes";
 import { useGuildStore } from "@/shared/model/stores/guild-store";
 import { useServer } from "@/shared/api/queries/use-servers";
 import { usePathname } from "next/navigation";
@@ -147,6 +148,16 @@ export function ChannelSidebar() {
               </ChannelCategory>
             );
           })}
+
+        <div className="mt-2 px-2">
+          <Link
+            href={buildModerationQueueRoute(activeServerId)}
+            className="mx-1 flex items-center gap-2 rounded px-2 py-1 text-sm text-discord-channels-default transition-colors hover:bg-discord-bg-mod-hover hover:text-discord-interactive-hover"
+          >
+            <span className="text-xs font-semibold uppercase tracking-wide">MOD</span>
+            <span>モデレーションキュー</span>
+          </Link>
+        </div>
       </div>
 
       {/* Voice connection panel (shows when connected) */}
