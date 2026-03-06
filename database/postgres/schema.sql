@@ -25,7 +25,11 @@ CREATE TYPE public.audit_action AS ENUM (
     'CHANNEL_DELETE',
     'MESSAGE_DELETE_MOD',
     'USER_BAN',
-    'USER_UNBAN'
+    'USER_UNBAN',
+    'REPORT_CREATE',
+    'MUTE_CREATE',
+    'REPORT_RESOLVE',
+    'REPORT_REOPEN'
 );
 
 
@@ -40,6 +44,13 @@ CREATE TYPE public.channel_hierarchy_kind AS ENUM (
 CREATE TYPE public.channel_type AS ENUM (
     'guild_text',
     'dm'
+);
+
+
+
+CREATE TYPE public.moderation_report_status AS ENUM (
+    'open',
+    'resolved'
 );
 
 
@@ -274,6 +285,19 @@ CREATE TABLE public.audit_logs (
     metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL
 );
+
+
+
+CREATE SEQUENCE public.audit_logs_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+
+ALTER SEQUENCE public.audit_logs_id_seq OWNED BY public.audit_logs.id;
 
 
 
@@ -582,6 +606,64 @@ COMMENT ON COLUMN public.message_references_v2.reply_to_message_id IS 'Scylla So
 
 
 
+CREATE TABLE public.moderation_mutes (
+    id bigint NOT NULL,
+    guild_id bigint NOT NULL,
+    target_user_id bigint NOT NULL,
+    reason text NOT NULL,
+    created_by bigint NOT NULL,
+    expires_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chk_moderation_mutes_reason_non_blank CHECK ((btrim(reason) <> ''::text))
+);
+
+
+
+CREATE SEQUENCE public.moderation_mutes_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+
+ALTER SEQUENCE public.moderation_mutes_id_seq OWNED BY public.moderation_mutes.id;
+
+
+
+CREATE TABLE public.moderation_reports (
+    id bigint NOT NULL,
+    guild_id bigint NOT NULL,
+    reporter_id bigint NOT NULL,
+    target_type text NOT NULL,
+    target_id bigint NOT NULL,
+    reason text NOT NULL,
+    status public.moderation_report_status DEFAULT 'open'::public.moderation_report_status NOT NULL,
+    resolved_by bigint,
+    resolved_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chk_moderation_reports_reason_non_blank CHECK ((btrim(reason) <> ''::text)),
+    CONSTRAINT chk_moderation_reports_resolution_consistency CHECK ((((status = 'open'::public.moderation_report_status) AND (resolved_by IS NULL) AND (resolved_at IS NULL)) OR ((status = 'resolved'::public.moderation_report_status) AND (resolved_by IS NOT NULL) AND (resolved_at IS NOT NULL)))),
+    CONSTRAINT chk_moderation_reports_target_type CHECK ((target_type = ANY (ARRAY['message'::text, 'user'::text])))
+);
+
+
+
+CREATE SEQUENCE public.moderation_reports_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+
+ALTER SEQUENCE public.moderation_reports_id_seq OWNED BY public.moderation_reports.id;
+
+
+
 CREATE TABLE public.outbox_events (
     id bigint NOT NULL,
     event_type text NOT NULL,
@@ -624,11 +706,23 @@ ALTER SEQUENCE public.users_id_seq OWNED BY public.users.id;
 
 
 
+ALTER TABLE ONLY public.audit_logs ALTER COLUMN id SET DEFAULT nextval('public.audit_logs_id_seq'::regclass);
+
+
+
 ALTER TABLE ONLY public.channels ALTER COLUMN id SET DEFAULT nextval('public.channels_id_seq'::regclass);
 
 
 
 ALTER TABLE ONLY public.guilds ALTER COLUMN id SET DEFAULT nextval('public.guilds_id_seq'::regclass);
+
+
+
+ALTER TABLE ONLY public.moderation_mutes ALTER COLUMN id SET DEFAULT nextval('public.moderation_mutes_id_seq'::regclass);
+
+
+
+ALTER TABLE ONLY public.moderation_reports ALTER COLUMN id SET DEFAULT nextval('public.moderation_reports_id_seq'::regclass);
 
 
 
@@ -741,6 +835,16 @@ ALTER TABLE ONLY public.message_references_v2
 
 
 
+ALTER TABLE ONLY public.moderation_mutes
+    ADD CONSTRAINT moderation_mutes_pkey PRIMARY KEY (id);
+
+
+
+ALTER TABLE ONLY public.moderation_reports
+    ADD CONSTRAINT moderation_reports_pkey PRIMARY KEY (id);
+
+
+
 ALTER TABLE ONLY public.outbox_events
     ADD CONSTRAINT outbox_events_pkey PRIMARY KEY (id);
 
@@ -753,6 +857,11 @@ ALTER TABLE ONLY public.auth_identities
 
 ALTER TABLE ONLY public.dm_pairs
     ADD CONSTRAINT uq_dm_pairs_channel UNIQUE (channel_id);
+
+
+
+ALTER TABLE ONLY public.moderation_mutes
+    ADD CONSTRAINT uq_moderation_mutes_guild_target UNIQUE (guild_id, target_user_id);
 
 
 
@@ -821,8 +930,11 @@ CREATE INDEX idx_guild_members_user ON public.guild_members USING btree (user_id
 
 
 
-CREATE INDEX idx_guild_roles_v2_priority ON public.guild_roles_v2 USING btree (guild_id, priority DESC, role_key);
 CREATE INDEX idx_guild_members_user_joined_guild ON public.guild_members USING btree (user_id, joined_at DESC, guild_id);
+
+
+
+CREATE INDEX idx_guild_roles_v2_priority ON public.guild_roles_v2 USING btree (guild_id, priority DESC, role_key);
 
 
 
@@ -831,6 +943,22 @@ CREATE INDEX idx_invites_expires ON public.invites USING btree (expires_at) WHER
 
 
 CREATE INDEX idx_invites_guild ON public.invites USING btree (guild_id);
+
+
+
+CREATE INDEX idx_moderation_mutes_expires_at ON public.moderation_mutes USING btree (expires_at) WHERE (expires_at IS NOT NULL);
+
+
+
+CREATE INDEX idx_moderation_mutes_guild_created ON public.moderation_mutes USING btree (guild_id, created_at DESC, id DESC);
+
+
+
+CREATE INDEX idx_moderation_reports_guild_created ON public.moderation_reports USING btree (guild_id, created_at DESC, id DESC);
+
+
+
+CREATE INDEX idx_moderation_reports_guild_status_created ON public.moderation_reports USING btree (guild_id, status, created_at DESC, id DESC);
 
 
 
@@ -1086,3 +1214,37 @@ ALTER TABLE ONLY public.message_reactions_v2
 
 ALTER TABLE ONLY public.message_references_v2
     ADD CONSTRAINT message_references_v2_channel_id_fkey FOREIGN KEY (channel_id) REFERENCES public.channels(id) ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY public.moderation_mutes
+    ADD CONSTRAINT moderation_mutes_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id) ON DELETE RESTRICT;
+
+
+
+ALTER TABLE ONLY public.moderation_mutes
+    ADD CONSTRAINT moderation_mutes_guild_id_fkey FOREIGN KEY (guild_id) REFERENCES public.guilds(id) ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY public.moderation_mutes
+    ADD CONSTRAINT moderation_mutes_target_user_id_fkey FOREIGN KEY (target_user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY public.moderation_reports
+    ADD CONSTRAINT moderation_reports_guild_id_fkey FOREIGN KEY (guild_id) REFERENCES public.guilds(id) ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY public.moderation_reports
+    ADD CONSTRAINT moderation_reports_reporter_id_fkey FOREIGN KEY (reporter_id) REFERENCES public.users(id) ON DELETE RESTRICT;
+
+
+
+ALTER TABLE ONLY public.moderation_reports
+    ADD CONSTRAINT moderation_reports_resolved_by_fkey FOREIGN KEY (resolved_by) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+
+
