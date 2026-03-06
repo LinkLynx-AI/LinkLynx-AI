@@ -1,8 +1,8 @@
 # AuthZ SpiceDB Local/CI Runtime Foundation Runbook
 
 - Status: Draft
-- Last updated: 2026-03-04
-- Owner scope: LIN-863 local/CI runtime baseline + LIN-865 fail-close integration
+- Last updated: 2026-03-06
+- Owner scope: LIN-863 local/CI runtime baseline + LIN-865 fail-close integration + LIN-876 reproducibility hardening
 - References:
   - `database/contracts/lin862_spicedb_namespace_relation_permission_contract.md`
   - `docs/AUTHZ_API_MATRIX.md`
@@ -38,6 +38,7 @@ When `AUTHZ_PROVIDER=spicedb`, use the following baseline:
 - `AUTHZ_CACHE_DENY_TTL_MS=1000`
 - `SPICEDB_POLICY_VERSION=lin862-v1`
 - `SPICEDB_SCHEMA_PATH=database/contracts/lin862_spicedb_namespace_relation_permission_contract.md`
+- `docker-compose.yml` の `spicedb` image は `authzed/spicedb:v1.49.2@sha256:b3ff822f5bd583d5a7e91753b6d2958f1ceb0c79113f5228c8e66f7a29e6da7d` を使用する
 
 Misconfiguration behavior (current baseline):
 - Runtime config or authorizer initialization errors are logged and provider moves to fail-close path (`AUTHZ_UNAVAILABLE`).
@@ -77,18 +78,45 @@ make rust-dev
 CI baseline job must:
 1. `docker compose up -d spicedb`
 2. verify `localhost:50051` and `localhost:8443` are reachable
-3. print SpiceDB logs and fail when endpoint does not become ready
-4. always stop containers at job end
+3. verify `/v1/permissions/check` minimum contract:
+   - missing auth header: `401` + unauthenticated error body
+   - auth header present: valid response body containing `permissionship`
+4. print SpiceDB logs and fail when endpoint does not become ready
+5. always stop containers at job end
 
-## 5. Troubleshooting
+## 5. Image pin update procedure
 
-### 5.1 SpiceDB port is not reachable
+SpiceDB version update must always update both tag and digest together.
+
+1. Pull candidate version:
+
+```bash
+docker pull authzed/spicedb:vX.Y.Z
+```
+
+2. Resolve digest and confirm version output:
+
+```bash
+docker image inspect authzed/spicedb:vX.Y.Z --format '{{index .RepoDigests 0}}'
+docker run --rm authzed/spicedb:vX.Y.Z version
+```
+
+3. Update `docker-compose.yml` with `authzed/spicedb:vX.Y.Z@sha256:<digest>`.
+4. Run reproducibility checks:
+   - `make authz-spicedb-up`
+   - `make authz-spicedb-health`
+   - run CI-equivalent contract checks for `/v1/permissions/check` (401 without auth, 200+permissionship with auth)
+5. Record update rationale and validation results in child issue/PR.
+
+## 6. Troubleshooting
+
+### 6.1 SpiceDB port is not reachable
 - Confirm compose service is running:
   - `docker compose ps spicedb`
 - Confirm logs:
   - `docker compose logs spicedb`
 
-### 5.2 Runtime misconfigured log appears
+### 6.2 Runtime misconfigured log appears
 - Ensure `SPICEDB_PRESHARED_KEY` is non-empty
 - Ensure `SPICEDB_ENDPOINT` is a valid URL (e.g. `http://localhost:50051`)
 - Ensure `SPICEDB_CHECK_ENDPOINT` is a valid URL (e.g. `http://localhost:8443`)
@@ -96,16 +124,17 @@ CI baseline job must:
 - Ensure `SPICEDB_CHECK_MAX_RETRIES` is valid `u32`
 - Ensure `SPICEDB_CHECK_RETRY_BACKOFF_MS` is valid `u64`
 
-### 5.3 Fail-close behavior check
+### 6.3 Fail-close behavior check
 - Stop SpiceDB and call one protected endpoint.
 - Expected:
   - REST returns `503` with `AUTHZ_UNAVAILABLE`
   - WS closes with `1011`
 - If request is accepted, treat as contract violation and rollback latest authz runtime changes.
 
-## 6. Exit criteria for LIN-863
+## 7. Exit criteria for LIN-863 + LIN-876
 
 All items must be true:
 - Local startup and health check are reproducible with documented commands.
-- CI job can start SpiceDB and validate endpoint readiness.
+- CI job can start SpiceDB, validate endpoint readiness, and verify `/v1/permissions/check` minimum contract.
+- SpiceDB image is pinned by tag + digest and pin update steps are documented.
 - Required env keys and misconfiguration behavior are documented.

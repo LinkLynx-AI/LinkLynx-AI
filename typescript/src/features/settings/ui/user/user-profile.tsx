@@ -15,6 +15,9 @@ import { cn } from "@/shared/lib/cn";
 const BIO_MAX = 190;
 const BIO_WARN = 180;
 
+/**
+ * ユーザープロフィール設定フォームを表示する。
+ */
 export function UserProfile() {
   const currentUser = useAuthStore((s) => s.currentUser);
   const setCurrentUser = useAuthStore((s) => s.setCurrentUser);

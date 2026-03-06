@@ -19,6 +19,14 @@ mod tests {
     }
 
     #[test]
+    fn guild_channel_error_channel_not_found_maps_to_contract() {
+        let error = GuildChannelError::channel_not_found("channel_not_found");
+
+        assert_eq!(error.status_code(), axum::http::StatusCode::NOT_FOUND);
+        assert_eq!(error.app_code(), "CHANNEL_NOT_FOUND");
+    }
+
+    #[test]
     fn normalize_non_empty_name_rejects_blank() {
         let result = normalize_non_empty_name("   ", "guild_name_required");
 
@@ -36,6 +44,45 @@ mod tests {
         let result = normalize_non_empty_name("  hello  ", "guild_name_required").unwrap();
 
         assert_eq!(result, "hello");
+    }
+
+    #[test]
+    fn normalize_channel_patch_input_rejects_blank() {
+        let result = normalize_channel_patch_input(ChannelPatchInput {
+            name: "   ".to_owned(),
+        });
+
+        assert!(matches!(
+            result,
+            Err(GuildChannelError {
+                kind: GuildChannelErrorKind::Validation,
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn normalize_channel_patch_input_trims_name() {
+        let result = normalize_channel_patch_input(ChannelPatchInput {
+            name: "  release-notes  ".to_owned(),
+        })
+        .unwrap();
+
+        assert_eq!(result, "release-notes");
+    }
+
+    #[test]
+    fn normalize_channel_patch_input_rejects_too_long_name() {
+        let too_long = "a".repeat(CHANNEL_NAME_MAX_CHARS + 1);
+        let result = normalize_channel_patch_input(ChannelPatchInput { name: too_long });
+
+        assert!(matches!(
+            result,
+            Err(GuildChannelError {
+                kind: GuildChannelErrorKind::Validation,
+                reason,
+            }) if reason == "channel_name_too_long"
+        ));
     }
 
     #[test]
@@ -82,6 +129,20 @@ mod tests {
     }
 
     #[test]
+    fn create_guild_sql_bootstraps_v2_system_roles() {
+        let sql = PostgresGuildChannelService::CREATE_GUILD_SQL;
+
+        assert!(sql.contains("INSERT INTO guild_roles_v2"));
+        assert!(sql.contains("INSERT INTO guild_member_roles_v2"));
+        assert!(sql.contains("('owner'::text, 'Owner'::text, 300::int, TRUE)"));
+        assert!(sql.contains("('member'::text, 'Member'::text, 100::int, FALSE)"));
+        assert!(sql.contains("is_system"));
+        assert!(!sql.contains("INSERT INTO guild_roles ("));
+        assert!(!sql.contains("INSERT INTO guild_member_roles ("));
+        assert!(!sql.contains("role_level"));
+    }
+
+    #[test]
     fn list_guild_channels_sql_requires_membership_lookup() {
         let sql = PostgresGuildChannelService::LIST_GUILD_CHANNELS_SQL;
 
@@ -96,6 +157,38 @@ mod tests {
 
         assert!(sql.contains("guild_member_roles_v2"));
         assert!(sql.contains("guild_roles_v2"));
+        assert!(sql.contains("allow_manage = TRUE"));
+    }
+
+    #[test]
+    fn delete_guild_sql_requires_manage_boundary_lookup() {
+        let sql = PostgresGuildChannelService::DELETE_GUILD_SQL;
+
+        assert!(sql.contains("DELETE FROM guilds"));
+        assert!(sql.contains("guild_member_roles_v2"));
+        assert!(sql.contains("guild_roles_v2"));
+        assert!(sql.contains("allow_manage = TRUE"));
+    }
+
+    #[test]
+    fn update_guild_channel_sql_requires_manage_role_lookup() {
+        let sql = PostgresGuildChannelService::UPDATE_GUILD_CHANNEL_SQL;
+
+        assert!(sql.contains("UPDATE channels"));
+        assert!(sql.contains("guild_member_roles_v2"));
+        assert!(sql.contains("guild_roles_v2"));
+        assert!(sql.contains("role_key IN ('owner', 'admin')"));
+        assert!(sql.contains("allow_manage = TRUE"));
+    }
+
+    #[test]
+    fn delete_guild_channel_sql_requires_manage_role_lookup() {
+        let sql = PostgresGuildChannelService::DELETE_GUILD_CHANNEL_SQL;
+
+        assert!(sql.contains("DELETE FROM channels"));
+        assert!(sql.contains("guild_member_roles_v2"));
+        assert!(sql.contains("guild_roles_v2"));
+        assert!(sql.contains("role_key IN ('owner', 'admin')"));
         assert!(sql.contains("allow_manage = TRUE"));
     }
 }

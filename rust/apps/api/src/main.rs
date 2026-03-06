@@ -2,6 +2,7 @@ mod auth;
 mod authz;
 mod guild_channel;
 mod profile;
+mod ratelimit;
 
 use std::{
     collections::HashSet,
@@ -19,8 +20,9 @@ use auth::{
     WsOriginAllowlist, WsTicketStore, DEFAULT_WS_ALLOWED_ORIGINS,
 };
 use authz::{
-    authz_error_response, build_runtime_authorizer, Authorizer, AuthzAction, AuthzCheckInput,
-    AuthzMetrics, AuthzMetricsSnapshot, AuthzResource,
+    authz_error_response, build_runtime_authorizer, Authorizer, AuthzAction,
+    AuthzCacheInvalidationEvent, AuthzCacheInvalidationEventKind, AuthzCheckInput, AuthzMetrics,
+    AuthzMetricsSnapshot, AuthzResource,
 };
 use axum::{
     body::Body,
@@ -29,7 +31,7 @@ use axum::{
         ws::{CloseFrame, Message, WebSocket, WebSocketUpgrade},
         Extension, Path, Query, State,
     },
-    http::{HeaderMap, Request, StatusCode},
+    http::{header::RETRY_AFTER, HeaderMap, HeaderValue, Request, StatusCode},
     middleware::{self, Next},
     response::{IntoResponse, Response},
     routing::{get, patch, post},
@@ -42,6 +44,9 @@ use guild_channel::{
 use profile::{
     build_runtime_profile_service, profile_error_response, ProfileError, ProfilePatchInput,
     ProfileService,
+};
+use ratelimit::{
+    build_runtime_rest_rate_limit_service, rest_rate_limit_action_for_request, RestRateLimitService,
 };
 use serde::{Deserialize, Serialize};
 use tower_http::cors::{Any, CorsLayer};
@@ -61,6 +66,7 @@ pub(crate) struct AppState {
     ws_ticket_rate_limiter: Arc<FixedWindowRateLimiter>,
     ws_identify_rate_limiter: Arc<FixedWindowRateLimiter>,
     ws_origin_allowlist: Arc<WsOriginAllowlist>,
+    rest_rate_limit_service: Arc<RestRateLimitService>,
 }
 
 #[tokio::main]
@@ -142,6 +148,7 @@ fn build_runtime_state() -> AppState {
             Duration::from_secs(60),
         )),
         ws_origin_allowlist: Arc::new(build_runtime_ws_origin_allowlist()),
+        rest_rate_limit_service: Arc::new(build_runtime_rest_rate_limit_service()),
     }
 }
 

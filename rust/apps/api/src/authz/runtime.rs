@@ -7,6 +7,7 @@ const DEFAULT_SPICEDB_CHECK_MAX_RETRIES: u32 = 1;
 const DEFAULT_SPICEDB_CHECK_RETRY_BACKOFF_MS: u64 = 100;
 const DEFAULT_AUTHZ_CACHE_ALLOW_TTL_MS: u64 = 5000;
 const DEFAULT_AUTHZ_CACHE_DENY_TTL_MS: u64 = 1000;
+const DEFAULT_AUTHZ_CACHE_MAX_ENTRIES: usize = 20_000;
 const DEFAULT_SPICEDB_POLICY_VERSION: &str = "lin862-v1";
 const DEFAULT_SPICEDB_SCHEMA_PATH: &str =
     "database/contracts/lin862_spicedb_namespace_relation_permission_contract.md";
@@ -22,6 +23,7 @@ pub struct SpiceDbRuntimeConfig {
     pub check_retry_backoff_ms: u64,
     pub cache_allow_ttl_ms: u64,
     pub cache_deny_ttl_ms: u64,
+    pub cache_max_entries: usize,
     pub policy_version: String,
     pub schema_path: String,
 }
@@ -51,6 +53,10 @@ pub fn build_spicedb_runtime_config_from_env() -> Result<SpiceDbRuntimeConfig, S
         parse_optional_u64_env("AUTHZ_CACHE_ALLOW_TTL_MS", DEFAULT_AUTHZ_CACHE_ALLOW_TTL_MS)?;
     let cache_deny_ttl_ms =
         parse_optional_u64_env("AUTHZ_CACHE_DENY_TTL_MS", DEFAULT_AUTHZ_CACHE_DENY_TTL_MS)?;
+    let cache_max_entries = parse_optional_usize_env(
+        "AUTHZ_CACHE_MAX_ENTRIES",
+        DEFAULT_AUTHZ_CACHE_MAX_ENTRIES,
+    )?;
     let policy_version =
         parse_optional_non_empty_env("SPICEDB_POLICY_VERSION", DEFAULT_SPICEDB_POLICY_VERSION)?;
     let schema_path = parse_optional_non_empty_env("SPICEDB_SCHEMA_PATH", DEFAULT_SPICEDB_SCHEMA_PATH)?;
@@ -71,6 +77,7 @@ pub fn build_spicedb_runtime_config_from_env() -> Result<SpiceDbRuntimeConfig, S
         check_retry_backoff_ms,
         cache_allow_ttl_ms,
         cache_deny_ttl_ms,
+        cache_max_entries,
         policy_version,
         schema_path,
     })
@@ -165,6 +172,7 @@ pub fn build_runtime_authorizer() -> Arc<dyn Authorizer> {
                         check_retry_backoff_ms = config.check_retry_backoff_ms,
                         cache_allow_ttl_ms = config.cache_allow_ttl_ms,
                         cache_deny_ttl_ms = config.cache_deny_ttl_ms,
+                        cache_max_entries = config.cache_max_entries,
                         policy_version = %config.policy_version,
                         schema_path = %config.schema_path,
                         supported_action_count = supported_actions.len(),
@@ -280,6 +288,30 @@ fn parse_optional_u32_env(name: &str, default: u32) -> Result<u32, String> {
             trimmed
                 .parse::<u32>()
                 .map_err(|error| format!("{name} must be a valid u32 (reason: {error})"))
+        }
+        Err(_) => Ok(default),
+    }
+}
+
+/// 任意環境変数をusizeとして読み取り、未設定時は既定値を返す。
+/// @param name 環境変数名
+/// @param default 未設定時の既定値
+/// @returns 読み取ったusize値
+/// @throws String 数値変換失敗または0値の場合
+fn parse_optional_usize_env(name: &str, default: usize) -> Result<usize, String> {
+    match env::var(name) {
+        Ok(value) => {
+            let trimmed = value.trim();
+            if trimmed.is_empty() {
+                return Err(format!("{name} must not be empty when set"));
+            }
+            let parsed = trimmed
+                .parse::<usize>()
+                .map_err(|error| format!("{name} must be a valid usize (reason: {error})"))?;
+            if parsed == 0 {
+                return Err(format!("{name} must be greater than 0"));
+            }
+            Ok(parsed)
         }
         Err(_) => Ok(default),
     }

@@ -13,11 +13,19 @@ fn app_with_state(state: AppState) -> Router {
         .route("/v1/protected/ping", get(protected_ping))
         .route("/internal/auth/metrics", get(auth_metrics_handler))
         .route("/internal/authz/metrics", get(authz_metrics_handler))
+        .route(
+            "/internal/authz/cache/invalidate",
+            post(authz_cache_invalidate_handler),
+        )
         .route("/guilds", get(list_guilds).post(create_guild))
-        .route("/guilds/{guild_id}", patch(patch_guild))
+        .route("/guilds/{guild_id}", patch(patch_guild).delete(delete_guild))
         .route(
             "/guilds/{guild_id}/channels",
             get(list_guild_channels).post(create_guild_channel),
+        )
+        .route(
+            "/channels/{channel_id}",
+            patch(update_guild_channel).delete(delete_guild_channel),
         )
         .route(
             "/users/me/profile",
@@ -383,6 +391,121 @@ async fn authz_metrics_handler(State(state): State<AppState>) -> Json<AuthzMetri
     Json(state.authz_metrics.snapshot())
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "snake_case")]
+struct AuthzCacheInvalidationRequest {
+    kind: String,
+    guild_id: Option<i64>,
+    channel_id: Option<i64>,
+    user_id: Option<i64>,
+    policy_version: Option<String>,
+    occurred_at_unix_ms: Option<u64>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AuthzCacheInvalidationResponse {
+    evicted_keys: u64,
+    lag_ms: u64,
+    events_total: u64,
+    evicted_keys_total: u64,
+    last_lag_ms: u64,
+}
+
+/// 認可キャッシュ invalidation イベントを適用する。
+/// @param state アプリケーション状態
+/// @param auth_context 認証文脈
+/// @param payload invalidationイベント入力
+/// @returns invalidation適用結果
+/// @throws なし
+async fn authz_cache_invalidate_handler(
+    State(state): State<AppState>,
+    Extension(auth_context): Extension<AuthContext>,
+    payload: Result<Json<AuthzCacheInvalidationRequest>, JsonRejection>,
+) -> Response {
+    let request_id = auth_context.request_id;
+    let payload = match payload {
+        Ok(Json(value)) => value,
+        Err(_) => {
+            let body = ApiErrorResponse {
+                code: "AUTHZ_CACHE_INVALIDATION_INVALID",
+                message: "invalidation payload is invalid",
+                request_id,
+            };
+            return (StatusCode::BAD_REQUEST, Json(body)).into_response();
+        }
+    };
+
+    let event = match build_authz_cache_invalidation_event(payload) {
+        Ok(value) => value,
+        Err(reason) => {
+            let body = ApiErrorResponse {
+                code: "AUTHZ_CACHE_INVALIDATION_INVALID",
+                message: reason,
+                request_id,
+            };
+            return (StatusCode::BAD_REQUEST, Json(body)).into_response();
+        }
+    };
+
+    let report = state.authorizer.invalidate_cache(&event).await;
+    let metrics = state.authorizer.cache_invalidation_metrics();
+
+    Json(AuthzCacheInvalidationResponse {
+        evicted_keys: report.evicted_keys,
+        lag_ms: report.lag_ms,
+        events_total: metrics.events_total,
+        evicted_keys_total: metrics.evicted_keys_total,
+        last_lag_ms: metrics.last_lag_ms,
+    })
+    .into_response()
+}
+
+/// invalidation入力をAuthZイベントへ変換する。
+/// @param payload invalidation入力
+/// @returns AuthZ invalidationイベント
+/// @throws &'static str 必須フィールド不備時
+fn build_authz_cache_invalidation_event(
+    payload: AuthzCacheInvalidationRequest,
+) -> Result<AuthzCacheInvalidationEvent, &'static str> {
+    let kind = match payload.kind.as_str() {
+        "guild_role_changed" => AuthzCacheInvalidationEventKind::GuildRoleChanged {
+            guild_id: payload.guild_id.ok_or("guild_id is required")?,
+        },
+        "guild_member_role_changed" => AuthzCacheInvalidationEventKind::GuildMemberRoleChanged {
+            guild_id: payload.guild_id.ok_or("guild_id is required")?,
+            user_id: payload.user_id.ok_or("user_id is required")?,
+        },
+        "channel_role_override_changed" => AuthzCacheInvalidationEventKind::ChannelRoleOverrideChanged {
+            guild_id: payload.guild_id.ok_or("guild_id is required")?,
+            channel_id: payload.channel_id.ok_or("channel_id is required")?,
+        },
+        "channel_user_override_changed" => AuthzCacheInvalidationEventKind::ChannelUserOverrideChanged {
+            guild_id: payload.guild_id.ok_or("guild_id is required")?,
+            channel_id: payload.channel_id.ok_or("channel_id is required")?,
+            user_id: payload.user_id.ok_or("user_id is required")?,
+        },
+        "policy_version_changed" => AuthzCacheInvalidationEventKind::PolicyVersionChanged {
+            policy_version: payload
+                .policy_version
+                .as_ref()
+                .map(|value| value.trim())
+                .filter(|value| !value.is_empty())
+                .ok_or("policy_version is required")?
+                .to_owned(),
+        },
+        "all" => AuthzCacheInvalidationEventKind::All,
+        _ => return Err("kind is invalid"),
+    };
+
+    let occurred_at = payload
+        .occurred_at_unix_ms
+        .map(|unix_ms| std::time::UNIX_EPOCH + Duration::from_millis(unix_ms))
+        .unwrap_or_else(std::time::SystemTime::now);
+
+    Ok(AuthzCacheInvalidationEvent { kind, occurred_at })
+}
+
 #[derive(Debug, Serialize)]
 struct WsTicketResponse {
     ticket: String,
@@ -395,6 +518,31 @@ struct ApiErrorResponse {
     code: &'static str,
     message: &'static str,
     request_id: String,
+}
+
+/// レート制限エラー応答を生成する。
+/// @param code エラーコード
+/// @param message エラーメッセージ
+/// @param request_id リクエストID
+/// @param retry_after_seconds Retry-After秒
+/// @returns RESTエラーレスポンス
+/// @throws なし
+fn rate_limit_error_response(
+    code: &'static str,
+    message: &'static str,
+    request_id: String,
+    retry_after_seconds: u64,
+) -> Response {
+    let body = ApiErrorResponse {
+        code,
+        message,
+        request_id,
+    };
+    let mut response = (StatusCode::TOO_MANY_REQUESTS, Json(body)).into_response();
+    if let Ok(retry_after_value) = HeaderValue::from_str(&retry_after_seconds.max(1).to_string()) {
+        response.headers_mut().insert(RETRY_AFTER, retry_after_value);
+    }
+    response
 }
 
 /// WS identify用ワンタイムチケットを発行する。
@@ -526,6 +674,22 @@ struct ChannelCreateResponse {
     channel: guild_channel::CreatedChannel,
 }
 
+#[derive(Debug, Deserialize)]
+struct ChannelPathParams {
+    channel_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PatchChannelRequest {
+    name: String,
+}
+
+#[derive(Debug, Serialize)]
+struct ChannelPatchResponse {
+    channel: guild_channel::ChannelSummary,
+}
+
 #[derive(Debug, Serialize)]
 struct ProfileResponse {
     profile: profile::ProfileSettings,
@@ -541,6 +705,21 @@ fn parse_guild_id(raw_guild_id: &str) -> Result<i64, GuildChannelError> {
         .map_err(|_| GuildChannelError::validation("guild_id_invalid"))?;
     if parsed <= 0 {
         return Err(GuildChannelError::validation("guild_id_must_be_positive"));
+    }
+
+    Ok(parsed)
+}
+
+/// channel_idパスパラメータを検証する。
+/// @param raw_channel_id 生のchannel_id文字列
+/// @returns 検証済みchannel_id
+/// @throws GuildChannelError パラメータ不正時
+fn parse_channel_id(raw_channel_id: &str) -> Result<i64, GuildChannelError> {
+    let parsed = raw_channel_id
+        .parse::<i64>()
+        .map_err(|_| GuildChannelError::validation("channel_id_invalid"))?;
+    if parsed <= 0 {
+        return Err(GuildChannelError::validation("channel_id_must_be_positive"));
     }
 
     Ok(parsed)
@@ -764,6 +943,9 @@ async fn patch_guild(
                 }
                 guild_channel::GuildChannelErrorKind::Forbidden => ("deny", "authz_denied"),
                 guild_channel::GuildChannelErrorKind::NotFound => ("deny", "resource_not_found"),
+                guild_channel::GuildChannelErrorKind::ChannelNotFound => {
+                    ("deny", "resource_not_found")
+                }
                 guild_channel::GuildChannelErrorKind::DependencyUnavailable => {
                     ("unavailable", "dependency_unavailable")
                 }
@@ -779,6 +961,73 @@ async fn patch_guild(
                 resource = "guild",
                 decision_source = "guild_service",
                 "guild update rejected"
+            );
+            guild_channel_error_response(&error, request_id)
+        }
+    }
+}
+
+/// guildを削除する。
+/// @param state アプリケーション状態
+/// @param auth_context 認証文脈
+/// @param params パスパラメータ
+/// @returns 削除成功時は 204 No Content
+/// @throws なし
+async fn delete_guild(
+    State(state): State<AppState>,
+    Extension(auth_context): Extension<AuthContext>,
+    Path(params): Path<GuildPathParams>,
+) -> Response {
+    let request_id = auth_context.request_id.clone();
+    let guild_id = match parse_guild_id(&params.guild_id) {
+        Ok(value) => value,
+        Err(error) => return guild_channel_error_response(&error, request_id),
+    };
+
+    match state
+        .guild_channel_service
+        .delete_guild(auth_context.principal_id, guild_id)
+        .await
+    {
+        Ok(()) => {
+            tracing::info!(
+                decision = "allow",
+                request_id = %request_id,
+                principal_id = auth_context.principal_id.0,
+                guild_id = guild_id,
+                error_class = "none",
+                action = "manage",
+                resource = "guild",
+                decision_source = "guild_service",
+                "guild delete accepted"
+            );
+            StatusCode::NO_CONTENT.into_response()
+        }
+        Err(error) => {
+            let (decision, error_class) = match error.kind {
+                guild_channel::GuildChannelErrorKind::Validation => {
+                    ("deny", "validation_invalid_input")
+                }
+                guild_channel::GuildChannelErrorKind::Forbidden => ("deny", "authz_denied"),
+                guild_channel::GuildChannelErrorKind::NotFound => ("deny", "resource_not_found"),
+                guild_channel::GuildChannelErrorKind::ChannelNotFound => {
+                    ("deny", "resource_not_found")
+                }
+                guild_channel::GuildChannelErrorKind::DependencyUnavailable => {
+                    ("unavailable", "dependency_unavailable")
+                }
+            };
+            tracing::warn!(
+                decision = decision,
+                request_id = %request_id,
+                principal_id = auth_context.principal_id.0,
+                guild_id = guild_id,
+                error_class = error_class,
+                reason = %error.reason,
+                action = "manage",
+                resource = "guild",
+                decision_source = "guild_service",
+                "guild delete rejected"
             );
             guild_channel_error_response(&error, request_id)
         }
@@ -841,6 +1090,70 @@ async fn create_guild_channel(
         .await
     {
         Ok(channel) => (StatusCode::CREATED, Json(ChannelCreateResponse { channel })).into_response(),
+        Err(error) => guild_channel_error_response(&error, request_id),
+    }
+}
+
+/// channelを更新する。
+/// @param state アプリケーション状態
+/// @param auth_context 認証文脈
+/// @param params パスパラメータ
+/// @param payload 更新入力
+/// @returns 更新後channelレスポンス
+/// @throws なし
+async fn update_guild_channel(
+    State(state): State<AppState>,
+    Extension(auth_context): Extension<AuthContext>,
+    Path(params): Path<ChannelPathParams>,
+    payload: Result<Json<PatchChannelRequest>, JsonRejection>,
+) -> Response {
+    let request_id = auth_context.request_id.clone();
+    let channel_id = match parse_channel_id(&params.channel_id) {
+        Ok(value) => value,
+        Err(error) => return guild_channel_error_response(&error, request_id),
+    };
+    let payload = match parse_json_payload(payload) {
+        Ok(value) => value,
+        Err(error) => return guild_channel_error_response(&error, request_id),
+    };
+
+    match state
+        .guild_channel_service
+        .update_guild_channel(
+            auth_context.principal_id,
+            channel_id,
+            guild_channel::ChannelPatchInput { name: payload.name },
+        )
+        .await
+    {
+        Ok(channel) => Json(ChannelPatchResponse { channel }).into_response(),
+        Err(error) => guild_channel_error_response(&error, request_id),
+    }
+}
+
+/// channelを削除する。
+/// @param state アプリケーション状態
+/// @param auth_context 認証文脈
+/// @param params パスパラメータ
+/// @returns 削除成功時は 204 No Content
+/// @throws なし
+async fn delete_guild_channel(
+    State(state): State<AppState>,
+    Extension(auth_context): Extension<AuthContext>,
+    Path(params): Path<ChannelPathParams>,
+) -> Response {
+    let request_id = auth_context.request_id.clone();
+    let channel_id = match parse_channel_id(&params.channel_id) {
+        Ok(value) => value,
+        Err(error) => return guild_channel_error_response(&error, request_id),
+    };
+
+    match state
+        .guild_channel_service
+        .delete_guild_channel(auth_context.principal_id, channel_id)
+        .await
+    {
+        Ok(()) => StatusCode::NO_CONTENT.into_response(),
         Err(error) => guild_channel_error_response(&error, request_id),
     }
 }
@@ -941,7 +1254,51 @@ async fn rest_auth_middleware(
         "REST auth accepted"
     );
 
-    let action = rest_authz_action_from_method(&request_method);
+    if let Some(rate_limit_action) = rest_rate_limit_action_for_request(&request_method, &request_path)
+    {
+        let decision = state
+            .rest_rate_limit_service
+            .evaluate(authenticated.principal_id, rate_limit_action)
+            .await;
+        if !decision.allowed() {
+            let error_class = if decision.is_fail_close() {
+                "rate_limit_fail_close"
+            } else {
+                "rate_limited"
+            };
+            let reason = if decision.is_fail_close() {
+                "dragonfly_degraded_fail_close"
+            } else {
+                "rate_limit_exceeded"
+            };
+            let message = if decision.is_fail_close() {
+                "request rejected while rate-limit dependency is degraded"
+            } else {
+                "request rate limit exceeded"
+            };
+            tracing::warn!(
+                decision = "deny",
+                request_id = %request_id,
+                principal_id = authenticated.principal_id.0,
+                error_class = error_class,
+                reason = reason,
+                resource = %request_path,
+                action = decision.action().label(),
+                operation_class = ?decision.operation_class(),
+                degraded = decision.degraded(),
+                decision_source = "rest_rate_limit_service",
+                "REST request rejected by rate limit"
+            );
+            return rate_limit_error_response(
+                "RATE_LIMITED",
+                message,
+                request_id,
+                decision.retry_after_seconds().unwrap_or(1),
+            );
+        }
+    }
+
+    let action = rest_authz_action_for_request(&request_method, &request_path);
     let action_label = match action {
         AuthzAction::Connect => "connect",
         AuthzAction::View => "view",
@@ -977,6 +1334,18 @@ async fn rest_auth_middleware(
     });
 
     next.run(request).await
+}
+
+/// RESTメソッドから AuthZ action を決定する。
+/// @param method HTTP メソッド
+/// @param path リクエストパス
+/// @returns AuthZ action
+/// @throws なし
+fn rest_authz_action_for_request(method: &axum::http::Method, path: &str) -> AuthzAction {
+    if path == "/internal/authz/cache/invalidate" {
+        return AuthzAction::View;
+    }
+    rest_authz_action_from_method(method)
 }
 
 /// RESTメソッドから AuthZ action を決定する。
@@ -1028,13 +1397,11 @@ fn parse_guild_path(path: &str) -> Option<i64> {
         .trim_matches('/')
         .split('/')
         .collect::<Vec<_>>();
-    if segments.len() != 3 {
-        return None;
+    match segments.as_slice() {
+        ["guilds", guild_id] => guild_id.parse::<i64>().ok(),
+        ["v1", "guilds", guild_id] => guild_id.parse::<i64>().ok(),
+        _ => None,
     }
-    if segments[0] != "v1" || segments[1] != "guilds" {
-        return None;
-    }
-    segments[2].parse::<i64>().ok()
 }
 
 /// ギルドチャンネルパスから guild_id/channel_id を抽出する。

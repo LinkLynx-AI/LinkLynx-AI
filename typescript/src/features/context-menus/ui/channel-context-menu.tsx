@@ -52,7 +52,11 @@ export function ChannelContextMenu({ data }: { data: { channel: Channel; serverI
       <MenuItem
         danger
         onClick={() => {
-          openModal("delete-confirm");
+          openModal("channel-delete", {
+            channelId: data.channel.id,
+            channelName: data.channel.name,
+            serverId: data.serverId,
+          });
           hideContextMenu();
         }}
       >

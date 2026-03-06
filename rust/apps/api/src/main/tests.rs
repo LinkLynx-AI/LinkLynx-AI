@@ -1,6 +1,7 @@
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ratelimit::RestRateLimitConfig;
     use async_trait::async_trait;
     use std::collections::HashSet;
     use auth::{
@@ -8,18 +9,21 @@ mod tests {
         PrincipalProvisioner, PrincipalResolver, PrincipalStore, TokenVerifier, TokenVerifyError,
         VerifiedToken,
     };
-    use authz::{Authorizer, AuthzAction, AuthzCheckInput, AuthzError, AuthzResource};
+    use authz::{
+        Authorizer, AuthzAction, AuthzCheckInput, AuthzError, AuthzErrorKind, AuthzResource,
+    };
     use futures_util::{SinkExt, StreamExt};
     use guild_channel::{
-        ChannelSummary, CreatedChannel, CreatedGuild, GuildChannelError, GuildChannelService,
+        ChannelPatchInput, ChannelSummary, CreatedChannel, CreatedGuild, GuildChannelError,
         GuildPatchInput, GuildSummary,
+        GuildChannelService,
     };
     use profile::{ProfileError, ProfilePatchInput, ProfileService, ProfileSettings};
     use axum::{
         body::to_bytes,
         http::{
-            header::{AUTHORIZATION, ORIGIN},
-            StatusCode,
+            header::{AUTHORIZATION, ORIGIN, RETRY_AFTER},
+            Method, StatusCode,
         },
     };
     use linklynx_shared::PrincipalId;
@@ -256,6 +260,21 @@ mod tests {
             Ok(guild)
         }
 
+        async fn delete_guild(
+            &self,
+            principal_id: PrincipalId,
+            guild_id: i64,
+        ) -> Result<(), GuildChannelError> {
+            if guild_id != 2001 {
+                return Err(GuildChannelError::not_found("guild_not_found"));
+            }
+            if principal_id.0 != 1001 {
+                return Err(GuildChannelError::forbidden("guild_manage_permission_required"));
+            }
+
+            Ok(())
+        }
+
         async fn list_guild_channels(
             &self,
             principal_id: PrincipalId,
@@ -308,6 +327,56 @@ mod tests {
                 name: normalized.to_owned(),
                 created_at: "2026-03-03T00:01:00Z".to_owned(),
             })
+        }
+
+        async fn update_guild_channel(
+            &self,
+            principal_id: PrincipalId,
+            channel_id: i64,
+            patch: ChannelPatchInput,
+        ) -> Result<ChannelSummary, GuildChannelError> {
+            if channel_id != 3001 {
+                return Err(GuildChannelError::channel_not_found("channel_not_found"));
+            }
+            if principal_id.0 == 1003 {
+                return Err(GuildChannelError::forbidden("channel_manage_permission_required"));
+            }
+            if principal_id.0 != 1001 {
+                return Err(GuildChannelError::forbidden("guild_membership_required"));
+            }
+
+            let normalized = patch.name.trim();
+            if normalized.is_empty() {
+                return Err(GuildChannelError::validation("channel_name_required"));
+            }
+            if normalized.chars().count() > 100 {
+                return Err(GuildChannelError::validation("channel_name_too_long"));
+            }
+
+            Ok(ChannelSummary {
+                channel_id,
+                guild_id: 2001,
+                name: normalized.to_owned(),
+                created_at: "2026-03-03T00:00:00Z".to_owned(),
+            })
+        }
+
+        async fn delete_guild_channel(
+            &self,
+            principal_id: PrincipalId,
+            channel_id: i64,
+        ) -> Result<(), GuildChannelError> {
+            if channel_id != 3001 {
+                return Err(GuildChannelError::channel_not_found("channel_not_found"));
+            }
+            if principal_id.0 == 1003 {
+                return Err(GuildChannelError::forbidden("channel_manage_permission_required"));
+            }
+            if principal_id.0 != 1001 {
+                return Err(GuildChannelError::forbidden("guild_membership_required"));
+            }
+
+            Ok(())
         }
     }
 
@@ -423,15 +492,20 @@ mod tests {
         app_for_test_with_authorizer_and_profile(authorizer, Arc::new(StaticProfileService)).await
     }
 
-    async fn app_for_test_with_authorizer_and_profile(
+    async fn state_for_test_with_authorizer(authorizer: Arc<dyn Authorizer>) -> AppState {
+        state_for_test_with_authorizer_and_profile(authorizer, Arc::new(StaticProfileService)).await
+    }
+
+    async fn state_for_test_with_authorizer_and_profile(
         authorizer: Arc<dyn Authorizer>,
         profile_service: Arc<dyn ProfileService>,
-    ) -> Router {
+    ) -> AppState {
         let metrics = Arc::new(AuthMetrics::default());
         let verifier: Arc<dyn TokenVerifier> = Arc::new(StaticTokenVerifier);
 
         let store = Arc::new(InMemoryPrincipalStore::default());
         store.insert("firebase", "u-1", PrincipalId(1001)).await;
+        store.insert("firebase", "u-3", PrincipalId(1003)).await;
         store.insert("firebase", "u-owner", PrincipalId(9001)).await;
         store.insert("firebase", "u-admin", PrincipalId(9002)).await;
         store.insert("firebase", "u-member", PrincipalId(9003)).await;
@@ -448,7 +522,7 @@ mod tests {
         ));
 
         let auth_service = Arc::new(AuthService::new(verifier, resolver, metrics));
-        let state = AppState {
+        AppState {
             auth_service,
             authorizer,
             authz_metrics: Arc::new(AuthzMetrics::default()),
@@ -470,8 +544,17 @@ mod tests {
                 "http://localhost:3000".to_owned(),
                 "http://127.0.0.1:3000".to_owned(),
             ]))),
-        };
+            rest_rate_limit_service: Arc::new(RestRateLimitService::new(
+                RestRateLimitConfig::default(),
+            )),
+        }
+    }
 
+    async fn app_for_test_with_authorizer_and_profile(
+        authorizer: Arc<dyn Authorizer>,
+        profile_service: Arc<dyn ProfileService>,
+    ) -> Router {
+        let state = state_for_test_with_authorizer_and_profile(authorizer, profile_service).await;
         app_with_state(state)
     }
 
@@ -720,6 +803,35 @@ mod tests {
         let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
         assert_eq!(json["code"], "AUTHZ_UNAVAILABLE");
         assert_eq!(json["request_id"], "internal-authz-metrics-unavailable");
+    }
+
+    #[tokio::test]
+    async fn ws_stream_access_denies_when_authorizer_denies() {
+        let state = state_for_test_with_authorizer(Arc::new(StaticDenyAuthorizer)).await;
+        let authenticated = AuthenticatedPrincipal {
+            principal_id: PrincipalId(9003),
+            firebase_uid: "u-member".to_owned(),
+            expires_at_epoch: unix_timestamp_seconds() + 300,
+        };
+
+        let error = authorize_ws_stream_access(&state, &authenticated, "ws-test")
+            .await
+            .unwrap_err();
+        assert_eq!(error.kind, AuthzErrorKind::Denied);
+    }
+
+    #[tokio::test]
+    async fn ws_stream_access_allows_when_authorizer_allows() {
+        let state = state_for_test_with_authorizer(Arc::new(StaticAllowAllAuthorizer)).await;
+        let authenticated = AuthenticatedPrincipal {
+            principal_id: PrincipalId(9001),
+            firebase_uid: "u-owner".to_owned(),
+            expires_at_epoch: unix_timestamp_seconds() + 300,
+        };
+
+        assert!(authorize_ws_stream_access(&state, &authenticated, "ws-test")
+            .await
+            .is_ok());
     }
 
     #[tokio::test]
@@ -1250,6 +1362,127 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn delete_guild_returns_no_content_for_authorized_principal() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("DELETE")
+                    .uri("/guilds/2001")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::NO_CONTENT);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        assert!(body.is_empty());
+    }
+
+    #[tokio::test]
+    async fn delete_guild_returns_forbidden_for_non_manager() {
+        let app = app_for_test().await;
+        let token = format!("u-unknown:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("DELETE")
+                    .uri("/guilds/2001")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("x-request-id", "guild-delete-forbidden-test")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "AUTHZ_DENIED");
+        assert_eq!(json["request_id"], "guild-delete-forbidden-test");
+    }
+
+    #[tokio::test]
+    async fn delete_guild_returns_not_found_for_unknown_guild() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("DELETE")
+                    .uri("/guilds/9999")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "GUILD_NOT_FOUND");
+    }
+
+    #[tokio::test]
+    async fn delete_guild_rejects_non_numeric_guild_id() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("DELETE")
+                    .uri("/guilds/abc")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "VALIDATION_ERROR");
+    }
+
+    #[tokio::test]
+    async fn delete_guild_rejects_non_positive_guild_id() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("DELETE")
+                    .uri("/guilds/0")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "VALIDATION_ERROR");
+    }
+
+    #[tokio::test]
     async fn create_guild_channel_returns_created_for_member() {
         let app = app_for_test().await;
         let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
@@ -1273,6 +1506,410 @@ mod tests {
         let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
         assert_eq!(json["channel"]["guild_id"], 2001);
         assert_eq!(json["channel"]["name"], "release");
+    }
+
+    #[tokio::test]
+    async fn patch_guild_channel_returns_updated_for_manage_member() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("PATCH")
+                    .uri("/channels/3001")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"name":"  release-notes  "}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["channel"]["channel_id"], 3001);
+        assert_eq!(json["channel"]["name"], "release-notes");
+    }
+
+    #[tokio::test]
+    async fn patch_guild_channel_accepts_name_at_99_chars() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let name = "a".repeat(99);
+        let payload = format!(r#"{{"name":"{name}"}}"#);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("PATCH")
+                    .uri("/channels/3001")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(payload))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["channel"]["name"], name);
+    }
+
+    #[tokio::test]
+    async fn patch_guild_channel_accepts_name_at_100_chars() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let name = "a".repeat(100);
+        let payload = format!(r#"{{"name":"{name}"}}"#);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("PATCH")
+                    .uri("/channels/3001")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(payload))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["channel"]["name"], name);
+    }
+
+    #[tokio::test]
+    async fn patch_guild_channel_rejects_name_over_100_chars() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let name = "a".repeat(101);
+        let payload = format!(r#"{{"name":"{name}"}}"#);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("PATCH")
+                    .uri("/channels/3001")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(payload))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "VALIDATION_ERROR");
+    }
+
+    #[tokio::test]
+    async fn patch_guild_channel_returns_forbidden_for_non_member() {
+        let app = app_for_test().await;
+        let token = format!("u-unknown:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("PATCH")
+                    .uri("/channels/3001")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .header("x-request-id", "patch-non-member-test")
+                    .body(Body::from(r#"{"name":"release-notes"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "AUTHZ_DENIED");
+        assert_eq!(json["request_id"], "patch-non-member-test");
+    }
+
+    #[tokio::test]
+    async fn patch_guild_channel_returns_forbidden_for_insufficient_permission() {
+        let app = app_for_test().await;
+        let token = format!("u-3:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("PATCH")
+                    .uri("/channels/3001")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"name":"release-notes"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "AUTHZ_DENIED");
+    }
+
+    #[tokio::test]
+    async fn patch_guild_channel_returns_not_found_for_unknown_channel() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("PATCH")
+                    .uri("/channels/9999")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"name":"release-notes"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "CHANNEL_NOT_FOUND");
+    }
+
+    #[tokio::test]
+    async fn patch_guild_channel_rejects_non_numeric_channel_id() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("PATCH")
+                    .uri("/channels/abc")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"name":"release-notes"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "VALIDATION_ERROR");
+    }
+
+    #[tokio::test]
+    async fn patch_guild_channel_rejects_non_positive_channel_id() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("PATCH")
+                    .uri("/channels/0")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"name":"release-notes"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "VALIDATION_ERROR");
+    }
+
+    #[tokio::test]
+    async fn patch_guild_channel_rejects_payload_with_unknown_field() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("PATCH")
+                    .uri("/channels/3001")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"name":"release-notes","topic":"x"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "VALIDATION_ERROR");
+    }
+
+    #[tokio::test]
+    async fn delete_guild_channel_returns_no_content_for_manage_member() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("DELETE")
+                    .uri("/channels/3001")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::NO_CONTENT);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        assert!(body.is_empty());
+    }
+
+    #[tokio::test]
+    async fn delete_guild_channel_returns_forbidden_for_non_member() {
+        let app = app_for_test().await;
+        let token = format!("u-unknown:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("DELETE")
+                    .uri("/channels/3001")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("x-request-id", "delete-non-member-test")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "AUTHZ_DENIED");
+        assert_eq!(json["request_id"], "delete-non-member-test");
+    }
+
+    #[tokio::test]
+    async fn delete_guild_channel_returns_forbidden_for_insufficient_permission() {
+        let app = app_for_test().await;
+        let token = format!("u-3:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("DELETE")
+                    .uri("/channels/3001")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "AUTHZ_DENIED");
+    }
+
+    #[tokio::test]
+    async fn delete_guild_channel_returns_not_found_for_unknown_channel() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("DELETE")
+                    .uri("/channels/9999")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "CHANNEL_NOT_FOUND");
+    }
+
+    #[tokio::test]
+    async fn delete_guild_channel_rejects_non_numeric_channel_id() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("DELETE")
+                    .uri("/channels/abc")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "VALIDATION_ERROR");
+    }
+
+    #[tokio::test]
+    async fn delete_guild_channel_rejects_non_positive_channel_id() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("DELETE")
+                    .uri("/channels/0")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "VALIDATION_ERROR");
     }
 
     #[tokio::test]
@@ -1695,6 +2332,116 @@ mod tests {
         assert_eq!(json["request_id"], "moderation-authz-unavailable-test");
     }
 
+    #[tokio::test]
+    async fn invite_endpoint_returns_retry_after_when_rate_limited() {
+        let app = app_for_test_with_authorizer(Arc::new(RoleScenarioAuthorizer)).await;
+        let token = format!("u-owner:{}", unix_timestamp_seconds() + 300);
+        let mut last_response = None;
+
+        for _ in 0..11 {
+            last_response = Some(
+                app.clone()
+                    .oneshot(
+                        Request::builder()
+                            .uri("/v1/guilds/10/invites/invite-abc")
+                            .header("authorization", format!("Bearer {token}"))
+                            .body(Body::empty())
+                            .unwrap(),
+                    )
+                    .await
+                    .unwrap(),
+            );
+        }
+
+        let response = last_response.unwrap();
+        assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
+        assert_eq!(
+            response
+                .headers()
+                .get(RETRY_AFTER)
+                .and_then(|value| value.to_str().ok()),
+            Some("60")
+        );
+    }
+
+    #[tokio::test]
+    async fn moderation_endpoint_fail_closes_when_ratelimit_degraded() {
+        let state = state_for_test_with_authorizer(Arc::new(RoleScenarioAuthorizer)).await;
+        state.rest_rate_limit_service.set_degraded_for_test(true).await;
+        let app = app_with_state(state);
+        let token = format!("u-admin:{}", unix_timestamp_seconds() + 300);
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("PATCH")
+                    .uri("/v1/moderation/guilds/10/members/9003")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
+        assert_eq!(
+            response
+                .headers()
+                .get(RETRY_AFTER)
+                .and_then(|value| value.to_str().ok()),
+            Some("60")
+        );
+    }
+
+    #[tokio::test]
+    async fn message_create_continues_with_l1_when_ratelimit_degraded() {
+        let state = state_for_test_with_authorizer(Arc::new(RoleScenarioAuthorizer)).await;
+        state.rest_rate_limit_service.set_degraded_for_test(true).await;
+        let app = app_with_state(state);
+        let token = format!("u-member:{}", unix_timestamp_seconds() + 300);
+        let first_response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/v1/dms/55/messages")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(first_response.status(), StatusCode::OK);
+
+        let mut last_response = None;
+
+        for _ in 0..30 {
+            last_response = Some(
+                app.clone()
+                    .oneshot(
+                        Request::builder()
+                            .method("POST")
+                            .uri("/v1/dms/55/messages")
+                            .header("authorization", format!("Bearer {token}"))
+                            .body(Body::empty())
+                            .unwrap(),
+                    )
+                    .await
+                    .unwrap(),
+            );
+        }
+
+        let response = last_response.unwrap();
+        assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
+        assert_eq!(
+            response
+                .headers()
+                .get(RETRY_AFTER)
+                .and_then(|value| value.to_str().ok()),
+            Some("60")
+        );
+    }
+
     #[test]
     fn rest_authz_resource_maps_invite_dm_and_moderation_paths() {
         match rest_authz_resource_from_path("/v1/guilds/10/invites/invite-abc") {
@@ -1711,6 +2458,23 @@ mod tests {
             AuthzResource::Guild { guild_id } => assert_eq!(guild_id, 10),
             _ => panic!("moderation path should map to guild resource"),
         }
+
+        match rest_authz_resource_from_path("/guilds/10") {
+            AuthzResource::Guild { guild_id } => assert_eq!(guild_id, 10),
+            _ => panic!("non-v1 guild path should map to guild resource"),
+        }
+    }
+
+    #[test]
+    fn rest_authz_action_maps_internal_cache_invalidation_post_to_view() {
+        assert!(matches!(
+            rest_authz_action_for_request(&Method::POST, "/internal/authz/cache/invalidate"),
+            AuthzAction::View
+        ));
+        assert!(matches!(
+            rest_authz_action_for_request(&Method::POST, "/v1/dms/55/messages"),
+            AuthzAction::Post
+        ));
     }
 
     #[test]

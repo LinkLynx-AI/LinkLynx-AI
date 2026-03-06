@@ -45,6 +45,12 @@ pub struct ChannelSummary {
 /// channel作成結果を表現する。
 pub type CreatedChannel = ChannelSummary;
 
+/// channel更新入力を表現する。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ChannelPatchInput {
+    pub name: String,
+}
+
 /// guild/channel APIユースケース境界を表現する。
 #[async_trait]
 pub trait GuildChannelService: Send + Sync {
@@ -81,6 +87,17 @@ pub trait GuildChannelService: Send + Sync {
         patch: GuildPatchInput,
     ) -> Result<CreatedGuild, GuildChannelError>;
 
+    /// guildを削除する。
+    /// @param principal_id 削除主体
+    /// @param guild_id 対象guild_id
+    /// @returns なし
+    /// @throws GuildChannelError 非権限/未存在/依存障害時
+    async fn delete_guild(
+        &self,
+        principal_id: PrincipalId,
+        guild_id: i64,
+    ) -> Result<(), GuildChannelError>;
+
     /// guild配下のchannel一覧を返す。
     /// @param principal_id 認証済みprincipal_id
     /// @param guild_id 対象guild_id
@@ -104,6 +121,30 @@ pub trait GuildChannelService: Send + Sync {
         guild_id: i64,
         name: String,
     ) -> Result<CreatedChannel, GuildChannelError>;
+
+    /// channelを更新する。
+    /// @param principal_id 更新主体
+    /// @param channel_id 対象channel_id
+    /// @param patch 更新入力
+    /// @returns 更新結果
+    /// @throws GuildChannelError 入力不正/境界違反/未存在/依存障害時
+    async fn update_guild_channel(
+        &self,
+        principal_id: PrincipalId,
+        channel_id: i64,
+        patch: ChannelPatchInput,
+    ) -> Result<ChannelSummary, GuildChannelError>;
+
+    /// channelを削除する。
+    /// @param principal_id 削除主体
+    /// @param channel_id 対象channel_id
+    /// @returns なし
+    /// @throws GuildChannelError 境界違反/未存在/依存障害時
+    async fn delete_guild_channel(
+        &self,
+        principal_id: PrincipalId,
+        channel_id: i64,
+    ) -> Result<(), GuildChannelError>;
 }
 
 /// 依存未構成時にfail-closeさせるサービスを表現する。
@@ -173,6 +214,19 @@ impl GuildChannelService for UnavailableGuildChannelService {
         Err(self.unavailable_error())
     }
 
+    /// guildを削除する。
+    /// @param _principal_id 削除主体
+    /// @param _guild_id 対象guild_id
+    /// @returns なし
+    /// @throws GuildChannelError 常に依存障害
+    async fn delete_guild(
+        &self,
+        _principal_id: PrincipalId,
+        _guild_id: i64,
+    ) -> Result<(), GuildChannelError> {
+        Err(self.unavailable_error())
+    }
+
     /// channel一覧を返す。
     /// @param _principal_id 認証済みprincipal_id
     /// @param _guild_id 対象guild_id
@@ -200,7 +254,39 @@ impl GuildChannelService for UnavailableGuildChannelService {
     ) -> Result<CreatedChannel, GuildChannelError> {
         Err(self.unavailable_error())
     }
+
+    /// channelを更新する。
+    /// @param _principal_id 更新主体
+    /// @param _channel_id 対象channel_id
+    /// @param _patch 更新入力
+    /// @returns なし
+    /// @throws GuildChannelError 常に依存障害
+    async fn update_guild_channel(
+        &self,
+        _principal_id: PrincipalId,
+        _channel_id: i64,
+        _patch: ChannelPatchInput,
+    ) -> Result<ChannelSummary, GuildChannelError> {
+        Err(self.unavailable_error())
+    }
+
+    /// channelを削除する。
+    /// @param _principal_id 削除主体
+    /// @param _channel_id 対象channel_id
+    /// @returns なし
+    /// @throws GuildChannelError 常に依存障害
+    async fn delete_guild_channel(
+        &self,
+        _principal_id: PrincipalId,
+        _channel_id: i64,
+    ) -> Result<(), GuildChannelError> {
+        Err(self.unavailable_error())
+    }
 }
+
+const GUILD_NAME_MAX_CHARS: usize = 100;
+const CHANNEL_NAME_MAX_CHARS: usize = 100;
+const ICON_KEY_MAX_CHARS: usize = 512;
 
 /// 入力名をtrimし空文字を拒否する。
 /// @param raw_name 入力文字列
@@ -216,9 +302,6 @@ fn normalize_non_empty_name(raw_name: &str, reason: &'static str) -> Result<Stri
     Ok(normalized.to_owned())
 }
 
-const GUILD_NAME_MAX_CHARS: usize = 100;
-const ICON_KEY_MAX_CHARS: usize = 512;
-
 /// guild名を正規化して検証する。
 /// @param raw_name 生のguild名
 /// @returns 正規化済みguild名
@@ -227,6 +310,19 @@ fn normalize_guild_name(raw_name: &str) -> Result<String, GuildChannelError> {
     let normalized = normalize_non_empty_name(raw_name, "guild_name_required")?;
     if normalized.chars().count() > GUILD_NAME_MAX_CHARS {
         return Err(GuildChannelError::validation("guild_name_too_long"));
+    }
+
+    Ok(normalized)
+}
+
+/// channel更新入力を正規化して検証する。
+/// @param patch 更新入力
+/// @returns 正規化済みチャンネル名
+/// @throws GuildChannelError 入力不正時
+fn normalize_channel_patch_input(patch: ChannelPatchInput) -> Result<String, GuildChannelError> {
+    let normalized = normalize_non_empty_name(&patch.name, "channel_name_required")?;
+    if normalized.chars().count() > CHANNEL_NAME_MAX_CHARS {
+        return Err(GuildChannelError::validation("channel_name_too_long"));
     }
 
     Ok(normalized)

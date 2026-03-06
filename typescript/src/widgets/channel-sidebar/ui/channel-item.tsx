@@ -28,6 +28,7 @@ export function ChannelItem({
   isMuted: boolean;
 }) {
   const showContextMenu = useUIStore((s) => s.showContextMenu);
+  const openModal = useUIStore((s) => s.openModal);
 
   const handleContextMenu = useCallback(
     (e: React.MouseEvent) => {
@@ -35,6 +36,17 @@ export function ChannelItem({
       showContextMenu("channel", { x: e.clientX, y: e.clientY }, { channel, serverId });
     },
     [channel, serverId, showContextMenu],
+  );
+  const openChannelEditModal = useCallback(
+    (event: React.MouseEvent<HTMLButtonElement>) => {
+      event.preventDefault();
+      event.stopPropagation();
+      openModal("channel-edit", {
+        channelId: channel.id,
+        channelName: channel.name,
+      });
+    },
+    [channel.id, channel.name, openModal],
   );
 
   return (
@@ -74,7 +86,7 @@ export function ChannelItem({
         </button>
         <button
           className="rounded p-0.5 text-discord-channels-default hover:text-discord-interactive-hover"
-          onClick={(e) => e.preventDefault()}
+          onClick={openChannelEditModal}
         >
           <Settings className="h-4 w-4" />
         </button>

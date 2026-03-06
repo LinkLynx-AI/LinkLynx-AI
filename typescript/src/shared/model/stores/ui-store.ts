@@ -6,6 +6,7 @@ export type ModalType =
   | "create-channel"
   | "create-invite"
   | "delete-confirm"
+  | "channel-delete"
   | "image-lightbox"
   | "file-upload"
   | "keyboard-shortcuts"

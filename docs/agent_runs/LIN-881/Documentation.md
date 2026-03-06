@@ -1,13 +1,15 @@
 # Documentation.md (Status / audit log)
 
 ## Current status
-- Now: PR is open and `LIN-881` is `In Review`.
+- Now: PR repair is complete after merging `origin/main`, and `LIN-881` is ready to return to `In Review`.
 - Next: Human review on PR #1062.
 
 ## Decisions
 - `LIN-881` was reopened and moved back to `In Progress`.
+- 2026-03-06: merged `origin/main` into `codex/lin-881-authz-bypass-fix` and resolved inherited conflicts in `rust/apps/api/src/main/http_routes.rs`, `rust/apps/api/src/main/tests.rs`, and `rust/apps/api/src/main/ws_routes.rs`.
 - WS text ready-state messages now use the same `/ws/stream` AuthZ boundary as binary stream messages.
 - `/internal/authz/metrics` is protected by the existing REST auth/authz middleware by moving the route into `protected_routes`.
+- The merge repair preserved the `LIN-881` bypass fix while also keeping `origin/main` additions such as `/internal/authz/cache/invalidate` and the new `authorize_ws_stream_access` tests.
 - WebSocket regression tests use a local test server and therefore require validation outside the sandbox.
 
 ## How to run / demo
@@ -29,6 +31,7 @@
   - `rust/apps/api/Cargo.toml` / `rust/Cargo.lock`
     - Added test-only WebSocket helpers (`tokio-tungstenite`, `futures-util`).
 - Validation results:
+  - `make validate` passed on 2026-03-06 after the `origin/main` merge repair.
   - `cargo test -p linklynx_backend ws_` passed outside sandbox: 13 passed, 0 failed.
   - `cargo test -p linklynx_backend internal_authz_metrics_` passed outside sandbox: 4 passed, 0 failed.
   - `make rust-lint` passed outside sandbox after the final unavailable-path test was added.

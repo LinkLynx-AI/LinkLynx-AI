@@ -8,7 +8,7 @@ use std::{
 };
 
 use async_trait::async_trait;
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 use tokio::sync::RwLock;
 use tokio_postgres::Client;
@@ -27,6 +27,7 @@ const CHANNEL_VIEWER_ROLE_RELATION: &str = "viewer_role";
 const CHANNEL_VIEW_DENY_ROLE_RELATION: &str = "view_deny_role";
 const CHANNEL_POSTER_ROLE_RELATION: &str = "poster_role";
 const CHANNEL_POST_DENY_ROLE_RELATION: &str = "post_deny_role";
+const CHANNEL_GUILD_RELATION: &str = "guild";
 
 const CHANNEL_VIEWER_USER_RELATION: &str = "viewer_user";
 const CHANNEL_VIEW_DENY_USER_RELATION: &str = "view_deny_user";
@@ -253,8 +254,10 @@ struct ChannelRoleOverrideOutboxPayload {
     channel_id: i64,
     guild_id: i64,
     role_key: String,
-    can_view: Option<bool>,
-    can_post: Option<bool>,
+    #[serde(default, deserialize_with = "deserialize_payload_bool_field")]
+    can_view: PayloadBoolField,
+    #[serde(default, deserialize_with = "deserialize_payload_bool_field")]
+    can_post: PayloadBoolField,
 }
 
 #[derive(Debug, Deserialize)]
@@ -263,13 +266,23 @@ struct ChannelUserOverrideOutboxPayload {
     channel_id: i64,
     guild_id: i64,
     user_id: i64,
-    can_view: Option<bool>,
-    can_post: Option<bool>,
+    #[serde(default, deserialize_with = "deserialize_payload_bool_field")]
+    can_view: PayloadBoolField,
+    #[serde(default, deserialize_with = "deserialize_payload_bool_field")]
+    can_post: PayloadBoolField,
 }
 
 #[derive(Debug, Deserialize, Default)]
 struct FullResyncOutboxPayload {
     reason: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+enum PayloadBoolField {
+    #[default]
+    Missing,
+    Null,
+    Value(bool),
 }
 
 /// guild_member_roles_v2 の1行を tuple へ写像する。
@@ -325,7 +338,7 @@ pub fn map_guild_role_permissions_to_tuples(row: &GuildRolePermissionRow) -> Vec
 pub fn map_channel_role_override_to_tuples(row: &ChannelRoleOverrideRow) -> Vec<SpiceDbTuple> {
     let object = channel_object(row.channel_id);
     let role_subject = role_member_subject(row.guild_id, &row.role_key);
-    let mut tuples = Vec::new();
+    let mut tuples = vec![map_channel_guild_tuple(row.channel_id, row.guild_id)];
 
     match row.can_view {
         Some(true) => tuples.push(SpiceDbTuple::new(
@@ -365,7 +378,7 @@ pub fn map_channel_role_override_to_tuples(row: &ChannelRoleOverrideRow) -> Vec<
 pub fn map_channel_user_override_to_tuples(row: &ChannelUserOverrideRow) -> Vec<SpiceDbTuple> {
     let object = channel_object(row.channel_id);
     let subject = user_subject(row.user_id);
-    let mut tuples = Vec::new();
+    let mut tuples = vec![map_channel_guild_tuple(row.channel_id, row.guild_id)];
 
     match row.can_view {
         Some(true) => tuples.push(SpiceDbTuple::new(
@@ -484,13 +497,13 @@ pub fn build_tuple_sync_command(event: &TupleSyncOutboxEvent) -> Result<TupleSyn
         AUTHZ_TUPLE_EVENT_CHANNEL_ROLE_OVERRIDE => {
             let payload: ChannelRoleOverrideOutboxPayload = parse_json_payload(event)?;
             Ok(TupleSyncCommand::Mutations(
-                build_channel_role_override_mutations(payload),
+                build_channel_role_override_mutations(payload)?,
             ))
         }
         AUTHZ_TUPLE_EVENT_CHANNEL_USER_OVERRIDE => {
             let payload: ChannelUserOverrideOutboxPayload = parse_json_payload(event)?;
             Ok(TupleSyncCommand::Mutations(
-                build_channel_user_override_mutations(payload),
+                build_channel_user_override_mutations(payload)?,
             ))
         }
         AUTHZ_TUPLE_EVENT_FULL_RESYNC => {
@@ -532,6 +545,7 @@ pub trait TupleSyncOutboxStore: Send + Sync {
 #[async_trait]
 pub trait TupleMutationSink: Send + Sync {
     async fn apply_mutations(&self, mutations: Vec<SpiceDbTupleMutation>) -> Result<(), String>;
+    async fn list_current_tuples(&self) -> Result<Vec<SpiceDbTuple>, String>;
 }
 
 /// Postgresからbackfillソースを読み取る実装を表現する。
@@ -749,6 +763,10 @@ impl TupleMutationSink for NoopTupleMutationSink {
         );
         Ok(())
     }
+
+    async fn list_current_tuples(&self) -> Result<Vec<SpiceDbTuple>, String> {
+        Err("tuple_snapshot_unsupported".to_owned())
+    }
 }
 
 /// テスト/検証用のインメモリtuple sinkを表現する。
@@ -765,6 +783,17 @@ impl InMemoryTupleMutationSink {
     /// @throws なし
     pub async fn snapshot(&self) -> Vec<SpiceDbTuple> {
         self.tuples.read().await.iter().cloned().collect()
+    }
+
+    /// テスト用に初期tupleを投入する。
+    /// @param tuples 追加するtuple一覧
+    /// @returns なし
+    /// @throws なし
+    pub async fn seed_tuples(&self, tuples: Vec<SpiceDbTuple>) {
+        let mut current = self.tuples.write().await;
+        for tuple in tuples {
+            current.insert(tuple);
+        }
     }
 
     /// mutation適用時に返す失敗理由を設定する。
@@ -796,6 +825,10 @@ impl TupleMutationSink for InMemoryTupleMutationSink {
         }
 
         Ok(())
+    }
+
+    async fn list_current_tuples(&self) -> Result<Vec<SpiceDbTuple>, String> {
+        Ok(self.snapshot().await)
     }
 }
 
@@ -961,17 +994,26 @@ impl AuthzTupleSyncService {
             channel_user_overrides,
         };
 
-        let tuples = build_backfill_tuples(&input);
-        let generated_tuple_count = tuples.len() as u64;
-        let mutations: Vec<SpiceDbTupleMutation> = tuples
+        let expected_tuples = build_backfill_tuples(&input);
+        let generated_tuple_count = expected_tuples.len() as u64;
+        let observed_tuples = self
+            .sink
+            .list_current_tuples()
+            .await
+            .map_err(|error| format!("tuple_backfill_list_current_tuples_failed:{error}"))?;
+        let observed_managed_tuples: Vec<SpiceDbTuple> = observed_tuples
             .into_iter()
-            .map(SpiceDbTupleMutation::Upsert)
+            .filter(is_tuple_sync_managed_tuple)
             .collect();
+        let drift_report = detect_tuple_drift(&expected_tuples, &observed_managed_tuples);
+        let mutations = build_resync_mutations(&drift_report);
 
         let applied_mutation_count = mutations.len() as u64;
-        if let Err(error) = self.sink.apply_mutations(mutations).await {
-            self.metrics.record_sync_apply_failure();
-            return Err(format!("tuple_backfill_apply_failed:{error}"));
+        if !mutations.is_empty() {
+            if let Err(error) = self.sink.apply_mutations(mutations).await {
+                self.metrics.record_sync_apply_failure();
+                return Err(format!("tuple_backfill_apply_failed:{error}"));
+            }
         }
 
         self.metrics
@@ -984,6 +1026,8 @@ impl AuthzTupleSyncService {
             channel_user_override_rows = input.channel_user_overrides.len(),
             generated_tuple_count,
             applied_mutation_count,
+            missing_tuple_count = drift_report.missing_tuples.len(),
+            unexpected_tuple_count = drift_report.unexpected_tuples.len(),
             "authz tuple backfill completed"
         );
 
@@ -1021,10 +1065,26 @@ impl AuthzTupleSyncService {
             match self.process_claimed_event(&event).await {
                 Ok(result) => {
                     if let Err(error) = self.outbox_store.mark_outbox_event_sent(event.id).await {
-                        return Err(format!(
-                            "tuple_sync_mark_sent_failed:event_id={} reason={}",
-                            event.id, error
-                        ));
+                        self.metrics.record_outbox_failed();
+                        report.failed_events += 1;
+                        tracing::warn!(
+                            event_id = event.id,
+                            event_type = %event.event_type,
+                            aggregate_id = %event.aggregate_id,
+                            reason = %error,
+                            "authz tuple sync mark sent failed; scheduling retry"
+                        );
+                        if let Err(mark_error) = self
+                            .outbox_store
+                            .mark_outbox_event_failed(event.id, self.config.outbox_retry_seconds)
+                            .await
+                        {
+                            return Err(format!(
+                                "tuple_sync_mark_sent_recover_failed:event_id={} reason={} mark_error={}",
+                                event.id, error, mark_error
+                            ));
+                        }
+                        continue;
                     }
 
                     report.succeeded_events += 1;
@@ -1161,7 +1221,7 @@ fn build_guild_member_role_mutations(
 
 fn build_channel_role_override_mutations(
     payload: ChannelRoleOverrideOutboxPayload,
-) -> Vec<SpiceDbTupleMutation> {
+) -> Result<Vec<SpiceDbTupleMutation>, String> {
     let candidates = channel_role_override_candidate_tuples(
         payload.channel_id,
         payload.guild_id,
@@ -1169,36 +1229,56 @@ fn build_channel_role_override_mutations(
     );
 
     match payload.op {
-        TupleSyncOperation::Delete => build_delete_mutations(candidates),
+        TupleSyncOperation::Delete => Ok(build_delete_mutations(candidates)),
         TupleSyncOperation::Upsert => {
+            let can_view = require_payload_nullable_bool(
+                payload.can_view,
+                "can_view",
+                AUTHZ_TUPLE_EVENT_CHANNEL_ROLE_OVERRIDE,
+            )?;
+            let can_post = require_payload_nullable_bool(
+                payload.can_post,
+                "can_post",
+                AUTHZ_TUPLE_EVENT_CHANNEL_ROLE_OVERRIDE,
+            )?;
             let desired = map_channel_role_override_to_tuples(&ChannelRoleOverrideRow {
                 channel_id: payload.channel_id,
                 guild_id: payload.guild_id,
                 role_key: payload.role_key,
-                can_view: payload.can_view,
-                can_post: payload.can_post,
+                can_view,
+                can_post,
             });
-            build_replace_mutations(candidates, desired)
+            Ok(build_replace_mutations(candidates, desired))
         }
     }
 }
 
 fn build_channel_user_override_mutations(
     payload: ChannelUserOverrideOutboxPayload,
-) -> Vec<SpiceDbTupleMutation> {
+) -> Result<Vec<SpiceDbTupleMutation>, String> {
     let candidates = channel_user_override_candidate_tuples(payload.channel_id, payload.user_id);
 
     match payload.op {
-        TupleSyncOperation::Delete => build_delete_mutations(candidates),
+        TupleSyncOperation::Delete => Ok(build_delete_mutations(candidates)),
         TupleSyncOperation::Upsert => {
+            let can_view = require_payload_nullable_bool(
+                payload.can_view,
+                "can_view",
+                AUTHZ_TUPLE_EVENT_CHANNEL_USER_OVERRIDE,
+            )?;
+            let can_post = require_payload_nullable_bool(
+                payload.can_post,
+                "can_post",
+                AUTHZ_TUPLE_EVENT_CHANNEL_USER_OVERRIDE,
+            )?;
             let desired = map_channel_user_override_to_tuples(&ChannelUserOverrideRow {
                 channel_id: payload.channel_id,
                 guild_id: payload.guild_id,
                 user_id: payload.user_id,
-                can_view: payload.can_view,
-                can_post: payload.can_post,
+                can_view,
+                can_post,
             });
-            build_replace_mutations(candidates, desired)
+            Ok(build_replace_mutations(candidates, desired))
         }
     }
 }
@@ -1210,9 +1290,13 @@ fn parse_optional_u32_env(name: &str, default: u32) -> Result<u32, String> {
             if trimmed.is_empty() {
                 return Err(format!("{name} must not be empty when set"));
             }
-            trimmed
+            let parsed = trimmed
                 .parse::<u32>()
-                .map_err(|error| format!("{name} must be a valid u32 (reason: {error})"))
+                .map_err(|error| format!("{name} must be a valid u32 (reason: {error})"))?;
+            if parsed == 0 {
+                return Err(format!("{name} must be greater than 0"));
+            }
+            Ok(parsed)
         }
         Err(_) => Ok(default),
     }
@@ -1247,6 +1331,30 @@ fn require_payload_bool(
     event_type: &str,
 ) -> Result<bool, String> {
     value.ok_or_else(|| format!("{event_type} requires bool field: {field}"))
+}
+
+fn require_payload_nullable_bool(
+    value: PayloadBoolField,
+    field: &str,
+    event_type: &str,
+) -> Result<Option<bool>, String> {
+    match value {
+        PayloadBoolField::Missing => Err(format!("{event_type} requires field: {field}")),
+        PayloadBoolField::Null => Ok(None),
+        PayloadBoolField::Value(value) => Ok(Some(value)),
+    }
+}
+
+fn deserialize_payload_bool_field<'de, D>(deserializer: D) -> Result<PayloadBoolField, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let value = Value::deserialize(deserializer)?;
+    if value.is_null() {
+        return Ok(PayloadBoolField::Null);
+    }
+    let parsed = bool::deserialize(value).map_err(serde::de::Error::custom)?;
+    Ok(PayloadBoolField::Value(parsed))
 }
 
 fn build_replace_mutations(
@@ -1333,6 +1441,14 @@ fn channel_user_override_candidate_tuples(channel_id: i64, user_id: i64) -> Vec<
     ]
 }
 
+fn map_channel_guild_tuple(channel_id: i64, guild_id: i64) -> SpiceDbTuple {
+    SpiceDbTuple::new(
+        channel_object(channel_id),
+        CHANNEL_GUILD_RELATION,
+        guild_object(guild_id),
+    )
+}
+
 fn role_object(guild_id: i64, role_key: &str) -> String {
     format!("role:{guild_id}/{role_key}")
 }
@@ -1351,4 +1467,39 @@ fn role_member_subject(guild_id: i64, role_key: &str) -> String {
 
 fn user_subject(user_id: i64) -> String {
     format!("user:{user_id}")
+}
+
+fn is_tuple_sync_managed_tuple(tuple: &SpiceDbTuple) -> bool {
+    let object = tuple.object.as_str();
+    let relation = tuple.relation.as_str();
+
+    if object.starts_with("role:") && relation == ROLE_MEMBER_RELATION {
+        return true;
+    }
+    if object.starts_with("guild:")
+        && matches!(
+            relation,
+            GUILD_MANAGER_RELATION | GUILD_VIEWER_RELATION | GUILD_POSTER_RELATION
+        )
+    {
+        return true;
+    }
+    if object.starts_with("channel:")
+        && matches!(
+            relation,
+            CHANNEL_GUILD_RELATION
+                | CHANNEL_VIEWER_ROLE_RELATION
+                | CHANNEL_VIEW_DENY_ROLE_RELATION
+                | CHANNEL_POSTER_ROLE_RELATION
+                | CHANNEL_POST_DENY_ROLE_RELATION
+                | CHANNEL_VIEWER_USER_RELATION
+                | CHANNEL_VIEW_DENY_USER_RELATION
+                | CHANNEL_POSTER_USER_RELATION
+                | CHANNEL_POST_DENY_USER_RELATION
+        )
+    {
+        return true;
+    }
+
+    false
 }

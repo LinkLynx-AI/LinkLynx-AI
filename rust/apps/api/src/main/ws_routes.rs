@@ -509,8 +509,7 @@ async fn handle_ready_message(
                         let _ = close_socket(socket, 1008, "reauth_required").await;
                         return false;
                     }
-                    if !authorize_ws_stream_operation(state, authenticated, request_id, socket).await
-                    {
+                    if !authorize_ws_stream_operation(state, authenticated, request_id, socket).await {
                         return false;
                     }
                     return socket.send(Message::Text(text.into())).await.is_ok();
@@ -730,6 +729,26 @@ async fn authorize_ws_stream_operation(
     request_id: &str,
     socket: &mut WebSocket,
 ) -> bool {
+    match authorize_ws_stream_access(state, authenticated, request_id).await {
+        Ok(()) => true,
+        Err(error) => {
+            let _ = close_socket(socket, error.ws_close_code(), error.app_code()).await;
+            false
+        }
+    }
+}
+
+/// WSストリーム操作の認可を評価する。
+/// @param state アプリケーション状態
+/// @param authenticated 認証済み主体
+/// @param request_id 接続識別子
+/// @returns 認可成功時は `Ok(())`
+/// @throws authz::AuthzError 認可拒否または依存障害時
+async fn authorize_ws_stream_access(
+    state: &AppState,
+    authenticated: &AuthenticatedPrincipal,
+    request_id: &str,
+) -> Result<(), authz::AuthzError> {
     let authz_input = AuthzCheckInput {
         principal_id: authenticated.principal_id,
         resource: AuthzResource::RestPath {
@@ -750,9 +769,8 @@ async fn authorize_ws_stream_operation(
             decision_source = "authorizer",
             "WS authz rejected at stream operation"
         );
-        let _ = close_socket(socket, error.ws_close_code(), error.app_code()).await;
-        return false;
+        return Err(error);
     }
     state.authz_metrics.record_allow();
-    true
+    Ok(())
 }

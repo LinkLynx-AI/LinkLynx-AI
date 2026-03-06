@@ -42,6 +42,9 @@ const CHANNEL_LIST_RESPONSE_SCHEMA = z.object({
 const CHANNEL_CREATE_RESPONSE_SCHEMA = z.object({
   channel: CHANNEL_SUMMARY_SCHEMA,
 });
+const CHANNEL_PATCH_RESPONSE_SCHEMA = z.object({
+  channel: CHANNEL_SUMMARY_SCHEMA,
+});
 const MY_PROFILE_SCHEMA = z.object({
   display_name: z.string(),
   status_text: z.string().nullable(),
@@ -56,6 +59,7 @@ const BACKEND_ERROR_RESPONSE_SCHEMA = z.object({
   request_id: z.string().trim().min(1),
 });
 const CHANNEL_LOOKUP_BATCH_SIZE = 4;
+const CHANNEL_NAME_MAX_CHARS = 100;
 const DEFAULT_GUILD_VALUES = {
   banner: null,
   ownerId: "0",
@@ -82,11 +86,28 @@ const CREATE_ERROR_MESSAGES = {
   authRequired: "ログイン状態を確認してから再試行してください。",
   network: "ネットワーク接続を確認してから再試行してください。",
 } as const;
+const UPDATE_ERROR_MESSAGES = {
+  validation: "入力内容を確認してください。",
+  authzDenied: "この操作を行う権限がありません。",
+  authzUnavailable: "認可サービスが一時的に利用できません。しばらくしてから再試行してください。",
+  channelNotFound: "対象のチャンネルが見つかりません。",
+  authRequired: "ログイン状態を確認してから再試行してください。",
+  network: "ネットワーク接続を確認してから再試行してください。",
+} as const;
+const DELETE_ERROR_MESSAGES = {
+  authzDenied: "この操作を行う権限がありません。",
+  authzUnavailable: "認可サービスが一時的に利用できません。しばらくしてから再試行してください。",
+  guildNotFound: "対象のサーバーが見つかりません。",
+  channelNotFound: "対象のチャンネルが見つかりません。",
+  authRequired: "ログイン状態を確認してから再試行してください。",
+  network: "ネットワーク接続を確認してから再試行してください。",
+} as const;
 
 type GuildListResponse = z.infer<typeof GUILD_LIST_RESPONSE_SCHEMA>;
 type GuildCreateResponse = z.infer<typeof GUILD_CREATE_RESPONSE_SCHEMA>;
 type GuildUpdateResponse = z.infer<typeof GUILD_UPDATE_RESPONSE_SCHEMA>;
 type ChannelListResponse = z.infer<typeof CHANNEL_LIST_RESPONSE_SCHEMA>;
+type ChannelSummaryResponse = z.infer<typeof CHANNEL_SUMMARY_SCHEMA>;
 type MyProfileResponse = z.infer<typeof MY_PROFILE_RESPONSE_SCHEMA>;
 type SupportedChannelType = (typeof SUPPORTED_CHANNEL_TYPES)[number];
 
@@ -182,6 +203,66 @@ export function toCreateActionErrorText(error: unknown, fallbackMessage: string)
   }
   if (error.code === "network-request-failed") {
     return attachRequestId(CREATE_ERROR_MESSAGES.network, error.requestId);
+  }
+
+  return attachRequestId(fallbackMessage, error.requestId);
+}
+
+/**
+ * 更新系API失敗をユーザー向けメッセージへ変換する。
+ */
+export function toUpdateActionErrorText(error: unknown, fallbackMessage: string): string {
+  if (!(error instanceof GuildChannelApiError)) {
+    return toApiErrorText(error, fallbackMessage);
+  }
+
+  if (error.code === "VALIDATION_ERROR") {
+    return attachRequestId(UPDATE_ERROR_MESSAGES.validation, error.requestId);
+  }
+  if (error.code === "AUTHZ_DENIED") {
+    return attachRequestId(UPDATE_ERROR_MESSAGES.authzDenied, error.requestId);
+  }
+  if (error.code === "AUTHZ_UNAVAILABLE") {
+    return attachRequestId(UPDATE_ERROR_MESSAGES.authzUnavailable, error.requestId);
+  }
+  if (error.code === "CHANNEL_NOT_FOUND") {
+    return attachRequestId(UPDATE_ERROR_MESSAGES.channelNotFound, error.requestId);
+  }
+  if (error.code === "unauthenticated" || error.code === "token-unavailable") {
+    return attachRequestId(UPDATE_ERROR_MESSAGES.authRequired, error.requestId);
+  }
+  if (error.code === "network-request-failed") {
+    return attachRequestId(UPDATE_ERROR_MESSAGES.network, error.requestId);
+  }
+
+  return attachRequestId(fallbackMessage, error.requestId);
+}
+
+/**
+ * 削除系API失敗をユーザー向けメッセージへ変換する。
+ */
+export function toDeleteActionErrorText(error: unknown, fallbackMessage: string): string {
+  if (!(error instanceof GuildChannelApiError)) {
+    return toApiErrorText(error, fallbackMessage);
+  }
+
+  if (error.code === "AUTHZ_DENIED") {
+    return attachRequestId(DELETE_ERROR_MESSAGES.authzDenied, error.requestId);
+  }
+  if (error.code === "AUTHZ_UNAVAILABLE") {
+    return attachRequestId(DELETE_ERROR_MESSAGES.authzUnavailable, error.requestId);
+  }
+  if (error.code === "GUILD_NOT_FOUND") {
+    return attachRequestId(DELETE_ERROR_MESSAGES.guildNotFound, error.requestId);
+  }
+  if (error.code === "CHANNEL_NOT_FOUND") {
+    return attachRequestId(DELETE_ERROR_MESSAGES.channelNotFound, error.requestId);
+  }
+  if (error.code === "unauthenticated" || error.code === "token-unavailable") {
+    return attachRequestId(DELETE_ERROR_MESSAGES.authRequired, error.requestId);
+  }
+  if (error.code === "network-request-failed") {
+    return attachRequestId(DELETE_ERROR_MESSAGES.network, error.requestId);
   }
 
   return attachRequestId(fallbackMessage, error.requestId);
@@ -456,6 +537,100 @@ export class GuildChannelAPIClient extends NoDataAPIClient {
     });
   }
 
+  private async deleteNoContent(path: string): Promise<void> {
+    const fetchResult = await authenticatedRequest(this.buildUrl(path), {
+      method: "DELETE",
+      headers: new Headers(),
+    });
+    if (!fetchResult.ok) {
+      throw new GuildChannelApiError(fetchResult.error.message, {
+        code: fetchResult.error.code,
+      });
+    }
+
+    const { response } = fetchResult;
+    if (!response.ok) {
+      throw await this.parseErrorResponse(response);
+    }
+    if (response.status !== 204) {
+      throw new GuildChannelApiError(`Request failed with status ${response.status}.`, {
+        status: response.status,
+        code: "UNEXPECTED_RESPONSE",
+      });
+    }
+  }
+  private buildUpdatedChannel(
+    summary: ChannelSummaryResponse,
+    current: Channel | undefined,
+    fallbackPosition: number,
+  ): Channel {
+    if (current !== undefined) {
+      return {
+        ...current,
+        id: String(summary.channel_id),
+        guildId: String(summary.guild_id),
+        name: summary.name,
+      };
+    }
+
+    return mapChannel(summary, fallbackPosition);
+  }
+
+  private upsertChannelInGuildCache(channel: Channel): void {
+    const guildId = channel.guildId;
+    if (guildId === undefined) {
+      return;
+    }
+
+    const cachedChannels = this.channelCacheByGuild.get(guildId);
+    if (cachedChannels === undefined) {
+      return;
+    }
+
+    const index = cachedChannels.findIndex((candidate) => candidate.id === channel.id);
+    if (index < 0) {
+      this.channelCacheByGuild.set(guildId, [...cachedChannels, channel]);
+      return;
+    }
+
+    const nextChannels = [...cachedChannels];
+    nextChannels[index] = channel;
+    this.channelCacheByGuild.set(guildId, nextChannels);
+  }
+
+  private removeChannelFromGuildCache(channelId: string, guildId: string | undefined): void {
+    this.channelIndex.delete(channelId);
+
+    if (guildId !== undefined) {
+      const cachedChannels = this.channelCacheByGuild.get(guildId);
+      if (cachedChannels !== undefined) {
+        this.channelCacheByGuild.set(
+          guildId,
+          cachedChannels.filter((channel) => channel.id !== channelId),
+        );
+      }
+      return;
+    }
+
+    for (const [cachedGuildId, cachedChannels] of this.channelCacheByGuild.entries()) {
+      const nextChannels = cachedChannels.filter((channel) => channel.id !== channelId);
+      if (nextChannels.length !== cachedChannels.length) {
+        this.channelCacheByGuild.set(cachedGuildId, nextChannels);
+        return;
+      }
+    }
+  }
+
+  private removeGuildFromCache(serverId: string): void {
+    this.channelCacheByGuild.delete(serverId);
+
+    for (const [channelId, channel] of this.channelIndex.entries()) {
+      if (channel.guildId === serverId) {
+        this.channelIndex.delete(channelId);
+      }
+    }
+  }
+
   private async fetchGuilds(options: { resetChannelCache: boolean }): Promise<Guild[]> {
     const response = await this.getJson("/guilds", GUILD_LIST_RESPONSE_SCHEMA);
     const guilds = response.guilds.map(mapGuild);
@@ -707,6 +882,19 @@ export class GuildChannelAPIClient extends NoDataAPIClient {
     return mapUpdatedGuild(response);
   }
 
+  async deleteServer(serverId: string): Promise<void> {
+    const normalizedServerId = serverId.trim();
+    if (normalizedServerId.length === 0) {
+      throw new GuildChannelApiError(CREATE_ERROR_MESSAGES.guildNotFound, {
+        status: 404,
+        code: "GUILD_NOT_FOUND",
+      });
+    }
+
+    await this.deleteNoContent(`/guilds/${encodeURIComponent(normalizedServerId)}`);
+    this.removeGuildFromCache(normalizedServerId);
+  }
+
   async createChannel(serverId: string, data: CreateChannelData): Promise<Channel> {
     const normalizedServerId = serverId.trim();
     if (normalizedServerId.length === 0) {
@@ -746,6 +934,63 @@ export class GuildChannelAPIClient extends NoDataAPIClient {
     this.channelIndex.set(channel.id, channel);
 
     return channel;
+  }
+
+  async updateChannel(channelId: string, data: Partial<Channel>): Promise<Channel> {
+    const normalizedChannelId = channelId.trim();
+    if (normalizedChannelId.length === 0) {
+      throw new GuildChannelApiError(UPDATE_ERROR_MESSAGES.channelNotFound, {
+        status: 404,
+        code: "CHANNEL_NOT_FOUND",
+      });
+    }
+
+    if (typeof data.name !== "string") {
+      throw new GuildChannelApiError(UPDATE_ERROR_MESSAGES.validation, {
+        status: 400,
+        code: "VALIDATION_ERROR",
+      });
+    }
+
+    const normalizedName = data.name.trim();
+    if (normalizedName.length === 0 || normalizedName.length > CHANNEL_NAME_MAX_CHARS) {
+      throw new GuildChannelApiError(UPDATE_ERROR_MESSAGES.validation, {
+        status: 400,
+        code: "VALIDATION_ERROR",
+      });
+    }
+
+    const response = await this.patchJson(
+      `/channels/${encodeURIComponent(normalizedChannelId)}`,
+      { name: normalizedName },
+      CHANNEL_PATCH_RESPONSE_SCHEMA,
+    );
+    const guildId = String(response.channel.guild_id);
+    const cachedChannels = this.channelCacheByGuild.get(guildId);
+    const indexed = this.channelIndex.get(normalizedChannelId);
+    const cached = cachedChannels?.find((channel) => channel.id === normalizedChannelId);
+    const current = indexed ?? cached;
+    const fallbackPosition = current?.position ?? cachedChannels?.length ?? 0;
+    const updatedChannel = this.buildUpdatedChannel(response.channel, current, fallbackPosition);
+
+    this.channelIndex.set(updatedChannel.id, updatedChannel);
+    this.upsertChannelInGuildCache(updatedChannel);
+
+    return updatedChannel;
+  }
+
+  async deleteChannel(channelId: string): Promise<void> {
+    const normalizedChannelId = channelId.trim();
+    if (normalizedChannelId.length === 0) {
+      throw new GuildChannelApiError(UPDATE_ERROR_MESSAGES.channelNotFound, {
+        status: 404,
+        code: "CHANNEL_NOT_FOUND",
+      });
+    }
+
+    const indexedChannel = this.channelIndex.get(normalizedChannelId);
+    await this.deleteNoContent(`/channels/${encodeURIComponent(normalizedChannelId)}`);
+    this.removeChannelFromGuildCache(normalizedChannelId, indexedChannel?.guildId);
   }
 }
 

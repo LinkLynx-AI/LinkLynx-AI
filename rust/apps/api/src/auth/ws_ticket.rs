@@ -121,6 +121,12 @@ struct FixedWindowBucket {
     count: u32,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FixedWindowDecision {
+    pub allowed: bool,
+    pub retry_after: Option<Duration>,
+}
+
 #[derive(Debug, Clone)]
 pub struct FixedWindowRateLimiter {
     max_requests: u32,
@@ -147,6 +153,14 @@ impl FixedWindowRateLimiter {
     /// @returns 許可時 `true`
     /// @throws なし
     pub async fn check_and_record(&self, key: &str) -> bool {
+        self.check_and_record_with_retry_after(key).await.allowed
+    }
+
+    /// キーごとにリクエスト可否と待機時間を判定して記録する。
+    /// @param key 判定キー
+    /// @returns 判定結果
+    /// @throws なし
+    pub async fn check_and_record_with_retry_after(&self, key: &str) -> FixedWindowDecision {
         let now = Instant::now();
         let mut buckets = self.buckets.lock().await;
 
@@ -167,11 +181,17 @@ impl FixedWindowRateLimiter {
         }
 
         if bucket.count >= self.max_requests {
-            return false;
+            return FixedWindowDecision {
+                allowed: false,
+                retry_after: Some(self.window.saturating_sub(now.duration_since(bucket.window_started_at))),
+            };
         }
 
         bucket.count = bucket.count.saturating_add(1);
-        true
+        FixedWindowDecision {
+            allowed: true,
+            retry_after: None,
+        }
     }
 }
 
