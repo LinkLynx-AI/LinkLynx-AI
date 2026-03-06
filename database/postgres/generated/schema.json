@@ -810,204 +810,6 @@
       ]
     },
     {
-      "name": "public.guild_roles",
-      "type": "BASE TABLE",
-      "columns": [
-        {
-          "name": "guild_id",
-          "type": "bigint",
-          "nullable": false
-        },
-        {
-          "name": "level",
-          "type": "role_level",
-          "nullable": false
-        },
-        {
-          "name": "name",
-          "type": "text",
-          "nullable": false
-        }
-      ],
-      "indexes": [
-        {
-          "name": "guild_roles_pkey",
-          "def": "CREATE UNIQUE INDEX guild_roles_pkey ON public.guild_roles USING btree (guild_id, level)",
-          "table": "public.guild_roles",
-          "columns": [
-            "guild_id",
-            "level"
-          ]
-        }
-      ],
-      "constraints": [
-        {
-          "name": "guild_roles_guild_id_fkey",
-          "type": "FOREIGN KEY",
-          "def": "FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE",
-          "table": "public.guild_roles",
-          "referenced_table": "guilds",
-          "columns": [
-            "guild_id"
-          ],
-          "referenced_columns": [
-            "id"
-          ]
-        },
-        {
-          "name": "guild_roles_pkey",
-          "type": "PRIMARY KEY",
-          "def": "PRIMARY KEY (guild_id, level)",
-          "table": "public.guild_roles",
-          "referenced_table": "",
-          "columns": [
-            "guild_id",
-            "level"
-          ]
-        }
-      ]
-    },
-    {
-      "name": "public.guild_member_roles",
-      "type": "BASE TABLE",
-      "columns": [
-        {
-          "name": "guild_id",
-          "type": "bigint",
-          "nullable": false
-        },
-        {
-          "name": "user_id",
-          "type": "bigint",
-          "nullable": false
-        },
-        {
-          "name": "level",
-          "type": "role_level",
-          "nullable": false
-        }
-      ],
-      "indexes": [
-        {
-          "name": "guild_member_roles_pkey",
-          "def": "CREATE UNIQUE INDEX guild_member_roles_pkey ON public.guild_member_roles USING btree (guild_id, user_id)",
-          "table": "public.guild_member_roles",
-          "columns": [
-            "guild_id",
-            "user_id"
-          ]
-        }
-      ],
-      "constraints": [
-        {
-          "name": "guild_member_roles_guild_id_user_id_fkey",
-          "type": "FOREIGN KEY",
-          "def": "FOREIGN KEY (guild_id, user_id) REFERENCES guild_members(guild_id, user_id) ON DELETE CASCADE",
-          "table": "public.guild_member_roles",
-          "referenced_table": "guild_members",
-          "columns": [
-            "guild_id",
-            "user_id"
-          ],
-          "referenced_columns": [
-            "guild_id",
-            "user_id"
-          ]
-        },
-        {
-          "name": "guild_member_roles_guild_id_level_fkey",
-          "type": "FOREIGN KEY",
-          "def": "FOREIGN KEY (guild_id, level) REFERENCES guild_roles(guild_id, level) ON DELETE RESTRICT",
-          "table": "public.guild_member_roles",
-          "referenced_table": "guild_roles",
-          "columns": [
-            "guild_id",
-            "level"
-          ],
-          "referenced_columns": [
-            "guild_id",
-            "level"
-          ]
-        },
-        {
-          "name": "guild_member_roles_pkey",
-          "type": "PRIMARY KEY",
-          "def": "PRIMARY KEY (guild_id, user_id)",
-          "table": "public.guild_member_roles",
-          "referenced_table": "",
-          "columns": [
-            "guild_id",
-            "user_id"
-          ]
-        }
-      ]
-    },
-    {
-      "name": "public.channel_permission_overrides",
-      "type": "BASE TABLE",
-      "columns": [
-        {
-          "name": "channel_id",
-          "type": "bigint",
-          "nullable": false
-        },
-        {
-          "name": "level",
-          "type": "role_level",
-          "nullable": false
-        },
-        {
-          "name": "can_view",
-          "type": "boolean",
-          "nullable": true,
-          "comment": "NULL はロール既定値を継承、TRUE/FALSE は明示上書き。"
-        },
-        {
-          "name": "can_post",
-          "type": "boolean",
-          "nullable": true,
-          "comment": "NULL はロール既定値を継承、TRUE/FALSE は明示上書き。"
-        }
-      ],
-      "indexes": [
-        {
-          "name": "channel_permission_overrides_pkey",
-          "def": "CREATE UNIQUE INDEX channel_permission_overrides_pkey ON public.channel_permission_overrides USING btree (channel_id, level)",
-          "table": "public.channel_permission_overrides",
-          "columns": [
-            "channel_id",
-            "level"
-          ]
-        }
-      ],
-      "constraints": [
-        {
-          "name": "channel_permission_overrides_channel_id_fkey",
-          "type": "FOREIGN KEY",
-          "def": "FOREIGN KEY (channel_id) REFERENCES channels(id) ON DELETE CASCADE",
-          "table": "public.channel_permission_overrides",
-          "referenced_table": "channels",
-          "columns": [
-            "channel_id"
-          ],
-          "referenced_columns": [
-            "id"
-          ]
-        },
-        {
-          "name": "channel_permission_overrides_pkey",
-          "type": "PRIMARY KEY",
-          "def": "PRIMARY KEY (channel_id, level)",
-          "table": "public.channel_permission_overrides",
-          "referenced_table": "",
-          "columns": [
-            "channel_id",
-            "level"
-          ]
-        }
-      ]
-    },
-    {
       "name": "public.channel_reads",
       "type": "BASE TABLE",
       "columns": [
@@ -1555,11 +1357,6 @@
           "type": "timestamp with time zone",
           "nullable": false,
           "default": "now()"
-        },
-        {
-          "name": "source_level",
-          "type": "role_level",
-          "nullable": true
         }
       ],
       "indexes": [
@@ -1862,6 +1659,918 @@
           "def": "CREATE TRIGGER trg_enforce_channel_role_overrides_v2_scope BEFORE INSERT OR UPDATE ON public.channel_role_permission_overrides_v2 FOR EACH ROW EXECUTE FUNCTION enforce_channel_role_overrides_v2_scope()"
         }
       ]
+    },
+    {
+      "name": "public.channel_user_permission_overrides_v2",
+      "type": "BASE TABLE",
+      "columns": [
+        {
+          "name": "channel_id",
+          "type": "bigint",
+          "nullable": false
+        },
+        {
+          "name": "guild_id",
+          "type": "bigint",
+          "nullable": false
+        },
+        {
+          "name": "user_id",
+          "type": "bigint",
+          "nullable": false
+        },
+        {
+          "name": "can_view",
+          "type": "boolean",
+          "nullable": true,
+          "comment": "NULL はロール既定値を継承、TRUE/FALSE はユーザー単位で明示上書き。"
+        },
+        {
+          "name": "can_post",
+          "type": "boolean",
+          "nullable": true,
+          "comment": "NULL はロール既定値を継承、TRUE/FALSE はユーザー単位で明示上書き。"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default": "now()"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default": "now()"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "channel_user_permission_overrides_v2_pkey",
+          "def": "CREATE UNIQUE INDEX channel_user_permission_overrides_v2_pkey ON public.channel_user_permission_overrides_v2 USING btree (channel_id, user_id)",
+          "table": "public.channel_user_permission_overrides_v2",
+          "columns": [
+            "channel_id",
+            "user_id"
+          ]
+        },
+        {
+          "name": "idx_channel_user_overrides_v2_user",
+          "def": "CREATE INDEX idx_channel_user_overrides_v2_user ON public.channel_user_permission_overrides_v2 USING btree (user_id, guild_id)",
+          "table": "public.channel_user_permission_overrides_v2",
+          "columns": [
+            "user_id",
+            "guild_id"
+          ]
+        },
+        {
+          "name": "idx_channel_user_overrides_v2_guild_user",
+          "def": "CREATE INDEX idx_channel_user_overrides_v2_guild_user ON public.channel_user_permission_overrides_v2 USING btree (guild_id, user_id)",
+          "table": "public.channel_user_permission_overrides_v2",
+          "columns": [
+            "guild_id",
+            "user_id"
+          ]
+        }
+      ],
+      "constraints": [
+        {
+          "name": "channel_user_permission_overrides_v2_guild_id_user_id_fkey",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (guild_id, user_id) REFERENCES guild_members(guild_id, user_id) ON DELETE CASCADE",
+          "table": "public.channel_user_permission_overrides_v2",
+          "referenced_table": "guild_members",
+          "columns": [
+            "guild_id",
+            "user_id"
+          ],
+          "referenced_columns": [
+            "guild_id",
+            "user_id"
+          ]
+        },
+        {
+          "name": "channel_user_permission_overrides_v2_channel_id_fkey",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (channel_id) REFERENCES channels(id) ON DELETE CASCADE",
+          "table": "public.channel_user_permission_overrides_v2",
+          "referenced_table": "channels",
+          "columns": [
+            "channel_id"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "channel_user_permission_overrides_v2_pkey",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (channel_id, user_id)",
+          "table": "public.channel_user_permission_overrides_v2",
+          "referenced_table": "",
+          "columns": [
+            "channel_id",
+            "user_id"
+          ]
+        }
+      ],
+      "triggers": [
+        {
+          "name": "trg_enforce_channel_user_overrides_v2_scope",
+          "def": "CREATE TRIGGER trg_enforce_channel_user_overrides_v2_scope BEFORE INSERT OR UPDATE ON public.channel_user_permission_overrides_v2 FOR EACH ROW EXECUTE FUNCTION enforce_channel_user_overrides_v2_scope()"
+        }
+      ]
+    },
+    {
+      "name": "public.channel_permission_overrides_subject_v2",
+      "type": "VIEW",
+      "columns": [
+        {
+          "name": "channel_id",
+          "type": "bigint",
+          "nullable": true
+        },
+        {
+          "name": "guild_id",
+          "type": "bigint",
+          "nullable": true
+        },
+        {
+          "name": "subject_type",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "subject_id",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "can_view",
+          "type": "boolean",
+          "nullable": true
+        },
+        {
+          "name": "can_post",
+          "type": "boolean",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": true
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "nullable": true
+        }
+      ],
+      "def": "CREATE VIEW channel_permission_overrides_subject_v2 AS (\n SELECT channel_role_permission_overrides_v2.channel_id,\n    channel_role_permission_overrides_v2.guild_id,\n    'role'::text AS subject_type,\n    channel_role_permission_overrides_v2.role_key AS subject_id,\n    channel_role_permission_overrides_v2.can_view,\n    channel_role_permission_overrides_v2.can_post,\n    channel_role_permission_overrides_v2.created_at,\n    channel_role_permission_overrides_v2.updated_at\n   FROM channel_role_permission_overrides_v2\nUNION ALL\n SELECT channel_user_permission_overrides_v2.channel_id,\n    channel_user_permission_overrides_v2.guild_id,\n    'user'::text AS subject_type,\n    (channel_user_permission_overrides_v2.user_id)::text AS subject_id,\n    channel_user_permission_overrides_v2.can_view,\n    channel_user_permission_overrides_v2.can_post,\n    channel_user_permission_overrides_v2.created_at,\n    channel_user_permission_overrides_v2.updated_at\n   FROM channel_user_permission_overrides_v2\n)",
+      "referenced_tables": [
+        "public.channel_role_permission_overrides_v2",
+        "public.channel_user_permission_overrides_v2"
+      ]
+    },
+    {
+      "name": "public.channel_hierarchies_v2",
+      "type": "BASE TABLE",
+      "columns": [
+        {
+          "name": "child_channel_id",
+          "type": "bigint",
+          "nullable": false
+        },
+        {
+          "name": "guild_id",
+          "type": "bigint",
+          "nullable": false
+        },
+        {
+          "name": "parent_channel_id",
+          "type": "bigint",
+          "nullable": false
+        },
+        {
+          "name": "hierarchy_kind",
+          "type": "channel_hierarchy_kind",
+          "nullable": false
+        },
+        {
+          "name": "parent_message_id",
+          "type": "bigint",
+          "nullable": true
+        },
+        {
+          "name": "position",
+          "type": "integer",
+          "nullable": false,
+          "default": "0"
+        },
+        {
+          "name": "archived_at",
+          "type": "timestamp with time zone",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default": "now()"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default": "now()"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "channel_hierarchies_v2_pkey",
+          "def": "CREATE UNIQUE INDEX channel_hierarchies_v2_pkey ON public.channel_hierarchies_v2 USING btree (child_channel_id)",
+          "table": "public.channel_hierarchies_v2",
+          "columns": [
+            "child_channel_id"
+          ]
+        },
+        {
+          "name": "idx_channel_hierarchies_v2_parent_pos",
+          "def": "CREATE INDEX idx_channel_hierarchies_v2_parent_pos ON public.channel_hierarchies_v2 USING btree (parent_channel_id, \"position\", child_channel_id)",
+          "table": "public.channel_hierarchies_v2",
+          "columns": [
+            "parent_channel_id",
+            "position",
+            "child_channel_id"
+          ]
+        },
+        {
+          "name": "idx_channel_hierarchies_v2_guild_kind",
+          "def": "CREATE INDEX idx_channel_hierarchies_v2_guild_kind ON public.channel_hierarchies_v2 USING btree (guild_id, hierarchy_kind, parent_channel_id)",
+          "table": "public.channel_hierarchies_v2",
+          "columns": [
+            "guild_id",
+            "hierarchy_kind",
+            "parent_channel_id"
+          ]
+        },
+        {
+          "name": "uq_channel_hierarchies_v2_thread_parent_message",
+          "def": "CREATE UNIQUE INDEX uq_channel_hierarchies_v2_thread_parent_message ON public.channel_hierarchies_v2 USING btree (guild_id, parent_channel_id, parent_message_id) WHERE (hierarchy_kind = 'thread'::channel_hierarchy_kind)",
+          "table": "public.channel_hierarchies_v2",
+          "columns": [
+            "guild_id",
+            "parent_channel_id",
+            "parent_message_id"
+          ]
+        }
+      ],
+      "constraints": [
+        {
+          "name": "chk_ch_hier_v2_thread_parent_msg",
+          "type": "CHECK",
+          "def": "CHECK ((((hierarchy_kind = 'thread'::channel_hierarchy_kind) AND (parent_message_id IS NOT NULL)) OR ((hierarchy_kind = 'category_child'::channel_hierarchy_kind) AND (parent_message_id IS NULL))))",
+          "table": "public.channel_hierarchies_v2",
+          "referenced_table": "",
+          "columns": [
+            "hierarchy_kind",
+            "parent_message_id"
+          ]
+        },
+        {
+          "name": "chk_channel_hierarchies_v2_not_self",
+          "type": "CHECK",
+          "def": "CHECK ((child_channel_id \u003c\u003e parent_channel_id))",
+          "table": "public.channel_hierarchies_v2",
+          "referenced_table": "",
+          "columns": [
+            "child_channel_id",
+            "parent_channel_id"
+          ]
+        },
+        {
+          "name": "chk_channel_hierarchies_v2_position_non_negative",
+          "type": "CHECK",
+          "def": "CHECK ((\"position\" \u003e= 0))",
+          "table": "public.channel_hierarchies_v2",
+          "referenced_table": "",
+          "columns": [
+            "position"
+          ]
+        },
+        {
+          "name": "channel_hierarchies_v2_guild_id_fkey",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE",
+          "table": "public.channel_hierarchies_v2",
+          "referenced_table": "guilds",
+          "columns": [
+            "guild_id"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "channel_hierarchies_v2_child_channel_id_fkey",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (child_channel_id) REFERENCES channels(id) ON DELETE CASCADE",
+          "table": "public.channel_hierarchies_v2",
+          "referenced_table": "channels",
+          "columns": [
+            "child_channel_id"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "channel_hierarchies_v2_parent_channel_id_fkey",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (parent_channel_id) REFERENCES channels(id) ON DELETE CASCADE",
+          "table": "public.channel_hierarchies_v2",
+          "referenced_table": "channels",
+          "columns": [
+            "parent_channel_id"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "channel_hierarchies_v2_pkey",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (child_channel_id)",
+          "table": "public.channel_hierarchies_v2",
+          "referenced_table": "",
+          "columns": [
+            "child_channel_id"
+          ]
+        }
+      ],
+      "triggers": [
+        {
+          "name": "trg_enforce_channel_hierarchies_v2_scope",
+          "def": "CREATE TRIGGER trg_enforce_channel_hierarchies_v2_scope BEFORE INSERT OR UPDATE ON public.channel_hierarchies_v2 FOR EACH ROW EXECUTE FUNCTION enforce_channel_hierarchies_v2_scope()"
+        }
+      ]
+    },
+    {
+      "name": "public.message_references_v2",
+      "type": "BASE TABLE",
+      "columns": [
+        {
+          "name": "message_id",
+          "type": "bigint",
+          "nullable": false
+        },
+        {
+          "name": "channel_id",
+          "type": "bigint",
+          "nullable": false
+        },
+        {
+          "name": "reply_to_message_id",
+          "type": "bigint",
+          "nullable": false,
+          "comment": "Scylla SoR上の参照先message_id。削除済み参照先のトゥームストーン表示整合のためFKを張らない。"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default": "now()"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "message_references_v2_pkey",
+          "def": "CREATE UNIQUE INDEX message_references_v2_pkey ON public.message_references_v2 USING btree (message_id)",
+          "table": "public.message_references_v2",
+          "columns": [
+            "message_id"
+          ]
+        },
+        {
+          "name": "idx_msg_refs_v2_channel_reply",
+          "def": "CREATE INDEX idx_msg_refs_v2_channel_reply ON public.message_references_v2 USING btree (channel_id, reply_to_message_id, message_id DESC)",
+          "table": "public.message_references_v2",
+          "columns": [
+            "channel_id",
+            "reply_to_message_id",
+            "message_id"
+          ]
+        }
+      ],
+      "constraints": [
+        {
+          "name": "chk_msg_refs_v2_not_self",
+          "type": "CHECK",
+          "def": "CHECK ((message_id \u003c\u003e reply_to_message_id))",
+          "table": "public.message_references_v2",
+          "referenced_table": "",
+          "columns": [
+            "message_id",
+            "reply_to_message_id"
+          ]
+        },
+        {
+          "name": "message_references_v2_channel_id_fkey",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (channel_id) REFERENCES channels(id) ON DELETE CASCADE",
+          "table": "public.message_references_v2",
+          "referenced_table": "channels",
+          "columns": [
+            "channel_id"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "message_references_v2_pkey",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (message_id)",
+          "table": "public.message_references_v2",
+          "referenced_table": "",
+          "columns": [
+            "message_id"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "public.channel_pins_v2",
+      "type": "BASE TABLE",
+      "columns": [
+        {
+          "name": "channel_id",
+          "type": "bigint",
+          "nullable": false
+        },
+        {
+          "name": "message_id",
+          "type": "bigint",
+          "nullable": false
+        },
+        {
+          "name": "pinned_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default": "now()"
+        },
+        {
+          "name": "pinned_by",
+          "type": "bigint",
+          "nullable": true
+        },
+        {
+          "name": "unpinned_at",
+          "type": "timestamp with time zone",
+          "nullable": true
+        },
+        {
+          "name": "unpinned_by",
+          "type": "bigint",
+          "nullable": true
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default": "now()"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "channel_pins_v2_pkey",
+          "def": "CREATE UNIQUE INDEX channel_pins_v2_pkey ON public.channel_pins_v2 USING btree (channel_id, message_id)",
+          "table": "public.channel_pins_v2",
+          "columns": [
+            "channel_id",
+            "message_id"
+          ]
+        },
+        {
+          "name": "idx_ch_pins_v2_active",
+          "def": "CREATE INDEX idx_ch_pins_v2_active ON public.channel_pins_v2 USING btree (channel_id, pinned_at DESC, message_id DESC) WHERE (unpinned_at IS NULL)",
+          "table": "public.channel_pins_v2",
+          "columns": [
+            "channel_id",
+            "pinned_at",
+            "message_id"
+          ]
+        },
+        {
+          "name": "idx_ch_pins_v2_message",
+          "def": "CREATE INDEX idx_ch_pins_v2_message ON public.channel_pins_v2 USING btree (message_id)",
+          "table": "public.channel_pins_v2",
+          "columns": [
+            "message_id"
+          ]
+        }
+      ],
+      "constraints": [
+        {
+          "name": "chk_ch_pins_v2_unpin_pair",
+          "type": "CHECK",
+          "def": "CHECK ((((unpinned_at IS NULL) AND (unpinned_by IS NULL)) OR (unpinned_at IS NOT NULL)))",
+          "table": "public.channel_pins_v2",
+          "referenced_table": "",
+          "columns": [
+            "unpinned_at",
+            "unpinned_by"
+          ]
+        },
+        {
+          "name": "chk_ch_pins_v2_unpin_time",
+          "type": "CHECK",
+          "def": "CHECK (((unpinned_at IS NULL) OR (unpinned_at \u003e= pinned_at)))",
+          "table": "public.channel_pins_v2",
+          "referenced_table": "",
+          "columns": [
+            "unpinned_at",
+            "pinned_at"
+          ]
+        },
+        {
+          "name": "channel_pins_v2_pinned_by_fkey",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (pinned_by) REFERENCES users(id) ON DELETE SET NULL",
+          "table": "public.channel_pins_v2",
+          "referenced_table": "users",
+          "columns": [
+            "pinned_by"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "channel_pins_v2_unpinned_by_fkey",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (unpinned_by) REFERENCES users(id) ON DELETE SET NULL",
+          "table": "public.channel_pins_v2",
+          "referenced_table": "users",
+          "columns": [
+            "unpinned_by"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "channel_pins_v2_channel_id_fkey",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (channel_id) REFERENCES channels(id) ON DELETE CASCADE",
+          "table": "public.channel_pins_v2",
+          "referenced_table": "channels",
+          "columns": [
+            "channel_id"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "channel_pins_v2_pkey",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (channel_id, message_id)",
+          "table": "public.channel_pins_v2",
+          "referenced_table": "",
+          "columns": [
+            "channel_id",
+            "message_id"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "public.message_reactions_v2",
+      "type": "BASE TABLE",
+      "columns": [
+        {
+          "name": "message_id",
+          "type": "bigint",
+          "nullable": false
+        },
+        {
+          "name": "channel_id",
+          "type": "bigint",
+          "nullable": false
+        },
+        {
+          "name": "emoji",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "user_id",
+          "type": "bigint",
+          "nullable": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default": "now()"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "message_reactions_v2_pkey",
+          "def": "CREATE UNIQUE INDEX message_reactions_v2_pkey ON public.message_reactions_v2 USING btree (message_id, emoji, user_id)",
+          "table": "public.message_reactions_v2",
+          "columns": [
+            "message_id",
+            "emoji",
+            "user_id"
+          ]
+        },
+        {
+          "name": "idx_msg_reactions_v2_msg_emoji_created",
+          "def": "CREATE INDEX idx_msg_reactions_v2_msg_emoji_created ON public.message_reactions_v2 USING btree (message_id, emoji, created_at DESC)",
+          "table": "public.message_reactions_v2",
+          "columns": [
+            "message_id",
+            "emoji",
+            "created_at"
+          ]
+        }
+      ],
+      "constraints": [
+        {
+          "name": "chk_msg_reactions_v2_emoji_len",
+          "type": "CHECK",
+          "def": "CHECK ((length(emoji) \u003c= 128))",
+          "table": "public.message_reactions_v2",
+          "referenced_table": "",
+          "columns": [
+            "emoji"
+          ]
+        },
+        {
+          "name": "chk_msg_reactions_v2_emoji_non_empty",
+          "type": "CHECK",
+          "def": "CHECK ((length(emoji) \u003e 0))",
+          "table": "public.message_reactions_v2",
+          "referenced_table": "",
+          "columns": [
+            "emoji"
+          ]
+        },
+        {
+          "name": "message_reactions_v2_user_id_fkey",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE",
+          "table": "public.message_reactions_v2",
+          "referenced_table": "users",
+          "columns": [
+            "user_id"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "message_reactions_v2_channel_id_fkey",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (channel_id) REFERENCES channels(id) ON DELETE CASCADE",
+          "table": "public.message_reactions_v2",
+          "referenced_table": "channels",
+          "columns": [
+            "channel_id"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "message_reactions_v2_pkey",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (message_id, emoji, user_id)",
+          "table": "public.message_reactions_v2",
+          "referenced_table": "",
+          "columns": [
+            "message_id",
+            "emoji",
+            "user_id"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "public.message_attachments_v2",
+      "type": "BASE TABLE",
+      "columns": [
+        {
+          "name": "message_id",
+          "type": "bigint",
+          "nullable": false
+        },
+        {
+          "name": "channel_id",
+          "type": "bigint",
+          "nullable": false
+        },
+        {
+          "name": "object_key",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "mime_type",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "size_bytes",
+          "type": "bigint",
+          "nullable": false
+        },
+        {
+          "name": "sha256",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "uploaded_by",
+          "type": "bigint",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default": "now()"
+        },
+        {
+          "name": "deleted_at",
+          "type": "timestamp with time zone",
+          "nullable": true
+        },
+        {
+          "name": "retention_until",
+          "type": "timestamp with time zone",
+          "nullable": true
+        }
+      ],
+      "indexes": [
+        {
+          "name": "message_attachments_v2_pkey",
+          "def": "CREATE UNIQUE INDEX message_attachments_v2_pkey ON public.message_attachments_v2 USING btree (message_id, object_key)",
+          "table": "public.message_attachments_v2",
+          "columns": [
+            "message_id",
+            "object_key"
+          ]
+        },
+        {
+          "name": "uq_msg_att_v2_object_key",
+          "def": "CREATE UNIQUE INDEX uq_msg_att_v2_object_key ON public.message_attachments_v2 USING btree (object_key)",
+          "table": "public.message_attachments_v2",
+          "columns": [
+            "object_key"
+          ]
+        },
+        {
+          "name": "idx_msg_att_v2_message_created",
+          "def": "CREATE INDEX idx_msg_att_v2_message_created ON public.message_attachments_v2 USING btree (message_id, created_at DESC, object_key)",
+          "table": "public.message_attachments_v2",
+          "columns": [
+            "message_id",
+            "created_at",
+            "object_key"
+          ]
+        },
+        {
+          "name": "idx_msg_att_v2_retention_active",
+          "def": "CREATE INDEX idx_msg_att_v2_retention_active ON public.message_attachments_v2 USING btree (retention_until) WHERE ((retention_until IS NOT NULL) AND (deleted_at IS NULL))",
+          "table": "public.message_attachments_v2",
+          "columns": [
+            "retention_until"
+          ]
+        },
+        {
+          "name": "idx_msg_att_v2_deleted_at",
+          "def": "CREATE INDEX idx_msg_att_v2_deleted_at ON public.message_attachments_v2 USING btree (deleted_at) WHERE (deleted_at IS NOT NULL)",
+          "table": "public.message_attachments_v2",
+          "columns": [
+            "deleted_at"
+          ]
+        }
+      ],
+      "constraints": [
+        {
+          "name": "chk_msg_att_v2_deleted_at_order",
+          "type": "CHECK",
+          "def": "CHECK (((deleted_at IS NULL) OR (deleted_at \u003e= created_at)))",
+          "table": "public.message_attachments_v2",
+          "referenced_table": "",
+          "columns": [
+            "deleted_at",
+            "created_at"
+          ]
+        },
+        {
+          "name": "chk_msg_att_v2_mime_non_empty",
+          "type": "CHECK",
+          "def": "CHECK ((length(mime_type) \u003e 0))",
+          "table": "public.message_attachments_v2",
+          "referenced_table": "",
+          "columns": [
+            "mime_type"
+          ]
+        },
+        {
+          "name": "chk_msg_att_v2_object_key_non_empty",
+          "type": "CHECK",
+          "def": "CHECK ((length(object_key) \u003e 0))",
+          "table": "public.message_attachments_v2",
+          "referenced_table": "",
+          "columns": [
+            "object_key"
+          ]
+        },
+        {
+          "name": "chk_msg_att_v2_object_key_prefix",
+          "type": "CHECK",
+          "def": "CHECK ((object_key ~~ 'v0/tenant/%'::text))",
+          "table": "public.message_attachments_v2",
+          "referenced_table": "",
+          "columns": [
+            "object_key"
+          ]
+        },
+        {
+          "name": "chk_msg_att_v2_retention_order",
+          "type": "CHECK",
+          "def": "CHECK (((retention_until IS NULL) OR (retention_until \u003e= created_at)))",
+          "table": "public.message_attachments_v2",
+          "referenced_table": "",
+          "columns": [
+            "retention_until",
+            "created_at"
+          ]
+        },
+        {
+          "name": "chk_msg_att_v2_sha256_format",
+          "type": "CHECK",
+          "def": "CHECK ((sha256 ~ '^[0-9A-Fa-f]{64}$'::text))",
+          "table": "public.message_attachments_v2",
+          "referenced_table": "",
+          "columns": [
+            "sha256"
+          ]
+        },
+        {
+          "name": "chk_msg_att_v2_size_non_negative",
+          "type": "CHECK",
+          "def": "CHECK ((size_bytes \u003e= 0))",
+          "table": "public.message_attachments_v2",
+          "referenced_table": "",
+          "columns": [
+            "size_bytes"
+          ]
+        },
+        {
+          "name": "message_attachments_v2_uploaded_by_fkey",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (uploaded_by) REFERENCES users(id) ON DELETE SET NULL",
+          "table": "public.message_attachments_v2",
+          "referenced_table": "users",
+          "columns": [
+            "uploaded_by"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "message_attachments_v2_channel_id_fkey",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (channel_id) REFERENCES channels(id) ON DELETE CASCADE",
+          "table": "public.message_attachments_v2",
+          "referenced_table": "channels",
+          "columns": [
+            "channel_id"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "message_attachments_v2_pkey",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (message_id, object_key)",
+          "table": "public.message_attachments_v2",
+          "referenced_table": "",
+          "columns": [
+            "message_id",
+            "object_key"
+          ]
+        }
+      ]
     }
   ],
   "relations": [
@@ -2048,62 +2757,6 @@
       "def": "FOREIGN KEY (channel_id) REFERENCES channels(id) ON DELETE CASCADE"
     },
     {
-      "table": "public.guild_roles",
-      "columns": [
-        "guild_id"
-      ],
-      "cardinality": "zero_or_more",
-      "parent_table": "public.guilds",
-      "parent_columns": [
-        "id"
-      ],
-      "parent_cardinality": "exactly_one",
-      "def": "FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE"
-    },
-    {
-      "table": "public.guild_member_roles",
-      "columns": [
-        "guild_id",
-        "user_id"
-      ],
-      "cardinality": "zero_or_one",
-      "parent_table": "public.guild_members",
-      "parent_columns": [
-        "guild_id",
-        "user_id"
-      ],
-      "parent_cardinality": "exactly_one",
-      "def": "FOREIGN KEY (guild_id, user_id) REFERENCES guild_members(guild_id, user_id) ON DELETE CASCADE"
-    },
-    {
-      "table": "public.guild_member_roles",
-      "columns": [
-        "guild_id",
-        "level"
-      ],
-      "cardinality": "zero_or_more",
-      "parent_table": "public.guild_roles",
-      "parent_columns": [
-        "guild_id",
-        "level"
-      ],
-      "parent_cardinality": "exactly_one",
-      "def": "FOREIGN KEY (guild_id, level) REFERENCES guild_roles(guild_id, level) ON DELETE RESTRICT"
-    },
-    {
-      "table": "public.channel_permission_overrides",
-      "columns": [
-        "channel_id"
-      ],
-      "cardinality": "zero_or_more",
-      "parent_table": "public.channels",
-      "parent_columns": [
-        "id"
-      ],
-      "parent_cardinality": "exactly_one",
-      "def": "FOREIGN KEY (channel_id) REFERENCES channels(id) ON DELETE CASCADE"
-    },
-    {
       "table": "public.channel_reads",
       "columns": [
         "user_id"
@@ -2264,6 +2917,177 @@
       ],
       "parent_cardinality": "exactly_one",
       "def": "FOREIGN KEY (guild_id, role_key) REFERENCES guild_roles_v2(guild_id, role_key) ON DELETE CASCADE"
+    },
+    {
+      "table": "public.channel_user_permission_overrides_v2",
+      "columns": [
+        "guild_id",
+        "user_id"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "public.guild_members",
+      "parent_columns": [
+        "guild_id",
+        "user_id"
+      ],
+      "parent_cardinality": "exactly_one",
+      "def": "FOREIGN KEY (guild_id, user_id) REFERENCES guild_members(guild_id, user_id) ON DELETE CASCADE"
+    },
+    {
+      "table": "public.channel_user_permission_overrides_v2",
+      "columns": [
+        "channel_id"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "public.channels",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "exactly_one",
+      "def": "FOREIGN KEY (channel_id) REFERENCES channels(id) ON DELETE CASCADE"
+    },
+    {
+      "table": "public.channel_hierarchies_v2",
+      "columns": [
+        "guild_id"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "public.guilds",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "exactly_one",
+      "def": "FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE"
+    },
+    {
+      "table": "public.channel_hierarchies_v2",
+      "columns": [
+        "child_channel_id"
+      ],
+      "cardinality": "zero_or_one",
+      "parent_table": "public.channels",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "exactly_one",
+      "def": "FOREIGN KEY (child_channel_id) REFERENCES channels(id) ON DELETE CASCADE"
+    },
+    {
+      "table": "public.channel_hierarchies_v2",
+      "columns": [
+        "parent_channel_id"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "public.channels",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "exactly_one",
+      "def": "FOREIGN KEY (parent_channel_id) REFERENCES channels(id) ON DELETE CASCADE"
+    },
+    {
+      "table": "public.message_references_v2",
+      "columns": [
+        "channel_id"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "public.channels",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "exactly_one",
+      "def": "FOREIGN KEY (channel_id) REFERENCES channels(id) ON DELETE CASCADE"
+    },
+    {
+      "table": "public.channel_pins_v2",
+      "columns": [
+        "pinned_by"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "public.users",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "zero_or_one",
+      "def": "FOREIGN KEY (pinned_by) REFERENCES users(id) ON DELETE SET NULL"
+    },
+    {
+      "table": "public.channel_pins_v2",
+      "columns": [
+        "unpinned_by"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "public.users",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "zero_or_one",
+      "def": "FOREIGN KEY (unpinned_by) REFERENCES users(id) ON DELETE SET NULL"
+    },
+    {
+      "table": "public.channel_pins_v2",
+      "columns": [
+        "channel_id"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "public.channels",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "exactly_one",
+      "def": "FOREIGN KEY (channel_id) REFERENCES channels(id) ON DELETE CASCADE"
+    },
+    {
+      "table": "public.message_reactions_v2",
+      "columns": [
+        "user_id"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "public.users",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "exactly_one",
+      "def": "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE"
+    },
+    {
+      "table": "public.message_reactions_v2",
+      "columns": [
+        "channel_id"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "public.channels",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "exactly_one",
+      "def": "FOREIGN KEY (channel_id) REFERENCES channels(id) ON DELETE CASCADE"
+    },
+    {
+      "table": "public.message_attachments_v2",
+      "columns": [
+        "uploaded_by"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "public.users",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "zero_or_one",
+      "def": "FOREIGN KEY (uploaded_by) REFERENCES users(id) ON DELETE SET NULL"
+    },
+    {
+      "table": "public.message_attachments_v2",
+      "columns": [
+        "channel_id"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "public.channels",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "exactly_one",
+      "def": "FOREIGN KEY (channel_id) REFERENCES channels(id) ON DELETE CASCADE"
     }
   ],
   "functions": [
@@ -2308,6 +3132,18 @@
       "return_type": "trigger",
       "arguments": "",
       "type": "FUNCTION"
+    },
+    {
+      "name": "public.enforce_channel_user_overrides_v2_scope",
+      "return_type": "trigger",
+      "arguments": "",
+      "type": "FUNCTION"
+    },
+    {
+      "name": "public.enforce_channel_hierarchies_v2_scope",
+      "return_type": "trigger",
+      "arguments": "",
+      "type": "FUNCTION"
     }
   ],
   "enums": [
@@ -2329,6 +3165,13 @@
       ]
     },
     {
+      "name": "public.channel_hierarchy_kind",
+      "values": [
+        "category_child",
+        "thread"
+      ]
+    },
+    {
       "name": "public.channel_type",
       "values": [
         "dm",
@@ -2342,19 +3185,11 @@
         "PENDING",
         "SENT"
       ]
-    },
-    {
-      "name": "public.role_level",
-      "values": [
-        "admin",
-        "member",
-        "owner"
-      ]
     }
   ],
   "driver": {
     "name": "postgres",
-    "database_version": "PostgreSQL 16.13 on aarch64-unknown-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit",
+    "database_version": "PostgreSQL 16.12 on aarch64-unknown-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit",
     "meta": {
       "current_schema": "public",
       "search_paths": [
