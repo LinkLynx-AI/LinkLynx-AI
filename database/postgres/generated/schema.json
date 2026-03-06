@@ -2358,6 +2358,219 @@
           ]
         }
       ]
+    },
+    {
+      "name": "public.message_attachments_v2",
+      "type": "BASE TABLE",
+      "columns": [
+        {
+          "name": "message_id",
+          "type": "bigint",
+          "nullable": false
+        },
+        {
+          "name": "channel_id",
+          "type": "bigint",
+          "nullable": false
+        },
+        {
+          "name": "object_key",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "mime_type",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "size_bytes",
+          "type": "bigint",
+          "nullable": false
+        },
+        {
+          "name": "sha256",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "uploaded_by",
+          "type": "bigint",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": false,
+          "default": "now()"
+        },
+        {
+          "name": "deleted_at",
+          "type": "timestamp with time zone",
+          "nullable": true
+        },
+        {
+          "name": "retention_until",
+          "type": "timestamp with time zone",
+          "nullable": true
+        }
+      ],
+      "indexes": [
+        {
+          "name": "message_attachments_v2_pkey",
+          "def": "CREATE UNIQUE INDEX message_attachments_v2_pkey ON public.message_attachments_v2 USING btree (message_id, object_key)",
+          "table": "public.message_attachments_v2",
+          "columns": [
+            "message_id",
+            "object_key"
+          ]
+        },
+        {
+          "name": "uq_msg_att_v2_object_key",
+          "def": "CREATE UNIQUE INDEX uq_msg_att_v2_object_key ON public.message_attachments_v2 USING btree (object_key)",
+          "table": "public.message_attachments_v2",
+          "columns": [
+            "object_key"
+          ]
+        },
+        {
+          "name": "idx_msg_att_v2_message_created",
+          "def": "CREATE INDEX idx_msg_att_v2_message_created ON public.message_attachments_v2 USING btree (message_id, created_at DESC, object_key)",
+          "table": "public.message_attachments_v2",
+          "columns": [
+            "message_id",
+            "created_at",
+            "object_key"
+          ]
+        },
+        {
+          "name": "idx_msg_att_v2_retention_active",
+          "def": "CREATE INDEX idx_msg_att_v2_retention_active ON public.message_attachments_v2 USING btree (retention_until) WHERE ((retention_until IS NOT NULL) AND (deleted_at IS NULL))",
+          "table": "public.message_attachments_v2",
+          "columns": [
+            "retention_until"
+          ]
+        },
+        {
+          "name": "idx_msg_att_v2_deleted_at",
+          "def": "CREATE INDEX idx_msg_att_v2_deleted_at ON public.message_attachments_v2 USING btree (deleted_at) WHERE (deleted_at IS NOT NULL)",
+          "table": "public.message_attachments_v2",
+          "columns": [
+            "deleted_at"
+          ]
+        }
+      ],
+      "constraints": [
+        {
+          "name": "chk_msg_att_v2_deleted_at_order",
+          "type": "CHECK",
+          "def": "CHECK (((deleted_at IS NULL) OR (deleted_at \u003e= created_at)))",
+          "table": "public.message_attachments_v2",
+          "referenced_table": "",
+          "columns": [
+            "deleted_at",
+            "created_at"
+          ]
+        },
+        {
+          "name": "chk_msg_att_v2_mime_non_empty",
+          "type": "CHECK",
+          "def": "CHECK ((length(mime_type) \u003e 0))",
+          "table": "public.message_attachments_v2",
+          "referenced_table": "",
+          "columns": [
+            "mime_type"
+          ]
+        },
+        {
+          "name": "chk_msg_att_v2_object_key_non_empty",
+          "type": "CHECK",
+          "def": "CHECK ((length(object_key) \u003e 0))",
+          "table": "public.message_attachments_v2",
+          "referenced_table": "",
+          "columns": [
+            "object_key"
+          ]
+        },
+        {
+          "name": "chk_msg_att_v2_object_key_prefix",
+          "type": "CHECK",
+          "def": "CHECK ((object_key ~~ 'v0/tenant/%'::text))",
+          "table": "public.message_attachments_v2",
+          "referenced_table": "",
+          "columns": [
+            "object_key"
+          ]
+        },
+        {
+          "name": "chk_msg_att_v2_retention_order",
+          "type": "CHECK",
+          "def": "CHECK (((retention_until IS NULL) OR (retention_until \u003e= created_at)))",
+          "table": "public.message_attachments_v2",
+          "referenced_table": "",
+          "columns": [
+            "retention_until",
+            "created_at"
+          ]
+        },
+        {
+          "name": "chk_msg_att_v2_sha256_format",
+          "type": "CHECK",
+          "def": "CHECK ((sha256 ~ '^[0-9A-Fa-f]{64}$'::text))",
+          "table": "public.message_attachments_v2",
+          "referenced_table": "",
+          "columns": [
+            "sha256"
+          ]
+        },
+        {
+          "name": "chk_msg_att_v2_size_non_negative",
+          "type": "CHECK",
+          "def": "CHECK ((size_bytes \u003e= 0))",
+          "table": "public.message_attachments_v2",
+          "referenced_table": "",
+          "columns": [
+            "size_bytes"
+          ]
+        },
+        {
+          "name": "message_attachments_v2_uploaded_by_fkey",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (uploaded_by) REFERENCES users(id) ON DELETE SET NULL",
+          "table": "public.message_attachments_v2",
+          "referenced_table": "users",
+          "columns": [
+            "uploaded_by"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "message_attachments_v2_channel_id_fkey",
+          "type": "FOREIGN KEY",
+          "def": "FOREIGN KEY (channel_id) REFERENCES channels(id) ON DELETE CASCADE",
+          "table": "public.message_attachments_v2",
+          "referenced_table": "channels",
+          "columns": [
+            "channel_id"
+          ],
+          "referenced_columns": [
+            "id"
+          ]
+        },
+        {
+          "name": "message_attachments_v2_pkey",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (message_id, object_key)",
+          "table": "public.message_attachments_v2",
+          "referenced_table": "",
+          "columns": [
+            "message_id",
+            "object_key"
+          ]
+        }
+      ]
     }
   ],
   "relations": [
@@ -2839,6 +3052,32 @@
     },
     {
       "table": "public.message_reactions_v2",
+      "columns": [
+        "channel_id"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "public.channels",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "exactly_one",
+      "def": "FOREIGN KEY (channel_id) REFERENCES channels(id) ON DELETE CASCADE"
+    },
+    {
+      "table": "public.message_attachments_v2",
+      "columns": [
+        "uploaded_by"
+      ],
+      "cardinality": "zero_or_more",
+      "parent_table": "public.users",
+      "parent_columns": [
+        "id"
+      ],
+      "parent_cardinality": "zero_or_one",
+      "def": "FOREIGN KEY (uploaded_by) REFERENCES users(id) ON DELETE SET NULL"
+    },
+    {
+      "table": "public.message_attachments_v2",
       "columns": [
         "channel_id"
       ],

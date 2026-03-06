@@ -33,6 +33,7 @@
 12. `0011_lin857_drop_legacy_permission_assets_post_cutover`
 13. `0012_lin635_message_reply_pin_persistence`
 14. `0013_lin636_message_reaction_persistence`
+15. `0014_lin637_attachment_metadata_persistence`
 
 ### 2.1 型（ENUM）
 
@@ -60,6 +61,7 @@
 - `message_references_v2`
 - `channel_pins_v2`
 - `message_reactions_v2`
+- `message_attachments_v2`
 - `channel_reads`
 - `channel_last_message`
 - `audit_logs`
@@ -81,6 +83,7 @@
 - `message_references_v2` は LIN-635 で導入された返信参照メタデータで、`message_id` 単位で `reply_to_message_id` を一意追跡する
 - `channel_pins_v2` は LIN-635 で導入されたピン留め状態メタデータで、`pinned_at/pinned_by` と `unpinned_at/unpinned_by` により監査可能な状態遷移を保持する
 - `message_reactions_v2` は LIN-636 で導入されたリアクションメタデータで、`(message_id, emoji, user_id)` 主キーにより重複リアクションを防止する
+- `message_attachments_v2` は LIN-637 で導入された添付メタデータで、GCS object key と保持/削除監査列（`deleted_at`, `retention_until`）を保持する
 - `channel_reads` は `(channel_id, user_id)` を主キーとして既読位置管理
 - `channel_last_message` はチャネル最新メッセージの参照を保持
 - `audit_logs` は監査イベント記録
@@ -119,6 +122,10 @@
 - `idx_ch_pins_v2_active`
 - `idx_ch_pins_v2_message`
 - `idx_msg_reactions_v2_msg_emoji_created`
+- `uq_msg_att_v2_object_key`
+- `idx_msg_att_v2_message_created`
+- `idx_msg_att_v2_retention_active`
+- `idx_msg_att_v2_deleted_at`
 - `idx_channel_user_overrides_v2_user`
 - `idx_channel_user_overrides_v2_guild_user`
 - `idx_channel_reads_user`
@@ -195,12 +202,18 @@ The source of truth for message reaction persistence, duplicate-prevention const
 
 - `database/contracts/lin636_message_reaction_persistence_contract.md`
 
-### 2.17 SpiceDB Namespace/Relation/Permission Model Contract (LIN-862)
+### 2.17 Attachment Metadata Persistence Contract (LIN-637)
+
+The source of truth for attachment metadata persistence, logical deletion/retention audit columns, and LIN-590 alignment policy is:
+
+- `database/contracts/lin637_attachment_metadata_persistence_contract.md`
+
+### 2.18 SpiceDB Namespace/Relation/Permission Model Contract (LIN-862)
 
 The source of truth for SpiceDB namespace/relation/permission design aligned with LIN-861 matrix and LIN-632/LIN-633 tuple mapping is:
 
 - `database/contracts/lin862_spicedb_namespace_relation_permission_contract.md`
-### 2.18 Postgres -> SpiceDB Tuple Mapping/Sync Contract (LIN-864)
+### 2.19 Postgres -> SpiceDB Tuple Mapping/Sync Contract (LIN-864)
 
 The source of truth for Postgres `*_v2` permission data to canonical SpiceDB tuple conversion, initial backfill contract, outbox delta-sync semantics, and full-resync operational hook is:
 
@@ -282,5 +295,7 @@ The source of truth for Scylla operations (SoR boundary, partition review criter
   - `database/contracts/lin635_message_reply_pin_persistence_contract.md`
 - LIN-636 message reaction persistence contract:
   - `database/contracts/lin636_message_reaction_persistence_contract.md`
+- LIN-637 attachment metadata persistence contract:
+  - `database/contracts/lin637_attachment_metadata_persistence_contract.md`
 - LIN-862 SpiceDB namespace/relation/permission model contract:
   - `database/contracts/lin862_spicedb_namespace_relation_permission_contract.md`
