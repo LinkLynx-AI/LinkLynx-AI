@@ -46,31 +46,25 @@
   - sandbox では既存 SpiceDB/AuthZ 系テストが `Operation not permitted` になるため、昇格実行で確認
 
 ## Review results
-- reviewer: unavailable in this turn
-  - manual pass
+- reviewer: pass
   - no blocking findings
-  - reviewer を依頼したが、この turn では出力を回収できなかったため変更差分を手動で再読して P1 以上の問題がないことを確認した
-- reviewer_ui_guard: true
-  - matched files: `typescript/src/features/settings/ui/server/server-overview.tsx`, `typescript/src/features/settings/ui/server/server-delete-modal.tsx`, `typescript/src/features/settings/ui/settings-layout.tsx`
-  - rationale: server settings UI と modal に直接変更が入っている
-- reviewer_ui: manual pass
+  - sub-agent の最終結果は `gate: pass` で、`consolidated_findings` は空だった
+  - specialist reviewer の自動分岐は session 制約で unavailable 扱いだったが、reviewer 自身の manual review でも blocking findings はなかった
+- reviewer_ui_guard: unreliable
+  - UI 差分があるにもかかわらず差分未検出の応答が返り、結果を採用しなかった
+- reviewer_ui: pass
   - no blocking findings
-  - local runtime UI は環境競合で完了できなかったため、UI 差分とテストを手動レビューした
+  - server settings UI、delete modal、cache cleanup、削除後遷移について blocking findings なし
+  - browser smoke は未実施
 
 ## Runtime smoke
 - `make dev`: failed
-  - `pnpm install` 中に `ERR_PNPM_ENOTEMPTY` が発生し、`typescript/node_modules/.pnpm/.../next/.../node_modules/next` の削除で停止した
-- `make rust-dev`: failed
-  - sandbox 実行では `Operation not permitted`、昇格実行では `Address already in use` で `:8080` bind に失敗した
-- local HTTP probe:
-  - `curl -i -sS http://127.0.0.1:8080/health` => 接続失敗
-  - `curl -i -sS http://127.0.0.1:8080/guilds` => 接続失敗
-  - `curl -i -sS http://127.0.0.1:3000/channels/me` => 接続失敗
+  - sandbox 実行では Docker daemon への接続権限不足で停止した
+  - 昇格実行では backend が `Address already in use` で `:8080` bind に失敗した
+  - 同じ run で frontend は `pnpm run dev` 内で `next: command not found` により停止した
 - environment assessment:
-  - `make dev` の失敗は実装差分ではなく worktree の既存 `node_modules` 状態に依存する
-  - backend も bind 制約と port 競合で local route-level smoke を完了できなかった
-  - dev server が起動しなかったため Playwright smoke は今回の worktree 差分に対して未実施
-  - current assessment: targeted tests、typecheck、`make rust-lint`、`make validate` は通過しているが、local runtime smoke は環境要因で incomplete
+  - 新規 dev boot は環境依存で完了できなかったため、Playwright を含む UI 実機 smoke は未実施
+  - current assessment: targeted tests、typecheck、`make rust-lint`、`make validate` は通過しており、fresh dev boot は環境要因で incomplete
 
 ## Known issues / follow-ups
-- local runtime smoke は worktree の `typescript/node_modules` 状態と `3000/8080` の bind 条件により完了していない。依存ディレクトリをクリーンにし、port 利用状態を整理してから再試行すると UI 実機確認まで進める。
+- local runtime smoke は frontend 実行環境と `:8080` の port 競合により fresh dev boot まで完了していない。環境を整理してから再試行すると UI 実機確認まで進める。
