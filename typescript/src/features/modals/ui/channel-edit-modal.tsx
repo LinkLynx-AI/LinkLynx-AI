@@ -33,7 +33,9 @@ export function ChannelEditModal({
         <Tabs tabs={tabs} activeTab={activeTab} onChange={setActiveTab} />
       </div>
       <ModalBody>
-        {activeTab === "overview" && <ChannelEditOverview channelId={channelId} />}
+        {activeTab === "overview" && (
+          <ChannelEditOverview channelId={channelId} onSaved={onClose} />
+        )}
         {activeTab === "permissions" && <ChannelEditPermissions channelId={channelId} />}
         {activeTab === "invites" && <ChannelEditInvites channelId={channelId} />}
         {activeTab === "integrations" && <ChannelEditIntegrations channelId={channelId} />}

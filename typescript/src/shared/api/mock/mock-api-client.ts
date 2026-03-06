@@ -3,19 +3,23 @@ import type {
   CreateModerationMuteData,
   CreateModerationReportData,
   CreateGuildData,
+  UpdateGuildData,
   CreateChannelData,
   CreateInviteData,
   Invite,
   ModerationMute,
   ModerationReport,
   ModerationReportStatus,
+  MyProfile,
   Role,
+  UpdateMyProfileInput,
   Webhook,
   AuditLogEntry,
   Relationship,
   SearchParams,
   SearchResult,
 } from "../api-client";
+import { createMyProfileValidationError, hasMyProfileUpdateFields } from "../my-profile-validation";
 import type {
   User,
   UserProfile,
@@ -96,11 +100,16 @@ export class MockAPIClient implements APIClient {
     return guild;
   }
 
-  async updateServer(serverId: string, data: Partial<Guild>): Promise<Guild> {
+  async updateServer(serverId: string, data: UpdateGuildData): Promise<Guild> {
     await this.simulateDelay();
     const idx = mockServers.findIndex((s) => s.id === serverId);
     if (idx === -1) throw new Error("Server not found");
-    mockServers[idx] = { ...mockServers[idx], ...data };
+    const current = mockServers[idx];
+    mockServers[idx] = {
+      ...current,
+      ...(data.name !== undefined ? { name: data.name } : {}),
+      ...(data.icon !== undefined ? { icon: data.icon } : {}),
+    };
     return mockServers[idx];
   }
 
@@ -291,6 +300,60 @@ export class MockAPIClient implements APIClient {
       };
     }
     return profile;
+  }
+
+  async getMyProfile(): Promise<MyProfile> {
+    await this.simulateDelay();
+    if (!mockCurrentUser.id) {
+      throw new Error("User not found");
+    }
+
+    const profile = mockUserProfiles[mockCurrentUser.id];
+    return {
+      displayName: profile?.displayName ?? mockCurrentUser.displayName,
+      statusText: profile?.bio ?? mockCurrentUser.customStatus,
+      avatarKey: null,
+    };
+  }
+
+  async updateMyProfile(input: UpdateMyProfileInput): Promise<MyProfile> {
+    await this.simulateDelay();
+    if (!hasMyProfileUpdateFields(input)) {
+      throw createMyProfileValidationError();
+    }
+
+    if (!mockCurrentUser.id) {
+      throw new Error("User not found");
+    }
+
+    const displayName =
+      input.displayName !== undefined ? input.displayName.trim() : mockCurrentUser.displayName;
+    const statusText =
+      input.statusText !== undefined
+        ? (input.statusText?.trim() ?? null)
+        : mockCurrentUser.customStatus;
+    mockCurrentUser.displayName = displayName;
+    mockCurrentUser.customStatus = statusText;
+
+    const existingProfile = mockUserProfiles[mockCurrentUser.id];
+    mockUserProfiles[mockCurrentUser.id] = {
+      ...(existingProfile ?? {
+        ...mockCurrentUser,
+        banner: null,
+        bio: null,
+        accentColor: null,
+        badges: [],
+        createdAt: "2022-01-01T00:00:00.000Z",
+      }),
+      displayName,
+      bio: statusText,
+    };
+
+    return {
+      displayName,
+      statusText,
+      avatarKey: null,
+    };
   }
 
   // Relationships

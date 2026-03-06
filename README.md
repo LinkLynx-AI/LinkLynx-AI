@@ -90,6 +90,7 @@ make dev
 | Rust (Axum) | http://localhost:8080 | メインAPI |
 | Python (FastAPI) | http://localhost:8000 | Pythonサービス |
 | Elixir | http://localhost:4000 | Elixirサービス |
+| SpiceDB (gRPC) | localhost:50051 | AuthZ実行基盤（local/CI） |
 
 ## Codex CLI で新規 worktree を開始
 
@@ -254,6 +255,9 @@ make up-build       # ビルドして起動
 make down           # 全サービスを停止
 make logs           # ログを表示
 make clean          # コンテナ・ボリュームを削除
+make authz-spicedb-up     # SpiceDB起動
+make authz-spicedb-health  # SpiceDBヘルス確認
+make authz-spicedb-down    # SpiceDB停止
 
 # TypeScript
 make ts-dev         # 開発サーバー起動

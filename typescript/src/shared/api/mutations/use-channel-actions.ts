@@ -35,9 +35,18 @@ export function useDeleteChannel() {
   const api = getAPIClient();
 
   return useMutation({
-    mutationFn: (channelId: string) => api.deleteChannel(channelId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["channels"] });
+    mutationFn: ({ channelId }: { serverId: string; channelId: string }) =>
+      api.deleteChannel(channelId),
+    onSuccess: (_, { serverId, channelId }) => {
+      queryClient.setQueryData<Channel[] | undefined>(["channels", serverId], (currentChannels) => {
+        if (currentChannels === undefined) {
+          return currentChannels;
+        }
+
+        return currentChannels.filter((channel) => channel.id !== channelId);
+      });
+      queryClient.removeQueries({ queryKey: ["channel", channelId], exact: true });
+      queryClient.invalidateQueries({ queryKey: ["channels", serverId] });
     },
   });
 }

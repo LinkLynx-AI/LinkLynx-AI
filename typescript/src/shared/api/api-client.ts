@@ -25,9 +25,26 @@ export type SearchResult = {
   totalResults: number;
 };
 
+export type MyProfile = {
+  displayName: string;
+  statusText: string | null;
+  avatarKey: string | null;
+};
+
+export type UpdateMyProfileInput = {
+  displayName?: string;
+  statusText?: string | null;
+  avatarKey?: string | null;
+};
+
 export type CreateGuildData = {
   name: string;
   icon?: string;
+};
+
+export type UpdateGuildData = {
+  name?: string;
+  icon?: string | null;
 };
 
 export type CreateChannelData = {
@@ -135,7 +152,7 @@ export type APIClient = {
   getServers(): Promise<Guild[]>;
   getServer(serverId: string): Promise<Guild>;
   createServer(data: CreateGuildData): Promise<Guild>;
-  updateServer(serverId: string, data: Partial<Guild>): Promise<Guild>;
+  updateServer(serverId: string, data: UpdateGuildData): Promise<Guild>;
   deleteServer(serverId: string): Promise<void>;
   leaveServer(serverId: string): Promise<void>;
 
@@ -168,6 +185,8 @@ export type APIClient = {
   // Users
   getUser(userId: string): Promise<User>;
   getUserProfile(userId: string): Promise<UserProfile>;
+  getMyProfile(): Promise<MyProfile>;
+  updateMyProfile(input: UpdateMyProfileInput): Promise<MyProfile>;
 
   // Relationships (Friends)
   getFriends(): Promise<Relationship[]>;

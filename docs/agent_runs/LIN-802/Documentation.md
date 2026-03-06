@@ -2,7 +2,8 @@
 
 ## Current status
 - Now: 実装完了。Rust/TSの主要品質ゲートを通過。
-- Next: PR作成時に `LIN-822/832/833` の受け入れ条件対応を説明へ反映する。
+- PR repair completed on 2026-03-06 by merging `origin/main`, resolving inherited conflicts, and re-running the full validation gate.
+- Next: `main` 向けPRのため human review 待ちに戻す。
 
 ## Decisions
 - `LIN-817` が Canceled のため、LIN-802内では fail-close 契約を保持した暫定先行実装とした。
@@ -21,7 +22,7 @@
 - Passed: `make rust-lint`
 - Passed: `cd typescript && npm run typecheck`
 - Passed: `cd typescript && npm run lint`
-- Failed: `make validate`（Python環境の PEP 668 制約で `py-format` が失敗）
+- Passed: `make validate`（2026-03-06 再実行）。
 
 ## Changed artifacts
 - Added migration:
@@ -41,5 +42,7 @@
   - `typescript/src/shared/api/mutations/use-moderation-actions.ts`
 
 ## Known issues / follow-ups
-- `make validate` はローカルPython管理制約で未完了。CIまたはvenv前提で再実行が必要。
 - `database/postgres/schema.sql` と `database/postgres/generated/*` の再生成は未実施（DB起動前提）。
+- PR repair action:
+  - merged `origin/main` into `codex/lin-802`
+  - resolved conflicts in `rust/apps/api/src/main/http_routes.rs`, `rust/apps/api/src/main/tests.rs`, `typescript/src/shared/api/guild-channel-api-client.ts`, `typescript/src/shared/api/mock/mock-api-client.ts`, `typescript/src/shared/api/no-data-api-client.ts`, `typescript/src/shared/config/routes.ts`, `typescript/src/shared/config/routes.test.ts`

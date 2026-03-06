@@ -7,7 +7,12 @@ vi.mock("@/shared/lib", () => ({
   getFirebaseAuth: getFirebaseAuthMock,
 }));
 
-import { GuildChannelAPIClient, GuildChannelApiError } from "./guild-channel-api-client";
+import {
+  GuildChannelAPIClient,
+  GuildChannelApiError,
+  toDeleteActionErrorText,
+  toUpdateActionErrorText,
+} from "./guild-channel-api-client";
 
 function setApiBaseUrl(url: string): void {
   process.env.NEXT_PUBLIC_API_URL = url;
@@ -301,6 +306,96 @@ describe("GuildChannelAPIClient", () => {
     expect(init.body).toBe(JSON.stringify({ name: "New Guild" }));
   });
 
+  test("updateServer sends patch request and maps updated guild response", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          guild: {
+            guild_id: 2001,
+            name: "Renamed Guild",
+            icon_key: "icons/new.png",
+            owner_id: 1001,
+          },
+        }),
+        { status: 200 },
+      ),
+    );
+
+    const client = new GuildChannelAPIClient();
+    const updated = await client.updateServer("2001", { name: "  Renamed Guild  " });
+
+    expect(updated).toEqual({
+      id: "2001",
+      name: "Renamed Guild",
+      icon: "icons/new.png",
+      banner: null,
+      ownerId: "1001",
+      memberCount: 0,
+      boostLevel: 0,
+      boostCount: 0,
+      features: [],
+      description: null,
+    });
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("http://localhost:8080/guilds/2001");
+    expect(init.method).toBe("PATCH");
+    expect(new Headers(init.headers).get("Authorization")).toBe("Bearer token-1");
+    expect(new Headers(init.headers).get("Content-Type")).toBe("application/json");
+    expect(init.body).toBe(JSON.stringify({ name: "Renamed Guild" }));
+  });
+
+  test("updateServer rejects too long name before network call", async () => {
+    const client = new GuildChannelAPIClient();
+    const tooLongName = "a".repeat(101);
+
+    await expect(client.updateServer("2001", { name: tooLongName })).rejects.toMatchObject({
+      code: "VALIDATION_ERROR",
+      status: 400,
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  test("deleteServer sends delete request and clears cached guild channels", async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            channels: [
+              {
+                channel_id: 3001,
+                guild_id: 2001,
+                name: "general",
+                created_at: "2026-03-03T00:00:00Z",
+              },
+            ],
+          }),
+          { status: 200 },
+        ),
+      )
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            channels: [],
+          }),
+          { status: 200 },
+        ),
+      );
+
+    const client = new GuildChannelAPIClient();
+    expect(await client.getChannels("2001")).toHaveLength(1);
+
+    await client.deleteServer("2001");
+    expect(await client.getChannels("2001")).toEqual([]);
+
+    const [url, init] = fetchMock.mock.calls[1] as [string, RequestInit];
+    expect(url).toBe("http://localhost:8080/guilds/2001");
+    expect(init.method).toBe("DELETE");
+    expect(new Headers(init.headers).get("Authorization")).toBe("Bearer token-1");
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
   test("createChannel maps created channel response and updates channel index", async () => {
     fetchMock.mockResolvedValue(
       new Response(
@@ -340,6 +435,207 @@ describe("GuildChannelAPIClient", () => {
     await expect(
       client.createChannel("2001", { name: "voice-room", type: 2 }),
     ).rejects.toMatchObject({
+      code: "VALIDATION_ERROR",
+      status: 400,
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  test("updateChannel sends patch request and updates cached channel", async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            channels: [
+              {
+                channel_id: 3001,
+                guild_id: 2001,
+                name: "general",
+                created_at: "2026-03-03T00:00:00Z",
+              },
+            ],
+          }),
+          { status: 200 },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            channel: {
+              channel_id: 3001,
+              guild_id: 2001,
+              name: "release-notes",
+              created_at: "2026-03-03T00:00:00Z",
+            },
+          }),
+          { status: 200 },
+        ),
+      );
+
+    const client = new GuildChannelAPIClient();
+    await client.getChannels("2001");
+    const updated = await client.updateChannel("3001", { name: "  release-notes  " });
+    const resolved = await client.getChannel("3001");
+
+    expect(updated.name).toBe("release-notes");
+    expect(resolved.name).toBe("release-notes");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const [url, init] = fetchMock.mock.calls[1] as [string, RequestInit];
+    expect(url).toBe("http://localhost:8080/channels/3001");
+    expect(init.method).toBe("PATCH");
+    expect(new Headers(init.headers).get("Authorization")).toBe("Bearer token-1");
+    expect(new Headers(init.headers).get("Content-Type")).toBe("application/json");
+    expect(init.body).toBe(JSON.stringify({ name: "release-notes" }));
+  });
+
+  test("updateChannel rejects blank names before sending request", async () => {
+    const client = new GuildChannelAPIClient();
+
+    await expect(client.updateChannel("3001", { name: "   " })).rejects.toMatchObject({
+      code: "VALIDATION_ERROR",
+      status: 400,
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  test("deleteChannel sends delete request and removes cached channel", async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            channels: [
+              {
+                channel_id: 3001,
+                guild_id: 2001,
+                name: "general",
+                created_at: "2026-03-03T00:00:00Z",
+              },
+              {
+                channel_id: 3002,
+                guild_id: 2001,
+                name: "random",
+                created_at: "2026-03-03T00:00:30Z",
+              },
+            ],
+          }),
+          { status: 200 },
+        ),
+      )
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+
+    const client = new GuildChannelAPIClient();
+    await client.getChannels("2001");
+    await client.deleteChannel("3001");
+    const channels = await client.getChannels("2001");
+
+    expect(channels.map((channel) => channel.id)).toEqual(["3002"]);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const [url, init] = fetchMock.mock.calls[1] as [string, RequestInit];
+    expect(url).toBe("http://localhost:8080/channels/3001");
+    expect(init.method).toBe("DELETE");
+    expect(new Headers(init.headers).get("Authorization")).toBe("Bearer token-1");
+  });
+
+  test("getMyProfile maps profile response", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          profile: {
+            display_name: "alice",
+            status_text: "busy coding",
+            avatar_key: "avatar/alice.png",
+          },
+        }),
+        { status: 200 },
+      ),
+    );
+
+    const client = new GuildChannelAPIClient();
+    const profile = await client.getMyProfile();
+
+    expect(profile).toEqual({
+      displayName: "alice",
+      statusText: "busy coding",
+      avatarKey: "avatar/alice.png",
+    });
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("http://localhost:8080/users/me/profile");
+    expect(init.method).toBe("GET");
+    expect(new Headers(init.headers).get("Authorization")).toBe("Bearer token-1");
+  });
+
+  test("updateMyProfile sends partial patch body", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          profile: {
+            display_name: "new-name",
+            status_text: null,
+            avatar_key: null,
+          },
+        }),
+        { status: 200 },
+      ),
+    );
+
+    const client = new GuildChannelAPIClient();
+    const profile = await client.updateMyProfile({
+      displayName: "new-name",
+      statusText: null,
+    });
+
+    expect(profile).toEqual({
+      displayName: "new-name",
+      statusText: null,
+      avatarKey: null,
+    });
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("http://localhost:8080/users/me/profile");
+    expect(init.method).toBe("PATCH");
+    expect(new Headers(init.headers).get("Authorization")).toBe("Bearer token-1");
+    expect(new Headers(init.headers).get("Content-Type")).toBe("application/json");
+    expect(init.body).toBe(JSON.stringify({ display_name: "new-name", status_text: null }));
+  });
+
+  test("updateMyProfile sends status-only patch body", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          profile: {
+            display_name: "old-name",
+            status_text: "focus mode",
+            avatar_key: null,
+          },
+        }),
+        { status: 200 },
+      ),
+    );
+
+    const client = new GuildChannelAPIClient();
+    const profile = await client.updateMyProfile({
+      statusText: "focus mode",
+    });
+
+    expect(profile).toEqual({
+      displayName: "old-name",
+      statusText: "focus mode",
+      avatarKey: null,
+    });
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("http://localhost:8080/users/me/profile");
+    expect(init.method).toBe("PATCH");
+    expect(new Headers(init.headers).get("Authorization")).toBe("Bearer token-1");
+    expect(new Headers(init.headers).get("Content-Type")).toBe("application/json");
+    expect(init.body).toBe(JSON.stringify({ status_text: "focus mode" }));
+  });
+
+  test("updateMyProfile rejects empty payload", async () => {
+    const client = new GuildChannelAPIClient();
+
+    await expect(client.updateMyProfile({})).rejects.toMatchObject({
       code: "VALIDATION_ERROR",
       status: 400,
     });
@@ -403,5 +699,38 @@ describe("GuildChannelAPIClient", () => {
     delete process.env.NEXT_PUBLIC_API_URL;
 
     expect(() => new GuildChannelAPIClient()).not.toThrow();
+  });
+
+  test("toUpdateActionErrorText maps backend channel-not-found code", () => {
+    const error = new GuildChannelApiError("channel not found", {
+      code: "CHANNEL_NOT_FOUND",
+      requestId: "req-channel-404",
+    });
+
+    expect(toUpdateActionErrorText(error, "更新に失敗しました。")).toBe(
+      "対象のチャンネルが見つかりません。 (request_id: req-channel-404)",
+    );
+  });
+
+  test("toDeleteActionErrorText maps backend authz code", () => {
+    const error = new GuildChannelApiError("denied", {
+      code: "AUTHZ_DENIED",
+      requestId: "req-delete-403",
+    });
+
+    expect(toDeleteActionErrorText(error, "削除に失敗しました。")).toBe(
+      "この操作を行う権限がありません。 (request_id: req-delete-403)",
+    );
+  });
+
+  test("toDeleteActionErrorText maps backend guild-not-found code", () => {
+    const error = new GuildChannelApiError("missing", {
+      code: "GUILD_NOT_FOUND",
+      requestId: "req-delete-404",
+    });
+
+    expect(toDeleteActionErrorText(error, "削除に失敗しました。")).toBe(
+      "対象のサーバーが見つかりません。 (request_id: req-delete-404)",
+    );
   });
 });

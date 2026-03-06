@@ -171,6 +171,16 @@ The source of truth for post-cutover removal of legacy permission tables/columns
 
 - `database/contracts/lin857_legacy_permission_assets_removal_contract.md`
 
+### 2.15 SpiceDB Namespace/Relation/Permission Model Contract (LIN-862)
+
+The source of truth for SpiceDB namespace/relation/permission design aligned with LIN-861 matrix and LIN-632/LIN-633 tuple mapping is:
+
+- `database/contracts/lin862_spicedb_namespace_relation_permission_contract.md`
+### 2.16 Postgres -> SpiceDB Tuple Mapping/Sync Contract (LIN-864)
+
+The source of truth for Postgres `*_v2` permission data to canonical SpiceDB tuple conversion, initial backfill contract, outbox delta-sync semantics, and full-resync operational hook is:
+
+- `database/contracts/lin864_postgres_spicedb_tuple_sync_contract.md`
 ## 3. ScyllaDB の現在状態
 
 基準: `database/scylla/001_lin139_messages.cql`
@@ -244,3 +254,5 @@ The source of truth for Scylla operations (SoR boundary, partition review criter
   - `database/contracts/lin634_channel_hierarchy_category_thread_contract.md`
 - LIN-857 legacy permission assets removal contract:
   - `database/contracts/lin857_legacy_permission_assets_removal_contract.md`
+- LIN-862 SpiceDB namespace/relation/permission model contract:
+  - `database/contracts/lin862_spicedb_namespace_relation_permission_contract.md`

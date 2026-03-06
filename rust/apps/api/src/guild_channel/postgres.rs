@@ -11,6 +11,63 @@ pub struct PostgresGuildChannelService {
 impl PostgresGuildChannelService {
     const DEFAULT_POOL_SIZE: usize = 4;
     const MAX_POOL_SIZE: usize = 100;
+    const CREATE_GUILD_SQL: &str = "WITH created_guild AS (
+                    INSERT INTO guilds (name, owner_id)
+                    VALUES ($1, $2)
+                    RETURNING id, name, icon_key, owner_id
+                 ),
+                 owner_member AS (
+                    INSERT INTO guild_members (guild_id, user_id)
+                    SELECT id, $2 FROM created_guild
+                    ON CONFLICT (guild_id, user_id) DO NOTHING
+                 ),
+                 role_seed AS (
+                    INSERT INTO guild_roles_v2 (
+                      guild_id,
+                      role_key,
+                      name,
+                      priority,
+                      allow_view,
+                      allow_post,
+                      allow_manage,
+                      is_system
+                    )
+                    SELECT
+                      id,
+                      role_key,
+                      role_name,
+                      priority,
+                      TRUE,
+                      TRUE,
+                      allow_manage,
+                      TRUE
+                    FROM created_guild
+                    CROSS JOIN (
+                      VALUES
+                        ('owner'::text, 'Owner'::text, 300::int, TRUE),
+                        ('admin'::text, 'Admin'::text, 200::int, TRUE),
+                        ('member'::text, 'Member'::text, 100::int, FALSE)
+                    ) AS roles(role_key, role_name, priority, allow_manage)
+                    ON CONFLICT (guild_id, role_key) DO UPDATE
+                    SET
+                      name = EXCLUDED.name,
+                      priority = EXCLUDED.priority,
+                      allow_view = EXCLUDED.allow_view,
+                      allow_post = EXCLUDED.allow_post,
+                      allow_manage = EXCLUDED.allow_manage,
+                      is_system = EXCLUDED.is_system
+                 ),
+                 owner_role AS (
+                    INSERT INTO guild_member_roles_v2 (guild_id, user_id, role_key)
+                    SELECT id, $2, 'owner'::text FROM created_guild
+                    ON CONFLICT (guild_id, user_id, role_key) DO NOTHING
+                 )
+                 SELECT
+                    id AS guild_id,
+                    name,
+                    icon_key,
+                    owner_id
+                 FROM created_guild";
     const CREATE_GUILD_CHANNEL_SQL: &str = "INSERT INTO channels (type, guild_id, name, created_by)
                  SELECT
                     'guild_text',
@@ -43,6 +100,144 @@ impl PostgresGuildChannelService {
                    ON c.guild_id = m.guild_id
                   AND c.type = 'guild_text'
                  ORDER BY c.created_at ASC NULLS LAST, c.id ASC NULLS LAST";
+    const UPDATE_GUILD_SQL: &str = "WITH target AS (
+                    SELECT id, owner_id
+                    FROM guilds
+                    WHERE id = $1
+                    FOR UPDATE
+                 ),
+                 actor AS (
+                    SELECT
+                      t.id AS guild_id,
+                      (t.owner_id = $2) AS is_owner,
+                      EXISTS (
+                        SELECT 1
+                        FROM guild_member_roles_v2 gmr
+                        JOIN guild_roles_v2 gr
+                          ON gr.guild_id = gmr.guild_id
+                         AND gr.role_key = gmr.role_key
+                        WHERE gmr.guild_id = t.id
+                          AND gmr.user_id = $2
+                          AND gr.allow_manage = TRUE
+                      ) AS can_manage
+                    FROM target t
+                 ),
+                 updated AS (
+                    UPDATE guilds g
+                    SET
+                      name = CASE WHEN $3::boolean THEN $4::text ELSE g.name END,
+                      icon_key = CASE WHEN $5::boolean THEN $6::text ELSE g.icon_key END,
+                      updated_at = now()
+                    FROM actor a
+                    WHERE g.id = a.guild_id
+                      AND (a.is_owner OR a.can_manage)
+                    RETURNING g.id, g.name, g.icon_key, g.owner_id
+                 )
+                 SELECT
+                    id AS guild_id,
+                    name,
+                    icon_key,
+                    owner_id
+                 FROM updated";
+    const DELETE_GUILD_SQL: &str = "WITH target AS (
+                    SELECT id, owner_id
+                    FROM guilds
+                    WHERE id = $1
+                    FOR UPDATE
+                 ),
+                 actor AS (
+                    SELECT
+                      t.id AS guild_id,
+                      (t.owner_id = $2) AS is_owner,
+                      EXISTS (
+                        SELECT 1
+                        FROM guild_member_roles_v2 gmr
+                        JOIN guild_roles_v2 gr
+                          ON gr.guild_id = gmr.guild_id
+                         AND gr.role_key = gmr.role_key
+                        WHERE gmr.guild_id = t.id
+                          AND gmr.user_id = $2
+                          AND gr.allow_manage = TRUE
+                      ) AS can_manage
+                    FROM target t
+                 ),
+                 deleted AS (
+                    DELETE FROM guilds g
+                    USING actor a
+                    WHERE g.id = a.guild_id
+                      AND (a.is_owner OR a.can_manage)
+                    RETURNING g.id AS guild_id
+                 )
+                 SELECT guild_id FROM deleted";
+    const UPDATE_GUILD_CHANNEL_SQL: &str = "WITH editable AS (
+                    SELECT
+                       c.id AS channel_id,
+                       c.guild_id
+                    FROM channels c
+                    WHERE c.id = $1
+                      AND c.type = 'guild_text'
+                      AND EXISTS (
+                        SELECT 1
+                        FROM guild_members gm
+                        WHERE gm.guild_id = c.guild_id
+                          AND gm.user_id = $2
+                        FOR KEY SHARE
+                      )
+                      AND EXISTS (
+                        SELECT 1
+                        FROM guild_member_roles_v2 gmr
+                        JOIN guild_roles_v2 gr
+                          ON gr.guild_id = gmr.guild_id
+                         AND gr.role_key = gmr.role_key
+                        WHERE gmr.guild_id = c.guild_id
+                          AND gmr.user_id = $2
+                          AND gmr.role_key IN ('owner', 'admin')
+                          AND gr.allow_manage = TRUE
+                      )
+                 )
+                 UPDATE channels c
+                 SET
+                    name = $3,
+                    updated_at = now()
+                 FROM editable e
+                 WHERE c.id = e.channel_id
+                   AND c.guild_id = e.guild_id
+                 RETURNING
+                    c.id AS channel_id,
+                    c.guild_id,
+                    c.name,
+                    to_char(c.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS created_at";
+    const DELETE_GUILD_CHANNEL_SQL: &str = "WITH deletable AS (
+                    SELECT
+                       c.id AS channel_id,
+                       c.guild_id
+                    FROM channels c
+                    WHERE c.id = $1
+                      AND c.type = 'guild_text'
+                      AND EXISTS (
+                        SELECT 1
+                        FROM guild_members gm
+                        WHERE gm.guild_id = c.guild_id
+                          AND gm.user_id = $2
+                        FOR KEY SHARE
+                      )
+                      AND EXISTS (
+                        SELECT 1
+                        FROM guild_member_roles_v2 gmr
+                        JOIN guild_roles_v2 gr
+                          ON gr.guild_id = gmr.guild_id
+                         AND gr.role_key = gmr.role_key
+                        WHERE gmr.guild_id = c.guild_id
+                          AND gmr.user_id = $2
+                          AND gmr.role_key IN ('owner', 'admin')
+                          AND gr.allow_manage = TRUE
+                      )
+                 )
+                 DELETE FROM channels c
+                 USING deletable d
+                 WHERE c.id = d.channel_id
+                   AND c.guild_id = d.guild_id
+                 RETURNING c.id AS channel_id";
 
     /// Postgresサービスを生成する。
     /// @param database_url 接続文字列
@@ -226,6 +421,129 @@ impl PostgresGuildChannelService {
         }
     }
 
+    /// channelの所属guild_idを取得する。
+    /// @param client Postgresクライアント
+    /// @param channel_id 対象channel_id
+    /// @returns channelが存在する場合は `Some(guild_id)`
+    /// @throws GuildChannelError 依存障害時
+    async fn find_channel_guild_id(
+        &self,
+        client: &tokio_postgres::Client,
+        channel_id: i64,
+    ) -> Result<Option<i64>, GuildChannelError> {
+        match client
+            .query_opt(
+                "SELECT guild_id
+                 FROM channels
+                 WHERE id = $1
+                   AND type = 'guild_text'
+                   AND guild_id IS NOT NULL",
+                &[&channel_id],
+            )
+            .await
+        {
+            Ok(Some(row)) => Ok(Some(row.get::<&str, i64>("guild_id"))),
+            Ok(None) => Ok(None),
+            Err(error) => Err(self.map_read_error("channel_lookup_failed", error).await),
+        }
+    }
+
+    /// guildメンバー所属を確認する。
+    /// @param client Postgresクライアント
+    /// @param guild_id 対象guild_id
+    /// @param user_id 対象user_id
+    /// @returns メンバー所属がある場合は `true`
+    /// @throws GuildChannelError 依存障害時
+    async fn has_guild_membership(
+        &self,
+        client: &tokio_postgres::Client,
+        guild_id: i64,
+        user_id: i64,
+    ) -> Result<bool, GuildChannelError> {
+        match client
+            .query_opt(
+                "SELECT 1
+                 FROM guild_members
+                 WHERE guild_id = $1
+                   AND user_id = $2",
+                &[&guild_id, &user_id],
+            )
+            .await
+        {
+            Ok(row) => Ok(row.is_some()),
+            Err(error) => Err(self.map_read_error("guild_membership_lookup_failed", error).await),
+        }
+    }
+
+    /// guildの管理権限を確認する。
+    /// @param client Postgresクライアント
+    /// @param guild_id 対象guild_id
+    /// @param user_id 対象user_id
+    /// @returns owner/admin管理権限を持つ場合は `true`
+    /// @throws GuildChannelError 依存障害時
+    async fn has_guild_manage_role(
+        &self,
+        client: &tokio_postgres::Client,
+        guild_id: i64,
+        user_id: i64,
+    ) -> Result<bool, GuildChannelError> {
+        match client
+            .query_opt(
+                "SELECT 1
+                 FROM guild_member_roles_v2 gmr
+                 JOIN guild_roles_v2 gr
+                   ON gr.guild_id = gmr.guild_id
+                  AND gr.role_key = gmr.role_key
+                 WHERE gmr.guild_id = $1
+                   AND gmr.user_id = $2
+                   AND gmr.role_key IN ('owner', 'admin')
+                   AND gr.allow_manage = TRUE",
+                &[&guild_id, &user_id],
+            )
+            .await
+        {
+            Ok(row) => Ok(row.is_some()),
+            Err(error) => Err(self.map_read_error("guild_manage_role_lookup_failed", error).await),
+        }
+    }
+
+    /// principalがguild管理権限を持つか確認する。
+    /// @param client Postgresクライアント
+    /// @param principal_id 認証済みprincipal_id
+    /// @param guild_id 対象guild_id
+    /// @returns 管理権限がある場合は `true`
+    /// @throws GuildChannelError 依存障害時
+    async fn has_manage_permission(
+        &self,
+        client: &tokio_postgres::Client,
+        principal_id: PrincipalId,
+        guild_id: i64,
+    ) -> Result<bool, GuildChannelError> {
+        match client
+            .query_opt(
+                "SELECT 1
+                 FROM guilds g
+                 WHERE g.id = $1
+                   AND g.owner_id = $2
+                 UNION ALL
+                 SELECT 1
+                 FROM guild_member_roles_v2 gmr
+                 JOIN guild_roles_v2 gr
+                   ON gr.guild_id = gmr.guild_id
+                  AND gr.role_key = gmr.role_key
+                 WHERE gmr.guild_id = $1
+                   AND gmr.user_id = $2
+                   AND gr.allow_manage = TRUE
+                 LIMIT 1",
+                &[&guild_id, &principal_id.0],
+            )
+            .await
+        {
+            Ok(row) => Ok(row.is_some()),
+            Err(error) => Err(self.map_read_error("guild_manage_permission_lookup_failed", error).await),
+        }
+    }
+
     /// 書き込み系DBエラーをAPIエラーへ変換する。
     /// @param context エラー文脈
     /// @param error Postgresエラー
@@ -304,44 +622,7 @@ impl GuildChannelService for PostgresGuildChannelService {
         let normalized_name = normalize_non_empty_name(&name, "guild_name_required")?;
         let client = self.select_client().await?;
         let created = match client
-            .query_one(
-                "WITH created_guild AS (
-                    INSERT INTO guilds (name, owner_id)
-                    VALUES ($1, $2)
-                    RETURNING id, name, icon_key, owner_id
-                 ),
-                 owner_member AS (
-                    INSERT INTO guild_members (guild_id, user_id)
-                    SELECT id, $2 FROM created_guild
-                    ON CONFLICT (guild_id, user_id) DO NOTHING
-                 ),
-                 role_seed AS (
-                    INSERT INTO guild_roles (guild_id, level, name)
-                    SELECT id, level, role_name
-                    FROM created_guild
-                    CROSS JOIN (
-                      VALUES
-                        ('owner'::role_level, 'Owner'::text),
-                        ('admin'::role_level, 'Admin'::text),
-                        ('member'::role_level, 'Member'::text)
-                    ) AS roles(level, role_name)
-                    ON CONFLICT (guild_id, level) DO UPDATE
-                    SET name = EXCLUDED.name
-                 ),
-                 owner_role AS (
-                    INSERT INTO guild_member_roles (guild_id, user_id, level)
-                    SELECT id, $2, 'owner'::role_level FROM created_guild
-                    ON CONFLICT (guild_id, user_id) DO UPDATE
-                    SET level = EXCLUDED.level
-                 )
-                 SELECT
-                    id AS guild_id,
-                    name,
-                    icon_key,
-                    owner_id
-                 FROM created_guild",
-                &[&normalized_name, &principal_id.0],
-            )
+            .query_one(Self::CREATE_GUILD_SQL, &[&normalized_name, &principal_id.0])
             .await
         {
             Ok(row) => row,
@@ -357,6 +638,118 @@ impl GuildChannelService for PostgresGuildChannelService {
             icon_key: created.get::<&str, Option<String>>("icon_key"),
             owner_id: created.get::<&str, i64>("owner_id"),
         })
+    }
+
+    /// guild設定を更新する。
+    /// @param principal_id 更新主体
+    /// @param guild_id 対象guild_id
+    /// @param patch 更新入力
+    /// @returns 更新後guild
+    /// @throws GuildChannelError 入力不正/非権限/未存在/依存障害時
+    async fn update_guild(
+        &self,
+        principal_id: PrincipalId,
+        guild_id: i64,
+        patch: GuildPatchInput,
+    ) -> Result<CreatedGuild, GuildChannelError> {
+        if patch.is_empty() {
+            return Err(GuildChannelError::validation("guild_patch_empty"));
+        }
+
+        let normalized_name = match patch.name {
+            Some(name) => Some(normalize_guild_name(&name)?),
+            None => None,
+        };
+        let normalized_icon_key = match patch.icon_key {
+            Some(icon_key) => Some(normalize_icon_key(icon_key)?),
+            None => None,
+        };
+
+        let set_name = normalized_name.is_some();
+        let name_value = normalized_name.as_deref();
+        let set_icon_key = normalized_icon_key.is_some();
+        let icon_key_value = normalized_icon_key.as_ref().and_then(|value| value.as_deref());
+
+        let client = self.select_client().await?;
+        let updated = match client
+            .query_opt(
+                Self::UPDATE_GUILD_SQL,
+                &[
+                    &guild_id,
+                    &principal_id.0,
+                    &set_name,
+                    &name_value,
+                    &set_icon_key,
+                    &icon_key_value,
+                ],
+            )
+            .await
+        {
+            Ok(Some(row)) => row,
+            Ok(None) => {
+                if !self.has_guild(&client, guild_id).await? {
+                    return Err(GuildChannelError::not_found("guild_not_found"));
+                }
+                if !self
+                    .has_manage_permission(&client, principal_id, guild_id)
+                    .await?
+                {
+                    return Err(GuildChannelError::forbidden("guild_manage_permission_required"));
+                }
+                return Err(GuildChannelError::dependency_unavailable(
+                    "guild_update_rejected_without_reason",
+                ));
+            }
+            Err(error) => {
+                self.invalidate_pool().await;
+                return Err(Self::map_write_error("guild_update_query_failed", error));
+            }
+        };
+
+        Ok(CreatedGuild {
+            guild_id: updated.get::<&str, i64>("guild_id"),
+            name: updated.get::<&str, String>("name"),
+            icon_key: updated.get::<&str, Option<String>>("icon_key"),
+            owner_id: updated.get::<&str, i64>("owner_id"),
+        })
+    }
+
+    /// guildを削除する。
+    /// @param principal_id 削除主体
+    /// @param guild_id 対象guild_id
+    /// @returns なし
+    /// @throws GuildChannelError 非権限/未存在/依存障害時
+    async fn delete_guild(
+        &self,
+        principal_id: PrincipalId,
+        guild_id: i64,
+    ) -> Result<(), GuildChannelError> {
+        let client = self.select_client().await?;
+
+        match client
+            .query_opt(Self::DELETE_GUILD_SQL, &[&guild_id, &principal_id.0])
+            .await
+        {
+            Ok(Some(_)) => Ok(()),
+            Ok(None) => {
+                if !self.has_guild(&client, guild_id).await? {
+                    return Err(GuildChannelError::not_found("guild_not_found"));
+                }
+                if !self
+                    .has_manage_permission(&client, principal_id, guild_id)
+                    .await?
+                {
+                    return Err(GuildChannelError::forbidden("guild_manage_permission_required"));
+                }
+                Err(GuildChannelError::dependency_unavailable(
+                    "guild_delete_rejected_without_reason",
+                ))
+            }
+            Err(error) => {
+                self.invalidate_pool().await;
+                Err(Self::map_write_error("guild_delete_query_failed", error))
+            }
+        }
     }
 
     /// guild配下のchannel一覧を返す。
@@ -444,5 +837,108 @@ impl GuildChannelService for PostgresGuildChannelService {
             name: row.get::<&str, String>("name"),
             created_at: row.get::<&str, String>("created_at"),
         })
+    }
+
+    /// channelを更新する。
+    /// @param principal_id 更新主体
+    /// @param channel_id 対象channel_id
+    /// @param patch 更新入力
+    /// @returns 更新結果
+    /// @throws GuildChannelError 入力不正/境界違反/未存在/依存障害時
+    async fn update_guild_channel(
+        &self,
+        principal_id: PrincipalId,
+        channel_id: i64,
+        patch: ChannelPatchInput,
+    ) -> Result<ChannelSummary, GuildChannelError> {
+        let normalized_name = normalize_channel_patch_input(patch)?;
+        let client = self.select_client().await?;
+
+        let row = match client
+            .query_opt(
+                Self::UPDATE_GUILD_CHANNEL_SQL,
+                &[&channel_id, &principal_id.0, &normalized_name],
+            )
+            .await
+        {
+            Ok(Some(row)) => row,
+            Ok(None) => {
+                let Some(guild_id) = self.find_channel_guild_id(&client, channel_id).await? else {
+                    return Err(GuildChannelError::channel_not_found("channel_not_found"));
+                };
+
+                if !self
+                    .has_guild_membership(&client, guild_id, principal_id.0)
+                    .await?
+                {
+                    return Err(GuildChannelError::forbidden("guild_membership_required"));
+                }
+
+                if !self
+                    .has_guild_manage_role(&client, guild_id, principal_id.0)
+                    .await?
+                {
+                    return Err(GuildChannelError::forbidden("channel_manage_permission_required"));
+                }
+
+                return Err(GuildChannelError::channel_not_found("channel_not_found"));
+            }
+            Err(error) => {
+                self.invalidate_pool().await;
+                return Err(Self::map_write_error("channel_update_query_failed", error));
+            }
+        };
+
+        Ok(ChannelSummary {
+            channel_id: row.get::<&str, i64>("channel_id"),
+            guild_id: row.get::<&str, i64>("guild_id"),
+            name: row.get::<&str, String>("name"),
+            created_at: row.get::<&str, String>("created_at"),
+        })
+    }
+
+    /// channelを削除する。
+    /// @param principal_id 削除主体
+    /// @param channel_id 対象channel_id
+    /// @returns なし
+    /// @throws GuildChannelError 境界違反/未存在/依存障害時
+    async fn delete_guild_channel(
+        &self,
+        principal_id: PrincipalId,
+        channel_id: i64,
+    ) -> Result<(), GuildChannelError> {
+        let client = self.select_client().await?;
+
+        match client
+            .query_opt(Self::DELETE_GUILD_CHANNEL_SQL, &[&channel_id, &principal_id.0])
+            .await
+        {
+            Ok(Some(_)) => Ok(()),
+            Ok(None) => {
+                let Some(guild_id) = self.find_channel_guild_id(&client, channel_id).await? else {
+                    return Err(GuildChannelError::channel_not_found("channel_not_found"));
+                };
+
+                if !self
+                    .has_guild_membership(&client, guild_id, principal_id.0)
+                    .await?
+                {
+                    return Err(GuildChannelError::forbidden("guild_membership_required"));
+                }
+
+                if !self
+                    .has_guild_manage_role(&client, guild_id, principal_id.0)
+                    .await?
+                {
+                    return Err(GuildChannelError::forbidden("channel_manage_permission_required"));
+                }
+
+                Err(GuildChannelError::channel_not_found("channel_not_found"))
+            }
+            Err(error) => {
+                self.invalidate_pool().await;
+                Err(Self::map_write_error("channel_delete_query_failed", error))
+            }
+        }
     }
 }

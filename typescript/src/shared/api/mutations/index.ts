@@ -6,7 +6,12 @@ export {
   useRemoveFriend,
   useBlockUser,
 } from "./use-friend-actions";
-export { useCreateServer, useDeleteServer, useLeaveServer } from "./use-server-actions";
+export {
+  useCreateServer,
+  useDeleteServer,
+  useLeaveServer,
+  useUpdateServer,
+} from "./use-server-actions";
 export { useCreateChannel, useDeleteChannel } from "./use-channel-actions";
 export {
   usePinMessage,
@@ -30,3 +35,4 @@ export {
 export { useCreateRole, useUpdateRole, useDeleteRole, useReorderRoles } from "./use-role-actions";
 export { useCreateInvite, useRevokeInvite } from "./use-invite-actions";
 export { useUpdateChannel } from "./use-channel-update";
+export { useUpdateMyProfile } from "./use-my-profile";

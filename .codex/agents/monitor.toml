@@ -1,4 +1,4 @@
-model = "gpt-5.3-codex-spark"
+model = "gpt-5.4"
 model_reasoning_effort = "medium"
 developer_instructions = """
 Run the validation commands requested. Summarize failures and likely causes.
