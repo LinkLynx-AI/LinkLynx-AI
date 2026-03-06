@@ -28,9 +28,7 @@ describe("parseFrontendEnv", () => {
       NEXT_PUBLIC_FIREBASE_API_KEY: undefined,
     };
 
-    expect(() => parseFrontendEnv(missingEnv)).toThrow(
-      "NEXT_PUBLIC_FIREBASE_API_KEY",
-    );
+    expect(() => parseFrontendEnv(missingEnv)).toThrow("NEXT_PUBLIC_FIREBASE_API_KEY");
   });
 
   it("throws when NEXT_PUBLIC_API_URL is invalid", () => {

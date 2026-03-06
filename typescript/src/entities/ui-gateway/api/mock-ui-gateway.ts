@@ -1,4 +1,4 @@
-import { APP_ROUTES, buildChannelRoute } from "@/shared/config";
+import { APP_ROUTES } from "@/shared/config";
 import type {
   AuthRouteContent,
   AuthRouteKind,
@@ -14,99 +14,41 @@ import type {
 const AUTH_ROUTE_CONTENT: Record<AuthRouteKind, AuthRouteContent> = {
   login: {
     title: "ログイン",
-    description: "未実装の認証処理を想定した導線プレビューです。",
+    description: "認証フローのログイン画面です。",
     links: [
       { label: "新規登録へ", href: APP_ROUTES.register },
       { label: "メール確認へ", href: APP_ROUTES.verifyEmail },
       { label: "パスワード再設定へ", href: APP_ROUTES.passwordReset },
-      { label: "ログイン後の遷移先 (@me)", href: APP_ROUTES.channels.me },
     ],
     footerLink: { label: "ホームへ戻る", href: APP_ROUTES.home },
   },
   register: {
     title: "新規登録",
-    description: "登録フォームのUI先行レビュー用ページです。",
-    links: [
-      { label: "ログインへ", href: APP_ROUTES.login },
-      { label: "メール確認へ", href: APP_ROUTES.verifyEmail },
-      { label: "ホームへ", href: APP_ROUTES.home },
-    ],
+    description: "認証フローの新規登録画面です。",
+    links: [{ label: "ログインへ", href: APP_ROUTES.login }],
     footerLink: { label: "ホームへ戻る", href: APP_ROUTES.home },
   },
   "verify-email": {
     title: "メール確認",
-    description: "確認メール送信後の状態を想定した画面プレビューです。",
-    links: [
-      { label: "ログインへ", href: APP_ROUTES.login },
-      { label: "パスワード再設定へ", href: APP_ROUTES.passwordReset },
-      { label: "認証後の遷移先 (@me)", href: APP_ROUTES.channels.me },
-    ],
+    description: "認証フローのメール確認画面です。",
+    links: [{ label: "ログインへ", href: APP_ROUTES.login }],
     footerLink: { label: "ホームへ戻る", href: APP_ROUTES.home },
   },
   "password-reset": {
     title: "パスワード再設定",
-    description: "パスワード再設定フローの表示確認用プレビューです。",
-    links: [
-      { label: "ログインへ戻る", href: APP_ROUTES.login },
-      { label: "新規登録へ", href: APP_ROUTES.register },
-      { label: "メール確認へ", href: APP_ROUTES.verifyEmail },
-    ],
+    description: "認証フローのパスワード再設定画面です。",
+    links: [{ label: "ログインへ", href: APP_ROUTES.login }],
     footerLink: { label: "ホームへ戻る", href: APP_ROUTES.home },
   },
 };
 
 const CHANNEL_SHELL_NAVIGATION: ChannelShellNavigation = {
   sectionLabel: "Channels",
-  serverRailItems: [
-    { id: "home", label: "Home", href: APP_ROUTES.channels.me, selected: true },
-    {
-      id: "srv-1",
-      label: "AB",
-      href: buildChannelRoute("guild-1", "channel-general"),
-      selected: false,
-    },
-    {
-      id: "srv-2",
-      label: "CD",
-      href: buildChannelRoute("guild-2", "channel-general"),
-      selected: false,
-    },
-    {
-      id: "srv-3",
-      label: "EF",
-      href: buildChannelRoute("guild-3", "channel-general"),
-      selected: false,
-    },
-  ],
+  serverRailItems: [{ id: "home", label: "Home", href: APP_ROUTES.channels.me, selected: true }],
   channelItems: [
-    { id: "me", label: "@me", href: APP_ROUTES.channels.me, kind: "dm", selected: false },
-    {
-      id: "general",
-      label: "general",
-      href: buildChannelRoute("guild-1", "channel-general"),
-      kind: "text",
-      selected: true,
-    },
-    {
-      id: "random",
-      label: "random",
-      href: buildChannelRoute("guild-1", "channel-random"),
-      kind: "text",
-      selected: false,
-    },
-    {
-      id: "settings",
-      label: "設定へ",
-      href: APP_ROUTES.settings.profile,
-      kind: "settings",
-      selected: false,
-    },
+    { id: "me", label: "@me", href: APP_ROUTES.channels.me, kind: "dm", selected: true },
   ],
-  memberItems: [
-    { id: "alice", name: "Alice" },
-    { id: "bob", name: "Bob" },
-    { id: "carol", name: "Carol" },
-  ],
+  memberItems: [],
 };
 
 const SETTINGS_SHELL_NAVIGATION: SettingsShellNavigation = {
@@ -114,7 +56,6 @@ const SETTINGS_SHELL_NAVIGATION: SettingsShellNavigation = {
   items: [
     { id: "profile", label: "プロフィール", href: APP_ROUTES.settings.profile, selected: true },
     { id: "appearance", label: "外観", href: APP_ROUTES.settings.appearance, selected: false },
-    { id: "back", label: "チャンネルへ戻る", href: APP_ROUTES.channels.me, selected: false },
   ],
   closeLink: { label: "閉じる", href: APP_ROUTES.channels.me },
   closeHint: "ESC",
@@ -123,52 +64,43 @@ const SETTINGS_SHELL_NAVIGATION: SettingsShellNavigation = {
 const CHANNELS_ME_CONTENT: MessagePreviewContent = {
   title: "@me ダッシュボード",
   description:
-    "保護ルートの表示プレビューです。`?state=loading|empty|error|readonly|disabled` または `?guard=unauthenticated|forbidden|not-found` を付与して状態を確認できます。",
+    "保護ルートの表示プレビューです。`?state=loading|empty|error|readonly|disabled` または `?guard=unauthenticated|forbidden|not-found|service-unavailable` を付与して状態を確認できます。",
   quickActions: [
     { label: "loading", href: `${APP_ROUTES.channels.me}?state=loading` },
     { label: "unauthenticated", href: `${APP_ROUTES.channels.me}?guard=unauthenticated` },
+    {
+      label: "service-unavailable",
+      href: `${APP_ROUTES.channels.me}?guard=service-unavailable`,
+    },
   ],
 };
 
 const PROFILE_SETTINGS_CONTENT: MessagePreviewContent = {
   title: "プロフィール設定",
-  description: "設定App Shellのプレビューです。`state` クエリで共通プレースホルダを確認できます。",
-  quickActions: [
-    { label: "readonly", href: `${APP_ROUTES.settings.profile}?state=readonly` },
-    { label: "forbidden", href: `${APP_ROUTES.settings.profile}?guard=forbidden` },
-  ],
+  description: "プロフィール関連の設定画面です。",
+  quickActions: [],
 };
 
 const APPEARANCE_SETTINGS_CONTENT: MessagePreviewContent = {
   title: "外観設定",
-  description: "テーマ切替導線のプレビューです。`state=disabled` などの共通状態を確認できます。",
-  quickActions: [
-    { label: "disabled", href: `${APP_ROUTES.settings.appearance}?state=disabled` },
-    { label: "error", href: `${APP_ROUTES.settings.appearance}?state=error` },
-  ],
+  description: "外観関連の設定画面です。",
+  quickActions: [],
 };
 
 const MODERATION_PERMISSION_CONTENT: PermissionPreviewContent = {
-  title: "権限表示プレビュー",
-  description: "role別の閲覧/投稿可否を表形式で確認するためのモックデータです。",
-  rows: [
-    { id: "admin", roleName: "Admin", canRead: true, canPost: true },
-    { id: "mod", roleName: "Moderator", canRead: true, canPost: true },
-    { id: "member", roleName: "Member", canRead: true, canPost: false },
-  ],
+  title: "権限表示",
+  description: "現在は権限プレビュー用データがありません。",
+  rows: [],
 };
 
 const MODERATION_QUEUE_CONTENT: ModerationQueueContent = {
   title: "通報キュー",
-  description: "最小モデレーションUI向けの queue/list/detail プレビュー用モックです。",
-  reports: [
-    { id: "r-001", title: "スパム投稿", status: "open", reporter: "Alice" },
-    { id: "r-002", title: "荒らし行為", status: "investigating", reporter: "Bob" },
-  ],
+  description: "現在は通報キュー用データがありません。",
+  reports: [],
 };
 
 /**
- * UI Skeleton 用のモックGatewayを生成する。
+ * UI Skeleton 用Gatewayを生成する。
  */
 export function createMockUiGateway(): UiGateway {
   return {
@@ -189,7 +121,7 @@ export function createMockUiGateway(): UiGateway {
 
         return Promise.resolve({
           title: "招待コードを確認",
-          description: `招待コード ${normalizedCode} の表示プレビューです。`,
+          description: `招待コード ${normalizedCode} を確認しています。`,
           primaryAction: { label: "ログインして参加", href: APP_ROUTES.login },
           secondaryAction: { label: "ホームへ戻る", href: APP_ROUTES.home },
         });
@@ -201,13 +133,9 @@ export function createMockUiGateway(): UiGateway {
       },
       getChannelContent(input) {
         return Promise.resolve({
-          title: `#${input.channelId} (${input.guildId})`,
-          description:
-            "チャンネル詳細ルートのプレビューです。状態切替は `state` / `guard` クエリで確認できます。",
-          quickActions: [
-            { label: "empty", href: `${APP_ROUTES.channels.me}?state=empty` },
-            { label: "not-found", href: `${APP_ROUTES.channels.me}?guard=not-found` },
-          ],
+          title: `#${input.channelId}`,
+          description: `${input.guildId} のチャンネル情報です。`,
+          quickActions: [],
         });
       },
       getProfileSettingsContent() {
