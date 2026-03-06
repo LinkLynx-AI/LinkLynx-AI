@@ -123,7 +123,7 @@ export function SettingsLayout({
     if (type === "server") {
       switch (activePage) {
         case "overview":
-          return <ServerOverview serverId={serverId ?? ""} />;
+          return <ServerOverview serverId={serverId ?? ""} onDeleted={onClose} />;
         case "roles":
           return <ServerRoles serverId={serverId ?? ""} />;
         case "emoji":

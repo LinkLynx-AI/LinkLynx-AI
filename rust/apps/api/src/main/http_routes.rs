@@ -18,7 +18,7 @@ fn app_with_state(state: AppState) -> Router {
             post(authz_cache_invalidate_handler),
         )
         .route("/guilds", get(list_guilds).post(create_guild))
-        .route("/guilds/{guild_id}", patch(patch_guild))
+        .route("/guilds/{guild_id}", patch(patch_guild).delete(delete_guild))
         .route(
             "/guilds/{guild_id}/channels",
             get(list_guild_channels).post(create_guild_channel),
@@ -942,6 +942,73 @@ async fn patch_guild(
     }
 }
 
+/// guildを削除する。
+/// @param state アプリケーション状態
+/// @param auth_context 認証文脈
+/// @param params パスパラメータ
+/// @returns 削除成功時は 204 No Content
+/// @throws なし
+async fn delete_guild(
+    State(state): State<AppState>,
+    Extension(auth_context): Extension<AuthContext>,
+    Path(params): Path<GuildPathParams>,
+) -> Response {
+    let request_id = auth_context.request_id.clone();
+    let guild_id = match parse_guild_id(&params.guild_id) {
+        Ok(value) => value,
+        Err(error) => return guild_channel_error_response(&error, request_id),
+    };
+
+    match state
+        .guild_channel_service
+        .delete_guild(auth_context.principal_id, guild_id)
+        .await
+    {
+        Ok(()) => {
+            tracing::info!(
+                decision = "allow",
+                request_id = %request_id,
+                principal_id = auth_context.principal_id.0,
+                guild_id = guild_id,
+                error_class = "none",
+                action = "manage",
+                resource = "guild",
+                decision_source = "guild_service",
+                "guild delete accepted"
+            );
+            StatusCode::NO_CONTENT.into_response()
+        }
+        Err(error) => {
+            let (decision, error_class) = match error.kind {
+                guild_channel::GuildChannelErrorKind::Validation => {
+                    ("deny", "validation_invalid_input")
+                }
+                guild_channel::GuildChannelErrorKind::Forbidden => ("deny", "authz_denied"),
+                guild_channel::GuildChannelErrorKind::NotFound => ("deny", "resource_not_found"),
+                guild_channel::GuildChannelErrorKind::ChannelNotFound => {
+                    ("deny", "resource_not_found")
+                }
+                guild_channel::GuildChannelErrorKind::DependencyUnavailable => {
+                    ("unavailable", "dependency_unavailable")
+                }
+            };
+            tracing::warn!(
+                decision = decision,
+                request_id = %request_id,
+                principal_id = auth_context.principal_id.0,
+                guild_id = guild_id,
+                error_class = error_class,
+                reason = %error.reason,
+                action = "manage",
+                resource = "guild",
+                decision_source = "guild_service",
+                "guild delete rejected"
+            );
+            guild_channel_error_response(&error, request_id)
+        }
+    }
+}
+
 /// guild配下のchannel一覧を返す。
 /// @param state アプリケーション状態
 /// @param auth_context 認証文脈
@@ -1261,13 +1328,11 @@ fn parse_guild_path(path: &str) -> Option<i64> {
         .trim_matches('/')
         .split('/')
         .collect::<Vec<_>>();
-    if segments.len() != 3 {
-        return None;
+    match segments.as_slice() {
+        ["guilds", guild_id] => guild_id.parse::<i64>().ok(),
+        ["v1", "guilds", guild_id] => guild_id.parse::<i64>().ok(),
+        _ => None,
     }
-    if segments[0] != "v1" || segments[1] != "guilds" {
-        return None;
-    }
-    segments[2].parse::<i64>().ok()
 }
 
 /// ギルドチャンネルパスから guild_id/channel_id を抽出する。

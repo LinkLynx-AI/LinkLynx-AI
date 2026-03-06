@@ -209,6 +209,21 @@ mod tests {
             Ok(guild)
         }
 
+        async fn delete_guild(
+            &self,
+            principal_id: PrincipalId,
+            guild_id: i64,
+        ) -> Result<(), GuildChannelError> {
+            if guild_id != 2001 {
+                return Err(GuildChannelError::not_found("guild_not_found"));
+            }
+            if principal_id.0 != 1001 {
+                return Err(GuildChannelError::forbidden("guild_manage_permission_required"));
+            }
+
+            Ok(())
+        }
+
         async fn list_guild_channels(
             &self,
             principal_id: PrincipalId,
@@ -1221,6 +1236,127 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn delete_guild_returns_no_content_for_authorized_principal() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("DELETE")
+                    .uri("/guilds/2001")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::NO_CONTENT);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        assert!(body.is_empty());
+    }
+
+    #[tokio::test]
+    async fn delete_guild_returns_forbidden_for_non_manager() {
+        let app = app_for_test().await;
+        let token = format!("u-unknown:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("DELETE")
+                    .uri("/guilds/2001")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("x-request-id", "guild-delete-forbidden-test")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "AUTHZ_DENIED");
+        assert_eq!(json["request_id"], "guild-delete-forbidden-test");
+    }
+
+    #[tokio::test]
+    async fn delete_guild_returns_not_found_for_unknown_guild() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("DELETE")
+                    .uri("/guilds/9999")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "GUILD_NOT_FOUND");
+    }
+
+    #[tokio::test]
+    async fn delete_guild_rejects_non_numeric_guild_id() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("DELETE")
+                    .uri("/guilds/abc")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "VALIDATION_ERROR");
+    }
+
+    #[tokio::test]
+    async fn delete_guild_rejects_non_positive_guild_id() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("DELETE")
+                    .uri("/guilds/0")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "VALIDATION_ERROR");
+    }
+
+    #[tokio::test]
     async fn create_guild_channel_returns_created_for_member() {
         let app = app_for_test().await;
         let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
@@ -2012,6 +2148,11 @@ mod tests {
         match rest_authz_resource_from_path("/v1/moderation/guilds/10/members/9003") {
             AuthzResource::Guild { guild_id } => assert_eq!(guild_id, 10),
             _ => panic!("moderation path should map to guild resource"),
+        }
+
+        match rest_authz_resource_from_path("/guilds/10") {
+            AuthzResource::Guild { guild_id } => assert_eq!(guild_id, 10),
+            _ => panic!("non-v1 guild path should map to guild resource"),
         }
     }
 
