@@ -1,17 +1,8 @@
+import { findFirstTextChannel } from "@/features/channel-navigation";
 import type { Channel } from "@/shared/model/types/channel";
 
 export type ServerPageDisplayState = "loading" | "error" | "redirect-or-idle" | "empty";
-
-/**
- * チャンネル一覧から最初のテキストチャンネルを選択する。
- */
-export function findFirstTextChannel(channels: Channel[]): Channel | null {
-  const firstTextChannel = channels
-    .filter((channel) => channel.type === 0)
-    .sort((left, right) => left.position - right.position || left.id.localeCompare(right.id))[0];
-
-  return firstTextChannel ?? null;
-}
+export { findFirstTextChannel };
 
 /**
  * サーバーページの表示状態を決定する。

@@ -6,6 +6,7 @@ import { CreateServerModal } from "./create-server-modal";
 import { JoinServerModal } from "./join-server-modal";
 import { CreateChannelModal } from "./create-channel-modal";
 import { CreateInviteModal } from "./create-invite-modal";
+import { ChannelDeleteModal } from "./channel-delete-modal";
 import { DeleteConfirmModal } from "./delete-confirm-modal";
 import { ImageLightboxModal } from "./image-lightbox-modal";
 import { QuickSwitcherModal } from "./quick-switcher-modal";
@@ -75,6 +76,15 @@ export function ModalManager() {
           description={modalProps.description as string | undefined}
           confirmLabel={modalProps.confirmLabel as string | undefined}
           onConfirm={modalProps.onConfirm as (() => void) | undefined}
+        />
+      );
+    case "channel-delete":
+      return (
+        <ChannelDeleteModal
+          onClose={closeModal}
+          channelId={modalProps.channelId as string | undefined}
+          channelName={modalProps.channelName as string | undefined}
+          serverId={modalProps.serverId as string | undefined}
         />
       );
     case "image-lightbox":

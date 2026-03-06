@@ -230,6 +230,33 @@ export function toUpdateActionErrorText(error: unknown, fallbackMessage: string)
   return attachRequestId(fallbackMessage, error.requestId);
 }
 
+/**
+ * 削除系API失敗をユーザー向けメッセージへ変換する。
+ */
+export function toDeleteActionErrorText(error: unknown, fallbackMessage: string): string {
+  if (!(error instanceof GuildChannelApiError)) {
+    return toApiErrorText(error, fallbackMessage);
+  }
+
+  if (error.code === "AUTHZ_DENIED") {
+    return attachRequestId(UPDATE_ERROR_MESSAGES.authzDenied, error.requestId);
+  }
+  if (error.code === "AUTHZ_UNAVAILABLE") {
+    return attachRequestId(UPDATE_ERROR_MESSAGES.authzUnavailable, error.requestId);
+  }
+  if (error.code === "CHANNEL_NOT_FOUND") {
+    return attachRequestId(UPDATE_ERROR_MESSAGES.channelNotFound, error.requestId);
+  }
+  if (error.code === "unauthenticated" || error.code === "token-unavailable") {
+    return attachRequestId(UPDATE_ERROR_MESSAGES.authRequired, error.requestId);
+  }
+  if (error.code === "network-request-failed") {
+    return attachRequestId(UPDATE_ERROR_MESSAGES.network, error.requestId);
+  }
+
+  return attachRequestId(fallbackMessage, error.requestId);
+}
+
 function resolveApiBaseUrl(): string {
   const rawUrl = process.env.NEXT_PUBLIC_API_URL;
   if (typeof rawUrl !== "string" || rawUrl.trim().length === 0) {
@@ -498,6 +525,29 @@ export class GuildChannelAPIClient extends NoDataAPIClient {
       expectedStatus: 200,
     });
   }
+
+  private async deleteNoContent(path: string): Promise<void> {
+    const fetchResult = await authenticatedRequest(this.buildUrl(path), {
+      method: "DELETE",
+      headers: new Headers(),
+    });
+    if (!fetchResult.ok) {
+      throw new GuildChannelApiError(fetchResult.error.message, {
+        code: fetchResult.error.code,
+      });
+    }
+
+    const { response } = fetchResult;
+    if (!response.ok) {
+      throw await this.parseErrorResponse(response);
+    }
+    if (response.status !== 204) {
+      throw new GuildChannelApiError(`Request failed with status ${response.status}.`, {
+        status: response.status,
+        code: "UNEXPECTED_RESPONSE",
+      });
+    }
+  }
   private buildUpdatedChannel(
     summary: ChannelSummaryResponse,
     current: Channel | undefined,
@@ -536,6 +586,30 @@ export class GuildChannelAPIClient extends NoDataAPIClient {
     nextChannels[index] = channel;
     this.channelCacheByGuild.set(guildId, nextChannels);
   }
+
+  private removeChannelFromGuildCache(channelId: string, guildId: string | undefined): void {
+    this.channelIndex.delete(channelId);
+
+    if (guildId !== undefined) {
+      const cachedChannels = this.channelCacheByGuild.get(guildId);
+      if (cachedChannels !== undefined) {
+        this.channelCacheByGuild.set(
+          guildId,
+          cachedChannels.filter((channel) => channel.id !== channelId),
+        );
+      }
+      return;
+    }
+
+    for (const [cachedGuildId, cachedChannels] of this.channelCacheByGuild.entries()) {
+      const nextChannels = cachedChannels.filter((channel) => channel.id !== channelId);
+      if (nextChannels.length !== cachedChannels.length) {
+        this.channelCacheByGuild.set(cachedGuildId, nextChannels);
+        return;
+      }
+    }
+  }
+
   private async fetchGuilds(options: { resetChannelCache: boolean }): Promise<Guild[]> {
     const response = await this.getJson("/guilds", GUILD_LIST_RESPONSE_SCHEMA);
     const guilds = response.guilds.map(mapGuild);
@@ -869,6 +943,20 @@ export class GuildChannelAPIClient extends NoDataAPIClient {
     this.upsertChannelInGuildCache(updatedChannel);
 
     return updatedChannel;
+  }
+
+  async deleteChannel(channelId: string): Promise<void> {
+    const normalizedChannelId = channelId.trim();
+    if (normalizedChannelId.length === 0) {
+      throw new GuildChannelApiError(UPDATE_ERROR_MESSAGES.channelNotFound, {
+        status: 404,
+        code: "CHANNEL_NOT_FOUND",
+      });
+    }
+
+    const indexedChannel = this.channelIndex.get(normalizedChannelId);
+    await this.deleteNoContent(`/channels/${encodeURIComponent(normalizedChannelId)}`);
+    this.removeChannelFromGuildCache(normalizedChannelId, indexedChannel?.guildId);
   }
 }
 

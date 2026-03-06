@@ -6,6 +6,7 @@ import { useUpdateChannel } from "@/shared/api/mutations/use-channel-update";
 import { useChannel } from "@/shared/api/queries/use-channels";
 import { Button } from "@/shared/ui/button";
 import { Input } from "@/shared/ui/input";
+import { ChannelDeleteModal } from "./channel-delete-modal";
 
 const CHANNEL_NAME_MAX_CHARS = 100;
 
@@ -19,6 +20,7 @@ export function ChannelEditOverview({
   const { data: channel, isLoading } = useChannel(channelId ?? "");
   const updateChannel = useUpdateChannel();
   const [name, setName] = useState("");
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -90,6 +92,32 @@ export function ChannelEditOverview({
           {updateChannel.isPending ? "保存中..." : "変更を保存"}
         </Button>
       </div>
+      <section className="rounded-md border border-discord-btn-danger/30 bg-discord-btn-danger/10 p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h3 className="text-sm font-medium text-discord-text-normal">チャンネルを削除</h3>
+            <p className="mt-1 text-xs text-discord-text-muted">
+              削除すると一覧から消え、元に戻せません。
+            </p>
+          </div>
+          <Button
+            variant="danger"
+            disabled={channelId === undefined || channel?.guildId === undefined}
+            onClick={() => setDeleteModalOpen(true)}
+          >
+            チャンネルを削除
+          </Button>
+        </div>
+      </section>
+      {deleteModalOpen && (
+        <ChannelDeleteModal
+          channelId={channelId}
+          channelName={channel?.name ?? name}
+          onClose={() => setDeleteModalOpen(false)}
+          onDeleted={onSaved}
+          serverId={channel?.guildId}
+        />
+      )}
     </div>
   );
 }
