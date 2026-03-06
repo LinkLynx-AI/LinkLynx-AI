@@ -87,6 +87,17 @@ pub trait GuildChannelService: Send + Sync {
         patch: GuildPatchInput,
     ) -> Result<CreatedGuild, GuildChannelError>;
 
+    /// guildを削除する。
+    /// @param principal_id 削除主体
+    /// @param guild_id 対象guild_id
+    /// @returns なし
+    /// @throws GuildChannelError 非権限/未存在/依存障害時
+    async fn delete_guild(
+        &self,
+        principal_id: PrincipalId,
+        guild_id: i64,
+    ) -> Result<(), GuildChannelError>;
+
     /// guild配下のchannel一覧を返す。
     /// @param principal_id 認証済みprincipal_id
     /// @param guild_id 対象guild_id
@@ -200,6 +211,19 @@ impl GuildChannelService for UnavailableGuildChannelService {
         _guild_id: i64,
         _patch: GuildPatchInput,
     ) -> Result<CreatedGuild, GuildChannelError> {
+        Err(self.unavailable_error())
+    }
+
+    /// guildを削除する。
+    /// @param _principal_id 削除主体
+    /// @param _guild_id 対象guild_id
+    /// @returns なし
+    /// @throws GuildChannelError 常に依存障害
+    async fn delete_guild(
+        &self,
+        _principal_id: PrincipalId,
+        _guild_id: i64,
+    ) -> Result<(), GuildChannelError> {
         Err(self.unavailable_error())
     }
 

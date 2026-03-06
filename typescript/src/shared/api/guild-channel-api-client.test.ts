@@ -356,6 +356,46 @@ describe("GuildChannelAPIClient", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  test("deleteServer sends delete request and clears cached guild channels", async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            channels: [
+              {
+                channel_id: 3001,
+                guild_id: 2001,
+                name: "general",
+                created_at: "2026-03-03T00:00:00Z",
+              },
+            ],
+          }),
+          { status: 200 },
+        ),
+      )
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            channels: [],
+          }),
+          { status: 200 },
+        ),
+      );
+
+    const client = new GuildChannelAPIClient();
+    expect(await client.getChannels("2001")).toHaveLength(1);
+
+    await client.deleteServer("2001");
+    expect(await client.getChannels("2001")).toEqual([]);
+
+    const [url, init] = fetchMock.mock.calls[1] as [string, RequestInit];
+    expect(url).toBe("http://localhost:8080/guilds/2001");
+    expect(init.method).toBe("DELETE");
+    expect(new Headers(init.headers).get("Authorization")).toBe("Bearer token-1");
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
   test("createChannel maps created channel response and updates channel index", async () => {
     fetchMock.mockResolvedValue(
       new Response(
@@ -680,6 +720,17 @@ describe("GuildChannelAPIClient", () => {
 
     expect(toDeleteActionErrorText(error, "削除に失敗しました。")).toBe(
       "この操作を行う権限がありません。 (request_id: req-delete-403)",
+    );
+  });
+
+  test("toDeleteActionErrorText maps backend guild-not-found code", () => {
+    const error = new GuildChannelApiError("missing", {
+      code: "GUILD_NOT_FOUND",
+      requestId: "req-delete-404",
+    });
+
+    expect(toDeleteActionErrorText(error, "削除に失敗しました。")).toBe(
+      "対象のサーバーが見つかりません。 (request_id: req-delete-404)",
     );
   });
 });
