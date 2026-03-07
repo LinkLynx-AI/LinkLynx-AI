@@ -705,7 +705,7 @@ export class MockAPIClient implements APIClient {
       guild: {
         canView: true,
         canCreateChannel: server.ownerId === mockCurrentUser.id,
-        canCreateInvite: true,
+        canCreateInvite: server.ownerId === mockCurrentUser.id,
         canManageSettings: server.ownerId === mockCurrentUser.id,
         canModerate: server.ownerId === mockCurrentUser.id,
       },
