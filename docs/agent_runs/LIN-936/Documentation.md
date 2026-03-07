@@ -1,8 +1,8 @@
 # Documentation.md (Status / audit log)
 
 ## Current status
-- Now: Scylla runtime / health / bootstrap foundation の実装と検証は完了
-- Next: review gate の回収結果を最終整理する
+- Now: Scylla runtime / health / bootstrap foundation の実装・検証・PR 作成まで完了
+- Next: `main` 向け human review を待つ
 
 ## Decisions
 - Schema apply は起動時自動適用ではなく明示 bootstrap command に分離する。
@@ -35,6 +35,13 @@
 - `reviewer`: fallback
   - `reviewer` / `reviewer_simple` を複数回実行したが、repo 探索フェーズでタイムアウトしたため結果を取得できなかった。
   - fallback として main rollout 側で diff review と `git diff --check` を実施し、blocking finding は確認されなかった。
+
+## Delivery
+- Branch: `codex/lin-936`
+- Commit: `8e9f731` (`LIN-936 Scyllaヘルス基盤を追加`)
+- PR: `https://github.com/LinkLynx-AI/LinkLynx-AI/pull/1134`
+- Base branch: `main`
+- Merge policy: `main` 向けのため auto-merge は使わず human approval 待ちで停止
 
 ## How to run / demo
 - `make db-up`
