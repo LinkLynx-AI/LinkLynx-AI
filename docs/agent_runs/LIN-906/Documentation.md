@@ -1,8 +1,8 @@
 # LIN-906 Documentation Log
 
 ## Current status
-- Now: 実装・検証・runtime smoke・manual review fallback まで完了
-- Next: commit / PR を作成する
+- Now: 実装・検証・runtime smoke・manual review fallback・PR 作成まで完了
+- Next: `main` 向け human review を待つ
 
 ## Decisions
 - `verify-email` は既存の再送・手動更新・自動確認ロジックを引き継ぐ。
@@ -78,3 +78,8 @@
 ## Known issues / follow-ups
 - `3000` と `8080` が既存ローカルプロセスに使用されており、`make dev` の full-stack smoke は完全分離で再現できていない
 - `LIN-907` で実 inbox / 実ブラウザを含む auth smoke をまとめて実施する
+
+## PR / merge policy
+- PR: `https://github.com/LinkLynx-AI/LinkLynx-AI/pull/1128`
+- base branch: `main`
+- merge policy: `main` 向けのため auto-merge は使わず、人手レビュー待ちで停止
