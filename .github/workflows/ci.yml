@@ -101,13 +101,15 @@ jobs:
         run: docker compose up -d postgres
       - name: Wait for Postgres
         run: |
+          set -euo pipefail
           for i in {1..30}; do
-            if docker compose exec -T postgres pg_isready -U postgres -d linklynx >/dev/null 2>&1; then
+            if docker compose exec -T postgres pg_isready -U postgres -d linklynx >/dev/null 2>&1 \
+              && docker compose exec -T postgres psql -v ON_ERROR_STOP=1 -U postgres -d linklynx -c "select 1" >/dev/null 2>&1; then
               exit 0
             fi
             sleep 1
           done
-          echo "Postgres did not become ready in time" >&2
+          echo "Postgres did not become query-ready in time" >&2
           docker compose logs postgres >&2
           exit 1
       - name: Apply migrations from SQL files

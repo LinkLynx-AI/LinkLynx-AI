@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { UiGateway, UiGatewayProvider } from "../model";
+import { createApiUiGateway } from "./api-ui-gateway";
 import { createMockUiGateway } from "./mock-ui-gateway";
 
 type CreateUiGatewayOptions = {
@@ -36,6 +37,5 @@ export function createUiGateway(options: CreateUiGatewayOptions = {}): UiGateway
     return createMockUiGateway();
   }
 
-  // API adapter 未実装のため、provider=api 指定でも no-data gateway を返す。
-  return createMockUiGateway();
+  return createApiUiGateway();
 }

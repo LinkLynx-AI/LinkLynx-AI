@@ -1,6 +1,7 @@
 mod auth;
 mod authz;
 mod guild_channel;
+mod invite;
 mod moderation;
 mod profile;
 mod ratelimit;
@@ -42,6 +43,7 @@ use guild_channel::{
     build_runtime_guild_channel_service, guild_channel_error_response, GuildChannelError,
     GuildChannelService,
 };
+use invite::{build_runtime_invite_service, invite_error_response, InviteService};
 use moderation::{
     build_runtime_moderation_service, moderation_error_response, ModerationError, ModerationService,
 };
@@ -50,7 +52,8 @@ use profile::{
     ProfileService,
 };
 use ratelimit::{
-    build_runtime_rest_rate_limit_service, rest_rate_limit_action_for_request, RestRateLimitService,
+    build_runtime_rest_rate_limit_service, rest_rate_limit_action_for_request, RestRateLimitAction,
+    RestRateLimitService,
 };
 use serde::{Deserialize, Serialize};
 use tower_http::cors::{Any, CorsLayer};
@@ -62,6 +65,7 @@ pub(crate) struct AppState {
     authorizer: Arc<dyn Authorizer>,
     authz_metrics: Arc<AuthzMetrics>,
     guild_channel_service: Arc<dyn GuildChannelService>,
+    invite_service: Arc<dyn InviteService>,
     moderation_service: Arc<dyn ModerationService>,
     profile_service: Arc<dyn ProfileService>,
     ws_reauth_grace: Duration,
@@ -119,6 +123,7 @@ fn build_runtime_state() -> AppState {
     let authorizer = build_runtime_authorizer();
     let authz_metrics = Arc::new(AuthzMetrics::default());
     let guild_channel_service = build_runtime_guild_channel_service();
+    let invite_service = build_runtime_invite_service();
     let moderation_service = build_runtime_moderation_service();
     let profile_service = build_runtime_profile_service();
     let ws_reauth_grace = Duration::from_secs(
@@ -140,6 +145,7 @@ fn build_runtime_state() -> AppState {
         authorizer,
         authz_metrics,
         guild_channel_service,
+        invite_service,
         moderation_service,
         profile_service,
         ws_reauth_grace,

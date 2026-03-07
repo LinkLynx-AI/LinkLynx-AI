@@ -120,8 +120,14 @@ export function createMockUiGateway(): UiGateway {
         const normalizedCode = code.trim();
 
         return Promise.resolve({
+          status: "valid",
           title: "招待コードを確認",
           description: `招待コード ${normalizedCode} を確認しています。`,
+          inviteCode: normalizedCode,
+          guildName: "LinkLynx Developers",
+          expiresAt: "2026-03-21T00:00:00Z",
+          uses: 2,
+          maxUses: 100,
           primaryAction: { label: "ログインして参加", href: APP_ROUTES.login },
           secondaryAction: { label: "ホームへ戻る", href: APP_ROUTES.home },
         });

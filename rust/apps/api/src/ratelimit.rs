@@ -562,6 +562,21 @@ impl RestRateLimitService {
         principal_id: PrincipalId,
         action: RestRateLimitAction,
     ) -> RateLimitDecision {
+        let rate_limit_key = format!("principal:{}:{}", principal_id.0, action.label());
+        self.evaluate_key(rate_limit_key, action).await
+    }
+
+    /// 任意キーと action に対するレート制限判定を返す。
+    /// @param rate_limit_key 対象キー
+    /// @param action 対象アクション
+    /// @returns 判定結果
+    /// @throws なし
+    pub async fn evaluate_key(
+        &self,
+        rate_limit_key: impl Into<String>,
+        action: RestRateLimitAction,
+    ) -> RateLimitDecision {
+        let rate_limit_key = rate_limit_key.into();
         self.metrics.record_request(action);
         let dragonfly = self.dragonfly_monitor.snapshot().await;
 
@@ -577,7 +592,6 @@ impl RestRateLimitService {
             );
         }
 
-        let rate_limit_key = format!("principal:{}:{}", principal_id.0, action.label());
         let decision = limiter_for_action(self, action)
             .check_and_record_with_retry_after(&rate_limit_key)
             .await;
@@ -623,7 +637,7 @@ pub fn rest_rate_limit_action_for_request(
     method: &Method,
     path: &str,
 ) -> Option<RestRateLimitAction> {
-    if *method == Method::GET && is_guild_invite_path(path) {
+    if *method == Method::GET && is_invite_access_path(path) {
         return Some(RestRateLimitAction::InviteAccess);
     }
     if *method == Method::PATCH && is_moderation_path(path) {
@@ -664,12 +678,13 @@ fn is_dm_message_create_path(path: &str) -> bool {
 /// @param path リクエストパス
 /// @returns 対象時 `true`
 /// @throws なし
-fn is_guild_invite_path(path: &str) -> bool {
+fn is_invite_access_path(path: &str) -> bool {
     let segments = path.trim_matches('/').split('/').collect::<Vec<_>>();
-    segments.len() == 5
+    (segments.len() == 5
         && segments[0] == "v1"
         && segments[1] == "guilds"
-        && segments[3] == "invites"
+        && segments[3] == "invites")
+        || (segments.len() == 3 && segments[0] == "v1" && segments[1] == "invites")
 }
 
 /// moderation パスかを判定する。
@@ -837,6 +852,10 @@ mod tests {
     fn rest_rate_limit_action_maps_supported_paths() {
         assert_eq!(
             rest_rate_limit_action_for_request(&Method::GET, "/v1/guilds/10/invites/invite-abc"),
+            Some(RestRateLimitAction::InviteAccess)
+        );
+        assert_eq!(
+            rest_rate_limit_action_for_request(&Method::GET, "/v1/invites/invite-abc"),
             Some(RestRateLimitAction::InviteAccess)
         );
         assert_eq!(
