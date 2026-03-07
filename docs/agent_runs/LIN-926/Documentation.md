@@ -47,6 +47,7 @@
 - PR: https://github.com/LinkLynx-AI/LinkLynx-AI/pull/1139
 - Base branch: `main`
 - Linear: `LIN-926` -> `In Review`
+- PR CI: `SpiceDB Runtime Foundation` / `DB Schema Check` / `TypeScript Validate` / `Rust Validate` / `AuthZ SpiceDB Regression` / `Python Validate` がすべて success
 
 ## Known issues / follow-ups
 - invite 作成 API/client の整備は別 issue で扱う。
