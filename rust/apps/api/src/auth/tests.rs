@@ -500,15 +500,6 @@ mod tests {
         assert!(error.contains("invalid origin"));
     }
 
-    #[test]
-    fn default_ws_origin_allowlist_includes_local_dev_fallback_ports() {
-        let parsed = parse_ws_origin_allowlist(DEFAULT_WS_ALLOWED_ORIGINS).unwrap();
-        assert!(parsed.contains("http://localhost:3000"));
-        assert!(parsed.contains("http://127.0.0.1:3000"));
-        assert!(parsed.contains("http://localhost:3001"));
-        assert!(parsed.contains("http://127.0.0.1:3001"));
-    }
-
     #[tokio::test]
     async fn runtime_principal_store_fail_closes_without_database_url() {
         let _lock = env_lock().lock().await;

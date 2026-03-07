@@ -3,7 +3,7 @@ mod tests {
     use super::*;
     use crate::ratelimit::RestRateLimitConfig;
     use async_trait::async_trait;
-    use std::{collections::HashSet, env, sync::OnceLock};
+    use std::collections::HashSet;
     use auth::{
         CachingPrincipalResolver, InMemoryPrincipalCache, InMemoryPrincipalStore,
         PrincipalProvisioner, PrincipalResolver, PrincipalStore, TokenVerifier, TokenVerifyError,
@@ -62,42 +62,6 @@ mod tests {
     struct RoleScenarioAuthorizer;
 
     type TestWsStream = WebSocketStream<MaybeTlsStream<TcpStream>>;
-
-    fn env_lock() -> &'static tokio::sync::Mutex<()> {
-        static ENV_LOCK: OnceLock<tokio::sync::Mutex<()>> = OnceLock::new();
-        ENV_LOCK.get_or_init(|| tokio::sync::Mutex::new(()))
-    }
-
-    struct ScopedEnv {
-        backups: Vec<(String, Option<String>)>,
-    }
-
-    impl ScopedEnv {
-        fn new() -> Self {
-            Self {
-                backups: Vec::new(),
-            }
-        }
-
-        fn set(&mut self, name: &str, value: &str) {
-            if !self.backups.iter().any(|(saved, _)| saved == name) {
-                self.backups.push((name.to_owned(), env::var(name).ok()));
-            }
-            env::set_var(name, value);
-        }
-    }
-
-    impl Drop for ScopedEnv {
-        fn drop(&mut self) {
-            for (name, value) in self.backups.iter().rev() {
-                if let Some(value) = value {
-                    env::set_var(name, value);
-                } else {
-                    env::remove_var(name);
-                }
-            }
-        }
-    }
 
     #[async_trait]
     impl TokenVerifier for StaticTokenVerifier {
@@ -871,18 +835,6 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(body.as_ref(), b"OK");
-    }
-
-    #[tokio::test]
-    async fn runtime_ws_origin_allowlist_invalid_env_falls_back_to_local_dev_defaults() {
-        let _lock = env_lock().lock().await;
-        let mut scoped = ScopedEnv::new();
-        scoped.set("WS_ALLOWED_ORIGINS", "invalid-origin");
-
-        let allowlist = build_runtime_ws_origin_allowlist();
-
-        assert!(allowlist.is_allowed(Some("http://localhost:3001")));
-        assert!(allowlist.is_allowed(Some("http://127.0.0.1:3001")));
     }
 
     #[tokio::test]

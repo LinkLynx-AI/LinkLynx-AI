@@ -81,7 +81,7 @@ Out of scope:
   - `AUTH_IDENTIFY_TIMEOUT_SECONDS` (default: `5`)
   - `WS_TICKET_RATE_LIMIT_MAX_PER_MINUTE` (default: `20`)
   - `WS_IDENTIFY_RATE_LIMIT_MAX_PER_MINUTE` (default: `60`)
-  - `WS_ALLOWED_ORIGINS` (default: `http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001`)
+  - `WS_ALLOWED_ORIGINS` (default: `http://localhost:3000,http://127.0.0.1:3000`)
 - Principal store retry behavior is configurable via:
   - `AUTH_PRINCIPAL_STORE_MAX_RETRIES` (default: `2`)
   - `AUTH_PRINCIPAL_STORE_RETRY_BASE_BACKOFF_MS` (default: `25`)

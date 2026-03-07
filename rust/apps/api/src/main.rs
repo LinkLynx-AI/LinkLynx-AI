@@ -6,6 +6,7 @@ mod profile;
 mod ratelimit;
 
 use std::{
+    collections::HashSet,
     env,
     net::SocketAddr,
     sync::Arc,
@@ -14,10 +15,10 @@ use std::{
 
 use auth::{
     auth_error_response, bearer_token_from_headers, build_runtime_auth_service,
-    default_ws_origin_allowlist, format_ticket_expiration, parse_ws_origin_allowlist,
-    request_id_from_headers, unix_timestamp_seconds, validate_runtime_auth_env, AuthContext,
-    AuthMetrics, AuthMetricsSnapshot, AuthService, AuthenticatedPrincipal,
-    FixedWindowRateLimiter, WsOriginAllowlist, WsTicketStore, DEFAULT_WS_ALLOWED_ORIGINS,
+    format_ticket_expiration, parse_ws_origin_allowlist, request_id_from_headers,
+    unix_timestamp_seconds, validate_runtime_auth_env, AuthContext, AuthMetrics,
+    AuthMetricsSnapshot, AuthService, AuthenticatedPrincipal, FixedWindowRateLimiter,
+    WsOriginAllowlist, WsTicketStore, DEFAULT_WS_ALLOWED_ORIGINS,
 };
 use authz::{
     authz_error_response, build_runtime_authorizer, Authorizer, AuthzAction,
@@ -189,7 +190,11 @@ fn build_runtime_ws_origin_allowlist() -> WsOriginAllowlist {
                 fallback = DEFAULT_WS_ALLOWED_ORIGINS,
                 "invalid WS origin allowlist value; fallback to defaults"
             );
-            default_ws_origin_allowlist()
+            let fallback = HashSet::from([
+                "http://localhost:3000".to_owned(),
+                "http://127.0.0.1:3000".to_owned(),
+            ]);
+            WsOriginAllowlist::new(fallback)
         }
     }
 }

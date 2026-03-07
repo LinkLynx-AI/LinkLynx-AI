@@ -1,8 +1,7 @@
 use sha2::{Digest, Sha256};
 use time::{format_description::well_known::Rfc3339, OffsetDateTime};
 
-pub const DEFAULT_WS_ALLOWED_ORIGINS: &str =
-    "http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001";
+pub const DEFAULT_WS_ALLOWED_ORIGINS: &str = "http://localhost:3000,http://127.0.0.1:3000";
 
 #[derive(Debug, Clone)]
 pub struct IssuedWsTicket {
@@ -250,16 +249,6 @@ pub fn parse_ws_origin_allowlist(value: &str) -> Result<HashSet<String>, String>
     }
 
     Ok(normalized)
-}
-
-/// local dev 用の既定WS Origin allowlistを返す。
-/// @param なし
-/// @returns 既定Origin allowlist
-/// @throws なし
-pub fn default_ws_origin_allowlist() -> WsOriginAllowlist {
-    let origins = parse_ws_origin_allowlist(DEFAULT_WS_ALLOWED_ORIGINS)
-        .expect("DEFAULT_WS_ALLOWED_ORIGINS must stay valid");
-    WsOriginAllowlist::new(origins)
 }
 
 /// チケット有効期限のRFC3339文字列を返す。
