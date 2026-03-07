@@ -3,12 +3,14 @@ import { DELETE, GET, POST } from "./route";
 
 const fetchMock = vi.hoisted(() => vi.fn());
 const STORAGE_BUCKET = "linklynx-ai.firebasestorage.app";
+const FIREBASE_APP_ID = "1:636427071040:web:e981ed46f7121f0ed0b9a5";
 
 describe("storage object route", () => {
   beforeEach(() => {
     fetchMock.mockReset();
     vi.stubGlobal("fetch", fetchMock);
     vi.stubEnv("NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET", STORAGE_BUCKET);
+    vi.stubEnv("NEXT_PUBLIC_FIREBASE_APP_ID", FIREBASE_APP_ID);
   });
 
   afterEach(() => {
@@ -47,6 +49,8 @@ describe("storage object route", () => {
     );
     expect(init.method).toBe("GET");
     expect((init.headers as Headers).get("Authorization")).toBe("Firebase token-1");
+    expect((init.headers as Headers).get("X-Firebase-Storage-Version")).toBe("webjs/AppManager");
+    expect((init.headers as Headers).get("X-Firebase-GMPID")).toBe(FIREBASE_APP_ID);
 
     await expect(response.json()).resolves.toEqual({
       url: "https://firebasestorage.googleapis.com/v0/b/linklynx-ai.firebasestorage.app/o/profiles%2Fu-1%2Favatar%2Favatar.png?alt=media&token=token-1",
@@ -95,6 +99,8 @@ describe("storage object route", () => {
     );
     expect(init.method).toBe("POST");
     expect((init.headers as Headers).get("Authorization")).toBe("Firebase token-2");
+    expect((init.headers as Headers).get("X-Firebase-Storage-Version")).toBe("webjs/AppManager");
+    expect((init.headers as Headers).get("X-Firebase-GMPID")).toBe(FIREBASE_APP_ID);
     expect((init.headers as Headers).get("X-Goog-Upload-Protocol")).toBe("multipart");
     expect((init.headers as Headers).get("Content-Type")).toContain("multipart/related; boundary=");
     expect(init.body).toBeInstanceOf(Blob);
@@ -123,6 +129,8 @@ describe("storage object route", () => {
     );
     expect(init.method).toBe("DELETE");
     expect((init.headers as Headers).get("Authorization")).toBe("Firebase token-3");
+    expect((init.headers as Headers).get("X-Firebase-Storage-Version")).toBe("webjs/AppManager");
+    expect((init.headers as Headers).get("X-Firebase-GMPID")).toBe(FIREBASE_APP_ID);
   });
 
   test("Authorization が無い場合は 401 を返す", async () => {

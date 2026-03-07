@@ -33,6 +33,11 @@ function resolveStorageBucket(): string | null {
   return bucket.length > 0 ? bucket : null;
 }
 
+function resolveFirebaseAppId(): string | null {
+  const appId = process.env.NEXT_PUBLIC_FIREBASE_APP_ID?.trim() ?? "";
+  return appId.length > 0 ? appId : null;
+}
+
 function parseBearerToken(request: Request): string | null {
   const authorization = request.headers.get("Authorization")?.trim() ?? "";
   if (!authorization.startsWith("Bearer ")) {
@@ -97,6 +102,11 @@ async function forwardStorageRequest(
 ): Promise<Response> {
   const headers = new Headers(init.headers);
   headers.set("Authorization", `Firebase ${firebaseToken}`);
+  headers.set("X-Firebase-Storage-Version", "webjs/AppManager");
+  const appId = resolveFirebaseAppId();
+  if (appId !== null) {
+    headers.set("X-Firebase-GMPID", appId);
+  }
 
   return fetch(input, {
     ...init,
