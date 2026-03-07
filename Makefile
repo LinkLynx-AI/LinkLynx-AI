@@ -1,6 +1,6 @@
 .PHONY: help setup setup-db-tools setup-bootstrap setup-check dev build up down logs clean test format lint ci validate gen
 .PHONY: ts-dev ts-build ts-format ts-lint ts-test ts-validate ts-fsd-check rust-dev rust-build rust-test rust-fmt rust-clippy rust-lint rust-ci rust-validate py-dev py-install py-format py-lint py-test py-validate elixir-dev elixir-build
-.PHONY: db-up db-down db-reset db-migrate db-migrate-revert db-migrate-info db-schema db-schema-check db-seed db-table-regex db-doc worktree-sync-env codex-worktree wt-worktree wt-worktree-sync
+.PHONY: db-up db-down db-reset db-migrate db-migrate-revert db-migrate-info db-schema db-schema-check db-seed db-table-regex db-doc worktree-sync-env codex-worktree
 .PHONY: authz-spicedb-up authz-spicedb-down authz-spicedb-health
 
 # 色設定
