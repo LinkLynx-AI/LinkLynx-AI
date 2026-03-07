@@ -15,9 +15,9 @@
 ## Review gate
 - `reviewer_simple` / `reviewer_ui_guard` を subagent で回そうとしたが、この環境では結果を回収できなかったため手元レビューへ fallback
 - fallback review result: blocking finding なし
-- UI guard result: `true`
-- rationale: `typescript/src/shared/api/**/*.ts` に client/query 追加があり、frontend runtime surface に影響する
-- UI checks: `make validate` 内の `pnpm lint` / `pnpm typecheck` / `pnpm test` pass
+- UI guard result: `false`
+- rationale: 変更は `typescript/src/shared/api/**` の data/client/query surface に限定され、UI component / style / app route 表示ロジックは未変更
+- frontend validation: `make validate` 内の `pnpm lint` / `pnpm typecheck` / `pnpm test` pass
 
 ## How to run / demo
 - `make rust-lint`
@@ -27,5 +27,8 @@
 ## Known issues / follow-ups
 - 現行 non-`v1` FE API と `v1` AuthZ matrix の path alignment は `LIN-926` 側論点
 - `guild.can_view` は route 自体が `Guild + View` を通過条件にするため、`200` では常に `true`
-- runtime smoke は local `8080` 競合があり再起動は安定しなかったが、`SpiceDB health` pass と `GET /health` / `GET /` の `200` を確認済み
-- protected snapshot route の authenticated runtime smoke は local Firebase token 前提のため省略し、Rust contract test を primary evidence とした
+- runtime smoke は local `8080` 競合により再起動ではなく既存 API プロセスへ疎通を確認した
+- smoke evidence:
+  - `GET /health` -> `200`
+  - `GET /v1/guilds/2001/permission-snapshot` without token -> `401 AUTH_MISSING_TOKEN`
+- authenticated snapshot smoke は local Firebase token 前提のため省略し、Rust contract test を primary evidence とした
