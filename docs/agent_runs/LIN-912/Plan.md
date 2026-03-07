@@ -26,7 +26,7 @@
   - [x] ADR / AuthZ matrix / run memory を更新する。
   - [x] `make validate` と `make rust-lint` を通す。
   - [x] 実DB invite integration test をローカルで通し、CI 実行経路も追加する。
-  - [ ] PR evidence を作る。
+  - [x] PR evidence を作る。 (`https://github.com/LinkLynx-AI/LinkLynx-AI/pull/1133`)
 - Validation:
   - `docker compose down -v && docker compose up -d postgres && ... && INVITE_POSTGRES_INTEGRATION=true cargo test -p linklynx_backend postgres_join_invite_integration_ -- --nocapture`
   - `make validate`

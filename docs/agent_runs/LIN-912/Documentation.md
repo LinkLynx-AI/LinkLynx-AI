@@ -1,8 +1,8 @@
 # Documentation.md (Status / audit log)
 
 ## Current status
-- Now: 実DB integration test を追加し、validation まで完了。残りは reviewer 再確認と commit / PR。
-- Next: LIN-912 の stacked PR を起票する。
+- Now: stacked PR 作成済み。残りは PR merge 待ちのみ。
+- Next: LIN-913 の未認証復帰と post-join redirect に着手する。
 
 ## Decisions
 - `POST /v1/invites/:invite_code/join` を追加し、AuthN 必須 / AuthZ 除外の明示例外として扱う。
@@ -24,5 +24,6 @@
 - reject: `INVITE_INVALID` / `INVITE_EXPIRED` / `INVITE_UNAVAILABLE`
 
 ## Known issues / follow-ups
+- PR: `https://github.com/LinkLynx-AI/LinkLynx-AI/pull/1133`
 - `LIN-913` で未認証復帰と参加後遷移を閉じる。
 - TypeScript test の `act(...)` warning と verify-email の想定 error log は既存ノイズとして継続。
