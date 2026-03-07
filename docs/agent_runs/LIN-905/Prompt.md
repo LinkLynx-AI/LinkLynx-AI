@@ -17,7 +17,7 @@
 - 必要時のみ、login / protected route / ws identify の最小補完差分。
 
 ## Done when
-- [x] ログイン後に保護画面へ進めることを再確認できる。
+- [x] ログイン後に保護画面へ進める根拠を route-level smoke と targeted tests で再確認できる。
 - [x] 認証済み導線が一貫していることを再確認できる。
 - [x] `make validate` と `cd typescript && npm run typecheck` の結果を記録できる。
 - [x] `LIN-905` 専用の review / validation / smoke 証跡が揃う。

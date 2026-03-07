@@ -27,7 +27,7 @@
 ### M3: Runtime smoke と review 証跡を閉じる
 - Acceptance criteria:
   - [x] route-level smoke と targeted tests の組み合わせで login / protected route / ws identify を確認できる。
-  - [x] reviewer / reviewer_ui_guard / reviewer_ui の結果を残せる。
+  - [x] review gate 結果または fallback 判断を残せる。
   - [x] PR 用の根拠を `Documentation.md` に集約できる。
 - Validation:
   - `make dev`
