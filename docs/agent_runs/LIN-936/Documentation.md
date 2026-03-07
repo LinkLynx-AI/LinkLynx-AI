@@ -32,13 +32,15 @@
 ## Review gates
 - `reviewer_ui_guard`: pass
   - UI 変更なし。対象差分は Rust / config / docs / compose / Makefile のみ。
-- `reviewer`: fallback
-  - `reviewer` / `reviewer_simple` を複数回実行したが、repo 探索フェーズでタイムアウトしたため結果を取得できなかった。
-  - fallback として main rollout 側で diff review と `git diff --check` を実施し、blocking finding は確認されなかった。
+- `reviewer`: partial
+  - specialist reviewer からは P2 指摘が 2 件出た。
+  - public probe が内部詳細を返しすぎる点は coarse reason code へ変更して解消した。
+  - live classification / startup fallback の未テスト分岐は fake checker と startup helper の unit test を追加して解消した。
+  - P1 以上の blocking finding は残っていない。
 
 ## Delivery
 - Branch: `codex/lin-936`
-- Commit: `8e9f731` (`LIN-936 Scyllaヘルス基盤を追加`)
+- Commit: `640d200` (`LIN-936 実行ログを更新`)
 - PR: `https://github.com/LinkLynx-AI/LinkLynx-AI/pull/1134`
 - Base branch: `main`
 - Merge policy: `main` 向けのため auto-merge は使わず human approval 待ちで停止
