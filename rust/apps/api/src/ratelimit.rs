@@ -640,6 +640,9 @@ pub fn rest_rate_limit_action_for_request(
     if *method == Method::GET && is_invite_access_path(path) {
         return Some(RestRateLimitAction::InviteAccess);
     }
+    if *method == Method::POST && is_public_invite_join_path(path) {
+        return Some(RestRateLimitAction::InviteAccess);
+    }
     if *method == Method::PATCH && is_moderation_path(path) {
         return Some(RestRateLimitAction::ModerationAction);
     }
@@ -685,6 +688,15 @@ fn is_invite_access_path(path: &str) -> bool {
         && segments[1] == "guilds"
         && segments[3] == "invites")
         || (segments.len() == 3 && segments[0] == "v1" && segments[1] == "invites")
+}
+
+/// public invite join パスかを判定する。
+/// @param path リクエストパス
+/// @returns 対象時 `true`
+/// @throws なし
+fn is_public_invite_join_path(path: &str) -> bool {
+    let segments = path.trim_matches('/').split('/').collect::<Vec<_>>();
+    segments.len() == 4 && segments[0] == "v1" && segments[1] == "invites" && segments[3] == "join"
 }
 
 /// moderation パスかを判定する。
@@ -856,6 +868,10 @@ mod tests {
         );
         assert_eq!(
             rest_rate_limit_action_for_request(&Method::GET, "/v1/invites/invite-abc"),
+            Some(RestRateLimitAction::InviteAccess)
+        );
+        assert_eq!(
+            rest_rate_limit_action_for_request(&Method::POST, "/v1/invites/invite-abc/join"),
             Some(RestRateLimitAction::InviteAccess)
         );
         assert_eq!(

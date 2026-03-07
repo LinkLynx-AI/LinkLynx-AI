@@ -121,6 +121,10 @@ Rationale: deny and unavailable must be distinguishable for operational diagnosi
 - All other endpoints/channels are fail-close by default.
 - Adding a new exception requires explicit ADR update.
 - Implicit/undocumented exceptions are prohibited.
+- Approved exception:
+  - `POST /v1/invites/:invite_code/join` is `AuthN required / AuthZ excluded`.
+  - Rationale: invite join is the membership bootstrap path, so guild-member AuthZ cannot be the precondition.
+  - Guardrails: token authentication is mandatory, invite-state validation must fail-close, and invite abuse control remains under `InviteAccess` rate limiting.
 
 ## Public interface contract additions
 

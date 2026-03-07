@@ -12,6 +12,7 @@ use axum::{
     response::{IntoResponse, Response},
     Json,
 };
+use linklynx_shared::PrincipalId;
 use serde::Serialize;
 use tokio::sync::RwLock;
 use tokio_postgres::NoTls;

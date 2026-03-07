@@ -19,7 +19,8 @@ mod tests {
         GuildChannelService,
     };
     use invite::{
-        InviteError, InviteService, PublicInviteGuild, PublicInviteLookup, PublicInviteStatus,
+        InviteError, InviteJoinResult, InviteJoinStatus, InviteService, PublicInviteGuild,
+        PublicInviteLookup, PublicInviteStatus,
     };
     use moderation::{
         CreateModerationMuteInput, CreateModerationReportInput, ModerationError, ModerationReport,
@@ -726,6 +727,32 @@ mod tests {
                 }),
             }
         }
+
+        async fn join_invite(
+            &self,
+            _principal_id: PrincipalId,
+            invite_code: String,
+        ) -> Result<InviteJoinResult, InviteError> {
+            let normalized_invite_code = invite_code.trim().to_owned();
+            if normalized_invite_code.is_empty() {
+                return Err(InviteError::validation("invite_code_required"));
+            }
+
+            match normalized_invite_code.as_str() {
+                "DEVJOIN2026" => Ok(InviteJoinResult {
+                    invite_code: normalized_invite_code,
+                    guild_id: 2001,
+                    status: InviteJoinStatus::Joined,
+                }),
+                "ALREADY2026" => Ok(InviteJoinResult {
+                    invite_code: normalized_invite_code,
+                    guild_id: 2001,
+                    status: InviteJoinStatus::AlreadyMember,
+                }),
+                "EXPIRED2026" => Err(InviteError::expired_invite("invite_expired")),
+                _ => Err(InviteError::invalid_invite("invite_invalid")),
+            }
+        }
     }
 
     #[async_trait]
@@ -734,6 +761,16 @@ mod tests {
             &self,
             _invite_code: String,
         ) -> Result<PublicInviteLookup, InviteError> {
+            Err(InviteError::dependency_unavailable(
+                "invite_store_unconfigured",
+            ))
+        }
+
+        async fn join_invite(
+            &self,
+            _principal_id: PrincipalId,
+            _invite_code: String,
+        ) -> Result<InviteJoinResult, InviteError> {
             Err(InviteError::dependency_unavailable(
                 "invite_store_unconfigured",
             ))
@@ -1092,6 +1129,180 @@ mod tests {
             .await
             .unwrap();
 
+        assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
+        assert_eq!(
+            response
+                .headers()
+                .get(RETRY_AFTER)
+                .and_then(|value| value.to_str().ok()),
+            Some("60")
+        );
+    }
+
+    #[tokio::test]
+    async fn invite_join_endpoint_rejects_missing_token() {
+        let app = app_for_test().await;
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method(Method::POST)
+                    .uri("/v1/invites/DEVJOIN2026/join")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn invite_join_endpoint_accepts_valid_token_without_authz_membership() {
+        let app = app_for_test_with_authorizer(Arc::new(StaticDenyAuthorizer)).await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method(Method::POST)
+                    .uri("/v1/invites/DEVJOIN2026/join")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["join"]["status"], "joined");
+        assert_eq!(json["join"]["guild_id"], 2001);
+    }
+
+    #[tokio::test]
+    async fn invite_join_endpoint_returns_already_member_for_duplicate_join() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method(Method::POST)
+                    .uri("/v1/invites/ALREADY2026/join")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["join"]["status"], "already_member");
+        assert_eq!(json["join"]["guild_id"], 2001);
+    }
+
+    #[tokio::test]
+    async fn invite_join_endpoint_returns_conflict_for_expired_invite() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method(Method::POST)
+                    .uri("/v1/invites/EXPIRED2026/join")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::CONFLICT);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "INVITE_EXPIRED");
+    }
+
+    #[tokio::test]
+    async fn invite_join_endpoint_returns_conflict_for_invalid_invite() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method(Method::POST)
+                    .uri("/v1/invites/UNKNOWN2026/join")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::CONFLICT);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "INVITE_INVALID");
+    }
+
+    #[tokio::test]
+    async fn invite_join_endpoint_returns_service_unavailable_when_invite_service_fails() {
+        let app = app_for_test_with_invite_service(Arc::new(StaticUnavailableInviteService)).await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method(Method::POST)
+                    .uri("/v1/invites/DEVJOIN2026/join")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("x-request-id", "invite-join-unavailable-test")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "INVITE_UNAVAILABLE");
+        assert_eq!(json["request_id"], "invite-join-unavailable-test");
+    }
+
+    #[tokio::test]
+    async fn invite_join_endpoint_returns_retry_after_when_rate_limited() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let mut last_response = None;
+
+        for _ in 0..11 {
+            last_response = Some(
+                app.clone()
+                    .oneshot(
+                        Request::builder()
+                            .method(Method::POST)
+                            .uri("/v1/invites/DEVJOIN2026/join")
+                            .header("authorization", format!("Bearer {token}"))
+                            .body(Body::empty())
+                            .unwrap(),
+                    )
+                    .await
+                    .unwrap(),
+            );
+        }
+
+        let response = last_response.unwrap();
         assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
         assert_eq!(
             response
