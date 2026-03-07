@@ -15,6 +15,7 @@ mod tests {
         GuildChannelService,
     };
     use profile::{ProfileError, ProfilePatchInput, ProfileService, ProfileSettings};
+    use scylla_health::{ScyllaHealthReport, ScyllaHealthReporter};
     use axum::{
         body::to_bytes,
         http::{Method, StatusCode},
@@ -32,6 +33,9 @@ mod tests {
     struct StaticProfileService;
     struct StaticUnavailableProfileService;
     struct RoleScenarioAuthorizer;
+    struct StaticScyllaHealthReporter {
+        report: ScyllaHealthReport,
+    }
 
     #[async_trait]
     impl TokenVerifier for StaticTokenVerifier {
@@ -122,6 +126,13 @@ mod tests {
                 }
                 _ => Err(AuthzError::denied("unsupported_role_scenario")),
             }
+        }
+    }
+
+    #[async_trait]
+    impl ScyllaHealthReporter for StaticScyllaHealthReporter {
+        async fn report(&self) -> ScyllaHealthReport {
+            self.report.clone()
         }
     }
 
@@ -422,6 +433,15 @@ mod tests {
         .await
     }
 
+    async fn app_for_test_with_scylla_report(report: ScyllaHealthReport) -> Router {
+        app_for_test_with_authorizer_profile_and_scylla(
+            Arc::new(StaticAllowAllAuthorizer),
+            Arc::new(StaticProfileService),
+            Arc::new(StaticScyllaHealthReporter { report }),
+        )
+        .await
+    }
+
     async fn app_for_test_with_authorizer(authorizer: Arc<dyn Authorizer>) -> Router {
         app_for_test_with_authorizer_and_profile(authorizer, Arc::new(StaticProfileService)).await
     }
@@ -433,6 +453,21 @@ mod tests {
     async fn state_for_test_with_authorizer_and_profile(
         authorizer: Arc<dyn Authorizer>,
         profile_service: Arc<dyn ProfileService>,
+    ) -> AppState {
+        state_for_test_with_authorizer_profile_and_scylla(
+            authorizer,
+            profile_service,
+            Arc::new(StaticScyllaHealthReporter {
+                report: ScyllaHealthReport::ready(),
+            }),
+        )
+        .await
+    }
+
+    async fn state_for_test_with_authorizer_profile_and_scylla(
+        authorizer: Arc<dyn Authorizer>,
+        profile_service: Arc<dyn ProfileService>,
+        scylla_health_reporter: Arc<dyn ScyllaHealthReporter>,
     ) -> AppState {
         let metrics = Arc::new(AuthMetrics::default());
         let verifier: Arc<dyn TokenVerifier> = Arc::new(StaticTokenVerifier);
@@ -462,6 +497,7 @@ mod tests {
             authz_metrics: Arc::new(AuthzMetrics::default()),
             guild_channel_service: Arc::new(StaticGuildChannelService),
             profile_service,
+            scylla_health_reporter,
             ws_reauth_grace: Duration::from_secs(30),
             ws_ticket_ttl: Duration::from_secs(60),
             auth_identify_timeout: Duration::from_secs(5),
@@ -486,6 +522,20 @@ mod tests {
         profile_service: Arc<dyn ProfileService>,
     ) -> Router {
         let state = state_for_test_with_authorizer_and_profile(authorizer, profile_service).await;
+        app_with_state(state)
+    }
+
+    async fn app_for_test_with_authorizer_profile_and_scylla(
+        authorizer: Arc<dyn Authorizer>,
+        profile_service: Arc<dyn ProfileService>,
+        scylla_health_reporter: Arc<dyn ScyllaHealthReporter>,
+    ) -> Router {
+        let state = state_for_test_with_authorizer_profile_and_scylla(
+            authorizer,
+            profile_service,
+            scylla_health_reporter,
+        )
+        .await;
         app_with_state(state)
     }
 
@@ -530,6 +580,79 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(body.as_ref(), b"OK");
+    }
+
+    #[tokio::test]
+    async fn scylla_health_ready_returns_ok_json() {
+        let app = app_for_test_with_scylla_report(ScyllaHealthReport::ready()).await;
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/internal/scylla/health")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["service"], "scylla");
+        assert_eq!(json["status"], "ready");
+        assert!(json.get("reason").is_none());
+    }
+
+    #[tokio::test]
+    async fn scylla_health_degraded_returns_ok_json() {
+        let app = app_for_test_with_scylla_report(ScyllaHealthReport::degraded(
+            "scylla_table_missing:chat.messages_by_channel",
+        ))
+        .await;
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/internal/scylla/health")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["status"], "degraded");
+        assert_eq!(json["reason"], "table_missing");
+    }
+
+    #[tokio::test]
+    async fn scylla_health_error_returns_service_unavailable() {
+        let app = app_for_test_with_scylla_report(ScyllaHealthReport::error(
+            "scylla_connect_failed:connection refused",
+        ))
+        .await;
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/internal/scylla/health")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["status"], "error");
+        assert_eq!(json["reason"], "connect_failed");
     }
 
     #[tokio::test]
