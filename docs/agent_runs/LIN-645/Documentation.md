@@ -1,8 +1,8 @@
 # Documentation.md (Status / audit log)
 
 ## Current status
-- Now: smoke script / runbook / env 追加は完了。静的検証は通過済みで、runtime smoke は資格情報待ち。
-- Next: `AUTH_SMOKE_EMAIL` / `AUTH_SMOKE_PASSWORD` を `typescript/.env.local` へ設定し、local runtime を起動して happy-path / dependency-unavailable を実行する。
+- Now: smoke script / runbook / env 追加は完了。静的検証は通過済みで、PR #1137 を作成済み。runtime smoke は資格情報待ち。
+- Next: 正しい `AUTH_SMOKE_EMAIL` / `AUTH_SMOKE_PASSWORD` を `typescript/.env.local` へ設定し、local runtime を起動して happy-path / dependency-unavailable を実行する。
 
 ## Decisions
 - 最小E2Eは Playwright ではなく Node smoke script で実装する。
@@ -44,6 +44,12 @@
 - `reviewer_ui_guard`: `run_ui_checks=false`
   - changed paths は `typescript/scripts/**`, `typescript/package.json`, `typescript/.env.example`, `docs/runbooks/**`, `docs/agent_runs/LIN-645/**`
   - `typescript/src/**`, `typescript/public/**`, `typescript/next.config.ts`, `typescript/tailwind.config.ts` は未変更
+
+## PR
+- PR: https://github.com/LinkLynx-AI/LinkLynx-AI/pull/1137
+- note:
+  - `origin/main` は差分なしを確認済み
+  - push 前に先行していた `origin/codex/lin-645` を merge し、旧実装履歴を取り込んだうえで PR 差分を整理した
 
 ## Known issues / follow-ups
 - runtime smoke を完了するには `typescript/.env.local` の smoke 用資格情報と local backend/spicedb runtime が必要。
