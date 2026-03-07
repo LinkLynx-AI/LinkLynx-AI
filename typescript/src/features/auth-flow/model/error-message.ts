@@ -2,6 +2,8 @@ import type { AuthActionError, PrincipalProvisionError } from "@/entities";
 
 export const PASSWORD_RESET_COMPLETION_MESSAGE =
   "メールアドレスが登録されている場合、パスワード再設定メールを送信しました。";
+export const PASSWORD_RESET_RETRY_GUIDANCE_MESSAGE =
+  "メールが届かない場合は、迷惑メールフォルダを確認し、少し待ってからもう一度送信してください。";
 
 /**
  * ログイン失敗時の表示文言へ変換する。

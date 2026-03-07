@@ -7,6 +7,7 @@ import {
   getRegisterErrorMessage,
   getVerifyEmailErrorMessage,
   PASSWORD_RESET_COMPLETION_MESSAGE,
+  PASSWORD_RESET_RETRY_GUIDANCE_MESSAGE,
 } from "./error-message";
 
 function createError(code: AuthActionError["code"]): AuthActionError {
@@ -82,6 +83,12 @@ describe("auth flow error message", () => {
   test("password reset の完了メッセージを固定化する", () => {
     expect(PASSWORD_RESET_COMPLETION_MESSAGE).toBe(
       "メールアドレスが登録されている場合、パスワード再設定メールを送信しました。",
+    );
+  });
+
+  test("password reset の再試行導線文言を固定化する", () => {
+    expect(PASSWORD_RESET_RETRY_GUIDANCE_MESSAGE).toBe(
+      "メールが届かない場合は、迷惑メールフォルダを確認し、少し待ってからもう一度送信してください。",
     );
   });
 });
