@@ -230,7 +230,7 @@ v0 での認可関連 SoR:
 
 ## 15. LIN-925 Permission snapshot contract baseline
 
-- FE が v1 で必要な `can_*` 判定を 1 リクエストで取得する最小契約として、`GET /v1/guilds/{guild_id}/permission-snapshot` を追加する。
+- FE が v1 で必要な `can_*` 判定を 1 リクエストで取得する最小契約として、`GET /guilds/{guild_id}/permission-snapshot` を追加する。
 - route 自体は `rest_auth_middleware` 配下に置き、`AuthzResource::Guild { guild_id } + View` を通過条件とする。
 - 成功レスポンス shape は以下で固定する。
 

@@ -5,7 +5,7 @@
 - deny と unavailable を混同しない。
 - 進捗と判断理由は `Documentation.md` に逐次追記する。
 - 実装結果:
-  - backend: `GET /v1/guilds/{guild_id}/permission-snapshot`
+  - backend: `GET /guilds/{guild_id}/permission-snapshot`
   - frontend: `APIClient#getPermissionSnapshot` と `usePermissionSnapshot`
   - tests: Rust contract test で `deny -> false` / `unavailable -> 503` を固定
   - review: fallback `reviewer_simple` 相当の手元レビューで blocker なし

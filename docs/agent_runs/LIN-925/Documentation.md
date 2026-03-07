@@ -7,7 +7,7 @@
 ## Decisions
 - `LIN-925` は docs + backend endpoint + frontend 型/hook まで含める
 - UI 適用は `LIN-926` へ分離する
-- endpoint は `GET /v1/guilds/{guild_id}/permission-snapshot?channel_id=...` で固定する
+- endpoint は `GET /guilds/{guild_id}/permission-snapshot?channel_id=...` で固定する
 - guild scope の `can_create_channel / can_create_invite / can_manage_settings / can_moderate` は `Guild + Manage` を共有する
 - channel scope の `can_view / can_post / can_manage` は `GuildChannel + View/Post/Manage` を個別評価する
 - `Denied` は boolean `false` へ畳み込み、`DependencyUnavailable` は endpoint 全体を `503/AUTHZ_UNAVAILABLE` とする
@@ -27,10 +27,10 @@
 - `make validate`
 
 ## Known issues / follow-ups
-- 現行 non-`v1` FE API と `v1` AuthZ matrix の path alignment は `LIN-926` 側論点
+- permission snapshot は guild API の既存 surface に合わせて non-`v1` path を正とする
 - `guild.can_view` は route 自体が `Guild + View` を通過条件にするため、`200` では常に `true`
 - runtime smoke は local `8080` 競合により再起動ではなく既存 API プロセスへ疎通を確認した
 - smoke evidence:
   - `GET /health` -> `200`
-  - `GET /v1/guilds/2001/permission-snapshot` without token -> `401 AUTH_MISSING_TOKEN`
+  - `GET /guilds/2001/permission-snapshot` without token -> `401 AUTH_MISSING_TOKEN`
 - authenticated snapshot smoke は local Firebase token 前提のため省略し、Rust contract test を primary evidence とした

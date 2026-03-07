@@ -1342,7 +1342,7 @@ mod tests {
         let response = app
             .oneshot(
                 Request::builder()
-                    .uri("/v1/guilds/2001/permission-snapshot?channel_id=3001")
+                    .uri("/guilds/2001/permission-snapshot?channel_id=3001")
                     .header("authorization", format!("Bearer {token}"))
                     .body(Body::empty())
                     .unwrap(),
@@ -1374,7 +1374,7 @@ mod tests {
         let response = app
             .oneshot(
                 Request::builder()
-                    .uri("/v1/guilds/2001/permission-snapshot")
+                    .uri("/guilds/2001/permission-snapshot")
                     .header("authorization", format!("Bearer {token}"))
                     .header("x-request-id", "permission-snapshot-unavailable")
                     .body(Body::empty())
@@ -2980,7 +2980,7 @@ mod tests {
             _ => panic!("non-v1 guild path should map to guild resource"),
         }
 
-        match rest_authz_resource_from_path("/v1/guilds/10/permission-snapshot") {
+        match rest_authz_resource_from_path("/guilds/10/permission-snapshot") {
             AuthzResource::Guild { guild_id } => assert_eq!(guild_id, 10),
             _ => panic!("permission snapshot path should map to guild resource"),
         }
