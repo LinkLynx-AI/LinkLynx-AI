@@ -8,6 +8,7 @@
 ## Decisions
 - 履歴 cursor の公開 I/F は `before` / `after` とし、値は opaque string に固定する。
 - WS は `message.subscribe` / `message.unsubscribe` / `message.subscribed` / `message.unsubscribed` / `message.created` の最小契約に限定する。
+- WS の subscribe/unsubscribe ACK 前には `/ws/stream` と target `guild/channel` の両方で AuthZ を fail-close に評価する。
 - durable event の catalog 名は `message_create`、payload `type` は既存 runtime contract に合わせて `MessageCreated` とする。
 
 ## How to run / demo
@@ -35,6 +36,8 @@
 ## Notes
 - レビュー中に `create_channel_message_rejects_blank_content` が malformed JSON を送っており、blank content の validation 経路を直接検証していないことを確認したため修正した。
 - malformed JSON は別テストへ分離し、JSON 解析失敗と business validation の両方を固定した。
+- reviewer で見つかった WS AuthZ の抜けを修正し、`message.subscribe` / `message.unsubscribe` は `/ws/stream` と target channel の両方を見たうえで ACK するようにした。
+- `stream allow + channel deny` と `stream deny + channel allow` の両方を unit test で固定し、片側だけの AuthZ 抜けを再発しにくくした。
 
 ## Known issues / follow-ups
 - LIN-823 で Scylla 実データへ接続するまで、message REST は contract fixture ベースの最小実装。

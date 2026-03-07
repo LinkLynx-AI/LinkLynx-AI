@@ -31,6 +31,9 @@ mod tests {
     struct StaticDenyAuthorizer;
     struct StaticUnavailableAuthorizer;
     struct StreamAllowedGuildChannelDeniedAuthorizer;
+    struct StreamDeniedGuildChannelAllowedAuthorizer;
+    struct StreamAllowedGuildChannelUnavailableAuthorizer;
+    struct StreamUnavailableGuildChannelAllowedAuthorizer;
     struct StaticGuildChannelService;
     struct StaticProfileService;
     struct StaticUnavailableProfileService;
@@ -98,6 +101,65 @@ mod tests {
                 ) if *guild_id == 10 && *channel_id == 20 => {
                     Err(AuthzError::denied("guild_channel_access_denied"))
                 }
+                _ => Err(AuthzError::denied("unsupported_stream_channel_scenario")),
+            }
+        }
+    }
+
+    #[async_trait]
+    impl Authorizer for StreamDeniedGuildChannelAllowedAuthorizer {
+        async fn check(&self, input: &AuthzCheckInput) -> Result<(), AuthzError> {
+            match (&input.resource, input.action) {
+                (AuthzResource::RestPath { path }, AuthzAction::View) if path == "/ws/stream" => {
+                    Err(AuthzError::denied("ws_stream_access_denied"))
+                }
+                (
+                    AuthzResource::GuildChannel {
+                        guild_id,
+                        channel_id,
+                    },
+                    AuthzAction::View,
+                ) if *guild_id == 10 && *channel_id == 20 => Ok(()),
+                _ => Err(AuthzError::denied("unsupported_stream_channel_scenario")),
+            }
+        }
+    }
+
+    #[async_trait]
+    impl Authorizer for StreamAllowedGuildChannelUnavailableAuthorizer {
+        async fn check(&self, input: &AuthzCheckInput) -> Result<(), AuthzError> {
+            match (&input.resource, input.action) {
+                (AuthzResource::RestPath { path }, AuthzAction::View) if path == "/ws/stream" => {
+                    Ok(())
+                }
+                (
+                    AuthzResource::GuildChannel {
+                        guild_id,
+                        channel_id,
+                    },
+                    AuthzAction::View,
+                ) if *guild_id == 10 && *channel_id == 20 => {
+                    Err(AuthzError::unavailable("guild_channel_access_unavailable"))
+                }
+                _ => Err(AuthzError::denied("unsupported_stream_channel_scenario")),
+            }
+        }
+    }
+
+    #[async_trait]
+    impl Authorizer for StreamUnavailableGuildChannelAllowedAuthorizer {
+        async fn check(&self, input: &AuthzCheckInput) -> Result<(), AuthzError> {
+            match (&input.resource, input.action) {
+                (AuthzResource::RestPath { path }, AuthzAction::View) if path == "/ws/stream" => {
+                    Err(AuthzError::unavailable("ws_stream_access_unavailable"))
+                }
+                (
+                    AuthzResource::GuildChannel {
+                        guild_id,
+                        channel_id,
+                    },
+                    AuthzAction::View,
+                ) if *guild_id == 10 && *channel_id == 20 => Ok(()),
                 _ => Err(AuthzError::denied("unsupported_stream_channel_scenario")),
             }
         }
@@ -737,6 +799,97 @@ mod tests {
             .await
             .unwrap_err();
         assert_eq!(error.kind, AuthzErrorKind::Denied);
+    }
+
+    #[tokio::test]
+    async fn message_frame_access_denies_when_ws_stream_is_forbidden() {
+        let state = state_for_test_with_authorizer(Arc::new(
+            StreamDeniedGuildChannelAllowedAuthorizer,
+        ))
+        .await;
+        let authenticated = AuthenticatedPrincipal {
+            principal_id: PrincipalId(9003),
+            firebase_uid: "u-member".to_owned(),
+            expires_at_epoch: unix_timestamp_seconds() + 300,
+        };
+        let frame = ClientMessageFrameV1::Subscribe(GuildChannelSubscriptionTargetV1 {
+            guild_id: 10,
+            channel_id: 20,
+        });
+
+        let error = authorize_message_frame_access(&state, &authenticated, "ws-test", &frame)
+            .await
+            .unwrap_err();
+        assert_eq!(error.kind, AuthzErrorKind::Denied);
+    }
+
+    #[tokio::test]
+    async fn message_frame_access_records_allow_for_each_authz_check() {
+        let state = state_for_test_with_authorizer(Arc::new(StaticAllowAllAuthorizer)).await;
+        let authenticated = AuthenticatedPrincipal {
+            principal_id: PrincipalId(9003),
+            firebase_uid: "u-member".to_owned(),
+            expires_at_epoch: unix_timestamp_seconds() + 300,
+        };
+        let frame = ClientMessageFrameV1::Subscribe(GuildChannelSubscriptionTargetV1 {
+            guild_id: 10,
+            channel_id: 20,
+        });
+
+        assert!(authorize_message_frame_access(&state, &authenticated, "ws-test", &frame)
+            .await
+            .is_ok());
+        let metrics = state.authz_metrics.snapshot();
+        let value = serde_json::to_value(metrics).unwrap();
+        assert_eq!(value["allow_total"], 2);
+        assert_eq!(value["deny_total"], 0);
+        assert_eq!(value["unavailable_total"], 0);
+    }
+
+    #[tokio::test]
+    async fn message_frame_access_returns_unavailable_when_ws_stream_is_unavailable() {
+        let state = state_for_test_with_authorizer(Arc::new(
+            StreamUnavailableGuildChannelAllowedAuthorizer,
+        ))
+        .await;
+        let authenticated = AuthenticatedPrincipal {
+            principal_id: PrincipalId(9003),
+            firebase_uid: "u-member".to_owned(),
+            expires_at_epoch: unix_timestamp_seconds() + 300,
+        };
+        let frame = ClientMessageFrameV1::Subscribe(GuildChannelSubscriptionTargetV1 {
+            guild_id: 10,
+            channel_id: 20,
+        });
+
+        let error = authorize_message_frame_access(&state, &authenticated, "ws-test", &frame)
+            .await
+            .unwrap_err();
+        assert_eq!(error.kind, AuthzErrorKind::DependencyUnavailable);
+        assert_eq!(error.ws_close_code(), 1011);
+    }
+
+    #[tokio::test]
+    async fn message_frame_access_returns_unavailable_when_target_channel_is_unavailable() {
+        let state = state_for_test_with_authorizer(Arc::new(
+            StreamAllowedGuildChannelUnavailableAuthorizer,
+        ))
+        .await;
+        let authenticated = AuthenticatedPrincipal {
+            principal_id: PrincipalId(9003),
+            firebase_uid: "u-member".to_owned(),
+            expires_at_epoch: unix_timestamp_seconds() + 300,
+        };
+        let frame = ClientMessageFrameV1::Subscribe(GuildChannelSubscriptionTargetV1 {
+            guild_id: 10,
+            channel_id: 20,
+        });
+
+        let error = authorize_message_frame_access(&state, &authenticated, "ws-test", &frame)
+            .await
+            .unwrap_err();
+        assert_eq!(error.kind, AuthzErrorKind::DependencyUnavailable);
+        assert_eq!(error.ws_close_code(), 1011);
     }
 
     #[tokio::test]

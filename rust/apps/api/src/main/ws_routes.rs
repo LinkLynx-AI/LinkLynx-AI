@@ -808,6 +808,20 @@ async fn authorize_ws_stream_access(
     authenticated: &AuthenticatedPrincipal,
     request_id: &str,
 ) -> Result<(), authz::AuthzError> {
+    check_ws_stream_access(state, authenticated, request_id).await
+}
+
+/// WSストリーム操作の生判定を評価する。
+/// @param state アプリケーション状態
+/// @param authenticated 認証済み主体
+/// @param request_id 接続識別子
+/// @returns 認可成功時は `Ok(())`
+/// @throws authz::AuthzError 認可拒否または依存障害時
+async fn check_ws_stream_access(
+    state: &AppState,
+    authenticated: &AuthenticatedPrincipal,
+    request_id: &str,
+) -> Result<(), authz::AuthzError> {
     let authz_input = AuthzCheckInput {
         principal_id: authenticated.principal_id,
         resource: AuthzResource::RestPath {
@@ -847,6 +861,23 @@ async fn authorize_message_frame_access(
     request_id: &str,
     frame: &ClientMessageFrameV1,
 ) -> Result<(), authz::AuthzError> {
+    check_ws_stream_access(state, authenticated, request_id).await?;
+    check_message_frame_target_access(state, authenticated, request_id, frame).await
+}
+
+/// guild message frame target の生判定を評価する。
+/// @param state アプリケーション状態
+/// @param authenticated 認証済み主体
+/// @param request_id 接続識別子
+/// @param frame message frame
+/// @returns 認可成功時は `Ok(())`
+/// @throws authz::AuthzError 認可拒否または依存障害時
+async fn check_message_frame_target_access(
+    state: &AppState,
+    authenticated: &AuthenticatedPrincipal,
+    request_id: &str,
+    frame: &ClientMessageFrameV1,
+) -> Result<(), authz::AuthzError> {
     let target = message_frame_target(frame);
     let authz_input = AuthzCheckInput {
         principal_id: authenticated.principal_id,
@@ -877,6 +908,10 @@ async fn authorize_message_frame_access(
     Ok(())
 }
 
+/// message frame から購読対象を抽出する。
+/// @param frame message frame
+/// @returns 購読対象 guild/channel
+/// @throws なし
 fn message_frame_target(frame: &ClientMessageFrameV1) -> &GuildChannelSubscriptionTargetV1 {
     match frame {
         ClientMessageFrameV1::Subscribe(target) | ClientMessageFrameV1::Unsubscribe(target) => {
