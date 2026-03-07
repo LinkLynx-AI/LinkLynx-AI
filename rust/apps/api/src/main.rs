@@ -1,8 +1,10 @@
 mod auth;
 mod authz;
 mod guild_channel;
+mod moderation;
 mod profile;
 mod scylla_health;
+mod ratelimit;
 
 use std::{
     collections::HashSet,
@@ -31,7 +33,7 @@ use axum::{
         ws::{CloseFrame, Message, WebSocket, WebSocketUpgrade},
         Extension, Path, Query, State,
     },
-    http::{HeaderMap, Request, StatusCode},
+    http::{header::RETRY_AFTER, HeaderMap, HeaderValue, Request, StatusCode},
     middleware::{self, Next},
     response::{IntoResponse, Response},
     routing::{get, patch, post},
@@ -41,11 +43,17 @@ use guild_channel::{
     build_runtime_guild_channel_service, guild_channel_error_response, GuildChannelError,
     GuildChannelService,
 };
+use moderation::{
+    build_runtime_moderation_service, moderation_error_response, ModerationError, ModerationService,
+};
 use profile::{
     build_runtime_profile_service, profile_error_response, ProfileError, ProfilePatchInput,
     ProfileService,
 };
 use scylla_health::{build_runtime_scylla_health_reporter, ScyllaHealthReporter};
+use ratelimit::{
+    build_runtime_rest_rate_limit_service, rest_rate_limit_action_for_request, RestRateLimitService,
+};
 use serde::{Deserialize, Serialize};
 use tower_http::cors::{Any, CorsLayer};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
@@ -56,6 +64,7 @@ pub(crate) struct AppState {
     authorizer: Arc<dyn Authorizer>,
     authz_metrics: Arc<AuthzMetrics>,
     guild_channel_service: Arc<dyn GuildChannelService>,
+    moderation_service: Arc<dyn ModerationService>,
     profile_service: Arc<dyn ProfileService>,
     scylla_health_reporter: Arc<dyn ScyllaHealthReporter>,
     ws_reauth_grace: Duration,
@@ -65,6 +74,7 @@ pub(crate) struct AppState {
     ws_ticket_rate_limiter: Arc<FixedWindowRateLimiter>,
     ws_identify_rate_limiter: Arc<FixedWindowRateLimiter>,
     ws_origin_allowlist: Arc<WsOriginAllowlist>,
+    rest_rate_limit_service: Arc<RestRateLimitService>,
 }
 
 #[tokio::main]
@@ -112,6 +122,7 @@ async fn build_runtime_state() -> AppState {
     let authorizer = build_runtime_authorizer();
     let authz_metrics = Arc::new(AuthzMetrics::default());
     let guild_channel_service = build_runtime_guild_channel_service();
+    let moderation_service = build_runtime_moderation_service();
     let profile_service = build_runtime_profile_service();
     let scylla_health_reporter = build_runtime_scylla_health_reporter().await;
     let ws_reauth_grace = Duration::from_secs(
@@ -133,6 +144,7 @@ async fn build_runtime_state() -> AppState {
         authorizer,
         authz_metrics,
         guild_channel_service,
+        moderation_service,
         profile_service,
         scylla_health_reporter,
         ws_reauth_grace,
@@ -148,6 +160,7 @@ async fn build_runtime_state() -> AppState {
             Duration::from_secs(60),
         )),
         ws_origin_allowlist: Arc::new(build_runtime_ws_origin_allowlist()),
+        rest_rate_limit_service: Arc::new(build_runtime_rest_rate_limit_service()),
     }
 }
 

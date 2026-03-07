@@ -8,12 +8,16 @@ export const APP_ROUTES = {
   channels: {
     me: "/channels/me",
     guildChannel: "/channels/[guildId]/[channelId]",
+    moderationQueue: "/channels/[guildId]/moderation",
+    moderationReport: "/channels/[guildId]/moderation/[reportId]",
   },
   settings: {
     profile: "/settings/profile",
     appearance: "/settings/appearance",
   },
 } as const;
+
+export type SettingsRouteSection = keyof typeof APP_ROUTES.settings;
 
 export type GuardKind = "unauthenticated" | "forbidden" | "not-found" | "service-unavailable";
 export type RouteAccessKind = "public" | "auth" | "protected" | "unknown";
@@ -218,4 +222,38 @@ export function buildChannelRoute(guildId: string, channelId: string): string {
   const encodedChannelId = encodeURIComponent(channelId.trim());
 
   return `/channels/${encodedGuildId}/${encodedChannelId}`;
+}
+
+export function buildModerationQueueRoute(guildId: string): string {
+  const encodedGuildId = encodeURIComponent(guildId.trim());
+  return `/channels/${encodedGuildId}/moderation`;
+}
+
+export function buildModerationReportRoute(guildId: string, reportId: string): string {
+  const encodedGuildId = encodeURIComponent(guildId.trim());
+  const encodedReportId = encodeURIComponent(reportId.trim());
+  return `/channels/${encodedGuildId}/moderation/${encodedReportId}`;
+}
+
+/**
+ * settings 画面への遷移URLを構築する。
+ */
+export function buildSettingsRoute(
+  section: SettingsRouteSection,
+  params: {
+    returnTo?: string | null;
+  } = {},
+): string {
+  const pathname = APP_ROUTES.settings[section];
+  const normalizedReturnToPath = normalizeReturnToPath(params.returnTo);
+
+  if (normalizedReturnToPath === null) {
+    return pathname;
+  }
+
+  const query = new URLSearchParams({
+    returnTo: normalizedReturnToPath,
+  });
+
+  return `${pathname}?${query.toString()}`;
 }

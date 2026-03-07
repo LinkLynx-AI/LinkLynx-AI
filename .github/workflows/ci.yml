@@ -83,6 +83,48 @@ jobs:
         if: always()
         run: docker compose down
 
+  db-schema-check:
+    name: DB Schema Check
+    runs-on: ubuntu-latest
+    env:
+      NEXT_PUBLIC_FIREBASE_API_KEY: ci-dummy-api-key
+      NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ci-dummy.firebaseapp.com
+      NEXT_PUBLIC_FIREBASE_PROJECT_ID: ci-dummy-project
+      NEXT_PUBLIC_FIREBASE_APP_ID: ci-dummy-app-id
+      NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ci-dummy-sender
+      NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: ci-dummy.appspot.com
+      FIREBASE_PROJECT_ID: ci-dummy-project
+      AUTH_ALLOW_POSTGRES_NOTLS: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Start Postgres
+        run: docker compose up -d postgres
+      - name: Wait for Postgres
+        run: |
+          for i in {1..30}; do
+            if docker compose exec -T postgres pg_isready -h 127.0.0.1 -U postgres -d linklynx >/dev/null 2>&1; then
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Postgres did not become ready in time" >&2
+          docker compose logs postgres >&2
+          exit 1
+      - name: Apply migrations from SQL files
+        run: |
+          set -euo pipefail
+          find database/postgres/migrations -name '*.up.sql' | sort | while read -r file; do
+            echo "Applying ${file}"
+            docker compose exec -T postgres psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d linklynx < "${file}"
+          done
+      - name: Check schema snapshot
+        env:
+          POSTGRES_DUMP_CMD: docker compose exec -T postgres pg_dump -h 127.0.0.1 -U postgres -d linklynx --schema-only --no-owner --no-privileges --exclude-table=_sqlx_migrations
+        run: make db-schema-check
+      - name: Stop Postgres
+        if: always()
+        run: docker compose down -v
+
   typescript-validate:
     name: TypeScript Validate
     runs-on: ubuntu-latest

@@ -893,6 +893,7 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "axum",
+ "futures-util",
  "http",
  "jsonwebtoken",
  "linklynx_shared",
@@ -904,6 +905,7 @@ dependencies = [
  "time",
  "tokio",
  "tokio-postgres",
+ "tokio-tungstenite",
  "tower",
  "tower-http",
  "tracing",

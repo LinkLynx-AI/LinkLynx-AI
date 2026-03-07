@@ -139,6 +139,36 @@ impl PostgresGuildChannelService {
                     icon_key,
                     owner_id
                  FROM updated";
+    const DELETE_GUILD_SQL: &str = "WITH target AS (
+                    SELECT id, owner_id
+                    FROM guilds
+                    WHERE id = $1
+                    FOR UPDATE
+                 ),
+                 actor AS (
+                    SELECT
+                      t.id AS guild_id,
+                      (t.owner_id = $2) AS is_owner,
+                      EXISTS (
+                        SELECT 1
+                        FROM guild_member_roles_v2 gmr
+                        JOIN guild_roles_v2 gr
+                          ON gr.guild_id = gmr.guild_id
+                         AND gr.role_key = gmr.role_key
+                        WHERE gmr.guild_id = t.id
+                          AND gmr.user_id = $2
+                          AND gr.allow_manage = TRUE
+                      ) AS can_manage
+                    FROM target t
+                 ),
+                 deleted AS (
+                    DELETE FROM guilds g
+                    USING actor a
+                    WHERE g.id = a.guild_id
+                      AND (a.is_owner OR a.can_manage)
+                    RETURNING g.id AS guild_id
+                 )
+                 SELECT guild_id FROM deleted";
     const UPDATE_GUILD_CHANNEL_SQL: &str = "WITH editable AS (
                     SELECT
                        c.id AS channel_id,
@@ -682,6 +712,44 @@ impl GuildChannelService for PostgresGuildChannelService {
             icon_key: updated.get::<&str, Option<String>>("icon_key"),
             owner_id: updated.get::<&str, i64>("owner_id"),
         })
+    }
+
+    /// guildを削除する。
+    /// @param principal_id 削除主体
+    /// @param guild_id 対象guild_id
+    /// @returns なし
+    /// @throws GuildChannelError 非権限/未存在/依存障害時
+    async fn delete_guild(
+        &self,
+        principal_id: PrincipalId,
+        guild_id: i64,
+    ) -> Result<(), GuildChannelError> {
+        let client = self.select_client().await?;
+
+        match client
+            .query_opt(Self::DELETE_GUILD_SQL, &[&guild_id, &principal_id.0])
+            .await
+        {
+            Ok(Some(_)) => Ok(()),
+            Ok(None) => {
+                if !self.has_guild(&client, guild_id).await? {
+                    return Err(GuildChannelError::not_found("guild_not_found"));
+                }
+                if !self
+                    .has_manage_permission(&client, principal_id, guild_id)
+                    .await?
+                {
+                    return Err(GuildChannelError::forbidden("guild_manage_permission_required"));
+                }
+                Err(GuildChannelError::dependency_unavailable(
+                    "guild_delete_rejected_without_reason",
+                ))
+            }
+            Err(error) => {
+                self.invalidate_pool().await;
+                Err(Self::map_write_error("guild_delete_query_failed", error))
+            }
+        }
     }
 
     /// guild配下のchannel一覧を返す。

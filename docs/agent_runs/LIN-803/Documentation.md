@@ -5,8 +5,8 @@
 
 ## Applied work
 - Added migration files:
-  - `0008_lin803_server_channel_minimal_contract.up.sql`
-  - `0008_lin803_server_channel_minimal_contract.down.sql`
+  - `0015_lin803_server_channel_minimal_contract.up.sql`
+  - `0015_lin803_server_channel_minimal_contract.down.sql`
 - Updated `docs/DATABASE.md` with LIN-803 migration/index/constraint summaries.
 - Added `database/contracts/lin803_server_channel_minimal_contract.md`.
 - Added run memory files under `docs/agent_runs/LIN-803`.
@@ -14,7 +14,7 @@
 ## Validation results
 - `make db-up`: passed (with escalated Docker permission).
 - `make db-migrate`: failed (`sqlx: command not found`).
-- `/bin/zsh -lc 'for f in database/postgres/migrations/*.up.sql; ...'`: executed to apply `0008` on running Postgres for schema regeneration.
+- `/bin/zsh -lc 'for f in database/postgres/migrations/*.up.sql; ...'`: executed to apply the LIN-803 migration on running Postgres for schema regeneration.
 - `make db-schema POSTGRES_DUMP_CMD=...`: passed.
 - `make db-schema-check`: passed (with escalated Docker permission).
 - `make gen`: passed.
@@ -34,3 +34,4 @@
 ## Notes
 - This issue intentionally does not introduce strict membership integrity triggers.
 - TypeScript validation is blocked by environment/package resolution state, not by LIN-803 DB changes.
+- Historical references to `0008_lin803_server_channel_minimal_contract` were renumbered to `0015_lin803_server_channel_minimal_contract` on 2026-03-07 to resolve duplicate `sqlx` migration versions without changing schema intent.
