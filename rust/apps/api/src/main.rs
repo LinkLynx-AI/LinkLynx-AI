@@ -3,6 +3,7 @@ mod authz;
 mod guild_channel;
 mod moderation;
 mod profile;
+mod scylla_health;
 mod ratelimit;
 
 use std::{
@@ -49,6 +50,7 @@ use profile::{
     build_runtime_profile_service, profile_error_response, ProfileError, ProfilePatchInput,
     ProfileService,
 };
+use scylla_health::{build_runtime_scylla_health_reporter, ScyllaHealthReporter};
 use ratelimit::{
     build_runtime_rest_rate_limit_service, rest_rate_limit_action_for_request, RestRateLimitService,
 };
@@ -64,6 +66,7 @@ pub(crate) struct AppState {
     guild_channel_service: Arc<dyn GuildChannelService>,
     moderation_service: Arc<dyn ModerationService>,
     profile_service: Arc<dyn ProfileService>,
+    scylla_health_reporter: Arc<dyn ScyllaHealthReporter>,
     ws_reauth_grace: Duration,
     ws_ticket_ttl: Duration,
     auth_identify_timeout: Duration,
@@ -86,7 +89,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, reason).into());
     }
 
-    let app = app();
+    let app = app().await;
 
     let addr = server_addr();
     tracing::info!(address = %addr, "server starting");
@@ -113,7 +116,7 @@ fn server_addr() -> SocketAddr {
 /// @param なし
 /// @returns アプリケーション状態
 /// @throws なし
-fn build_runtime_state() -> AppState {
+async fn build_runtime_state() -> AppState {
     let metrics = Arc::new(AuthMetrics::default());
     let auth_service = Arc::new(build_runtime_auth_service(Arc::clone(&metrics)));
     let authorizer = build_runtime_authorizer();
@@ -121,6 +124,7 @@ fn build_runtime_state() -> AppState {
     let guild_channel_service = build_runtime_guild_channel_service();
     let moderation_service = build_runtime_moderation_service();
     let profile_service = build_runtime_profile_service();
+    let scylla_health_reporter = build_runtime_scylla_health_reporter().await;
     let ws_reauth_grace = Duration::from_secs(
         env::var("WS_REAUTH_GRACE_SECONDS")
             .ok()
@@ -142,6 +146,7 @@ fn build_runtime_state() -> AppState {
         guild_channel_service,
         moderation_service,
         profile_service,
+        scylla_health_reporter,
         ws_reauth_grace,
         ws_ticket_ttl,
         auth_identify_timeout,
@@ -203,8 +208,8 @@ fn build_runtime_ws_origin_allowlist() -> WsOriginAllowlist {
 /// @param なし
 /// @returns APIルータ
 /// @throws なし
-fn app() -> Router {
-    app_with_state(build_runtime_state())
+async fn app() -> Router {
+    app_with_state(build_runtime_state().await)
 }
 
 include!("main/http_routes.rs");

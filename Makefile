@@ -2,6 +2,7 @@
 .PHONY: ts-dev ts-build ts-format ts-lint ts-test ts-validate ts-fsd-check rust-dev rust-build rust-test rust-fmt rust-clippy rust-lint rust-ci rust-validate py-dev py-install py-format py-lint py-test py-validate elixir-dev elixir-build
 .PHONY: db-up db-down db-reset db-migrate db-migrate-revert db-migrate-info db-schema db-schema-check db-seed db-table-regex db-doc worktree-sync-env codex-worktree
 .PHONY: authz-spicedb-up authz-spicedb-down authz-spicedb-health
+.PHONY: scylla-bootstrap scylla-health
 
 # 色設定
 GREEN  := \033[0;32m
@@ -170,6 +171,31 @@ authz-spicedb-health: ## SpiceDB gRPC/HTTP ポートのヘルス確認（localho
 	echo "$(RED)SpiceDB gRPC/HTTP endpoints are not reachable on localhost:50051/8443$(NC)"; \
 	docker compose logs spicedb; \
 	exit 1
+
+scylla-bootstrap: ## Scylla schema をローカル compose に適用
+	@set -eu; \
+	keyspace="$${SCYLLA_KEYSPACE:-chat}"; \
+	case "$$keyspace" in \
+		(*[!A-Za-z0-9_]*|'') \
+			echo "$(RED)SCYLLA_KEYSPACE は英数字またはアンダースコアのみ使用できます: $$keyspace$(NC)"; \
+			exit 1; \
+			;; \
+	esac; \
+	dc="$$(docker compose exec -T scylladb cqlsh -e "SELECT data_center FROM system.local;" | awk 'NF > 0 && $$1 != "data_center" && $$1 !~ /^-+$$/ && $$1 !~ /^\(/ { print $$1; exit }')"; \
+	if [ -z "$$dc" ]; then \
+		echo "$(RED)Scylla data_center を取得できませんでした$(NC)"; \
+		docker compose logs scylladb; \
+		exit 1; \
+	fi; \
+	tmp_file="$$(mktemp)"; \
+	trap 'rm -f "$$tmp_file"' EXIT; \
+	perl -0pe "s/'dc1': 3/'$$dc': 1/g; s/CREATE KEYSPACE IF NOT EXISTS chat/CREATE KEYSPACE IF NOT EXISTS $$keyspace/g; s/CREATE TABLE IF NOT EXISTS chat\\./CREATE TABLE IF NOT EXISTS $$keyspace\\./g" \
+		database/scylla/001_lin139_messages.cql > "$$tmp_file"; \
+	docker compose exec -T scylladb cqlsh < "$$tmp_file"; \
+	echo "$(GREEN)Scylla schema applied (data_center=$$dc, keyspace=$$keyspace, rf=1)$(NC)"
+
+scylla-health: ## API の Scylla health probe を確認
+	curl -i -sS http://127.0.0.1:8080/internal/scylla/health
 
 clean: ## コンテナ・ボリューム・イメージを削除
 	docker compose down -v --rmi local

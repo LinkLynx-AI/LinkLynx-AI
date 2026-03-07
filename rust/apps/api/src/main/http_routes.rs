@@ -87,6 +87,7 @@ fn app_with_state(state: AppState) -> Router {
     Router::new()
         .route("/", get(root))
         .route("/health", get(health_check))
+        .route("/internal/scylla/health", get(scylla_health_check))
         .route("/ws", get(ws_handler))
         .route("/auth/ws-ticket", post(issue_ws_ticket))
         .merge(protected_routes)
@@ -108,6 +109,14 @@ async fn root() -> &'static str {
 /// @throws なし
 async fn health_check() -> &'static str {
     "OK"
+}
+
+/// Scylla 詳細ヘルスチェック応答を返す。
+/// @param state アプリケーション状態
+/// @returns Scylla health レポート
+/// @throws なし
+async fn scylla_health_check(State(state): State<AppState>) -> Response {
+    state.scylla_health_reporter.report().await.into_response()
 }
 
 #[derive(Debug, Serialize)]
