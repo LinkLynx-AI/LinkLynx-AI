@@ -97,6 +97,7 @@ jobs:
       AUTH_ALLOW_POSTGRES_NOTLS: "true"
     steps:
       - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
       - name: Start Postgres
         run: docker compose up -d postgres
       - name: Wait for Postgres
@@ -119,6 +120,15 @@ jobs:
             echo "Applying ${file}"
             docker compose exec -T postgres psql -v ON_ERROR_STOP=1 -U postgres -d linklynx < "${file}"
           done
+      - name: Run invite join Postgres integration tests
+        env:
+          DATABASE_URL: postgres://postgres:password@localhost:5432/linklynx
+          AUTH_ALLOW_POSTGRES_NOTLS: "true"
+          INVITE_POSTGRES_INTEGRATION: "true"
+        run: |
+          set -euo pipefail
+          cd rust
+          cargo test -p linklynx_backend postgres_join_invite_integration_ -- --nocapture
       - name: Check schema snapshot
         run: make db-schema-check
       - name: Stop Postgres
