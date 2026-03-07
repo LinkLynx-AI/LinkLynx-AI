@@ -53,6 +53,24 @@ describe("storage object route", () => {
     });
   });
 
+  test("GET は object が無い場合でも url:null を返す", async () => {
+    fetchMock.mockResolvedValue(new Response(null, { status: 404 }));
+
+    const response = await GET(
+      new Request(
+        "http://localhost:3000/api/storage/object?objectKey=profiles%2Fu-1%2Favatar%2Fmissing.png",
+        {
+          headers: {
+            Authorization: "Bearer token-1",
+          },
+        },
+      ),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ url: null });
+  });
+
   test("POST は multipart upload で Firebase Storage へ転送する", async () => {
     fetchMock.mockResolvedValue(new Response(JSON.stringify({ ok: true }), { status: 200 }));
 

@@ -6,7 +6,7 @@ const STORAGE_PROXY_ERROR_SCHEMA = z.object({
   message: z.string().trim().min(1),
 });
 const STORAGE_OBJECT_URL_RESPONSE_SCHEMA = z.object({
-  url: z.string().url(),
+  url: z.string().url().nullable(),
 });
 const STORAGE_PROXY_PATH = "/api/storage/object";
 
@@ -98,7 +98,7 @@ async function assertStorageProxyResponse(response: Response, fallbackMessage: s
 /**
  * Storage の object key からダウンロード URL を取得する。
  */
-export async function getStorageObjectUrl(objectKey: string): Promise<string> {
+export async function getStorageObjectUrl(objectKey: string): Promise<string | null> {
   const response = await authenticatedStorageFetch(
     `${STORAGE_PROXY_PATH}?objectKey=${encodeURIComponent(objectKey)}`,
     { method: "GET" },

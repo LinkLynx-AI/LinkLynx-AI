@@ -137,7 +137,7 @@ export async function GET(request: Request): Promise<NextResponse> {
   }
 
   if (response.status === 404) {
-    return jsonError(404, "STORAGE_OBJECT_NOT_FOUND", "Storage object が見つかりません。");
+    return NextResponse.json({ url: null });
   }
   if (!response.ok) {
     return jsonError(response.status, "STORAGE_REQUEST_FAILED", "Storage object の取得に失敗しました。");
@@ -146,7 +146,7 @@ export async function GET(request: Request): Promise<NextResponse> {
   const metadata = await parseStorageMetadataResponse(response);
   const firstDownloadToken = metadata.downloadTokens?.split(",")[0]?.trim() ?? "";
   if (firstDownloadToken.length === 0) {
-    return jsonError(404, "DOWNLOAD_URL_UNAVAILABLE", "ダウンロード URL を解決できませんでした。");
+    return NextResponse.json({ url: null });
   }
 
   return NextResponse.json({

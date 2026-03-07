@@ -43,6 +43,12 @@ describe("storage proxy client", () => {
     expect((init.headers as Headers).get("Authorization")).toBe("Bearer token-1");
   });
 
+  test("ダウンロード URL が解決できない場合は null を返す", async () => {
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ url: null }), { status: 200 }));
+
+    await expect(getStorageObjectUrl("profiles/u-1/avatar/missing.png")).resolves.toBeNull();
+  });
+
   test("アップロード時に formData を送る", async () => {
     fetchMock.mockResolvedValue(new Response(JSON.stringify({ ok: true }), { status: 200 }));
 
