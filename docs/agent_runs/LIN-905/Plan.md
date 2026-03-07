@@ -7,17 +7,17 @@
 ## Milestones
 ### M1: 受け入れ条件と既存実装の対応を固定する
 - Acceptance criteria:
-  - [ ] `LIN-905` の要求を login / protected route / ws identify に分解できる。
-  - [ ] 引継ぎ元 issue と現在のコード上の実装位置を特定できる。
-  - [ ] 不足がコード差分か証跡不足かを判定できる。
+  - [x] `LIN-905` の要求を login / protected route / ws identify に分解できる。
+  - [x] 引継ぎ元 issue と現在のコード上の実装位置を特定できる。
+  - [x] 不足がコード差分か証跡不足かを判定できる。
 - Validation:
   - `rg -n "protected/ping|auth.identify|ws-ticket|returnTo|verify-email" typescript rust docs/agent_runs`
 
 ### M2: 必要な差分を補完し、品質ゲートを通す
 - Acceptance criteria:
-  - [ ] 不足があれば `LIN-905` の範囲だけを修正する。
-  - [ ] TypeScript / Rust の関係テストを再実行する。
-  - [ ] `make validate` と `cd typescript && npm run typecheck` の結果を記録する。
+  - [x] 不足があれば `LIN-905` の範囲だけを修正する。
+  - [x] TypeScript / Rust の関係テストを再実行する。
+  - [x] `make validate` と `cd typescript && npm run typecheck` の結果を記録する。
 - Validation:
   - `make validate`
   - `make rust-lint`
@@ -26,9 +26,9 @@
 
 ### M3: Runtime smoke と review 証跡を閉じる
 - Acceptance criteria:
-  - [ ] login -> protected route -> ws identify の最小導線を確認できる。
-  - [ ] reviewer / reviewer_ui_guard / reviewer_ui の結果を残せる。
-  - [ ] PR 用の根拠を `Documentation.md` に集約できる。
+  - [x] login -> protected route -> ws identify の最小導線を確認できる。
+  - [x] reviewer / reviewer_ui_guard / reviewer_ui の結果を残せる。
+  - [x] PR 用の根拠を `Documentation.md` に集約できる。
 - Validation:
   - `make dev`
   - route-level smoke for `/login` and protected route

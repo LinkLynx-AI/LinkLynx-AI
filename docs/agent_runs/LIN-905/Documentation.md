@@ -53,6 +53,17 @@
 - reviewer sub-agent orchestration: このセッションでは安定せず、docs-only diff のため manual fallback を採用
 - UI gate: docs-only diff のため skip
 
+## Per-issue evidence
+- issue: `LIN-905`
+- branch: `codex/LIN-905-login-protected-session-foundation`
+- start mode: `child issue start`
+- validation commands: passed
+- reviewer gate: manual self-review fallback
+- UI gate: skipped
+- runtime smoke: passed
+- PR: pending
+- PR base branch: `main`
+
 ## Runtime smoke
 - `make dev`: passed
 - `GET /login`: `200`
