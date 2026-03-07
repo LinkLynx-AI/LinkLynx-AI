@@ -1,0 +1,9 @@
+[package]
+name = "linklynx_protocol_events"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+linklynx_message_api = { path = "../message-api" }
+serde.workspace = true
+serde_json.workspace = true

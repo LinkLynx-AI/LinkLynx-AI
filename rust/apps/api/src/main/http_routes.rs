@@ -116,26 +116,6 @@ struct GuildChannelResponse {
 }
 
 #[derive(Debug, Serialize)]
-struct GuildChannelMessagesResponse {
-    ok: bool,
-    request_id: String,
-    principal_id: i64,
-    guild_id: i64,
-    channel_id: i64,
-    messages: Vec<String>,
-}
-
-#[derive(Debug, Serialize)]
-struct GuildChannelMessageCreateResponse {
-    ok: bool,
-    request_id: String,
-    principal_id: i64,
-    guild_id: i64,
-    channel_id: i64,
-    message_id: String,
-}
-
-#[derive(Debug, Serialize)]
 struct GuildInviteResponse {
     ok: bool,
     request_id: String,
@@ -271,36 +251,68 @@ async fn get_guild_channel(
 /// @returns メッセージ一覧最小応答
 /// @throws なし
 async fn list_channel_messages(
-    axum::extract::Path((guild_id, channel_id)): axum::extract::Path<(i64, i64)>,
     Extension(auth_context): Extension<AuthContext>,
-) -> Json<GuildChannelMessagesResponse> {
-    Json(GuildChannelMessagesResponse {
-        ok: true,
-        request_id: auth_context.request_id,
-        principal_id: auth_context.principal_id.0,
-        guild_id,
-        channel_id,
-        messages: Vec::new(),
-    })
+    Path(params): Path<GuildChannelPathParams>,
+    query: Result<Query<ListGuildChannelMessagesQueryV1>, QueryRejection>,
+) -> Response {
+    let request_id = auth_context.request_id.clone();
+    let guild_id = match parse_guild_id(&params.guild_id) {
+        Ok(value) => value,
+        Err(error) => return guild_channel_error_response(&error, request_id),
+    };
+    let channel_id = match parse_channel_id(&params.channel_id) {
+        Ok(value) => value,
+        Err(error) => return guild_channel_error_response(&error, request_id),
+    };
+    let query = match parse_message_list_query(query) {
+        Ok(value) => value,
+        Err(error) => return guild_channel_error_response(&error, request_id),
+    };
+
+    match paginate_messages(&message_fixture(guild_id, channel_id), &query) {
+        Ok(response) => Json(response).into_response(),
+        Err(error) => message_api_error_response(&error, request_id),
+    }
 }
 
-/// チャンネルメッセージ作成の最小応答を返す。
-/// @param path guild_id と channel_id を含むパス
+/// チャンネルメッセージ作成の最小契約応答を返す。
 /// @param auth_context 認証文脈
-/// @returns メッセージ作成最小応答
+/// @param params パスパラメータ
+/// @param payload 作成入力
+/// @returns メッセージ作成レスポンス
 /// @throws なし
 async fn create_channel_message(
-    axum::extract::Path((guild_id, channel_id)): axum::extract::Path<(i64, i64)>,
     Extension(auth_context): Extension<AuthContext>,
-) -> Json<GuildChannelMessageCreateResponse> {
-    Json(GuildChannelMessageCreateResponse {
-        ok: true,
-        request_id: auth_context.request_id,
-        principal_id: auth_context.principal_id.0,
-        guild_id,
-        channel_id,
-        message_id: format!("msg-{guild_id}-{channel_id}"),
-    })
+    Path(params): Path<GuildChannelPathParams>,
+    payload: Result<Json<CreateGuildChannelMessageRequestV1>, JsonRejection>,
+) -> Response {
+    let request_id = auth_context.request_id.clone();
+    let guild_id = match parse_guild_id(&params.guild_id) {
+        Ok(value) => value,
+        Err(error) => return guild_channel_error_response(&error, request_id),
+    };
+    let channel_id = match parse_channel_id(&params.channel_id) {
+        Ok(value) => value,
+        Err(error) => return guild_channel_error_response(&error, request_id),
+    };
+    let payload = match parse_json_payload(payload) {
+        Ok(value) => value,
+        Err(error) => return guild_channel_error_response(&error, request_id),
+    };
+    if let Err(error) = validate_create_request(&payload) {
+        return message_api_error_response(&error, request_id);
+    }
+
+    let response = CreateGuildChannelMessageResponseV1 {
+        message: create_message_fixture(
+            guild_id,
+            channel_id,
+            auth_context.principal_id.0,
+            payload.content,
+        ),
+    };
+
+    (StatusCode::CREATED, Json(response)).into_response()
 }
 
 /// DMチャンネル情報の最小応答を返す。
@@ -634,6 +646,12 @@ struct GuildPathParams {
     guild_id: String,
 }
 
+#[derive(Debug, Deserialize)]
+struct GuildChannelPathParams {
+    guild_id: String,
+    channel_id: String,
+}
+
 #[derive(Debug, Serialize)]
 struct ChannelListResponse {
     channels: Vec<guild_channel::ChannelSummary>,
@@ -708,6 +726,119 @@ fn parse_json_payload<T>(payload: Result<Json<T>, JsonRejection>) -> Result<T, G
     payload
         .map(|Json(value)| value)
         .map_err(|_| GuildChannelError::validation("request_body_invalid"))
+}
+
+/// Query入力を検証して message 一覧クエリを取得する。
+/// @param query Query 抽出結果
+/// @returns 検証済みメッセージ一覧クエリ
+/// @throws GuildChannelError Query 形式不正時
+fn parse_message_list_query(
+    query: Result<Query<ListGuildChannelMessagesQueryV1>, QueryRejection>,
+) -> Result<ListGuildChannelMessagesQueryV1, GuildChannelError> {
+    query
+        .map(|Query(value)| value)
+        .map_err(|_| GuildChannelError::validation("message_query_invalid"))
+}
+
+/// message API validation エラーを既存レスポンス契約へ写像する。
+/// @param error message API エラー
+/// @param request_id リクエスト識別子
+/// @returns エラーレスポンス
+/// @throws なし
+fn message_api_error_response(error: &MessageApiError, request_id: String) -> Response {
+    let api_error = GuildChannelError::validation(error.reason_code());
+    guild_channel_error_response(&api_error, request_id)
+}
+
+/// contract 固定用のメッセージ fixture を返す。
+/// @param guild_id 対象 guild_id
+/// @param channel_id 対象 channel_id
+/// @returns newest-first のメッセージ列
+/// @throws なし
+fn message_fixture(guild_id: i64, channel_id: i64) -> Vec<MessageItemV1> {
+    vec![
+        MessageItemV1 {
+            message_id: 120_110,
+            guild_id,
+            channel_id,
+            author_id: 9001,
+            content: "latest".to_owned(),
+            created_at: "2026-02-21T10:00:06Z".to_owned(),
+            version: 1,
+            edited_at: None,
+            is_deleted: false,
+        },
+        MessageItemV1 {
+            message_id: 120_108,
+            guild_id,
+            channel_id,
+            author_id: 9002,
+            content: "same-ts-newer".to_owned(),
+            created_at: "2026-02-21T10:00:05Z".to_owned(),
+            version: 1,
+            edited_at: None,
+            is_deleted: false,
+        },
+        MessageItemV1 {
+            message_id: 120_107,
+            guild_id,
+            channel_id,
+            author_id: 9003,
+            content: "same-ts-older".to_owned(),
+            created_at: "2026-02-21T10:00:05Z".to_owned(),
+            version: 1,
+            edited_at: None,
+            is_deleted: false,
+        },
+        MessageItemV1 {
+            message_id: 120_105,
+            guild_id,
+            channel_id,
+            author_id: 9001,
+            content: "older".to_owned(),
+            created_at: "2026-02-21T10:00:04Z".to_owned(),
+            version: 1,
+            edited_at: None,
+            is_deleted: false,
+        },
+        MessageItemV1 {
+            message_id: 120_102,
+            guild_id,
+            channel_id,
+            author_id: 9002,
+            content: "oldest".to_owned(),
+            created_at: "2026-02-21T10:00:03Z".to_owned(),
+            version: 1,
+            edited_at: None,
+            is_deleted: false,
+        },
+    ]
+}
+
+/// contract 固定用の作成レスポンス fixture を返す。
+/// @param guild_id 対象 guild_id
+/// @param channel_id 対象 channel_id
+/// @param author_id 投稿主体
+/// @param content 投稿内容
+/// @returns メッセージスナップショット
+/// @throws なし
+fn create_message_fixture(
+    guild_id: i64,
+    channel_id: i64,
+    author_id: i64,
+    content: String,
+) -> MessageItemV1 {
+    MessageItemV1 {
+        message_id: 120_111,
+        guild_id,
+        channel_id,
+        author_id,
+        content,
+        created_at: "2026-03-07T10:00:00Z".to_owned(),
+        version: 1,
+        edited_at: None,
+        is_deleted: false,
+    }
 }
 
 /// JSON入力を検証してプロフィール更新ペイロードを取得する。

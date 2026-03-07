@@ -47,7 +47,7 @@ Rules:
 
 | Event | Subject suffix | Delivery class | Notes |
 | --- | --- | --- | --- |
-| Message create | `message_create` | Class B | Missing event is compensated by history fetch |
+| Message create | `message_create` | Class A | Missing event is compensated by history fetch and state resync |
 | Typing | `typing_start` / `typing_stop` | Class B | Ephemeral signal, no replay requirement |
 | Presence update | `presence_update` | Class B | Ephemeral signal, latest-state bias |
 

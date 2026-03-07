@@ -2,6 +2,9 @@
 resolver = "2"
 members = [
     "crates/api",
+    "crates/contracts/message-api",
+    "crates/contracts/protocol-events",
+    "crates/contracts/protocol-ws",
     "crates/domains",
     "crates/infra",
     "crates/shared",
