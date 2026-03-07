@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, expect, test, vi } from "vitest";
+import { beforeEach, describe, expect, test, vi } from "vitest";
 import { render, screen, userEvent } from "@/test/test-utils";
 
 vi.mock("./server/server-overview", () => ({
@@ -63,9 +63,32 @@ vi.mock("./user/user-accessibility", () => ({
   UserAccessibility: () => <div>UserAccessibility</div>,
 }));
 
+const useActionGuardMock = vi.hoisted(() => vi.fn());
+
+vi.mock("@/shared/api/queries", () => ({
+  useActionGuard: useActionGuardMock,
+  getActionGuardScreenKind: (status: string) => {
+    if (status === "forbidden") {
+      return "forbidden";
+    }
+    if (status === "unavailable") {
+      return "service-unavailable";
+    }
+    return null;
+  },
+}));
+
 import { SettingsLayout } from "./settings-layout";
 
 describe("SettingsLayout", () => {
+  beforeEach(() => {
+    useActionGuardMock.mockImplementation(() => ({
+      status: "allowed",
+      isAllowed: true,
+      message: null,
+    }));
+  });
+
   test("reaches profile screen from user settings navigation", async () => {
     render(<SettingsLayout type="user" onClose={vi.fn()} />);
 
@@ -74,5 +97,18 @@ describe("SettingsLayout", () => {
     await userEvent.click(screen.getByRole("button", { name: "プロフィール" }));
 
     expect(screen.getByText("プロフィール画面")).not.toBeNull();
+  });
+
+  test("renders route guard screen when server settings permission is denied", () => {
+    useActionGuardMock.mockImplementation(() => ({
+      status: "forbidden",
+      isAllowed: false,
+      message: "この操作を行う権限がありません。",
+    }));
+
+    render(<SettingsLayout type="server" serverId="2001" onClose={vi.fn()} />);
+
+    expect(screen.getByText("アクセス権限がありません")).not.toBeNull();
+    expect(screen.queryByText("ServerOverview")).toBeNull();
   });
 });

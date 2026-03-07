@@ -2,12 +2,17 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { RouteGuardScreen } from "@/features/route-guard";
 import {
   useCreateModerationMute,
   useReopenModerationReport,
   useResolveModerationReport,
 } from "@/shared/api/mutations";
-import { useModerationReport } from "@/shared/api/queries";
+import {
+  getActionGuardScreenKind,
+  useActionGuard,
+  useModerationReport,
+} from "@/shared/api/queries";
 import { toApiErrorText } from "@/shared/api/guild-channel-api-client";
 import { buildModerationQueueRoute } from "@/shared/config/routes";
 import { ModerationStatePlaceholder } from "./moderation-state-placeholder";
@@ -19,7 +24,18 @@ export function ModerationReportDetailPage({
   serverId: string;
   reportId: string;
 }) {
-  const { data: report, isLoading, isError, error } = useModerationReport(serverId, reportId);
+  const moderateGuard = useActionGuard({
+    serverId,
+    requirement: "guild:moderate",
+  });
+  const {
+    data: report,
+    isLoading,
+    isError,
+    error,
+  } = useModerationReport(serverId, reportId, {
+    enabled: moderateGuard.isAllowed,
+  });
   const resolveReport = useResolveModerationReport();
   const reopenReport = useReopenModerationReport();
   const createMute = useCreateModerationMute();
@@ -29,6 +45,23 @@ export function ModerationReportDetailPage({
   const [muteExpiresAt, setMuteExpiresAt] = useState("");
   const [muteResult, setMuteResult] = useState<string | null>(null);
   const [muteError, setMuteError] = useState<string | null>(null);
+
+  const guardScreenKind = getActionGuardScreenKind(moderateGuard.status);
+
+  if (moderateGuard.status === "loading") {
+    return (
+      <div className="p-6">
+        <ModerationStatePlaceholder
+          title="モデレーション権限を確認中です"
+          description="アクセス可能な操作を確認しています。"
+        />
+      </div>
+    );
+  }
+
+  if (guardScreenKind !== null) {
+    return <RouteGuardScreen kind={guardScreenKind} />;
+  }
 
   if (isLoading) {
     return (
@@ -57,6 +90,9 @@ export function ModerationReportDetailPage({
     muteTargetUserId.trim().length > 0 ? muteTargetUserId.trim() : defaultMuteTarget;
 
   const handleResolve = async () => {
+    if (!moderateGuard.isAllowed) {
+      return;
+    }
     await resolveReport.mutateAsync({
       serverId,
       reportId: report.reportId,
@@ -64,6 +100,9 @@ export function ModerationReportDetailPage({
   };
 
   const handleReopen = async () => {
+    if (!moderateGuard.isAllowed) {
+      return;
+    }
     await reopenReport.mutateAsync({
       serverId,
       reportId: report.reportId,
@@ -74,6 +113,10 @@ export function ModerationReportDetailPage({
     event.preventDefault();
     setMuteError(null);
     setMuteResult(null);
+    if (!moderateGuard.isAllowed) {
+      setMuteError(moderateGuard.message);
+      return;
+    }
 
     try {
       const created = await createMute.mutateAsync({
@@ -125,7 +168,7 @@ export function ModerationReportDetailPage({
             <button
               type="button"
               onClick={() => void handleResolve()}
-              disabled={resolveReport.isPending}
+              disabled={resolveReport.isPending || !moderateGuard.isAllowed}
               className="rounded bg-discord-brand-green px-3 py-1.5 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-70"
             >
               {resolveReport.isPending ? "処理中..." : "resolve"}
@@ -134,7 +177,7 @@ export function ModerationReportDetailPage({
             <button
               type="button"
               onClick={() => void handleReopen()}
-              disabled={reopenReport.isPending}
+              disabled={reopenReport.isPending || !moderateGuard.isAllowed}
               className="rounded bg-discord-brand-yellow px-3 py-1.5 text-xs font-semibold text-black disabled:cursor-not-allowed disabled:opacity-70"
             >
               {reopenReport.isPending ? "処理中..." : "reopen"}
@@ -181,7 +224,7 @@ export function ModerationReportDetailPage({
           </label>
           <button
             type="submit"
-            disabled={createMute.isPending}
+            disabled={createMute.isPending || !moderateGuard.isAllowed}
             className="rounded bg-discord-brand-red px-3 py-1.5 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-70"
           >
             {createMute.isPending ? "処理中..." : "mute"}

@@ -1,7 +1,10 @@
 // @vitest-environment jsdom
-import { describe, expect, test, vi } from "vitest";
+import { beforeEach, describe, expect, test, vi } from "vitest";
 import { render, screen, userEvent } from "@/test/test-utils";
 import { CreateChannelModal } from "./create-channel-modal";
+
+const mutateAsyncMock = vi.hoisted(() => vi.fn());
+const useActionGuardMock = vi.hoisted(() => vi.fn());
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({
@@ -12,11 +15,24 @@ vi.mock("next/navigation", () => ({
 vi.mock("@/shared/api/mutations/use-channel-actions", () => ({
   useCreateChannel: () => ({
     isPending: false,
-    mutateAsync: vi.fn(),
+    mutateAsync: mutateAsyncMock,
   }),
 }));
 
+vi.mock("@/shared/api/queries", () => ({
+  useActionGuard: useActionGuardMock,
+}));
+
 describe("CreateChannelModal", () => {
+  beforeEach(() => {
+    mutateAsyncMock.mockReset();
+    useActionGuardMock.mockImplementation(() => ({
+      status: "allowed",
+      isAllowed: true,
+      message: null,
+    }));
+  });
+
   test("disables unsupported channel types for v1", () => {
     render(<CreateChannelModal onClose={() => undefined} serverId="2001" />);
 
@@ -39,5 +55,24 @@ describe("CreateChannelModal", () => {
 
     const submitButton = screen.getByRole("button", { name: "チャンネルを作成" });
     expect(submitButton).toHaveProperty("disabled", true);
+  });
+
+  test("shows guard message and keeps submit disabled when create permission is missing", async () => {
+    useActionGuardMock.mockImplementation(() => ({
+      status: "forbidden",
+      isAllowed: false,
+      message: "この操作を行う権限がありません。",
+    }));
+
+    render(<CreateChannelModal onClose={() => undefined} serverId="2001" />);
+
+    await userEvent.type(screen.getByPlaceholderText("新しいチャンネル"), "general");
+
+    expect(screen.getByText("この操作を行う権限がありません。")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "チャンネルを作成" })).toHaveProperty(
+      "disabled",
+      true,
+    );
+    expect(mutateAsyncMock).not.toHaveBeenCalled();
   });
 });

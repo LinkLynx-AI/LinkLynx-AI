@@ -10,4 +10,11 @@ export { useInvites } from "./use-invites";
 export { useWebhooks } from "./use-webhooks";
 export { useAuditLog } from "./use-audit-log";
 export { useModerationReports, useModerationReport } from "./use-moderation-reports";
+export {
+  getActionGuardMessage,
+  getActionGuardScreenKind,
+  resolveActionGuardErrorStatus,
+  resolveActionGuardStatus,
+  useActionGuard,
+} from "./use-action-guard";
 export { usePermissionSnapshot } from "./use-permission-snapshot";

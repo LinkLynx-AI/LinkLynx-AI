@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import Link from "next/link";
 import { Hash, Megaphone, Settings, UserPlus } from "lucide-react";
+import { useActionGuard } from "@/shared/api/queries";
 import { cn } from "@/shared/lib/cn";
 import { useUIStore } from "@/shared/model/stores/ui-store";
 import type { Channel } from "@/shared/model/types/channel";
@@ -29,6 +30,13 @@ export function ChannelItem({
 }) {
   const showContextMenu = useUIStore((s) => s.showContextMenu);
   const openModal = useUIStore((s) => s.openModal);
+  const [didPrimeManageGuard, setDidPrimeManageGuard] = useState(isActive);
+  const manageChannelGuard = useActionGuard({
+    serverId,
+    channelId: channel.id,
+    requirement: "channel:manage",
+    enabled: didPrimeManageGuard,
+  });
 
   const handleContextMenu = useCallback(
     (e: React.MouseEvent) => {
@@ -48,10 +56,17 @@ export function ChannelItem({
     },
     [channel.id, channel.name, openModal],
   );
+  const primeManageGuard = () => {
+    if (!didPrimeManageGuard) {
+      setDidPrimeManageGuard(true);
+    }
+  };
 
   return (
     <Link
       onContextMenu={handleContextMenu}
+      onMouseEnter={primeManageGuard}
+      onFocusCapture={primeManageGuard}
       href={`/channels/${serverId}/${channel.id}`}
       className={cn(
         "group mx-2 flex items-center gap-1.5 rounded px-2 py-1 cursor-pointer",
@@ -79,13 +94,18 @@ export function ChannelItem({
         )}
       >
         <button
+          type="button"
+          aria-label="招待を作成"
           className="rounded p-0.5 text-discord-channels-default hover:text-discord-interactive-hover"
-          onClick={(e) => e.preventDefault()}
+          disabled
         >
           <UserPlus className="h-4 w-4" />
         </button>
         <button
+          type="button"
+          aria-label="チャンネルを編集"
           className="rounded p-0.5 text-discord-channels-default hover:text-discord-interactive-hover"
+          disabled={!manageChannelGuard.isAllowed}
           onClick={openChannelEditModal}
         >
           <Settings className="h-4 w-4" />

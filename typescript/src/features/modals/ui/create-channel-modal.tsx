@@ -8,6 +8,7 @@ import { Button } from "@/shared/ui/button";
 import { Input } from "@/shared/ui/input";
 import { Toggle } from "@/shared/ui/toggle";
 import { useCreateChannel } from "@/shared/api/mutations/use-channel-actions";
+import { useActionGuard } from "@/shared/api/queries";
 import { toCreateActionErrorText } from "@/shared/api/guild-channel-api-client";
 import { buildChannelRoute } from "@/shared/config/routes";
 import { cn } from "@/shared/lib/cn";
@@ -51,6 +52,11 @@ export function CreateChannelModal({
   const [isPrivate, setIsPrivate] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const createChannel = useCreateChannel();
+  const actionGuard = useActionGuard({
+    serverId: serverId ?? "",
+    requirement: "guild:create-channel",
+    enabled: serverId !== undefined,
+  });
   const handleClose = () => {
     if (createChannel.isPending) {
       return;
@@ -61,6 +67,10 @@ export function CreateChannelModal({
   const handleCreate = async () => {
     if (serverId === undefined) {
       setSubmitError("サーバーを選択してから作成してください。");
+      return;
+    }
+    if (!actionGuard.isAllowed) {
+      setSubmitError(actionGuard.message);
       return;
     }
 
@@ -79,6 +89,7 @@ export function CreateChannelModal({
       setSubmitError(toCreateActionErrorText(error, "チャンネルの作成に失敗しました。"));
     }
   };
+  const guardMessage = serverId === undefined ? null : actionGuard.message;
 
   return (
     <Modal open onClose={handleClose} className="max-w-[460px]">
@@ -153,6 +164,18 @@ export function CreateChannelModal({
             </div>
             <Toggle checked={isPrivate} onChange={setIsPrivate} />
           </div>
+          {guardMessage !== null && (
+            <p
+              className={cn(
+                "text-xs",
+                actionGuard.status === "loading"
+                  ? "text-discord-text-muted"
+                  : "text-discord-brand-red",
+              )}
+            >
+              {guardMessage}
+            </p>
+          )}
         </div>
       </ModalBody>
       <ModalFooter>
@@ -160,7 +183,12 @@ export function CreateChannelModal({
           キャンセル
         </Button>
         <Button
-          disabled={!channelName.trim() || serverId === undefined || createChannel.isPending}
+          disabled={
+            !channelName.trim() ||
+            serverId === undefined ||
+            createChannel.isPending ||
+            !actionGuard.isAllowed
+          }
           onClick={() => void handleCreate()}
         >
           チャンネルを作成

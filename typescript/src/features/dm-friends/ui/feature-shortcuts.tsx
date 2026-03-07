@@ -61,7 +61,7 @@ export function FeatureShortcuts() {
     { modal: "create-server", label: "サーバー作成" },
     { modal: "join-server", label: "サーバー参加" },
     { modal: "create-channel", label: "チャンネル作成" },
-    { modal: "create-invite", label: "招待作成" },
+    { modal: "create-invite", label: "招待作成", disabled: true },
     {
       modal: "delete-confirm",
       label: "削除確認",

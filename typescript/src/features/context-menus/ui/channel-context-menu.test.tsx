@@ -1,8 +1,15 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, test } from "vitest";
+import { vi } from "vitest";
 import { render, screen, userEvent } from "@/test/test-utils";
 import { useUIStore } from "@/shared/model/stores/ui-store";
 import { ChannelContextMenu } from "./channel-context-menu";
+
+const useActionGuardMock = vi.hoisted(() => vi.fn());
+
+vi.mock("@/shared/api/queries", () => ({
+  useActionGuard: useActionGuardMock,
+}));
 
 function createChannel() {
   return {
@@ -26,6 +33,11 @@ describe("ChannelContextMenu", () => {
       modalProps: {},
       contextMenu: null,
     });
+    useActionGuardMock.mockImplementation(() => ({
+      status: "allowed",
+      isAllowed: true,
+      message: null,
+    }));
   });
 
   test("opens channel delete modal with channel payload", async () => {
@@ -46,5 +58,35 @@ describe("ChannelContextMenu", () => {
       channelName: "general",
       serverId: "2001",
     });
+  });
+
+  test("disables edit and delete when channel manage permission is missing", async () => {
+    useActionGuardMock.mockImplementation(() => ({
+      status: "forbidden",
+      isAllowed: false,
+      message: "この操作を行う権限がありません。",
+    }));
+
+    render(
+      <ChannelContextMenu
+        data={{
+          channel: createChannel(),
+          serverId: "2001",
+        }}
+      />,
+    );
+
+    expect(screen.getByRole("menuitem", { name: "チャンネルを編集" })).toHaveProperty(
+      "disabled",
+      true,
+    );
+    expect(screen.getByRole("menuitem", { name: "チャンネルを削除" })).toHaveProperty(
+      "disabled",
+      true,
+    );
+    expect(screen.getByRole("menuitem", { name: "招待を作成" })).toHaveProperty("disabled", true);
+
+    await userEvent.click(screen.getByRole("menuitem", { name: "チャンネルを編集" }));
+    expect(useUIStore.getState().activeModal).toBeNull();
   });
 });

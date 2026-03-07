@@ -1,5 +1,6 @@
 "use client";
 
+import { useActionGuard } from "@/shared/api/queries";
 import { ContextMenu, MenuItem, MenuSeparator } from "@/shared/ui/context-menu";
 import { useUIStore } from "@/shared/model/stores/ui-store";
 import type { Channel } from "@/shared/model/types/channel";
@@ -7,6 +8,11 @@ import type { Channel } from "@/shared/model/types/channel";
 export function ChannelContextMenu({ data }: { data: { channel: Channel; serverId: string } }) {
   const openModal = useUIStore((s) => s.openModal);
   const hideContextMenu = useUIStore((s) => s.hideContextMenu);
+  const manageChannelGuard = useActionGuard({
+    serverId: data.serverId,
+    channelId: data.channel.id,
+    requirement: "channel:manage",
+  });
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(`/channels/${data.serverId}/${data.channel.id}`);
@@ -19,6 +25,7 @@ export function ChannelContextMenu({ data }: { data: { channel: Channel; serverI
       <MenuItem onClick={hideContextMenu}>チャンネルをミュート</MenuItem>
       <MenuSeparator />
       <MenuItem
+        disabled={!manageChannelGuard.isAllowed}
         onClick={() => {
           openModal("channel-edit", {
             channelId: data.channel.id,
@@ -41,16 +48,10 @@ export function ChannelContextMenu({ data }: { data: { channel: Channel; serverI
         </MenuItem>
       )}
       <MenuSeparator />
-      <MenuItem
-        onClick={() => {
-          openModal("create-invite");
-          hideContextMenu();
-        }}
-      >
-        招待を作成
-      </MenuItem>
+      <MenuItem disabled>招待を作成</MenuItem>
       <MenuItem
         danger
+        disabled={!manageChannelGuard.isAllowed}
         onClick={() => {
           openModal("channel-delete", {
             channelId: data.channel.id,

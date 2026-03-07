@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { toUpdateActionErrorText } from "@/shared/api/guild-channel-api-client";
+import { useActionGuard } from "@/shared/api/queries";
 import { useUpdateChannel } from "@/shared/api/mutations/use-channel-update";
 import { useChannel } from "@/shared/api/queries/use-channels";
 import { Button } from "@/shared/ui/button";
@@ -19,6 +20,12 @@ export function ChannelEditOverview({
 }) {
   const { data: channel, isLoading } = useChannel(channelId ?? "");
   const updateChannel = useUpdateChannel();
+  const manageChannelGuard = useActionGuard({
+    serverId: channel?.guildId ?? "",
+    channelId,
+    requirement: "channel:manage",
+    enabled: channelId !== undefined && channel?.guildId !== undefined,
+  });
   const [name, setName] = useState("");
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -33,6 +40,10 @@ export function ChannelEditOverview({
   const handleSave = async () => {
     if (channelId === undefined) {
       setSubmitError("チャンネルIDを確認してから再試行してください。");
+      return;
+    }
+    if (!manageChannelGuard.isAllowed) {
+      setSubmitError(manageChannelGuard.message);
       return;
     }
 
@@ -68,7 +79,9 @@ export function ChannelEditOverview({
     normalizedName.length > 0 &&
     !overMaxNameLength &&
     normalizedName !== channel.name &&
+    manageChannelGuard.isAllowed &&
     !updateChannel.isPending;
+  const guardMessage = channel?.guildId === undefined ? null : manageChannelGuard.message;
 
   return (
     <div className="space-y-6">
@@ -87,6 +100,17 @@ export function ChannelEditOverview({
         error={inputError ?? undefined}
         fullWidth
       />
+      {guardMessage !== null && (
+        <p
+          className={`text-xs ${
+            manageChannelGuard.status === "loading"
+              ? "text-discord-text-muted"
+              : "text-discord-brand-red"
+          }`}
+        >
+          {guardMessage}
+        </p>
+      )}
       <div className="flex justify-end">
         <Button disabled={!canSave} onClick={() => void handleSave()}>
           {updateChannel.isPending ? "保存中..." : "変更を保存"}
@@ -102,7 +126,11 @@ export function ChannelEditOverview({
           </div>
           <Button
             variant="danger"
-            disabled={channelId === undefined || channel?.guildId === undefined}
+            disabled={
+              channelId === undefined ||
+              channel?.guildId === undefined ||
+              !manageChannelGuard.isAllowed
+            }
             onClick={() => setDeleteModalOpen(true)}
           >
             チャンネルを削除
