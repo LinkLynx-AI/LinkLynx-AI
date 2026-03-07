@@ -44,11 +44,13 @@
   - `make validate` は frontend / rust / python の既存 suite 全体まで完走
 
 ## Review results
-- reviewer_ui_guard:
-  - `run_ui_checks=true`
-  - rationale: `typescript/src/features/auth-flow/ui/password-reset-form.tsx` と `typescript/src/features/auth-flow/ui/password-reset-form.test.tsx` が UI-impact path に該当
-- reviewer:
-  - sub-agent 起動がこのセッションでは不安定だったため manual self-review fallback を実施
+- manual UI guard judgment:
+  - UI change あり
+  - rationale: `typescript/src/features/auth-flow/ui/password-reset-form.tsx` が user-visible text と CTA state を変更している
+- reviewer / reviewer_ui_guard:
+  - sub-agent は起動できたが、要約返却前に interrupt / error となり gate result を取得できず
+  - このセッションでは review infra が不安定と判断し、manual self-review fallback を採用
+- manual self-review:
   - findings: none
   - residual risk: 実ブラウザ + 実メール inbox を使う Firebase delivery 確認は未実施
 
