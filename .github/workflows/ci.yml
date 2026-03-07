@@ -102,7 +102,7 @@ jobs:
       - name: Wait for Postgres
         run: |
           for i in {1..30}; do
-            if docker compose exec -T postgres pg_isready -U postgres -d linklynx >/dev/null 2>&1; then
+            if docker compose exec -T postgres pg_isready -h 127.0.0.1 -U postgres -d linklynx >/dev/null 2>&1; then
               exit 0
             fi
             sleep 1
@@ -115,9 +115,11 @@ jobs:
           set -euo pipefail
           find database/postgres/migrations -name '*.up.sql' | sort | while read -r file; do
             echo "Applying ${file}"
-            docker compose exec -T postgres psql -v ON_ERROR_STOP=1 -U postgres -d linklynx < "${file}"
+            docker compose exec -T postgres psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d linklynx < "${file}"
           done
       - name: Check schema snapshot
+        env:
+          POSTGRES_DUMP_CMD: docker compose exec -T postgres pg_dump -h 127.0.0.1 -U postgres -d linklynx --schema-only --no-owner --no-privileges --exclude-table=_sqlx_migrations
         run: make db-schema-check
       - name: Stop Postgres
         if: always()
