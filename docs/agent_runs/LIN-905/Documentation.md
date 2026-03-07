@@ -61,7 +61,7 @@
 - reviewer gate: manual self-review fallback
 - UI gate: skipped
 - runtime smoke: passed
-- PR: pending
+- PR: https://github.com/LinkLynx-AI/LinkLynx-AI/pull/1125
 - PR base branch: `main`
 
 ## Runtime smoke
