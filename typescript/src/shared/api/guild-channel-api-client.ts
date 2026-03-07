@@ -813,7 +813,7 @@ export class GuildChannelAPIClient extends NoDataAPIClient {
 
     const suffix = searchParams.size > 0 ? `?${searchParams.toString()}` : "";
     const response = await this.getJson(
-      `/v1/guilds/${encodeURIComponent(normalizedServerId)}/permission-snapshot${suffix}`,
+      `/guilds/${encodeURIComponent(normalizedServerId)}/permission-snapshot${suffix}`,
       PERMISSION_SNAPSHOT_RESPONSE_SCHEMA,
     );
     return mapPermissionSnapshot(response);

@@ -70,7 +70,7 @@ fn app_with_state(state: AppState) -> Router {
             axum::routing::post(create_channel_message),
         )
         .route(
-            "/v1/guilds/{guild_id}/permission-snapshot",
+            "/guilds/{guild_id}/permission-snapshot",
             get(get_permission_snapshot),
         )
         .route("/v1/dms/{channel_id}", get(get_dm_channel))
@@ -1909,7 +1909,6 @@ fn parse_guild_path(path: &str) -> Option<i64> {
         ["guilds", guild_id] => guild_id.parse::<i64>().ok(),
         ["guilds", guild_id, "permission-snapshot"] => guild_id.parse::<i64>().ok(),
         ["v1", "guilds", guild_id] => guild_id.parse::<i64>().ok(),
-        ["v1", "guilds", guild_id, "permission-snapshot"] => guild_id.parse::<i64>().ok(),
         _ => None,
     }
 }

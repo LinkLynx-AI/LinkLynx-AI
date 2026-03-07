@@ -3,8 +3,8 @@ mod authz;
 mod guild_channel;
 mod moderation;
 mod profile;
-mod scylla_health;
 mod ratelimit;
+mod scylla_health;
 
 use std::{
     collections::HashSet,
@@ -50,10 +50,10 @@ use profile::{
     build_runtime_profile_service, profile_error_response, ProfileError, ProfilePatchInput,
     ProfileService,
 };
-use scylla_health::{build_runtime_scylla_health_reporter, ScyllaHealthReporter};
 use ratelimit::{
     build_runtime_rest_rate_limit_service, rest_rate_limit_action_for_request, RestRateLimitService,
 };
+use scylla_health::{build_runtime_scylla_health_reporter, ScyllaHealthReporter};
 use serde::{Deserialize, Serialize};
 use tower_http::cors::{Any, CorsLayer};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};

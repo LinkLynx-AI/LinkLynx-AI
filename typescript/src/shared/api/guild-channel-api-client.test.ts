@@ -642,6 +642,58 @@ describe("GuildChannelAPIClient", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  test("getPermissionSnapshot requests the non-v1 guild path", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          request_id: "req-permission-snapshot",
+          snapshot: {
+            guild_id: 2001,
+            channel_id: 3001,
+            guild: {
+              can_view: true,
+              can_create_channel: false,
+              can_create_invite: false,
+              can_manage_settings: false,
+              can_moderate: false,
+            },
+            channel: {
+              can_view: true,
+              can_post: true,
+              can_manage: false,
+            },
+          },
+        }),
+        { status: 200 },
+      ),
+    );
+
+    const client = new GuildChannelAPIClient();
+    const snapshot = await client.getPermissionSnapshot("2001", { channelId: "3001" });
+
+    expect(snapshot).toEqual({
+      guildId: "2001",
+      channelId: "3001",
+      guild: {
+        canView: true,
+        canCreateChannel: false,
+        canCreateInvite: false,
+        canManageSettings: false,
+        canModerate: false,
+      },
+      channel: {
+        canView: true,
+        canPost: true,
+        canManage: false,
+      },
+    });
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("http://localhost:8080/guilds/2001/permission-snapshot?channel_id=3001");
+    expect(init.method).toBe("GET");
+    expect(new Headers(init.headers).get("Authorization")).toBe("Bearer token-1");
+  });
+
   test("returns typed error with request_id when backend error contract is returned", async () => {
     fetchMock.mockResolvedValue(
       new Response(
