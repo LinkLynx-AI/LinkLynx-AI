@@ -10,3 +10,4 @@
   - tests: Rust contract test で `deny -> false` / `unavailable -> 503` を固定
   - review: fallback `reviewer_simple` 相当の手元レビューで blocker なし
   - smoke: SpiceDB health と API public route の startup/health/root を確認
+  - Claude follow-up: permission check を並列化し、TS 側に ID 変換契約コメントを追加

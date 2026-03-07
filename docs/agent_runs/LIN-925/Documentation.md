@@ -19,6 +19,7 @@
 - `reviewer_ui`: 初回に stale diff ベースの blocker 指摘が 1 件あったが、現 HEAD では解消済みとして再レビュー結果は blocking finding なし
 - UI review rationale: 変更は data/client/query surface に限定され、UI component / style / app route 表示ロジック自体は未変更
 - frontend validation: `make validate` 内の `pnpm lint` / `pnpm typecheck` / `pnpm test` pass
+- Claude review follow-up: 軽微提案のうち、permission check 並列化と TypeScript の ID 変換契約コメントを取り込む。既存エラーメッセージの i18n 化は out-of-scope のため据え置き
 
 ## How to run / demo
 - `make rust-lint`

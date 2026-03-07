@@ -1027,65 +1027,22 @@ async fn get_permission_snapshot(
         Err(error) => return guild_channel_error_response(&error, request_id),
     };
 
-    let guild_manage = match resolve_permission_flag(
+    let guild_manage_future = resolve_permission_flag(
         Arc::clone(&state.authorizer),
         &auth_context,
         AuthzResource::Guild { guild_id },
         AuthzAction::Manage,
-    )
-    .await
-    {
-        Ok(value) => value,
+    );
+    let channel_future = resolve_channel_permission_snapshot(
+        Arc::clone(&state.authorizer),
+        &auth_context,
+        guild_id,
+        channel_id,
+    );
+
+    let (guild_manage, channel) = match tokio::try_join!(guild_manage_future, channel_future) {
+        Ok(values) => values,
         Err(error) => return authz_error_response(&error, request_id),
-    };
-
-    let channel = match channel_id {
-        Some(channel_id) => {
-            let channel_resource = AuthzResource::GuildChannel {
-                guild_id,
-                channel_id,
-            };
-            let can_view = match resolve_permission_flag(
-                Arc::clone(&state.authorizer),
-                &auth_context,
-                channel_resource.clone(),
-                AuthzAction::View,
-            )
-            .await
-            {
-                Ok(value) => value,
-                Err(error) => return authz_error_response(&error, request_id),
-            };
-            let can_post = match resolve_permission_flag(
-                Arc::clone(&state.authorizer),
-                &auth_context,
-                channel_resource.clone(),
-                AuthzAction::Post,
-            )
-            .await
-            {
-                Ok(value) => value,
-                Err(error) => return authz_error_response(&error, request_id),
-            };
-            let can_manage = match resolve_permission_flag(
-                Arc::clone(&state.authorizer),
-                &auth_context,
-                channel_resource,
-                AuthzAction::Manage,
-            )
-            .await
-            {
-                Ok(value) => value,
-                Err(error) => return authz_error_response(&error, request_id),
-            };
-
-            Some(ChannelPermissionSnapshot {
-                can_view,
-                can_post,
-                can_manage,
-            })
-        }
-        None => None,
     };
 
     Json(PermissionSnapshotResponse {
@@ -1130,6 +1087,61 @@ async fn resolve_permission_flag(
         Err(error) if matches!(error.kind, AuthzErrorKind::Denied) => Ok(false),
         Err(error) => Err(error),
     }
+}
+
+/// channel permission snapshot を解決する。
+/// @param authorizer 認可境界
+/// @param auth_context 認証文脈
+/// @param guild_id 所属guild ID
+/// @param channel_id 対象channel ID。未指定時は `None`
+/// @returns channel snapshot。channel 未指定時は `None`
+/// @throws AuthzError dependency unavailable 時
+async fn resolve_channel_permission_snapshot(
+    authorizer: Arc<dyn Authorizer>,
+    auth_context: &AuthContext,
+    guild_id: i64,
+    channel_id: Option<i64>,
+) -> Result<Option<ChannelPermissionSnapshot>, authz::AuthzError> {
+    let Some(channel_id) = channel_id else {
+        return Ok(None);
+    };
+
+    let can_view_future = resolve_permission_flag(
+        Arc::clone(&authorizer),
+        auth_context,
+        AuthzResource::GuildChannel {
+            guild_id,
+            channel_id,
+        },
+        AuthzAction::View,
+    );
+    let can_post_future = resolve_permission_flag(
+        Arc::clone(&authorizer),
+        auth_context,
+        AuthzResource::GuildChannel {
+            guild_id,
+            channel_id,
+        },
+        AuthzAction::Post,
+    );
+    let can_manage_future = resolve_permission_flag(
+        authorizer,
+        auth_context,
+        AuthzResource::GuildChannel {
+            guild_id,
+            channel_id,
+        },
+        AuthzAction::Manage,
+    );
+
+    let (can_view, can_post, can_manage) =
+        tokio::try_join!(can_view_future, can_post_future, can_manage_future)?;
+
+    Ok(Some(ChannelPermissionSnapshot {
+        can_view,
+        can_post,
+        can_manage,
+    }))
 }
 
 /// guildを作成してowner bootstrapを実行する。

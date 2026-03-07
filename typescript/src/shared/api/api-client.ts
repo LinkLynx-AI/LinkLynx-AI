@@ -158,8 +158,17 @@ export type ChannelPermissionSnapshot = {
   canManage: boolean;
 };
 
+/**
+ * permission snapshot 契約を表す。
+ *
+ * Contract:
+ * - backend の numeric ID を frontend では string として扱う
+ * - channel 指定なしの snapshot では `channel` と `channelId` は `null`
+ */
 export type PermissionSnapshot = {
+  /** backend i64 を string へ変換した guild ID。 */
   guildId: string;
+  /** backend i64 を string へ変換した channel ID。未指定時は `null`。 */
   channelId: string | null;
   guild: GuildPermissionSnapshot;
   channel: ChannelPermissionSnapshot | null;
