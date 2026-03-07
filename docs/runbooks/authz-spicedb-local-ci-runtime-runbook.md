@@ -1,7 +1,7 @@
 # AuthZ SpiceDB Local/CI Runtime Foundation Runbook
 
 - Status: Draft
-- Last updated: 2026-03-06
+- Last updated: 2026-03-07
 - Owner scope: LIN-863 local/CI runtime baseline + LIN-865 fail-close integration + LIN-876 reproducibility hardening
 - References:
   - `database/contracts/lin862_spicedb_namespace_relation_permission_contract.md`
@@ -72,6 +72,20 @@ make rust-dev
 - if config is valid: `AUTHZ_PROVIDER=spicedb runtime config is ready`
 - if config is invalid: `AUTHZ_PROVIDER=spicedb runtime config is invalid; fail-close authorizer is active`
 - if authorizer initialization fails: `failed to initialize spicedb authorizer; fail-close authorizer is active`
+5. Optional auth smoke verification (run in a separate terminal while API is still running):
+
+```bash
+cd typescript && npm run smoke:auth -- --mode=happy-path
+```
+
+Prerequisites:
+- `typescript/.env.local` is populated per `docs/runbooks/auth-firebase-principal-operations-runbook.md`
+- `AUTH_SMOKE_EMAIL` and `AUTH_SMOKE_PASSWORD` point to a verified Firebase test user
+
+Expected:
+- Firebase login succeeds.
+- `GET /protected/ping` returns `200`.
+- `/ws + auth.identify` reaches `auth.ready`.
 
 ## 4. CI baseline
 
@@ -130,6 +144,21 @@ docker run --rm authzed/spicedb:vX.Y.Z version
   - REST returns `503` with `AUTHZ_UNAVAILABLE`
   - WS closes with `1011`
 - If request is accepted, treat as contract violation and rollback latest authz runtime changes.
+
+Recommended end-to-end verification:
+
+1. Keep API running with `AUTHZ_PROVIDER=spicedb`.
+2. Stop SpiceDB:
+   - `make authz-spicedb-down`
+3. Run:
+   - `cd typescript && npm run smoke:auth -- --mode=dependency-unavailable`
+4. Expected smoke output:
+   - `protected/ping` fails with `503 / AUTHZ_UNAVAILABLE`
+   - `/ws + auth.identify` closes with `1011 / AUTHZ_UNAVAILABLE`
+   - command requires the same `typescript/.env.local` prerequisites as the happy-path smoke
+5. Restart SpiceDB and health check:
+   - `make authz-spicedb-up`
+   - `make authz-spicedb-health`
 
 ## 7. Exit criteria for LIN-863 + LIN-876
 
