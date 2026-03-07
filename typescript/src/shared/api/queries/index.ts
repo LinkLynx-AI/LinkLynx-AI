@@ -10,3 +10,4 @@ export { useInvites } from "./use-invites";
 export { useWebhooks } from "./use-webhooks";
 export { useAuditLog } from "./use-audit-log";
 export { useModerationReports, useModerationReport } from "./use-moderation-reports";
+export { usePermissionSnapshot } from "./use-permission-snapshot";

@@ -69,6 +69,10 @@ fn app_with_state(state: AppState) -> Router {
             "/v1/guilds/{guild_id}/channels/{channel_id}/messages",
             axum::routing::post(create_channel_message),
         )
+        .route(
+            "/v1/guilds/{guild_id}/permission-snapshot",
+            get(get_permission_snapshot),
+        )
         .route("/v1/dms/{channel_id}", get(get_dm_channel))
         .route("/v1/dms/{channel_id}/messages", get(list_dm_messages))
         .route(
@@ -679,6 +683,41 @@ struct GuildPathParams {
     guild_id: String,
 }
 
+#[derive(Debug, Deserialize)]
+struct PermissionSnapshotQuery {
+    channel_id: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+struct PermissionSnapshotResponse {
+    request_id: String,
+    snapshot: PermissionSnapshot,
+}
+
+#[derive(Debug, Serialize)]
+struct PermissionSnapshot {
+    guild_id: i64,
+    channel_id: Option<i64>,
+    guild: GuildPermissionSnapshot,
+    channel: Option<ChannelPermissionSnapshot>,
+}
+
+#[derive(Debug, Serialize)]
+struct GuildPermissionSnapshot {
+    can_view: bool,
+    can_create_channel: bool,
+    can_create_invite: bool,
+    can_manage_settings: bool,
+    can_moderate: bool,
+}
+
+#[derive(Debug, Serialize)]
+struct ChannelPermissionSnapshot {
+    can_view: bool,
+    can_post: bool,
+    can_manage: bool,
+}
+
 #[derive(Debug, Serialize)]
 struct ChannelListResponse {
     channels: Vec<guild_channel::ChannelSummary>,
@@ -783,6 +822,16 @@ fn parse_channel_id(raw_channel_id: &str) -> Result<i64, GuildChannelError> {
     }
 
     Ok(parsed)
+}
+
+/// channel_idクエリパラメータを検証する。
+/// @param raw_channel_id 生のchannel_id文字列
+/// @returns 検証済みchannel_id
+/// @throws GuildChannelError パラメータ不正時
+fn parse_optional_channel_id(
+    raw_channel_id: Option<&str>,
+) -> Result<Option<i64>, GuildChannelError> {
+    raw_channel_id.map(parse_channel_id).transpose()
 }
 
 /// JSON入力を検証してペイロードを取得する。
@@ -952,6 +1001,134 @@ async fn list_guilds(
     {
         Ok(guilds) => Json(GuildListResponse { guilds }).into_response(),
         Err(error) => guild_channel_error_response(&error, request_id),
+    }
+}
+
+/// permission snapshot を返す。
+/// @param state アプリケーション状態
+/// @param auth_context 認証文脈
+/// @param params guild_id を含むパスパラメータ
+/// @param query channel_id を含むクエリパラメータ
+/// @returns permission snapshot レスポンス
+/// @throws なし
+async fn get_permission_snapshot(
+    State(state): State<AppState>,
+    Extension(auth_context): Extension<AuthContext>,
+    Path(params): Path<GuildPathParams>,
+    Query(query): Query<PermissionSnapshotQuery>,
+) -> Response {
+    let request_id = auth_context.request_id.clone();
+    let guild_id = match parse_guild_id(&params.guild_id) {
+        Ok(value) => value,
+        Err(error) => return guild_channel_error_response(&error, request_id),
+    };
+    let channel_id = match parse_optional_channel_id(query.channel_id.as_deref()) {
+        Ok(value) => value,
+        Err(error) => return guild_channel_error_response(&error, request_id),
+    };
+
+    let guild_manage = match resolve_permission_flag(
+        Arc::clone(&state.authorizer),
+        &auth_context,
+        AuthzResource::Guild { guild_id },
+        AuthzAction::Manage,
+    )
+    .await
+    {
+        Ok(value) => value,
+        Err(error) => return authz_error_response(&error, request_id),
+    };
+
+    let channel = match channel_id {
+        Some(channel_id) => {
+            let channel_resource = AuthzResource::GuildChannel {
+                guild_id,
+                channel_id,
+            };
+            let can_view = match resolve_permission_flag(
+                Arc::clone(&state.authorizer),
+                &auth_context,
+                channel_resource.clone(),
+                AuthzAction::View,
+            )
+            .await
+            {
+                Ok(value) => value,
+                Err(error) => return authz_error_response(&error, request_id),
+            };
+            let can_post = match resolve_permission_flag(
+                Arc::clone(&state.authorizer),
+                &auth_context,
+                channel_resource.clone(),
+                AuthzAction::Post,
+            )
+            .await
+            {
+                Ok(value) => value,
+                Err(error) => return authz_error_response(&error, request_id),
+            };
+            let can_manage = match resolve_permission_flag(
+                Arc::clone(&state.authorizer),
+                &auth_context,
+                channel_resource,
+                AuthzAction::Manage,
+            )
+            .await
+            {
+                Ok(value) => value,
+                Err(error) => return authz_error_response(&error, request_id),
+            };
+
+            Some(ChannelPermissionSnapshot {
+                can_view,
+                can_post,
+                can_manage,
+            })
+        }
+        None => None,
+    };
+
+    Json(PermissionSnapshotResponse {
+        request_id,
+        snapshot: PermissionSnapshot {
+            guild_id,
+            channel_id,
+            guild: GuildPermissionSnapshot {
+                can_view: true,
+                can_create_channel: guild_manage,
+                can_create_invite: guild_manage,
+                can_manage_settings: guild_manage,
+                can_moderate: guild_manage,
+            },
+            channel,
+        },
+    })
+    .into_response()
+}
+
+/// permission boolean を解決する。
+/// @param authorizer 認可境界
+/// @param auth_context 認証文脈
+/// @param resource 認可対象
+/// @param action 認可操作
+/// @returns allow=bool、deny=false
+/// @throws AuthzError dependency unavailable 時
+async fn resolve_permission_flag(
+    authorizer: Arc<dyn Authorizer>,
+    auth_context: &AuthContext,
+    resource: AuthzResource,
+    action: AuthzAction,
+) -> Result<bool, authz::AuthzError> {
+    let input = AuthzCheckInput {
+        principal_id: auth_context.principal_id,
+        resource,
+        action,
+    };
+
+    match authorizer.check(&input).await {
+        Ok(()) => Ok(true),
+        Err(error) if matches!(error.kind, AuthzErrorKind::Denied) => Ok(false),
+        Err(error) => Err(error),
     }
 }
 
@@ -1709,7 +1886,9 @@ fn parse_guild_path(path: &str) -> Option<i64> {
         .collect::<Vec<_>>();
     match segments.as_slice() {
         ["guilds", guild_id] => guild_id.parse::<i64>().ok(),
+        ["guilds", guild_id, "permission-snapshot"] => guild_id.parse::<i64>().ok(),
         ["v1", "guilds", guild_id] => guild_id.parse::<i64>().ok(),
+        ["v1", "guilds", guild_id, "permission-snapshot"] => guild_id.parse::<i64>().ok(),
         _ => None,
     }
 }

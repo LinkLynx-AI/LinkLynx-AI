@@ -144,6 +144,27 @@ export type CreateModerationMuteData = {
   expiresAt?: string | null;
 };
 
+export type GuildPermissionSnapshot = {
+  canView: boolean;
+  canCreateChannel: boolean;
+  canCreateInvite: boolean;
+  canManageSettings: boolean;
+  canModerate: boolean;
+};
+
+export type ChannelPermissionSnapshot = {
+  canView: boolean;
+  canPost: boolean;
+  canManage: boolean;
+};
+
+export type PermissionSnapshot = {
+  guildId: string;
+  channelId: string | null;
+  guild: GuildPermissionSnapshot;
+  channel: ChannelPermissionSnapshot | null;
+};
+
 export type APIClient = {
   // Auth
   getCurrentUser(): Promise<User>;
@@ -246,6 +267,12 @@ export type APIClient = {
   resolveModerationReport(serverId: string, reportId: string): Promise<ModerationReport>;
   reopenModerationReport(serverId: string, reportId: string): Promise<ModerationReport>;
   createModerationMute(serverId: string, data: CreateModerationMuteData): Promise<ModerationMute>;
+
+  // AuthZ snapshot
+  getPermissionSnapshot(
+    serverId: string,
+    params?: { channelId?: string | null },
+  ): Promise<PermissionSnapshot>;
 
   // Typing
   triggerTyping(channelId: string): Promise<void>;
