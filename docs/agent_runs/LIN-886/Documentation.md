@@ -1,8 +1,8 @@
 # Documentation.md (Status / audit log)
 
 ## Current status
-- Now: LIN-886 implementation, validation, and PR preparation completed.
-- Next: create PR to `main` and hand off for human review.
+- Now: LIN-886 implementation, PR 作成後の runtime bug fix まで完了。
+- Next: updated PR を user review に回す。
 
 ## Decisions
 - Scope follows LIN-886 only: persist `banner_key`, reuse Firebase Storage, and reflect saved profile media in settings + user panel.
@@ -11,12 +11,15 @@
 - Save order is `avatar/banner upload -> profile PATCH`; uploaded objects from a failed save attempt are cleaned up best-effort.
 - `ProfileBridge` hydrates saved `displayName`, `statusText`, and `avatarKey` back into auth-store after reload/relogin.
 - Cropped image persistence uses the actual cropped `File`, not the original upload, so preview and saved result stay aligned.
+- Browser から Firebase Storage を直接叩くと localhost origin で CORS preflight failure が起きたため、storage access は same-origin Next route (`/api/storage/object`) 経由へ切り替えた。
+- Storage route は Firebase ID token を `Authorization: Firebase <token>` に変換して Storage REST へ転送し、download URL 解決・upload・delete を代行する。
 
 ## Validation
 - `cargo test -p linklynx_backend banner_key` passed.
 - `npm -C typescript run typecheck` passed.
 - `npm -C typescript run test -- src/features/settings/ui/user/user-profile.test.tsx src/app/providers/profile-bridge.test.tsx src/shared/api/guild-channel-api-client.test.ts` passed.
 - `npm -C typescript run test -- src/shared/ui/image-crop-modal.test.tsx src/features/settings/ui/user/user-profile.test.tsx src/app/providers/profile-bridge.test.tsx src/shared/api/guild-channel-api-client.test.ts` passed after the crop fix.
+- `npm -C typescript run test -- src/shared/lib/firebase/storage.test.ts src/app/api/storage/object/route.test.ts src/features/settings/ui/user/user-profile.test.tsx src/app/providers/profile-bridge.test.tsx` passed after the CORS fix.
 - `make validate` passed with escalation after sandbox-local-bind restrictions blocked the unprivileged run.
 
 ## Review
@@ -27,7 +30,7 @@
 
 ## Runtime smoke
 - `make dev` did not complete in this worktree because `pnpm install --frozen-lockfile` hit an `ENOTEMPTY` collision in existing `node_modules`.
-- Existing frontend dev server for this worktree on `http://localhost:3000` served `/login` and redirected `/channels/me` to `/login` without Playwright console errors.
+- Later live check for `/api/storage/object` could not run because this worktree’s `http://localhost:3000` dev server was not active at that point.
 - Existing backend on `http://localhost:8080` was reachable but belongs to another worktree (`lin-880`), so no branch-pure backend runtime smoke was executed and no existing process was modified.
 
 ## Known issues / follow-ups

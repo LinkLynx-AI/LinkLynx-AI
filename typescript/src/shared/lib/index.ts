@@ -4,7 +4,6 @@ export {
   ensureFirebaseAuthPersistence,
   getFirebaseApp,
   getFirebaseAuth,
-  getFirebaseStorage,
   getStorageObjectUrl,
   uploadStorageObject,
 } from "./firebase";
