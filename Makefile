@@ -399,9 +399,19 @@ dev: db-up ## 開発環境を起動（DB + Frontend + Rust）
 	@echo "  Rust API: http://localhost:8080"
 	@cd typescript && CI=true pnpm install --frozen-lockfile
 	@set -e; \
-	$(MAKE) rust-dev & \
+	cleanup() { \
+		trap - INT TERM EXIT; \
+		command -v pkill >/dev/null 2>&1 && pkill -TERM -P $$rust_pid 2>/dev/null || true; \
+		kill -TERM -$$rust_pid 2>/dev/null || kill -TERM $$rust_pid 2>/dev/null || true; \
+		wait $$rust_pid 2>/dev/null || true; \
+	}; \
+	if command -v setsid >/dev/null 2>&1; then \
+		setsid $(MAKE) rust-dev & \
+	else \
+		$(MAKE) rust-dev & \
+	fi; \
 	rust_pid=$$!; \
-	trap 'kill $$rust_pid 2>/dev/null || true' INT TERM EXIT; \
+	trap cleanup INT TERM EXIT; \
 	$(MAKE) ts-dev
 
 test: ## 全テストを実行
