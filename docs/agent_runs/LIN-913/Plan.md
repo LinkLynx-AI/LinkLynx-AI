@@ -23,7 +23,7 @@
 - Acceptance criteria:
   - [x] run memory を更新する。
   - [x] `make validate` と `cd typescript && npm run typecheck` を通す。
-  - [ ] PR evidence を作る。
+  - [x] PR evidence を作る。 (`https://github.com/LinkLynx-AI/LinkLynx-AI/pull/1135`)
 - Validation:
   - `cd typescript && npm run typecheck`
   - `make validate`

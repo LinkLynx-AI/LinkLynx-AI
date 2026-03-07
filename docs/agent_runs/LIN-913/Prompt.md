@@ -17,7 +17,7 @@
 - [x] 未認証で `/invite/{code}` に来たユーザーが login / verify-email を経由して invite flow に戻れる。
 - [x] 認証済みユーザーが invite を join でき、参加後に `/channels/{guildId}` へ遷移する。
 - [x] `make validate` と `cd typescript && npm run typecheck` が通る。
-- [ ] child issue 用 PR を作成する。
+- [x] child issue 用 PR を作成する。 (`https://github.com/LinkLynx-AI/LinkLynx-AI/pull/1135`)
 
 ## Constraints
 - `returnTo` の protected-only 契約は壊さない。

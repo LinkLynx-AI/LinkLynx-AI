@@ -1,8 +1,8 @@
 # Documentation.md (Status / audit log)
 
 ## Current status
-- Now: invite resume query / join redirect 実装と validation まで完了。残りは reviewer と PR。
-- Next: stacked PR を起票する。
+- Now: stacked PR 作成済み。残りは PR merge 待ちのみ。
+- Next: parent issue 側の残タスク確認。
 
 ## Decisions
 - `returnTo` は protected-only のまま維持し、invite 専用 resume 情報は別 query で扱う方針を優先する。
@@ -11,4 +11,5 @@
 - invite page の valid state は auth session に応じて `ログインして参加` / `メール確認して参加` / `サーバーに参加` を切り替える。
 
 ## Known issues / follow-ups
+- PR: `https://github.com/LinkLynx-AI/LinkLynx-AI/pull/1135`
 - TypeScript test の `act(...)` warning と verify-email の想定 error log は既存ノイズとして継続。
