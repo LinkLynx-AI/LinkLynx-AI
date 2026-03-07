@@ -1,6 +1,6 @@
 # DATABASE.md
 
-最終更新: 2026-03-04
+最終更新: 2026-03-07
 
 このドキュメントは、リポジトリ内の定義ファイルを基準にした「現在のDB状態」をまとめたものです。
 実行中のDBインスタンスを直接参照したスナップショットではありません。
@@ -9,6 +9,9 @@
 - `database/postgres/migrations/*.sql`（正）
 - `database/postgres/schema.sql`（派生スナップショット）
 - `database/scylla/001_lin139_messages.cql`
+
+補助台帳:
+- `docs/V1_TRACEABILITY.md`（Linear再編時も残る、実装アーティファクト起点の対応表）
 
 ## 1. 全体構成
 
@@ -27,20 +30,22 @@
 6. `0006_lin621_remove_local_auth_assets`
 7. `0007_lin622_users_id_sequence_for_provisioning`
 8. `0008_lin632_arbitrary_roles_spicedb_prep`
-9. `0008_lin803_server_channel_minimal_contract`
-10. `0009_lin633_channel_user_overrides_spicedb`
-11. `0010_lin634_channel_hierarchy_category_thread`
-12. `0011_lin857_drop_legacy_permission_assets_post_cutover`
-13. `0012_lin635_message_reply_pin_persistence`
-14. `0013_lin636_message_reaction_persistence`
-15. `0014_lin637_attachment_metadata_persistence`
-16. `0015_lin886_profile_banner_key`
+9. `0009_lin633_channel_user_overrides_spicedb`
+10. `0010_lin634_channel_hierarchy_category_thread`
+11. `0011_lin857_drop_legacy_permission_assets_post_cutover`
+12. `0012_lin635_message_reply_pin_persistence`
+13. `0013_lin636_message_reaction_persistence`
+14. `0014_lin637_attachment_metadata_persistence`
+15. `0015_lin803_server_channel_minimal_contract`
+16. `0016_lin822_minimal_moderation`
+17. `0017_lin886_profile_banner_key`
 
 ### 2.1 型（ENUM）
 
 - `channel_type`: `guild_text`, `dm`
 - `channel_hierarchy_kind`: `category_child`, `thread`
-- `audit_action`: `INVITE_CREATE`, `INVITE_DISABLE`, `GUILD_MEMBER_JOIN`, `GUILD_MEMBER_LEAVE`, `ROLE_ASSIGN`, `ROLE_REVOKE`, `CHANNEL_CREATE`, `CHANNEL_UPDATE`, `CHANNEL_DELETE`, `MESSAGE_DELETE_MOD`, `USER_BAN`, `USER_UNBAN`
+- `moderation_report_status`: `open`, `resolved`
+- `audit_action`: `INVITE_CREATE`, `INVITE_DISABLE`, `GUILD_MEMBER_JOIN`, `GUILD_MEMBER_LEAVE`, `ROLE_ASSIGN`, `ROLE_REVOKE`, `CHANNEL_CREATE`, `CHANNEL_UPDATE`, `CHANNEL_DELETE`, `MESSAGE_DELETE_MOD`, `USER_BAN`, `USER_UNBAN`, `REPORT_CREATE`, `MUTE_CREATE`, `REPORT_RESOLVE`, `REPORT_REOPEN`
 - `outbox_status`: `PENDING`, `SENT`, `FAILED`
 
 ### 2.2 テーブル一覧
@@ -63,6 +68,8 @@
 - `channel_pins_v2`
 - `message_reactions_v2`
 - `message_attachments_v2`
+- `moderation_reports`
+- `moderation_mutes`
 - `channel_reads`
 - `channel_last_message`
 - `audit_logs`
@@ -85,6 +92,8 @@
 - `channel_pins_v2` は LIN-635 で導入されたピン留め状態メタデータで、`pinned_at/pinned_by` と `unpinned_at/unpinned_by` により監査可能な状態遷移を保持する
 - `message_reactions_v2` は LIN-636 で導入されたリアクションメタデータで、`(message_id, emoji, user_id)` 主キーにより重複リアクションを防止する
 - `message_attachments_v2` は LIN-637 で導入された添付メタデータで、GCS object key と保持/削除監査列（`deleted_at`, `retention_until`）を保持する
+- `moderation_reports` は LIN-822 で導入された最小通報キューで、`status=open/resolved` と `resolved_by/resolved_at` 整合制約を保持する
+- `moderation_mutes` は LIN-822 で導入された最小ミュート管理で、`(guild_id, target_user_id)` 一意制約により同時多重ミュートを防止する
 - `channel_reads` は `(channel_id, user_id)` を主キーとして既読位置管理
 - `channel_last_message` はチャネル最新メッセージの参照を保持
 - `audit_logs` は監査イベント記録
@@ -209,12 +218,19 @@ The source of truth for attachment metadata persistence, logical deletion/retent
 
 - `database/contracts/lin637_attachment_metadata_persistence_contract.md`
 
-### 2.18 SpiceDB Namespace/Relation/Permission Model Contract (LIN-862)
+### 2.18 Minimal Moderation Contract (LIN-822)
+
+The source of truth for minimal moderation persistence (`moderation_reports`, `moderation_mutes`), `audit_action` enum extension, and report state transitions is:
+
+- `database/contracts/lin822_minimal_moderation_contract.md`
+
+### 2.19 SpiceDB Namespace/Relation/Permission Model Contract (LIN-862)
 
 The source of truth for SpiceDB namespace/relation/permission design aligned with LIN-861 matrix and LIN-632/LIN-633 tuple mapping is:
 
 - `database/contracts/lin862_spicedb_namespace_relation_permission_contract.md`
-### 2.19 Postgres -> SpiceDB Tuple Mapping/Sync Contract (LIN-864)
+
+### 2.20 Postgres -> SpiceDB Tuple Mapping/Sync Contract (LIN-864)
 
 The source of truth for Postgres `*_v2` permission data to canonical SpiceDB tuple conversion, initial backfill contract, outbox delta-sync semantics, and full-resync operational hook is:
 
