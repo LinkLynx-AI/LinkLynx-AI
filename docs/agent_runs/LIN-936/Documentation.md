@@ -1,7 +1,7 @@
 # Documentation.md (Status / audit log)
 
 ## Current status
-- Now: Scylla runtime / health / bootstrap foundation の実装・検証・PR 作成まで完了
+- Now: Scylla runtime / health / bootstrap foundation の実装・検証・PR 作成と `origin/main` 取り込みまで完了
 - Next: `main` 向け human review を待つ
 
 ## Decisions
@@ -13,6 +13,7 @@
 ## Validation log
 - `cd rust && cargo test -p linklynx_backend scylla_health -- --nocapture`: pass
 - `cd rust && cargo test -p linklynx_backend health_ -- --nocapture`: pass
+- `origin/main` 取り込み後に `cd rust && cargo test -p linklynx_backend health_ -- --nocapture`: pass
 - `cd rust && cargo fmt --all`: pass
 - `make rust-lint`: pass
   - sandbox では既存 SpiceDB test の localhost bind が `Operation not permitted` になるため escalated で再実行した。
@@ -40,10 +41,11 @@
 
 ## Delivery
 - Branch: `codex/lin-936`
-- Commit: `640d200` (`LIN-936 実行ログを更新`)
+- Commit: `a9e4654` (`main を取り込み LIN-936 の競合を解消`)
 - PR: `https://github.com/LinkLynx-AI/LinkLynx-AI/pull/1134`
 - Base branch: `main`
 - Merge policy: `main` 向けのため auto-merge は使わず human approval 待ちで停止
+- `origin/main` の取り込みで `rust/Cargo.lock`, `rust/apps/api/src/main.rs`, `rust/apps/api/src/main/tests.rs` の競合を解消した
 
 ## How to run / demo
 - `make db-up`
