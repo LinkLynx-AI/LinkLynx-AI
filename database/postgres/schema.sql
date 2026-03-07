@@ -794,8 +794,11 @@ CREATE INDEX idx_guild_members_user ON public.guild_members USING btree (user_id
 
 
 
-CREATE INDEX idx_guild_roles_v2_priority ON public.guild_roles_v2 USING btree (guild_id, priority DESC, role_key);
 CREATE INDEX idx_guild_members_user_joined_guild ON public.guild_members USING btree (user_id, joined_at DESC, guild_id);
+
+
+
+CREATE INDEX idx_guild_roles_v2_priority ON public.guild_roles_v2 USING btree (guild_id, priority DESC, role_key);
 
 
 

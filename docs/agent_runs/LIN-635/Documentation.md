@@ -3,6 +3,7 @@
 ## Status
 - Implementation completed (reply reference + pin state persistence schema).
 - PR repair in progress: merged latest `main` into the branch to remove stale parent-branch drift from the PR diff.
+- PR repair follow-up in progress: add CI coverage for `make db-schema-check`.
 
 ## Scope
 - Added migration:
@@ -12,6 +13,8 @@
   - `database/contracts/lin635_message_reply_pin_persistence_contract.md`
 - Updated references:
   - `docs/DATABASE.md`
+- Updated CI:
+  - `.github/workflows/ci.yml` に `DB Schema Check` job を追加し、Postgres 起動 -> `database/postgres/migrations/*.up.sql` 適用 -> `make db-schema-check` を自動実行
 
 ## Validation results
 - Historical branch record before PR repair:
@@ -26,6 +29,14 @@
   - `make db-migrate`: blocked。latest `main` 取り込み後、`sqlx migrate run` が `migration 8 was previously applied but has been modified` を返した。
   - `make db-schema`: blocked。既定 `POSTGRES_DUMP_CMD` が `docker compose` を経由し、`NEXT_PUBLIC_FIREBASE_PROJECT_ID` 未設定で失敗した。
   - `make db-schema-check`: skipped（`make db-schema` の既定経路がこの環境で再現できなかったため）。
+- PR repair follow-up on 2026-03-07:
+  - initial CI draft using `make db-migrate` was rejected after local verification because current migration numbering has duplicate versions and `sqlx migrate run` fails on a clean DB.
+  - updated CI path: `docker compose up -d postgres` -> apply `database/postgres/migrations/*.up.sql` in sorted order -> `make db-schema-check`
+  - local re-validation: passed with isolated container `lin635-db-schema-check`
+  - executed commands:
+    - `find database/postgres/migrations -name '*.up.sql' | sort` を順に `psql` 適用
+    - `POSTGRES_DUMP_CMD='docker exec lin635-db-schema-check pg_dump ...' make db-schema`
+    - `POSTGRES_DUMP_CMD='docker exec lin635-db-schema-check pg_dump ...' make db-schema-check`
 
 ## Data checks
 - SQL verification (transaction rollback) result:
