@@ -17,10 +17,10 @@
 - 契約テストと回帰テスト。
 
 ## Done when
-- [ ] snapshot response shape が文書化されている
-- [ ] backend で snapshot を取得できる
-- [ ] frontend で 1 リクエスト取得用の client/hook が利用可能
-- [ ] `make validate` と追加テスト結果が記録されている
+- [x] snapshot response shape が文書化されている
+- [x] backend で snapshot を取得できる
+- [x] frontend で 1 リクエスト取得用の client/hook が利用可能
+- [x] `make validate` と追加テスト結果が記録されている
 
 ## Constraints
 - Perf: snapshot は 1 リクエストで完結し、無駄な追加 API 呼び出しを要求しない

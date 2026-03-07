@@ -15,8 +15,10 @@
 ## Review gate
 - `reviewer_simple` / `reviewer_ui_guard` を subagent で回そうとしたが、この環境では結果を回収できなかったため手元レビューへ fallback
 - fallback review result: blocking finding なし
-- UI guard result: `false`
-- rationale: 変更は `typescript/src/shared/api/**` の data/client/query surface に限定され、UI component / style / app route 表示ロジックは未変更
+- UI guard result: `true`
+- rationale: skill 定義上は `typescript/src/**/*.ts` が UI-impact pattern に含まれるため、`typescript/src/shared/api/**` の変更でも UI check 対象
+- fallback UI review result: blocking finding なし
+- UI review rationale: 変更は data/client/query surface に限定され、UI component / style / app route 表示ロジック自体は未変更
 - frontend validation: `make validate` 内の `pnpm lint` / `pnpm typecheck` / `pnpm test` pass
 
 ## How to run / demo
