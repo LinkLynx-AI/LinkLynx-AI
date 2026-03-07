@@ -26,7 +26,7 @@
 
 ### M3: Runtime smoke と review 証跡を閉じる
 - Acceptance criteria:
-  - [x] login -> protected route -> ws identify の最小導線を確認できる。
+  - [x] route-level smoke と targeted tests の組み合わせで login / protected route / ws identify を確認できる。
   - [x] reviewer / reviewer_ui_guard / reviewer_ui の結果を残せる。
   - [x] PR 用の根拠を `Documentation.md` に集約できる。
 - Validation:

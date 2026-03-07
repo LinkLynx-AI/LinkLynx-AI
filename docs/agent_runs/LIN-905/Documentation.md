@@ -2,7 +2,7 @@
 
 ## Current status
 - Now: 検証・runtime smoke・review fallback まで完了
-- Next: PR 用の根拠を整えて commit / PR 作成へ進む
+- Next: `main` 向け人手レビュー待ち。Linear closeout 用の要約へ転記する
 
 ## Decisions
 - `LIN-905` は新規機能追加ではなく、既に `main` へ入った認証導線を leaf issue として締め直すタスクとして扱う。
@@ -73,7 +73,7 @@
 - `GET http://127.0.0.1:8080/health`: `200`, body `OK`
 - `GET http://127.0.0.1:8080/protected/ping`: `401`, body `AUTH_MISSING_TOKEN`
 - `POST http://127.0.0.1:8080/auth/ws-ticket`: `401`, body `AUTH_MISSING_TOKEN`
-- Note: 認証済み login 完了から protected route / ws identify までの成立性は、引継ぎ元実装に加えて targeted tests (`protected-preview-gate`, `ws-auth-bridge`, `ws-ticket`, `principal-provisioning`) の通過で補強した。
+- Note: この run の runtime smoke は route-level / auth-boundary-level に限定した。認証済み login 完了から protected route / ws identify までの成立性は、引継ぎ元実装に加えて targeted tests (`protected-preview-gate`, `ws-auth-bridge`, `ws-ticket`, `principal-provisioning`) の通過で補強した。
 
 ## Known issues / follow-ups
 - 初回セットアップでは `typescript/node_modules` と `python/.venv` が必要。
