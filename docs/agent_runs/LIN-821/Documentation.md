@@ -32,6 +32,7 @@
 - unified review: no blocking findings
 - UI impact: なし。backend Rust / docs のみの差分のため UI review は skip
 - runtime smoke: skip。今回の差分は contract crate / fixture-backed endpoint / runbook 更新に閉じており、実データ接続や UI フロー追加は含まないため、既存の自動テストを実行根拠とした。
+- PR: `#1136` `LIN-821 guild message 契約を固定` (`codex/lin-821` -> `main`) / state=`OPEN`
 
 ## Notes
 - レビュー中に `create_channel_message_rejects_blank_content` が malformed JSON を送っており、blank content の validation 経路を直接検証していないことを確認したため修正した。
