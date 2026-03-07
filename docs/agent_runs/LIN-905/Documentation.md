@@ -1,8 +1,8 @@
 # LIN-905 Documentation Log
 
 ## Current status
-- Now: 検証と runtime smoke まで完了、review 証跡の収集待ち
-- Next: reviewer gate 結果を追記し、PR 用の根拠を確定する
+- Now: 検証・runtime smoke・review fallback まで完了
+- Next: PR 用の根拠を整えて commit / PR 作成へ進む
 
 ## Decisions
 - `LIN-905` は新規機能追加ではなく、既に `main` へ入った認証導線を leaf issue として締め直すタスクとして扱う。
@@ -66,4 +66,3 @@
 
 ## Known issues / follow-ups
 - 初回セットアップでは `typescript/node_modules` と `python/.venv` が必要。
-- reviewer gate 結果は別途追記する。
