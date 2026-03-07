@@ -16,11 +16,11 @@
 - guard 契約を反映した docs と回帰テスト。
 
 ## Done when
-- [ ] FE guard と API 判定が矛盾しない。
-- [ ] loading / unavailable を含めて fail-close を維持する。
-- [ ] invite 作成導線が誤って開かない。
-- [ ] `make validate` と `make rust-lint` が通る。
-- [ ] review gate と runtime smoke の証跡が揃う。
+- [x] FE guard と API 判定が矛盾しない。
+- [x] loading / unavailable を含めて fail-close を維持する。
+- [x] invite 作成導線が誤って開かない。
+- [x] `make validate` と `make rust-lint` が通る。
+- [x] review gate と runtime smoke の証跡が揃う。
 
 ## Constraints
 - Perf: snapshot の取得は React Query を使い、同一キーで共有する。

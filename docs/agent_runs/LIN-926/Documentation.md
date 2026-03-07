@@ -1,8 +1,8 @@
 # Documentation.md (Status / audit log)
 
 ## Current status
-- Now: ActionGuard hook と対象 UI の fail-close guard を実装済み。validation と runtime smoke は完了し、残りは reviewer gate の最終記録と PR 作成。
-- Next: `reviewer_ui` の最終結果を反映し、branch を commit/push して `main` 向け PR を作る。
+- Now: ActionGuard hook / 対象 UI の fail-close guard / invite modal hard-close まで完了。validation / runtime smoke / review gate は通過し、残りは commit / push / PR / Linear 更新。
+- Next: branch を commit/push して `main` 向け PR を作り、`LIN-926` を `In Review` に更新する。
 
 ## Decisions
 - invite 作成は `main` 時点で real API/client が未実装のため、`LIN-926` では導線停止に留める。
@@ -33,7 +33,15 @@
 ## Review gate
 - `reviewer`: pass, blocker なし
 - `reviewer_ui_guard`: `run_ui_checks=true`
-- `reviewer_ui`: 実行中
+- `reviewer_ui`: pass, blocker なし
+
+## Review notes
+- `reviewer` residual risks:
+  - `CreateInviteModal` を直接開ける経路が残ると invite 導線停止とズレるため、modal 自体を static placeholder にして fail-close 化した。
+  - `useActionGuard` は `AUTHZ_UNAVAILABLE` / `503` 以外の query error を `forbidden` に畳む。現契約には一致する。
+- `reviewer_ui` warnings:
+  - `user-profile.test.tsx` の React `act(...)` warning は既存。
+  - `verify-email-panel.test.tsx` の `"boom"` error-path stderr は既存。
 
 ## Known issues / follow-ups
 - invite 作成 API/client の整備は別 issue で扱う。

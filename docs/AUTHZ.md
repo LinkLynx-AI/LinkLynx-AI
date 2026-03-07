@@ -282,4 +282,4 @@ v0 での認可関連 SoR:
   - `guild:manage-settings` -> server settings modal
   - `guild:moderate` -> moderation queue / moderation report detail / resolve / reopen / mute
   - `channel:manage` -> channel context menu の edit/delete / channel item settings shortcut / channel edit overview / channel delete modal
-- invite 作成は real API/client が未実装のため、`LIN-926` では導線を disabled にして停止する。
+- invite 作成は real API/client が未実装のため、`LIN-926` では導線を disabled にして停止し、`CreateInviteModal` も fail-close placeholder に固定する。
