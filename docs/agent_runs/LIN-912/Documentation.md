@@ -1,8 +1,8 @@
 # Documentation.md (Status / audit log)
 
 ## Current status
-- Now: backend 実装と validation は完了。残りは reviewer gate と PR 作成。
-- Next: reviewer 指摘を反映し、LIN-912 用 PR を作成する。
+- Now: LIN-912 の実装・validation・PR 作成まで完了。残りは merge 待ち。
+- Next: LIN-913 の未認証復帰と参加後遷移に着手する。
 
 ## Decisions
 - `POST /v1/invites/:invite_code/join` を追加し、AuthN 必須 / AuthZ 除外の明示例外として扱う。
@@ -19,6 +19,7 @@
 - `curl -X POST /v1/invites/{invite_code}/join -H 'Authorization: Bearer <token>'`
 - success: `join.status = joined | already_member`
 - reject: `INVITE_INVALID` / `INVITE_EXPIRED` / `INVITE_UNAVAILABLE`
+- PR: https://github.com/LinkLynx-AI/LinkLynx-AI/pull/1133
 
 ## Known issues / follow-ups
 - `LIN-913` で未認証復帰と参加後遷移を閉じる。

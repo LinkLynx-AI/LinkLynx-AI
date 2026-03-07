@@ -25,7 +25,7 @@
 - Acceptance criteria:
   - [x] ADR / AuthZ matrix / run memory を更新する。
   - [x] `make validate` と `make rust-lint` を通す。
-  - [ ] PR evidence を作る。
+  - [x] PR evidence を作る。
 - Validation:
   - `make validate`
   - `make rust-lint`

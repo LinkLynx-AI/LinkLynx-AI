@@ -20,7 +20,7 @@
 - [x] 初回参加で membership と invite usage が整合する。
 - [x] 無効/期限切れ/利用上限到達 invite を正しく reject する。
 - [x] `make validate` と `make rust-lint` が通る。
-- [ ] child issue 用 PR を作成する。
+- [x] child issue 用 PR を作成する。
 
 ## Constraints
 - Perf: Postgres 1 transaction で join を完了させ、余計な round trip を増やさない。
