@@ -10,7 +10,7 @@
 - invite join は Postgres 1 statement の CTE で実装し、`guild_members` / `guild_member_roles_v2` / `invite_uses` / `invites.uses` をまとめて整合させる。
 - duplicate join は `already_member` success に倒し、invite が disabled / expired / maxed-out でも既存 membership を持つ主体は異常終了させない。
 - invite 使用数は新規 membership を挿入できたときだけ加算し、既存 member への重複 join では増やさない。
-- review follow-up として、join handler の degraded fail-close 回帰テストと SQL の二重加算ガード assertion を追加した。
+- review follow-up として、join handler の degraded fail-close 回帰テスト、principal-scoped rate-limit 回帰テスト、SQL の二重加算ガード assertion を追加した。
 
 ## How to run / demo
 - `cargo test -p linklynx_backend invite`

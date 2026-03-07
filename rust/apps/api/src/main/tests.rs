@@ -1314,6 +1314,47 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn invite_join_endpoint_uses_principal_scoped_rate_limit() {
+        let app = app_for_test().await;
+        let primary_token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let secondary_token = format!("u-3:{}", unix_timestamp_seconds() + 300);
+        let mut last_primary_response = None;
+
+        for _ in 0..11 {
+            last_primary_response = Some(
+                app.clone()
+                    .oneshot(
+                        Request::builder()
+                            .method(Method::POST)
+                            .uri("/v1/invites/DEVJOIN2026/join")
+                            .header("authorization", format!("Bearer {primary_token}"))
+                            .body(Body::empty())
+                            .unwrap(),
+                    )
+                    .await
+                    .unwrap(),
+            );
+        }
+
+        let primary_response = last_primary_response.unwrap();
+        assert_eq!(primary_response.status(), StatusCode::TOO_MANY_REQUESTS);
+
+        let secondary_response = app
+            .oneshot(
+                Request::builder()
+                    .method(Method::POST)
+                    .uri("/v1/invites/DEVJOIN2026/join")
+                    .header("authorization", format!("Bearer {secondary_token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(secondary_response.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
     async fn invite_join_endpoint_fail_closes_when_ratelimit_degraded() {
         let state = state_for_test_with_authorizer(Arc::new(StaticAllowAllAuthorizer)).await;
         state.rest_rate_limit_service.set_degraded_for_test(true).await;
