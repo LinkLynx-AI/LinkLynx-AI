@@ -43,6 +43,11 @@
   - `user-profile.test.tsx` の React `act(...)` warning は既存。
   - `verify-email-panel.test.tsx` の `"boom"` error-path stderr は既存。
 
+## Delivery
+- PR: https://github.com/LinkLynx-AI/LinkLynx-AI/pull/1139
+- Base branch: `main`
+- Linear: `LIN-926` -> `In Review`
+
 ## Known issues / follow-ups
 - invite 作成 API/client の整備は別 issue で扱う。
 - `useActionGuard` は `503/AUTHZ_UNAVAILABLE` 以外の query error を `forbidden` に畳む。現行契約には沿うが、将来 `401` や generic `5xx` を別 UX に分離する場合は見直しが必要。
