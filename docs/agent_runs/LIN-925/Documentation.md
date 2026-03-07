@@ -13,11 +13,10 @@
 - `Denied` は boolean `false` へ畳み込み、`DependencyUnavailable` は endpoint 全体を `503/AUTHZ_UNAVAILABLE` とする
 
 ## Review gate
-- `reviewer_simple` / `reviewer_ui_guard` を subagent で回そうとしたが、この環境では結果を回収できなかったため手元レビューへ fallback
-- fallback review result: blocking finding なし
+- `reviewer_simple`: blocking finding なし
 - UI guard result: `true`
 - rationale: skill 定義上は `typescript/src/**/*.ts` が UI-impact pattern に含まれるため、`typescript/src/shared/api/**` の変更でも UI check 対象
-- fallback UI review result: blocking finding なし
+- `reviewer_ui`: 初回に stale diff ベースの blocker 指摘が 1 件あったが、現 HEAD では解消済みとして再レビュー結果は blocking finding なし
 - UI review rationale: 変更は data/client/query surface に限定され、UI component / style / app route 表示ロジック自体は未変更
 - frontend validation: `make validate` 内の `pnpm lint` / `pnpm typecheck` / `pnpm test` pass
 
