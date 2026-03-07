@@ -1,4 +1,4 @@
-import { APP_ROUTES, normalizeReturnToPath } from "@/shared/config";
+import { APP_ROUTES, normalizeInviteResumeCode, normalizeReturnToPath } from "@/shared/config";
 
 /**
  * verify-email 画面の遷移URLを構築する。
@@ -7,10 +7,12 @@ export function buildVerifyEmailRoute(params: {
   email: string | null;
   sent?: boolean;
   returnTo?: string | null;
+  inviteCode?: string | null;
 }): string {
   const query = new URLSearchParams();
   const normalizedEmail = params.email?.trim() ?? "";
   const normalizedReturnToPath = normalizeReturnToPath(params.returnTo);
+  const normalizedInviteCode = normalizeInviteResumeCode(params.inviteCode);
 
   if (normalizedEmail.length > 0) {
     query.set("email", normalizedEmail);
@@ -22,6 +24,10 @@ export function buildVerifyEmailRoute(params: {
 
   if (normalizedReturnToPath !== null) {
     query.set("returnTo", normalizedReturnToPath);
+  }
+
+  if (normalizedInviteCode !== null) {
+    query.set("invite", normalizedInviteCode);
   }
 
   const queryString = query.toString();

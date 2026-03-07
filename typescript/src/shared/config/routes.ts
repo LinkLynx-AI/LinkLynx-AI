@@ -53,6 +53,22 @@ function safeDecodeURIComponent(value: string): string | null {
 }
 
 /**
+ * invite resume 用コードを正規化する。
+ */
+export function normalizeInviteResumeCode(value: string | null | undefined): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const trimmedValue = value.trim();
+  if (trimmedValue.length === 0) {
+    return null;
+  }
+
+  return trimmedValue;
+}
+
+/**
  * 画面パスを public/auth/protected の分類へ変換する。
  */
 export function classifyAppRoute(pathname: string): RouteAccessKind {
@@ -168,14 +184,20 @@ export function normalizeReturnToPath(value: string | null | undefined): string 
 export function buildLoginRoute(
   params: {
     returnTo?: string | null;
+    inviteCode?: string | null;
     reason?: LoginRedirectReason | null;
   } = {},
 ): string {
   const query = new URLSearchParams();
   const normalizedReturnToPath = normalizeReturnToPath(params.returnTo);
+  const normalizedInviteCode = normalizeInviteResumeCode(params.inviteCode);
 
   if (normalizedReturnToPath !== null) {
     query.set("returnTo", normalizedReturnToPath);
+  }
+
+  if (normalizedInviteCode !== null) {
+    query.set("invite", normalizedInviteCode);
   }
 
   if (params.reason !== undefined && params.reason !== null) {
@@ -208,8 +230,50 @@ export function parseLoginRedirectReason(
   return null;
 }
 
-export function buildInviteRoute(code: string): string {
-  return `/invite/${encodeURIComponent(code.trim())}`;
+export function buildInviteRoute(
+  code: string,
+  params: {
+    autoJoin?: boolean;
+  } = {},
+): string {
+  const pathname = `/invite/${encodeURIComponent(code.trim())}`;
+  const query = new URLSearchParams();
+
+  if (params.autoJoin === true) {
+    query.set("autoJoin", "1");
+  }
+
+  const queryString = query.toString();
+  if (queryString === "") {
+    return pathname;
+  }
+
+  return `${pathname}?${queryString}`;
+}
+
+/**
+ * invite 完了後の遷移先を解決する。
+ */
+export function resolvePostAuthRedirectPath(params: {
+  inviteCode?: string | null;
+  returnTo?: string | null;
+}): string {
+  const normalizedInviteCode = normalizeInviteResumeCode(params.inviteCode);
+  if (normalizedInviteCode !== null) {
+    return buildInviteRoute(normalizedInviteCode, {
+      autoJoin: true,
+    });
+  }
+
+  return normalizeReturnToPath(params.returnTo) ?? APP_ROUTES.channels.me;
+}
+
+/**
+ * invite 自動参加フラグを解釈する。
+ */
+export function parseInviteAutoJoinFlag(value: string | string[] | undefined): boolean {
+  const rawValue = Array.isArray(value) ? (value[0] ?? null) : value;
+  return rawValue === "1";
 }
 
 export function buildGuildRoute(guildId: string): string {

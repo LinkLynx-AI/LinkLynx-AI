@@ -1,5 +1,10 @@
 import { LoginForm } from "@/features";
-import { APP_ROUTES, normalizeReturnToPath, parseLoginRedirectReason } from "@/shared/config";
+import {
+  APP_ROUTES,
+  normalizeInviteResumeCode,
+  normalizeReturnToPath,
+  parseLoginRedirectReason,
+} from "@/shared/config";
 import Link from "next/link";
 
 type SearchParamsObject = Record<string, string | string[] | undefined>;
@@ -23,6 +28,7 @@ function toSingleValue(value: string | string[] | undefined): string | null {
 export default async function LoginPage({ searchParams }: LoginPageProps) {
   const resolvedSearchParams = await Promise.resolve(searchParams ?? {});
   const returnTo = normalizeReturnToPath(toSingleValue(resolvedSearchParams.returnTo));
+  const inviteCode = normalizeInviteResumeCode(toSingleValue(resolvedSearchParams.invite));
   const reason = parseLoginRedirectReason(resolvedSearchParams.reason);
 
   return (
@@ -37,7 +43,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
           <p className="mt-1 text-base text-discord-text-muted">また会えてうれしいです！</p>
         </div>
 
-        <LoginForm returnTo={returnTo} reason={reason} />
+        <LoginForm inviteCode={inviteCode} returnTo={returnTo} reason={reason} />
 
         <p className="mt-6 text-sm text-discord-text-muted">
           アカウントをお持ちでないですか？{" "}

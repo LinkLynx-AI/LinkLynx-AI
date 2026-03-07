@@ -22,4 +22,13 @@ describe("buildVerifyEmailRoute", () => {
 
     expect(url).toBe("/verify-email?email=test%40example.com");
   });
+
+  test("invite resume code を引き継ぐ", () => {
+    const url = buildVerifyEmailRoute({
+      email: "test@example.com",
+      inviteCode: "DEVJOIN2026",
+    });
+
+    expect(url).toBe("/verify-email?email=test%40example.com&invite=DEVJOIN2026");
+  });
 });

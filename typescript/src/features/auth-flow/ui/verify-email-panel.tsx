@@ -8,12 +8,13 @@ import {
   sendVerificationEmailForCurrentUser,
   useAuthSession,
 } from "@/entities";
-import { APP_ROUTES, normalizeReturnToPath } from "@/shared/config";
+import { APP_ROUTES, resolvePostAuthRedirectPath } from "@/shared/config";
 import { getPrincipalProvisionErrorMessage, getVerifyEmailErrorMessage } from "../model";
 
 type VerifyEmailPanelProps = {
   initialEmail: string | null;
   initialSent: string | null;
+  inviteCode: string | null;
   returnTo: string | null;
 };
 
@@ -75,7 +76,12 @@ function resolveRefreshErrorMessage(error: AuthActionError): string {
 /**
  * メール確認導線（再送・確認状態更新）を表示する。
  */
-export function VerifyEmailPanel({ initialEmail, initialSent, returnTo }: VerifyEmailPanelProps) {
+export function VerifyEmailPanel({
+  initialEmail,
+  initialSent,
+  inviteCode,
+  returnTo,
+}: VerifyEmailPanelProps) {
   const session = useAuthSession();
   const [notice, setNotice] = useState<NoticeState | null>(() => resolveInitialNotice(initialSent));
   const [isResending, setIsResending] = useState(false);
@@ -84,7 +90,10 @@ export function VerifyEmailPanel({ initialEmail, initialSent, returnTo }: Verify
   const isAutoRefreshStoppedRef = useRef(false);
   const autoRefreshStartedAtRef = useRef(0);
   const lastEventTriggeredAtRef = useRef(0);
-  const redirectPath = normalizeReturnToPath(returnTo) ?? APP_ROUTES.channels.me;
+  const redirectPath = resolvePostAuthRedirectPath({
+    inviteCode,
+    returnTo,
+  });
 
   const targetEmail = useMemo(() => {
     const sessionEmail = session.user?.email?.trim();
