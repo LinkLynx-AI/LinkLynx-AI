@@ -14,6 +14,8 @@
 - Browser から Firebase Storage を直接叩くと localhost origin で CORS preflight failure が起きたため、storage access は same-origin Next route (`/api/storage/object`) 経由へ切り替えた。
 - Storage route は Firebase ID token を `Authorization: Firebase <token>` に変換して Storage REST へ転送し、download URL 解決・upload・delete を代行する。
 - 保存済み avatar/banner object が消えている場合でも設定画面を壊さないよう、`GET /api/storage/object` は missing object / missing download token を `url: null` へ正規化して返す。
+- WS origin 拒否の直接原因は backend の local dev 既定 allowlist が `localhost:3000` 系に固定され、Next dev server が `3001` へ退避したケースを拾えていなかったことだった。
+- `AUTHZ_PROVIDER=noop` と WS origin チェックは責務が別なので allow-all にはせず、local dev の既定/fallback/compose/env examples/runbook を `localhost` / `127.0.0.1` の `3000` と `3001` に揃えて解消した。
 
 ## Validation
 - `cargo test -p linklynx_backend banner_key` passed.
@@ -22,6 +24,7 @@
 - `npm -C typescript run test -- src/shared/ui/image-crop-modal.test.tsx src/features/settings/ui/user/user-profile.test.tsx src/app/providers/profile-bridge.test.tsx src/shared/api/guild-channel-api-client.test.ts` passed after the crop fix.
 - `npm -C typescript run test -- src/shared/lib/firebase/storage.test.ts src/app/api/storage/object/route.test.ts src/features/settings/ui/user/user-profile.test.tsx src/app/providers/profile-bridge.test.tsx` passed after the CORS fix.
 - `npm -C typescript run test -- src/shared/lib/firebase/storage.test.ts src/app/api/storage/object/route.test.ts` passed after the missing-object 404 handling fix.
+- `cargo test -p linklynx_backend ws_origin_allowlist` passed after the local dev WS origin fix.
 - `make validate` passed with escalation after sandbox-local-bind restrictions blocked the unprivileged run.
 
 ## Review

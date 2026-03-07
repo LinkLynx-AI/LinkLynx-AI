@@ -59,7 +59,7 @@ services:
       AUTH_IDENTIFY_TIMEOUT_SECONDS: ${AUTH_IDENTIFY_TIMEOUT_SECONDS:-5}
       WS_TICKET_RATE_LIMIT_MAX_PER_MINUTE: ${WS_TICKET_RATE_LIMIT_MAX_PER_MINUTE:-20}
       WS_IDENTIFY_RATE_LIMIT_MAX_PER_MINUTE: ${WS_IDENTIFY_RATE_LIMIT_MAX_PER_MINUTE:-60}
-      WS_ALLOWED_ORIGINS: ${WS_ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
+      WS_ALLOWED_ORIGINS: ${WS_ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001}
     depends_on:
       postgres:
         condition: service_healthy
