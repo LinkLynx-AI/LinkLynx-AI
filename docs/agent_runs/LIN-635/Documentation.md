@@ -3,7 +3,7 @@
 ## Status
 - Implementation completed (reply reference + pin state persistence schema).
 - PR repair in progress: merged latest `main` into the branch to remove stale parent-branch drift from the PR diff.
-- PR repair follow-up in progress: add CI coverage for `make db-schema-check`.
+- PR repair follow-up completed: added CI coverage for `make db-schema-check`.
 
 ## Scope
 - Added migration:
@@ -45,13 +45,15 @@
   - `pin_row:3001,92001,true,true,true`（`pinned_by`/`unpinned_by`/`unpinned_at` の監査列更新確認）
 
 ## Review results
-- `reviewer_simple` / `reviewer_ui_guard` / `reviewer_ui`: unavailable in current execution environment.
+- `reviewer_simple`: no blocking findings.
+- `reviewer_ui_guard`: no UI changes detected.
+- `reviewer_ui`: skipped（UI changeなし）。
 - Manual self-review: stale PR diffを current `main` に合わせて再整形し、blocking issue はなし。
 
 ## Per-issue evidence (LIN-635)
 - issue: `LIN-635`
 - branch: `codex/LIN-635-message-reference-pin-persistence`
-- reviewer gate: unavailable (manual self-review fallback)
+- reviewer gate: `reviewer_simple` pass（blocking findingsなし）
 - UI gate: skipped (UI changesなし)
-- repair action: merged latest `main` into the branch and resolved `schema.sql` / `docs/DATABASE.md` / generated artifact conflicts
+- repair action: merged latest `main` into the branch, added CI `db-schema-check`, and refreshed `schema.sql`
 - planned PR base branch: `main`
