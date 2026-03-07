@@ -33,6 +33,7 @@
 | GET | `/v1/guilds/:guild_id/channels/:channel_id` | Protected | 必須 | 必須 | Channel参照 |
 | GET | `/v1/guilds/:guild_id/channels/:channel_id/messages` | Protected | 必須 | 必須 | Message一覧参照 |
 | POST | `/v1/guilds/:guild_id/channels/:channel_id/messages` | Protected | 必須 | 必須 | Message投稿 |
+| GET | `/v1/guilds/:guild_id/permission-snapshot` | Protected | 必須 | 必須 | FE 向け permission snapshot |
 | GET | `/v1/guilds/:guild_id/invites/:invite_code` | Protected | 必須 | 必須 | Invite参照 |
 | GET | `/v1/dms/:channel_id` | Protected | 必須 | 必須 | DM channel参照 |
 | GET | `/v1/dms/:channel_id/messages` | Protected | 必須 | 必須 | DM message一覧参照 |
@@ -61,6 +62,7 @@
 - `GET /v1/guilds/:guild_id/channels/:channel_id`
 - `GET /v1/guilds/:guild_id/channels/:channel_id/messages`
 - `POST /v1/guilds/:guild_id/channels/:channel_id/messages`
+- `GET /v1/guilds/:guild_id/permission-snapshot`
 - `GET /v1/guilds/:guild_id/invites/:invite_code`
 - `GET /v1/dms/:channel_id`
 - `GET /v1/dms/:channel_id/messages`
@@ -82,6 +84,7 @@
 | REST | `GET /v1/guilds/:guild_id/channels/:channel_id` | AuthN済み `principal_id` | `AuthzResource::GuildChannel { guild_id, channel_id }` | `View` | deny=`403/AUTHZ_DENIED`, unavailable=`503/AUTHZ_UNAVAILABLE` |
 | REST | `GET /v1/guilds/:guild_id/channels/:channel_id/messages` | AuthN済み `principal_id` | `AuthzResource::GuildChannel { guild_id, channel_id }` | `View` | deny=`403/AUTHZ_DENIED`, unavailable=`503/AUTHZ_UNAVAILABLE` |
 | REST | `POST /v1/guilds/:guild_id/channels/:channel_id/messages` | AuthN済み `principal_id` | `AuthzResource::GuildChannel { guild_id, channel_id }` | `Post` | deny=`403/AUTHZ_DENIED`, unavailable=`503/AUTHZ_UNAVAILABLE` |
+| REST | `GET /v1/guilds/:guild_id/permission-snapshot` | AuthN済み `principal_id` | `AuthzResource::Guild { guild_id }` | `View` | route許可後、handler 内で `Manage` と channel `View/Post/Manage` を boolean snapshot へ写像。unavailable は `503/AUTHZ_UNAVAILABLE` |
 | REST | `GET /v1/guilds/:guild_id/invites/:invite_code` | AuthN済み `principal_id` | `AuthzResource::Guild { guild_id }` | `View` | deny=`403/AUTHZ_DENIED`, unavailable=`503/AUTHZ_UNAVAILABLE` |
 | REST | `GET /v1/dms/:channel_id` | AuthN済み `principal_id` | `AuthzResource::Channel { channel_id }` | `View` | deny=`403/AUTHZ_DENIED`, unavailable=`503/AUTHZ_UNAVAILABLE` |
 | REST | `GET /v1/dms/:channel_id/messages` | AuthN済み `principal_id` | `AuthzResource::Channel { channel_id }` | `View` | deny=`403/AUTHZ_DENIED`, unavailable=`503/AUTHZ_UNAVAILABLE` |
@@ -114,5 +117,6 @@
 
 ## 6. Notes for downstream issues
 
+- `LIN-925` は permission snapshot 契約と取得I/F の固定までを扱う。snapshot を使った FE ActionGuard 反映は `LIN-926` で扱う。
 - `LIN-862` 以降は本マトリクスを入力に SpiceDB スキーマ・Tuple写像を設計する。
 - `LIN-868` では本マトリクスの allow/deny/unavailable 回帰をCIで検知できるよう統合テストを維持する。
