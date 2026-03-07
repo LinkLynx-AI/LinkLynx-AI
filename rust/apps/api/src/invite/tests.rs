@@ -166,6 +166,8 @@ mod tests {
         assert!(sql.contains("INSERT INTO invite_uses"));
         assert!(sql.contains("UPDATE invites i"));
         assert!(sql.contains("WHEN im.already_member THEN 'already_member'"));
+        assert!(sql.contains("AND NOT state.already_used"));
+        assert!(sql.contains("FROM member_insert inserted"));
     }
 
     #[test]

@@ -1314,6 +1314,35 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn invite_join_endpoint_fail_closes_when_ratelimit_degraded() {
+        let state = state_for_test_with_authorizer(Arc::new(StaticAllowAllAuthorizer)).await;
+        state.rest_rate_limit_service.set_degraded_for_test(true).await;
+        let app = app_with_state(state);
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method(Method::POST)
+                    .uri("/v1/invites/DEVJOIN2026/join")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
+        assert_eq!(
+            response
+                .headers()
+                .get(RETRY_AFTER)
+                .and_then(|value| value.to_str().ok()),
+            Some("60")
+        );
+    }
+
+    #[tokio::test]
     async fn protected_endpoint_rejects_missing_token() {
         let app = app_for_test().await;
         let response = app
