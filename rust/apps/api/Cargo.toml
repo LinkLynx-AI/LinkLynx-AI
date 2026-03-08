@@ -13,6 +13,7 @@ linklynx_protocol_events = { path = "../../crates/contracts/protocol-events" }
 linklynx_protocol_ws = { path = "../../crates/contracts/protocol-ws" }
 linklynx_shared = { path = "../../crates/shared" }
 reqwest.workspace = true
+scylla.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
@@ -24,3 +25,7 @@ tower-http.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 uuid.workspace = true
+
+[dev-dependencies]
+futures-util = "0.3"
+tokio-tungstenite = "0.28"

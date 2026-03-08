@@ -161,6 +161,16 @@ mod tests {
     }
 
     #[test]
+    fn delete_guild_sql_requires_manage_boundary_lookup() {
+        let sql = PostgresGuildChannelService::DELETE_GUILD_SQL;
+
+        assert!(sql.contains("DELETE FROM guilds"));
+        assert!(sql.contains("guild_member_roles_v2"));
+        assert!(sql.contains("guild_roles_v2"));
+        assert!(sql.contains("allow_manage = TRUE"));
+    }
+
+    #[test]
     fn update_guild_channel_sql_requires_manage_role_lookup() {
         let sql = PostgresGuildChannelService::UPDATE_GUILD_CHANNEL_SQL;
 

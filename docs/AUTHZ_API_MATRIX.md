@@ -1,6 +1,6 @@
 # AuthZ API Inventory and Permission Matrix (LIN-861)
 
-最終更新: 2026-03-04
+最終更新: 2026-03-07
 
 この文書は `LIN-861` の成果物として、現行実装の API 棚卸しと
 `principal/resource/action` マトリクスを固定する。
@@ -24,6 +24,7 @@
 | --- | --- | --- | --- | --- | --- |
 | GET | `/` | Public | なし | なし | ルート疎通 |
 | GET | `/health` | Public | なし | なし | ヘルスチェック |
+| GET | `/internal/scylla/health` | Public | なし | なし | Scylla ヘルス。詳細はログに残し、レスポンスは coarse reason code のみ返す |
 | GET | `/internal/auth/metrics` | Public | なし | なし | 認証メトリクス取得 |
 | GET | `/internal/authz/metrics` | Public | なし | なし | 認可メトリクス取得 |
 | GET | `/v1/protected/ping` | Protected | 必須 | 必須 | `rest_auth_middleware` を経由 |
@@ -49,6 +50,7 @@
 ### Public (AuthZ excluded)
 - `GET /`
 - `GET /health`
+- `GET /internal/scylla/health`
 - `GET /internal/auth/metrics`
 - `GET /internal/authz/metrics`
 

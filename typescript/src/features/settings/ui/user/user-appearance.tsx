@@ -14,6 +14,9 @@ const themes: { id: Theme; label: string; bg: string; sidebar: string; text: str
   { id: "onyx", label: "オニキス", bg: "#1e1f22", sidebar: "#1a1b1e", text: "#dbdee1" },
 ];
 
+/**
+ * ユーザー外観設定画面を表示する。
+ */
 export function UserAppearance() {
   const [theme, setTheme] = useState<Theme>("dark");
   const [messageDisplay, setMessageDisplay] = useState<MessageDisplay>("cozy");

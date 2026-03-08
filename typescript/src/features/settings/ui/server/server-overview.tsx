@@ -10,6 +10,7 @@ import { toApiErrorText } from "@/shared/api/guild-channel-api-client";
 import { useUpdateServer } from "@/shared/api/mutations/use-server-actions";
 import { useServer } from "@/shared/api/queries/use-servers";
 import { Upload, Zap } from "lucide-react";
+import { ServerDeleteModal } from "./server-delete-modal";
 
 const notificationOptions = [
   { value: "all", label: "全てのメッセージ" },
@@ -51,11 +52,18 @@ function validateServerName(value: string): string | null {
   return null;
 }
 
-export function ServerOverview({ serverId }: { serverId: string }) {
+export function ServerOverview({
+  serverId,
+  onDeleted,
+}: {
+  serverId: string;
+  onDeleted?: () => void;
+}) {
   const { data: server, isLoading, isError, error } = useServer(serverId);
   const updateServer = useUpdateServer();
   const [serverName, setServerName] = useState("");
   const [isNameDirty, setIsNameDirty] = useState(false);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [description, setDescription] = useState("");
   const [systemChannel, setSystemChannel] = useState("general");
   const [defaultNotifications, setDefaultNotifications] = useState("all");
@@ -247,6 +255,24 @@ export function ServerOverview({ serverId }: { serverId: string }) {
         </div>
       </div>
 
+      <section className="mb-6 rounded-md border border-discord-btn-danger/30 bg-discord-btn-danger/10 p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h3 className="text-sm font-medium text-discord-text-normal">サーバーを削除</h3>
+            <p className="mt-1 text-xs text-discord-text-muted">
+              削除するとサーバー一覧から消え、元に戻せません。
+            </p>
+          </div>
+          <Button
+            variant="danger"
+            disabled={serverId.trim().length === 0}
+            onClick={() => setDeleteModalOpen(true)}
+          >
+            サーバーを削除
+          </Button>
+        </div>
+      </section>
+
       <div className="flex items-center justify-end gap-3">
         {saveSuccessMessage !== null && (
           <p className="text-xs text-discord-status-online">{saveSuccessMessage}</p>
@@ -259,6 +285,14 @@ export function ServerOverview({ serverId }: { serverId: string }) {
           {updateServer.isPending ? "保存中..." : "変更を保存"}
         </Button>
       </div>
+      {deleteModalOpen && (
+        <ServerDeleteModal
+          onClose={() => setDeleteModalOpen(false)}
+          onDeleted={onDeleted}
+          serverId={serverId}
+          serverName={server?.name ?? serverName}
+        />
+      )}
     </div>
   );
 }

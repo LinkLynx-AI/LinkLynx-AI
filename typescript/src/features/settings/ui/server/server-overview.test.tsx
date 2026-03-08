@@ -7,12 +7,23 @@ const useServerMock = vi.hoisted(() => vi.fn());
 const useUpdateServerMock = vi.hoisted(() => vi.fn());
 const mutateAsyncMock = vi.hoisted(() => vi.fn());
 
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/channels/2001",
+  useRouter: () => ({
+    replace: vi.fn(),
+  }),
+}));
+
 vi.mock("@/shared/api/queries/use-servers", () => ({
   useServer: useServerMock,
 }));
 
 vi.mock("@/shared/api/mutations/use-server-actions", () => ({
   useUpdateServer: useUpdateServerMock,
+  useDeleteServer: () => ({
+    isPending: false,
+    mutateAsync: vi.fn(),
+  }),
 }));
 
 const baseServer = {
@@ -97,5 +108,11 @@ describe("ServerOverview", () => {
     rerender(<ServerOverview serverId="2001" />);
 
     expect(screen.getByDisplayValue("Local Draft Name")).not.toBeNull();
+  });
+
+  test("renders danger zone delete action", () => {
+    render(<ServerOverview serverId="2001" />);
+
+    expect(screen.getByRole("button", { name: "サーバーを削除" })).not.toBeNull();
   });
 });

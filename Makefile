@@ -2,6 +2,7 @@
 .PHONY: ts-dev ts-build ts-format ts-lint ts-test ts-validate ts-fsd-check rust-dev rust-build rust-test rust-fmt rust-clippy rust-lint rust-ci rust-validate py-dev py-install py-format py-lint py-test py-validate elixir-dev elixir-build
 .PHONY: db-up db-down db-reset db-migrate db-migrate-revert db-migrate-info db-schema db-schema-check db-seed db-table-regex db-doc worktree-sync-env codex-worktree
 .PHONY: authz-spicedb-up authz-spicedb-down authz-spicedb-health
+.PHONY: scylla-bootstrap scylla-health
 
 # 色設定
 GREEN  := \033[0;32m
@@ -26,13 +27,50 @@ POSTGRES_DUMP_CMD ?= docker compose exec -T postgres pg_dump -U postgres -d $(PO
 WORKTREE_SYNC_IGNORED_PATHS ?= .env,**/.env,.env.local,**/.env.local,.env.*.local,**/.env.*.local
 
 help: ## ヘルプを表示
-	@echo "$(BLUE)LinkLynx-AI$(NC) - Discord Clone 開発コマンド"
+	@echo "$(BLUE)LinkLynx-AI$(NC) - 開発用 Makefile"
 	@echo ""
-	@echo "$(YELLOW)使い方:$(NC)"
-	@echo "  make [コマンド]"
+	@echo "$(YELLOW)使い方:$(NC) make [コマンド]"
 	@echo ""
-	@echo "$(YELLOW)コマンド一覧:$(NC)"
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  $(GREEN)%-15s$(NC) %s\n", $$1, $$2}'
+	@echo "$(YELLOW)初回/環境整備$(NC)"
+	@echo "  $(GREEN)setup$(NC)             各言語のローカル依存関係をセットアップ"
+	@echo "  $(GREEN)setup-db-tools$(NC)     DB開発ツール(sqlx/tbls)を確認・インストール"
+	@echo "  $(GREEN)setup-check$(NC)        環境構築状況を確認"
+	@echo "  $(GREEN)setup-bootstrap$(NC)    自動セットアップスクリプトを実行"
+	@echo ""
+	@echo "$(YELLOW)開発起動/停止$(NC)"
+	@echo "  $(GREEN)dev$(NC)                DB + Frontend + Rust API の開発環境を起動"
+	@echo "  $(GREEN)up$(NC)                 全サービスを起動"
+	@echo "  $(GREEN)down$(NC)               全サービスを停止"
+	@echo "  $(GREEN)logs$(NC)               全サービスのログを表示"
+	@echo "  $(GREEN)logs-ts$(NC)            TypeScript/Next.js のログ"
+	@echo "  $(GREEN)logs-rust$(NC)          Rust のログ"
+	@echo "  $(GREEN)logs-py$(NC)            Python のログ"
+	@echo ""
+	@echo "$(YELLOW)品質ゲート$(NC)"
+	@echo "  $(GREEN)format$(NC)             フォーマットを実行 (ts / rust / py)"
+	@echo "  $(GREEN)lint$(NC)               リントを実行 (ts / rust / py)"
+	@echo "  $(GREEN)test$(NC)               テストを実行 (ts / rust / py)"
+	@echo "  $(GREEN)validate$(NC)           format / lint / test"
+	@echo ""
+	@echo "$(YELLOW)言語別ショートカット$(NC)"
+	@echo "  $(GREEN)ts-*$(NC)               ts-dev / ts-build / ts-format / ts-lint / ts-test / ts-validate / ts-fsd-check"
+	@echo "  $(GREEN)rust-*$(NC)             rust-dev / rust-build / rust-fmt / rust-lint / rust-test / rust-validate"
+	@echo "  $(GREEN)py-*$(NC)               py-dev / py-install / py-format / py-lint / py-test / py-validate"
+	@echo ""
+	@echo "$(YELLOW)DB運用$(NC)"
+	@echo "  $(GREEN)db-up$(NC)              DBを起動"
+	@echo "  $(GREEN)db-migrate$(NC)         sqlx migration 適用"
+	@echo "  $(GREEN)db-migrate-info$(NC)    migration 適用状態を表示"
+	@echo "  $(GREEN)db-reset$(NC)           DBをリセット"
+	@echo "  $(GREEN)db-schema-check$(NC)    schema.sql の整合性チェック"
+	@echo "  $(GREEN)db-seed$(NC)            開発データを投入"
+	@echo ""
+	@echo "$(YELLOW)codex-worktree系$(NC)"
+	@echo "  $(GREEN)codex-worktree$(NC)       worktreeを作成しCodex CLIを起動"
+	@echo "  $(GREEN)worktree-sync-env$(NC)    .env等の同期"
+	@echo ""
+	@echo "$(YELLOW)補助$(NC)"
+	@echo "  $(GREEN)clean$(NC)              コンテナ/イメージ/ボリュームを削除"
 
 # ============================================
 # セットアップ・環境確認
@@ -133,6 +171,31 @@ authz-spicedb-health: ## SpiceDB gRPC/HTTP ポートのヘルス確認（localho
 	echo "$(RED)SpiceDB gRPC/HTTP endpoints are not reachable on localhost:50051/8443$(NC)"; \
 	docker compose logs spicedb; \
 	exit 1
+
+scylla-bootstrap: ## Scylla schema をローカル compose に適用
+	@set -eu; \
+	keyspace="$${SCYLLA_KEYSPACE:-chat}"; \
+	case "$$keyspace" in \
+		(*[!A-Za-z0-9_]*|'') \
+			echo "$(RED)SCYLLA_KEYSPACE は英数字またはアンダースコアのみ使用できます: $$keyspace$(NC)"; \
+			exit 1; \
+			;; \
+	esac; \
+	dc="$$(docker compose exec -T scylladb cqlsh -e "SELECT data_center FROM system.local;" | awk 'NF > 0 && $$1 != "data_center" && $$1 !~ /^-+$$/ && $$1 !~ /^\(/ { print $$1; exit }')"; \
+	if [ -z "$$dc" ]; then \
+		echo "$(RED)Scylla data_center を取得できませんでした$(NC)"; \
+		docker compose logs scylladb; \
+		exit 1; \
+	fi; \
+	tmp_file="$$(mktemp)"; \
+	trap 'rm -f "$$tmp_file"' EXIT; \
+	perl -0pe "s/'dc1': 3/'$$dc': 1/g; s/CREATE KEYSPACE IF NOT EXISTS chat/CREATE KEYSPACE IF NOT EXISTS $$keyspace/g; s/CREATE TABLE IF NOT EXISTS chat\\./CREATE TABLE IF NOT EXISTS $$keyspace\\./g" \
+		database/scylla/001_lin139_messages.cql > "$$tmp_file"; \
+	docker compose exec -T scylladb cqlsh < "$$tmp_file"; \
+	echo "$(GREEN)Scylla schema applied (data_center=$$dc, keyspace=$$keyspace, rf=1)$(NC)"
+
+scylla-health: ## API の Scylla health probe を確認
+	curl -i -sS http://127.0.0.1:8080/internal/scylla/health
 
 clean: ## コンテナ・ボリューム・イメージを削除
 	docker compose down -v --rmi local
@@ -362,9 +425,19 @@ dev: db-up ## 開発環境を起動（DB + Frontend + Rust）
 	@echo "  Rust API: http://localhost:8080"
 	@cd typescript && CI=true pnpm install --frozen-lockfile
 	@set -e; \
-	$(MAKE) rust-dev & \
+	cleanup() { \
+		trap - INT TERM EXIT; \
+		command -v pkill >/dev/null 2>&1 && pkill -TERM -P $$rust_pid 2>/dev/null || true; \
+		kill -TERM -$$rust_pid 2>/dev/null || kill -TERM $$rust_pid 2>/dev/null || true; \
+		wait $$rust_pid 2>/dev/null || true; \
+	}; \
+	if command -v setsid >/dev/null 2>&1; then \
+		setsid $(MAKE) rust-dev & \
+	else \
+		$(MAKE) rust-dev & \
+	fi; \
 	rust_pid=$$!; \
-	trap 'kill $$rust_pid 2>/dev/null || true' INT TERM EXIT; \
+	trap cleanup INT TERM EXIT; \
 	$(MAKE) ts-dev
 
 test: ## 全テストを実行

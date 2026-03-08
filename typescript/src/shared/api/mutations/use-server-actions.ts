@@ -3,7 +3,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { getAPIClient } from "@/shared/api/api-client";
 import type { CreateGuildData, UpdateGuildData } from "@/shared/api/api-client";
-import type { Guild } from "@/shared/model/types";
+import type { Channel, Guild } from "@/shared/model/types";
 
 export function useCreateServer() {
   const queryClient = useQueryClient();
@@ -35,7 +35,22 @@ export function useDeleteServer() {
 
   return useMutation({
     mutationFn: (serverId: string) => api.deleteServer(serverId),
-    onSuccess: () => {
+    onSuccess: (_, serverId) => {
+      queryClient.setQueryData<Guild[] | undefined>(["servers"], (currentServers) => {
+        if (currentServers === undefined) {
+          return currentServers;
+        }
+
+        return currentServers.filter((server) => server.id !== serverId);
+      });
+      queryClient.removeQueries({ queryKey: ["server", serverId], exact: true });
+
+      const cachedChannels = queryClient.getQueryData<Channel[]>(["channels", serverId]) ?? [];
+      for (const channel of cachedChannels) {
+        queryClient.removeQueries({ queryKey: ["channel", channel.id], exact: true });
+      }
+      queryClient.removeQueries({ queryKey: ["channels", serverId], exact: true });
+
       queryClient.invalidateQueries({ queryKey: ["servers"] });
     },
   });
