@@ -51,6 +51,14 @@ fn app_with_state(state: AppState) -> Router {
             "/users/me/profile",
             get(get_my_profile).patch(patch_my_profile),
         )
+        .route(
+            "/users/me/profile/media/upload-url",
+            post(issue_my_profile_media_upload_url),
+        )
+        .route(
+            "/users/me/profile/media/{target}/download-url",
+            get(get_my_profile_media_download_url),
+        )
         .route("/v1/guilds/{guild_id}", get(get_guild))
         .route("/v1/guilds/{guild_id}", axum::routing::patch(update_guild))
         .route(
@@ -969,6 +977,29 @@ struct ProfileResponse {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ProfileMediaUploadUrlRequest {
+    target: String,
+    filename: String,
+    content_type: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct ProfileMediaTargetPathParams {
+    target: String,
+}
+
+#[derive(Debug, Serialize)]
+struct ProfileMediaUploadUrlResponse {
+    upload: profile::ProfileMediaUpload,
+}
+
+#[derive(Debug, Serialize)]
+struct ProfileMediaDownloadUrlResponse {
+    media: profile::ProfileMediaDownload,
+}
+
+#[derive(Debug, Deserialize)]
 struct ModerationGuildPathParams {
     guild_id: String,
 }
@@ -1188,11 +1219,30 @@ fn parse_profile_patch_payload(
     let display_name = parse_display_name_patch_field(payload)?;
     let status_text = parse_nullable_string_patch_field(payload, "status_text")?;
     let avatar_key = parse_nullable_string_patch_field(payload, "avatar_key")?;
+    let banner_key = parse_nullable_string_patch_field(payload, "banner_key")?;
 
     Ok(ProfilePatchInput {
         display_name,
         status_text,
         avatar_key,
+        banner_key,
+    })
+}
+
+/// JSON入力を検証して profile media upload 発行入力を取得する。
+/// @param payload JSON抽出結果
+/// @returns 検証済み profile media upload 入力
+/// @throws ProfileError JSON不正時
+fn parse_profile_media_upload_payload(
+    payload: Result<Json<ProfileMediaUploadUrlRequest>, JsonRejection>,
+) -> Result<profile::ProfileMediaUploadInput, ProfileError> {
+    let payload = payload
+        .map(|Json(value)| value)
+        .map_err(|_| ProfileError::validation("request_body_invalid"))?;
+    Ok(profile::ProfileMediaUploadInput {
+        target: profile::ProfileMediaTarget::parse(payload.target.as_str())?,
+        filename: payload.filename,
+        content_type: payload.content_type,
     })
 }
 
@@ -2032,6 +2082,60 @@ async fn patch_my_profile(
         .await
     {
         Ok(profile) => Json(ProfileResponse { profile }).into_response(),
+        Err(error) => profile_error_response(&error, request_id),
+    }
+}
+
+/// 認証済みprincipal向けのプロフィール画像アップロードURLを発行する。
+/// @param state アプリケーション状態
+/// @param auth_context 認証文脈
+/// @param payload 発行入力
+/// @returns アップロードURLレスポンス
+/// @throws なし
+async fn issue_my_profile_media_upload_url(
+    State(state): State<AppState>,
+    Extension(auth_context): Extension<AuthContext>,
+    payload: Result<Json<ProfileMediaUploadUrlRequest>, JsonRejection>,
+) -> Response {
+    let request_id = auth_context.request_id.clone();
+    let input = match parse_profile_media_upload_payload(payload) {
+        Ok(value) => value,
+        Err(error) => return profile_error_response(&error, request_id),
+    };
+
+    match state
+        .profile_media_service
+        .issue_upload_url(auth_context.principal_id, input)
+        .await
+    {
+        Ok(upload) => Json(ProfileMediaUploadUrlResponse { upload }).into_response(),
+        Err(error) => profile_error_response(&error, request_id),
+    }
+}
+
+/// 認証済みprincipal向けのプロフィール画像ダウンロードURLを発行する。
+/// @param state アプリケーション状態
+/// @param auth_context 認証文脈
+/// @param params パスパラメータ
+/// @returns ダウンロードURLレスポンス
+/// @throws なし
+async fn get_my_profile_media_download_url(
+    State(state): State<AppState>,
+    Extension(auth_context): Extension<AuthContext>,
+    Path(params): Path<ProfileMediaTargetPathParams>,
+) -> Response {
+    let request_id = auth_context.request_id.clone();
+    let target = match profile::ProfileMediaTarget::parse(params.target.as_str()) {
+        Ok(value) => value,
+        Err(error) => return profile_error_response(&error, request_id),
+    };
+
+    match state
+        .profile_media_service
+        .issue_download_url(auth_context.principal_id, target)
+        .await
+    {
+        Ok(media) => Json(ProfileMediaDownloadUrlResponse { media }).into_response(),
         Err(error) => profile_error_response(&error, request_id),
     }
 }

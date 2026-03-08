@@ -8,6 +8,7 @@ type MyProfile = {
   displayName: string;
   statusText: string | null;
   avatarKey: string | null;
+  bannerKey: string | null;
 };
 
 type MyProfileQueryResult = {
@@ -64,6 +65,7 @@ describe("UserProfile", () => {
         displayName: "old-name",
         statusText: "old-status",
         avatarKey: null,
+        bannerKey: null,
       },
       isLoading: false,
       isError: false,
@@ -85,6 +87,7 @@ describe("UserProfile", () => {
       displayName: "new-name",
       statusText: "new-status",
       avatarKey: null,
+      bannerKey: null,
     });
 
     render(<UserProfile />);
@@ -125,6 +128,7 @@ describe("UserProfile", () => {
         displayName: "retry-name",
         statusText: "retry-status",
         avatarKey: null,
+        bannerKey: null,
       });
 
     render(<UserProfile />);
@@ -153,6 +157,7 @@ describe("UserProfile", () => {
         displayName: "old-name",
         statusText: "old-status",
         avatarKey: null,
+        bannerKey: null,
       },
       isLoading: false,
       isError: false,
@@ -171,6 +176,7 @@ describe("UserProfile", () => {
       displayName: "old-name",
       statusText: "server-updated-status",
       avatarKey: null,
+      bannerKey: null,
     };
     rerender(<UserProfile />);
 

@@ -3,10 +3,13 @@ import type {
   APIClient,
   AuditLogEntry,
   PermissionSnapshot,
+  CreateMyProfileMediaUploadUrlInput,
   CreateModerationMuteData,
   CreateModerationReportData,
   CreateChannelData,
   CreateGuildData,
+  MyProfileMediaDownload,
+  MyProfileMediaUpload,
   UpdateGuildData,
   CreateInviteData,
   Invite,
@@ -68,6 +71,7 @@ function buildMyProfile(user: User): MyProfile {
     displayName: user.displayName,
     statusText: user.customStatus,
     avatarKey: null,
+    bannerKey: null,
   };
 }
 
@@ -222,6 +226,7 @@ export class NoDataAPIClient implements APIClient {
         displayName,
         statusText,
         avatarKey: null,
+        bannerKey: null,
       });
     } catch (error) {
       return Promise.reject(
@@ -256,6 +261,16 @@ export class NoDataAPIClient implements APIClient {
 
   createDM(_recipientId: string): Promise<Channel> {
     return unsupportedPromise("createDM");
+  }
+
+  createMyProfileMediaUploadUrl(
+    _input: CreateMyProfileMediaUploadUrlInput,
+  ): Promise<MyProfileMediaUpload> {
+    return unsupportedPromise("createMyProfileMediaUploadUrl");
+  }
+
+  getMyProfileMediaDownloadUrl(_target: "avatar" | "banner"): Promise<MyProfileMediaDownload> {
+    return unsupportedPromise("getMyProfileMediaDownloadUrl");
   }
 
   createGroupDM(_recipientIds: string[]): Promise<Channel> {

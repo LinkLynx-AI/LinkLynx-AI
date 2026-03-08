@@ -167,7 +167,7 @@ impl ProfileService for PostgresProfileService {
 
         let row = match client
             .query_opt(
-                "SELECT display_name, status_text, avatar_key
+                "SELECT display_name, status_text, avatar_key, banner_key
                  FROM users
                  WHERE id = $1
                  LIMIT 1",
@@ -194,6 +194,7 @@ impl ProfileService for PostgresProfileService {
             display_name: row.get::<&str, String>("display_name"),
             status_text: row.get::<&str, Option<String>>("status_text"),
             avatar_key: row.get::<&str, Option<String>>("avatar_key"),
+            banner_key: row.get::<&str, Option<String>>("banner_key"),
         })
     }
 
@@ -208,6 +209,7 @@ impl ProfileService for PostgresProfileService {
         patch: ProfilePatchInput,
     ) -> Result<ProfileSettings, ProfileError> {
         let normalized_patch = normalize_profile_patch_input(patch)?;
+        validate_profile_media_patch_keys(principal_id, &normalized_patch)?;
         let client = self.select_client().await?;
 
         let set_display_name = normalized_patch.display_name.is_some();
@@ -224,6 +226,11 @@ impl ProfileService for PostgresProfileService {
             .avatar_key
             .as_ref()
             .and_then(|value| value.as_deref());
+        let set_banner_key = normalized_patch.banner_key.is_some();
+        let banner_key_value = normalized_patch
+            .banner_key
+            .as_ref()
+            .and_then(|value| value.as_deref());
 
         let row = match client
             .query_opt(
@@ -231,9 +238,10 @@ impl ProfileService for PostgresProfileService {
                  SET
                    display_name = CASE WHEN $2::boolean THEN $3::text ELSE display_name END,
                    status_text = CASE WHEN $4::boolean THEN $5::text ELSE status_text END,
-                   avatar_key = CASE WHEN $6::boolean THEN $7::text ELSE avatar_key END
+                   avatar_key = CASE WHEN $6::boolean THEN $7::text ELSE avatar_key END,
+                   banner_key = CASE WHEN $8::boolean THEN $9::text ELSE banner_key END
                  WHERE id = $1
-                 RETURNING display_name, status_text, avatar_key",
+                 RETURNING display_name, status_text, avatar_key, banner_key",
                 &[
                     &principal_id.0,
                     &set_display_name,
@@ -242,6 +250,8 @@ impl ProfileService for PostgresProfileService {
                     &status_text_value,
                     &set_avatar_key,
                     &avatar_key_value,
+                    &set_banner_key,
+                    &banner_key_value,
                 ],
             )
             .await
@@ -265,6 +275,7 @@ impl ProfileService for PostgresProfileService {
             display_name: row.get::<&str, String>("display_name"),
             status_text: row.get::<&str, Option<String>>("status_text"),
             avatar_key: row.get::<&str, Option<String>>("avatar_key"),
+            banner_key: row.get::<&str, Option<String>>("banner_key"),
         })
     }
 }

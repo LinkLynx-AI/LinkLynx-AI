@@ -544,6 +544,7 @@ describe("GuildChannelAPIClient", () => {
             display_name: "alice",
             status_text: "busy coding",
             avatar_key: "avatar/alice.png",
+            banner_key: "banner/alice.png",
           },
         }),
         { status: 200 },
@@ -557,6 +558,7 @@ describe("GuildChannelAPIClient", () => {
       displayName: "alice",
       statusText: "busy coding",
       avatarKey: "avatar/alice.png",
+      bannerKey: "banner/alice.png",
     });
 
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
@@ -573,6 +575,7 @@ describe("GuildChannelAPIClient", () => {
             display_name: "new-name",
             status_text: null,
             avatar_key: null,
+            banner_key: null,
           },
         }),
         { status: 200 },
@@ -589,6 +592,7 @@ describe("GuildChannelAPIClient", () => {
       displayName: "new-name",
       statusText: null,
       avatarKey: null,
+      bannerKey: null,
     });
 
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
@@ -607,6 +611,7 @@ describe("GuildChannelAPIClient", () => {
             display_name: "old-name",
             status_text: "focus mode",
             avatar_key: null,
+            banner_key: "banner/alice.png",
           },
         }),
         { status: 200 },
@@ -622,6 +627,7 @@ describe("GuildChannelAPIClient", () => {
       displayName: "old-name",
       statusText: "focus mode",
       avatarKey: null,
+      bannerKey: "banner/alice.png",
     });
 
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
@@ -632,6 +638,43 @@ describe("GuildChannelAPIClient", () => {
     expect(init.body).toBe(JSON.stringify({ status_text: "focus mode" }));
   });
 
+  test("updateMyProfile sends banner key patch body", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          profile: {
+            display_name: "old-name",
+            status_text: "busy",
+            avatar_key: "avatar/alice.png",
+            banner_key: "v0/tenant/default/user/1001/profile/banner/asset/a1/banner.png",
+          },
+        }),
+        { status: 200 },
+      ),
+    );
+
+    const client = new GuildChannelAPIClient();
+    const profile = await client.updateMyProfile({
+      bannerKey: "v0/tenant/default/user/1001/profile/banner/asset/a1/banner.png",
+    });
+
+    expect(profile).toEqual({
+      displayName: "old-name",
+      statusText: "busy",
+      avatarKey: "avatar/alice.png",
+      bannerKey: "v0/tenant/default/user/1001/profile/banner/asset/a1/banner.png",
+    });
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("http://localhost:8080/users/me/profile");
+    expect(init.method).toBe("PATCH");
+    expect(init.body).toBe(
+      JSON.stringify({
+        banner_key: "v0/tenant/default/user/1001/profile/banner/asset/a1/banner.png",
+      }),
+    );
+  });
+
   test("updateMyProfile rejects empty payload", async () => {
     const client = new GuildChannelAPIClient();
 
@@ -640,6 +683,85 @@ describe("GuildChannelAPIClient", () => {
       status: 400,
     });
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  test("createMyProfileMediaUploadUrl maps upload contract", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          upload: {
+            target: "avatar",
+            object_key: "v0/tenant/default/user/1001/profile/avatar/asset/a1/avatar.png",
+            upload_url: "https://storage.googleapis.com/profile-media/avatar-upload",
+            expires_at: "2026-03-08T12:00:00Z",
+            method: "PUT",
+            required_headers: {
+              "content-type": "image/png",
+            },
+          },
+        }),
+        { status: 200 },
+      ),
+    );
+
+    const client = new GuildChannelAPIClient();
+    const upload = await client.createMyProfileMediaUploadUrl({
+      target: "avatar",
+      filename: "avatar.png",
+      contentType: "image/png",
+    });
+
+    expect(upload).toEqual({
+      target: "avatar",
+      objectKey: "v0/tenant/default/user/1001/profile/avatar/asset/a1/avatar.png",
+      uploadUrl: "https://storage.googleapis.com/profile-media/avatar-upload",
+      expiresAt: "2026-03-08T12:00:00Z",
+      method: "PUT",
+      requiredHeaders: {
+        "content-type": "image/png",
+      },
+    });
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("http://localhost:8080/users/me/profile/media/upload-url");
+    expect(init.method).toBe("POST");
+    expect(init.body).toBe(
+      JSON.stringify({
+        target: "avatar",
+        filename: "avatar.png",
+        content_type: "image/png",
+      }),
+    );
+  });
+
+  test("getMyProfileMediaDownloadUrl maps download contract", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          media: {
+            target: "banner",
+            object_key: "v0/tenant/default/user/1001/profile/banner/asset/a1/banner.png",
+            download_url: "https://storage.googleapis.com/profile-media/banner-download",
+            expires_at: "2026-03-08T12:00:00Z",
+          },
+        }),
+        { status: 200 },
+      ),
+    );
+
+    const client = new GuildChannelAPIClient();
+    const media = await client.getMyProfileMediaDownloadUrl("banner");
+
+    expect(media).toEqual({
+      target: "banner",
+      objectKey: "v0/tenant/default/user/1001/profile/banner/asset/a1/banner.png",
+      downloadUrl: "https://storage.googleapis.com/profile-media/banner-download",
+      expiresAt: "2026-03-08T12:00:00Z",
+    });
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("http://localhost:8080/users/me/profile/media/banner/download-url");
+    expect(init.method).toBe("GET");
   });
 
   test("getPermissionSnapshot requests the non-v1 guild path", async () => {

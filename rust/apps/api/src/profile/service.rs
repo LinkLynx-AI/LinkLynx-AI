@@ -4,6 +4,7 @@ pub struct ProfileSettings {
     pub display_name: String,
     pub status_text: Option<String>,
     pub avatar_key: Option<String>,
+    pub banner_key: Option<String>,
 }
 
 /// プロフィール更新入力を表現する。
@@ -12,6 +13,7 @@ pub struct ProfilePatchInput {
     pub display_name: Option<String>,
     pub status_text: Option<Option<String>>,
     pub avatar_key: Option<Option<String>>,
+    pub banner_key: Option<Option<String>>,
 }
 
 impl ProfilePatchInput {
@@ -20,7 +22,10 @@ impl ProfilePatchInput {
     /// @returns 1項目も指定されていない場合はtrue
     /// @throws なし
     pub fn is_empty(&self) -> bool {
-        self.display_name.is_none() && self.status_text.is_none() && self.avatar_key.is_none()
+        self.display_name.is_none()
+            && self.status_text.is_none()
+            && self.avatar_key.is_none()
+            && self.banner_key.is_none()
     }
 }
 
@@ -29,6 +34,7 @@ struct NormalizedProfilePatch {
     display_name: Option<String>,
     status_text: Option<Option<String>>,
     avatar_key: Option<Option<String>>,
+    banner_key: Option<Option<String>>,
 }
 
 /// プロフィールAPIユースケース境界を表現する。
@@ -107,7 +113,8 @@ impl ProfileService for UnavailableProfileService {
 
 const DISPLAY_NAME_MAX_CHARS: usize = 32;
 const STATUS_TEXT_MAX_CHARS: usize = 190;
-const AVATAR_KEY_MAX_CHARS: usize = 512;
+const OBJECT_KEY_MAX_CHARS: usize = 512;
+const PROFILE_MEDIA_OBJECT_KEY_SEGMENT_COUNT: usize = 10;
 
 /// 更新入力を正規化して検証する。
 /// @param patch 更新入力
@@ -136,7 +143,15 @@ fn normalize_profile_patch_input(patch: ProfilePatchInput) -> Result<NormalizedP
 
     let avatar_key = match patch.avatar_key {
         Some(raw_avatar_key) => {
-            let normalized = normalize_optional_avatar_key(raw_avatar_key)?;
+            let normalized = normalize_optional_object_key(raw_avatar_key, "avatar_key")?;
+            Some(normalized)
+        }
+        None => None,
+    };
+
+    let banner_key = match patch.banner_key {
+        Some(raw_banner_key) => {
+            let normalized = normalize_optional_object_key(raw_banner_key, "banner_key")?;
             Some(normalized)
         }
         None => None,
@@ -146,7 +161,33 @@ fn normalize_profile_patch_input(patch: ProfilePatchInput) -> Result<NormalizedP
         display_name,
         status_text,
         avatar_key,
+        banner_key,
     })
+}
+
+/// profile media key を principal/target に対して検証する。
+/// @param principal_id 認証済みprincipal_id
+/// @param patch 正規化済み更新入力
+/// @returns 検証結果
+/// @throws ProfileError object key が契約外の場合
+fn validate_profile_media_patch_keys(
+    principal_id: PrincipalId,
+    patch: &NormalizedProfilePatch,
+) -> Result<(), ProfileError> {
+    validate_profile_media_object_key_option(
+        patch.avatar_key.as_ref(),
+        principal_id,
+        ProfileMediaTarget::Avatar,
+        "avatar_key",
+    )?;
+    validate_profile_media_object_key_option(
+        patch.banner_key.as_ref(),
+        principal_id,
+        ProfileMediaTarget::Banner,
+        "banner_key",
+    )?;
+
+    Ok(())
 }
 
 /// 表示名を正規化して検証する。
@@ -190,26 +231,28 @@ fn normalize_optional_status_text(
     }
 }
 
-/// 任意アバターキーを正規化して検証する。
-/// @param raw_avatar_key 生のアバターキー
-/// @returns 正規化済みアバターキー
+/// 任意 object key を正規化して検証する。
+/// @param raw_object_key 生の object key
+/// @param field_name 対象フィールド名
+/// @returns 正規化済み object key
 /// @throws ProfileError 入力不正時
-fn normalize_optional_avatar_key(
-    raw_avatar_key: Option<String>,
+fn normalize_optional_object_key(
+    raw_object_key: Option<String>,
+    field_name: &str,
 ) -> Result<Option<String>, ProfileError> {
-    match raw_avatar_key {
+    match raw_object_key {
         Some(value) => {
             let normalized = value.trim();
             if normalized.is_empty() {
                 return Ok(None);
             }
 
-            if normalized.chars().count() > AVATAR_KEY_MAX_CHARS {
-                return Err(ProfileError::validation("avatar_key_too_long"));
+            if normalized.chars().count() > OBJECT_KEY_MAX_CHARS {
+                return Err(ProfileError::validation(format!("{field_name}_too_long")));
             }
 
-            if !is_valid_avatar_key(normalized) {
-                return Err(ProfileError::validation("avatar_key_invalid_format"));
+            if !is_valid_object_key(normalized) {
+                return Err(ProfileError::validation(format!("{field_name}_invalid_format")));
             }
 
             Ok(Some(normalized.to_owned()))
@@ -218,12 +261,77 @@ fn normalize_optional_avatar_key(
     }
 }
 
-/// アバターキー形式を検証する。
-/// @param value 検証対象アバターキー
+/// object key 形式を検証する。
+/// @param value 検証対象 object key
 /// @returns 許可形式ならtrue
 /// @throws なし
-fn is_valid_avatar_key(value: &str) -> bool {
+fn is_valid_object_key(value: &str) -> bool {
     value
         .bytes()
         .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'/' | b'_' | b'-' | b'.'))
+}
+
+/// profile media key option を検証する。
+/// @param value 正規化済み key option
+/// @param principal_id 認証済みprincipal_id
+/// @param target 画像種別
+/// @param field_name 対象フィールド名
+/// @returns 検証結果
+/// @throws ProfileError 契約外 key の場合
+fn validate_profile_media_object_key_option(
+    value: Option<&Option<String>>,
+    principal_id: PrincipalId,
+    target: ProfileMediaTarget,
+    field_name: &str,
+) -> Result<(), ProfileError> {
+    let Some(Some(object_key)) = value else {
+        return Ok(());
+    };
+
+    validate_profile_media_object_key(object_key, principal_id, target, field_name)
+}
+
+/// profile media key を principal/target に対して検証する。
+/// @param object_key 検証対象 key
+/// @param principal_id 認証済みprincipal_id
+/// @param target 画像種別
+/// @param field_name 対象フィールド名
+/// @returns 検証結果
+/// @throws ProfileError 契約外 key の場合
+pub(crate) fn validate_profile_media_object_key(
+    object_key: &str,
+    principal_id: PrincipalId,
+    target: ProfileMediaTarget,
+    field_name: &str,
+) -> Result<(), ProfileError> {
+    let expected_principal = principal_id.0.to_string();
+    let segments = object_key.split('/').collect::<Vec<_>>();
+    if segments.len() != PROFILE_MEDIA_OBJECT_KEY_SEGMENT_COUNT {
+        return Err(ProfileError::validation(format!(
+            "{field_name}_invalid_profile_media_key"
+        )));
+    }
+
+    let is_valid = segments[0] == "v0"
+        && segments[1] == "tenant"
+        && segments[2] == PROFILE_MEDIA_TENANT_SEGMENT
+        && segments[3] == "user"
+        && segments[4] == expected_principal
+        && segments[5] == "profile"
+        && segments[6] == target.as_key_segment()
+        && segments[7] == "asset"
+        && uuid::Uuid::parse_str(segments[8])
+            .ok()
+            .and_then(|parsed| parsed.get_version())
+            == Some(uuid::Version::Random)
+        && sanitize_profile_media_filename(segments[9])
+            .map(|normalized| normalized == segments[9])
+            .unwrap_or(false);
+    if !is_valid {
+        return Err(ProfileError::validation(format!(
+            "{field_name}_invalid_profile_media_key"
+        )));
+    }
+
+    Ok(())
 }

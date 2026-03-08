@@ -29,12 +29,38 @@ export type MyProfile = {
   displayName: string;
   statusText: string | null;
   avatarKey: string | null;
+  bannerKey: string | null;
 };
 
 export type UpdateMyProfileInput = {
   displayName?: string;
   statusText?: string | null;
   avatarKey?: string | null;
+  bannerKey?: string | null;
+};
+
+export type ProfileMediaTarget = "avatar" | "banner";
+
+export type CreateMyProfileMediaUploadUrlInput = {
+  target: ProfileMediaTarget;
+  filename: string;
+  contentType: string;
+};
+
+export type MyProfileMediaUpload = {
+  target: ProfileMediaTarget;
+  objectKey: string;
+  uploadUrl: string;
+  expiresAt: string;
+  method: "PUT";
+  requiredHeaders: Record<string, string>;
+};
+
+export type MyProfileMediaDownload = {
+  target: ProfileMediaTarget;
+  objectKey: string;
+  downloadUrl: string;
+  expiresAt: string;
 };
 
 export type CreateGuildData = {
@@ -217,6 +243,10 @@ export type APIClient = {
   getUserProfile(userId: string): Promise<UserProfile>;
   getMyProfile(): Promise<MyProfile>;
   updateMyProfile(input: UpdateMyProfileInput): Promise<MyProfile>;
+  createMyProfileMediaUploadUrl(
+    input: CreateMyProfileMediaUploadUrlInput,
+  ): Promise<MyProfileMediaUpload>;
+  getMyProfileMediaDownloadUrl(target: ProfileMediaTarget): Promise<MyProfileMediaDownload>;
 
   // Relationships (Friends)
   getFriends(): Promise<Relationship[]>;

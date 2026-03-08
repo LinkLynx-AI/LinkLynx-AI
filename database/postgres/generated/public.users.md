@@ -10,6 +10,7 @@
 | email | text |  | false |  |  |  |
 | display_name | text |  | false |  |  |  |
 | avatar_key | text |  | true |  |  |  |
+| banner_key | text |  | true |  |  |  |
 | status_text | text |  | true |  |  |  |
 | theme | text | 'dark'::text | false |  |  |  |
 | created_at | timestamp with time zone | now() | false |  |  |  |

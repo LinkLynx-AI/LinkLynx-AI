@@ -1,5 +1,6 @@
 import type {
   APIClient,
+  CreateMyProfileMediaUploadUrlInput,
   CreateModerationMuteData,
   CreateModerationReportData,
   CreateGuildData,
@@ -7,6 +8,8 @@ import type {
   CreateChannelData,
   CreateInviteData,
   Invite,
+  MyProfileMediaDownload,
+  MyProfileMediaUpload,
   ModerationMute,
   ModerationReport,
   ModerationReportStatus,
@@ -314,6 +317,7 @@ export class MockAPIClient implements APIClient {
       displayName: profile?.displayName ?? mockCurrentUser.displayName,
       statusText: profile?.bio ?? mockCurrentUser.customStatus,
       avatarKey: null,
+      bannerKey: null,
     };
   }
 
@@ -354,6 +358,33 @@ export class MockAPIClient implements APIClient {
       displayName,
       statusText,
       avatarKey: null,
+      bannerKey: null,
+    };
+  }
+
+  async createMyProfileMediaUploadUrl(
+    input: CreateMyProfileMediaUploadUrlInput,
+  ): Promise<MyProfileMediaUpload> {
+    await this.simulateDelay();
+    return {
+      target: input.target,
+      objectKey: `v0/tenant/default/user/${mockCurrentUser.id}/profile/${input.target}/asset/mock/${input.filename}`,
+      uploadUrl: `https://storage.googleapis.com/profile-media/${input.target}-upload`,
+      expiresAt: this.nowIsoString(),
+      method: "PUT",
+      requiredHeaders: {
+        "content-type": input.contentType,
+      },
+    };
+  }
+
+  async getMyProfileMediaDownloadUrl(target: "avatar" | "banner"): Promise<MyProfileMediaDownload> {
+    await this.simulateDelay();
+    return {
+      target,
+      objectKey: `v0/tenant/default/user/${mockCurrentUser.id}/profile/${target}/asset/mock/file.png`,
+      downloadUrl: `https://storage.googleapis.com/profile-media/${target}-download`,
+      expiresAt: this.nowIsoString(),
     };
   }
 

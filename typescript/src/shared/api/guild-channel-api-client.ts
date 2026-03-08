@@ -2,16 +2,20 @@ import { z } from "zod";
 import { getFirebaseAuth } from "@/shared/lib";
 import type { Channel, Guild } from "@/shared/model/types";
 import type {
+  CreateMyProfileMediaUploadUrlInput,
   ChannelPermissionSnapshot,
   CreateChannelData,
   CreateGuildData,
   CreateModerationMuteData,
   CreateModerationReportData,
   GuildPermissionSnapshot,
+  MyProfileMediaDownload,
+  MyProfileMediaUpload,
   MyProfile,
   ModerationMute,
   ModerationReport,
   PermissionSnapshot,
+  ProfileMediaTarget,
   UpdateGuildData,
   UpdateMyProfileInput,
 } from "./api-client";
@@ -87,9 +91,29 @@ const MY_PROFILE_SCHEMA = z.object({
   display_name: z.string(),
   status_text: z.string().nullable(),
   avatar_key: z.string().nullable(),
+  banner_key: z.string().nullable(),
 });
 const MY_PROFILE_RESPONSE_SCHEMA = z.object({
   profile: MY_PROFILE_SCHEMA,
+});
+const PROFILE_MEDIA_TARGET_SCHEMA = z.enum(["avatar", "banner"]);
+const PROFILE_MEDIA_UPLOAD_RESPONSE_SCHEMA = z.object({
+  upload: z.object({
+    target: PROFILE_MEDIA_TARGET_SCHEMA,
+    object_key: z.string().trim().min(1),
+    upload_url: z.string().url(),
+    expires_at: z.string().trim().min(1),
+    method: z.literal("PUT"),
+    required_headers: z.record(z.string(), z.string()),
+  }),
+});
+const PROFILE_MEDIA_DOWNLOAD_RESPONSE_SCHEMA = z.object({
+  media: z.object({
+    target: PROFILE_MEDIA_TARGET_SCHEMA,
+    object_key: z.string().trim().min(1),
+    download_url: z.string().url(),
+    expires_at: z.string().trim().min(1),
+  }),
 });
 const PERMISSION_SNAPSHOT_RESPONSE_SCHEMA = z.object({
   request_id: z.string().trim().min(1),
@@ -168,6 +192,8 @@ type GuildUpdateResponse = z.infer<typeof GUILD_UPDATE_RESPONSE_SCHEMA>;
 type ChannelListResponse = z.infer<typeof CHANNEL_LIST_RESPONSE_SCHEMA>;
 type ChannelSummaryResponse = z.infer<typeof CHANNEL_SUMMARY_SCHEMA>;
 type MyProfileResponse = z.infer<typeof MY_PROFILE_RESPONSE_SCHEMA>;
+type ProfileMediaUploadResponse = z.infer<typeof PROFILE_MEDIA_UPLOAD_RESPONSE_SCHEMA>;
+type ProfileMediaDownloadResponse = z.infer<typeof PROFILE_MEDIA_DOWNLOAD_RESPONSE_SCHEMA>;
 type PermissionSnapshotResponse = z.infer<typeof PERMISSION_SNAPSHOT_RESPONSE_SCHEMA>;
 type SupportedChannelType = (typeof SUPPORTED_CHANNEL_TYPES)[number];
 type ModerationReportApi = z.infer<typeof MODERATION_REPORT_SCHEMA>;
@@ -449,6 +475,27 @@ function mapMyProfile(response: MyProfileResponse): MyProfile {
     displayName: response.profile.display_name,
     statusText: response.profile.status_text,
     avatarKey: response.profile.avatar_key,
+    bannerKey: response.profile.banner_key,
+  };
+}
+
+function mapProfileMediaUpload(response: ProfileMediaUploadResponse): MyProfileMediaUpload {
+  return {
+    target: response.upload.target,
+    objectKey: response.upload.object_key,
+    uploadUrl: response.upload.upload_url,
+    expiresAt: response.upload.expires_at,
+    method: response.upload.method,
+    requiredHeaders: response.upload.required_headers,
+  };
+}
+
+function mapProfileMediaDownload(response: ProfileMediaDownloadResponse): MyProfileMediaDownload {
+  return {
+    target: response.media.target,
+    objectKey: response.media.object_key,
+    downloadUrl: response.media.download_url,
+    expiresAt: response.media.expires_at,
   };
 }
 
@@ -968,9 +1015,37 @@ export class GuildChannelAPIClient extends NoDataAPIClient {
     if (input.avatarKey !== undefined) {
       body.avatar_key = input.avatarKey;
     }
+    if (input.bannerKey !== undefined) {
+      body.banner_key = input.bannerKey;
+    }
 
     const response = await this.patchJson("/users/me/profile", body, MY_PROFILE_RESPONSE_SCHEMA);
     return mapMyProfile(response);
+  }
+
+  async createMyProfileMediaUploadUrl(
+    input: CreateMyProfileMediaUploadUrlInput,
+  ): Promise<MyProfileMediaUpload> {
+    const response = await this.requestJson({
+      path: "/users/me/profile/media/upload-url",
+      method: "POST",
+      body: {
+        target: input.target,
+        filename: input.filename,
+        content_type: input.contentType,
+      },
+      schema: PROFILE_MEDIA_UPLOAD_RESPONSE_SCHEMA,
+      expectedStatus: 200,
+    });
+    return mapProfileMediaUpload(response);
+  }
+
+  async getMyProfileMediaDownloadUrl(target: ProfileMediaTarget): Promise<MyProfileMediaDownload> {
+    const response = await this.getJson(
+      `/users/me/profile/media/${target}/download-url`,
+      PROFILE_MEDIA_DOWNLOAD_RESPONSE_SCHEMA,
+    );
+    return mapProfileMediaDownload(response);
   }
 
   async createServer(data: CreateGuildData): Promise<Guild> {

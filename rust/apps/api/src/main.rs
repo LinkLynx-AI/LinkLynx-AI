@@ -58,8 +58,8 @@ use moderation::{
     build_runtime_moderation_service, moderation_error_response, ModerationError, ModerationService,
 };
 use profile::{
-    build_runtime_profile_service, profile_error_response, ProfileError, ProfilePatchInput,
-    ProfileService,
+    build_runtime_profile_media_service, build_runtime_profile_service, profile_error_response,
+    ProfileError, ProfileMediaService, ProfilePatchInput, ProfileService,
 };
 use ratelimit::{
     build_runtime_rest_rate_limit_service, rest_rate_limit_action_for_request, RestRateLimitAction,
@@ -79,6 +79,7 @@ pub(crate) struct AppState {
     invite_service: Arc<dyn InviteService>,
     moderation_service: Arc<dyn ModerationService>,
     profile_service: Arc<dyn ProfileService>,
+    profile_media_service: Arc<dyn ProfileMediaService>,
     scylla_health_reporter: Arc<dyn ScyllaHealthReporter>,
     ws_reauth_grace: Duration,
     ws_ticket_ttl: Duration,
@@ -138,6 +139,7 @@ async fn build_runtime_state() -> AppState {
     let invite_service = build_runtime_invite_service();
     let moderation_service = build_runtime_moderation_service();
     let profile_service = build_runtime_profile_service();
+    let profile_media_service = build_runtime_profile_media_service(Arc::clone(&profile_service));
     let scylla_health_reporter = build_runtime_scylla_health_reporter().await;
     let ws_reauth_grace = Duration::from_secs(
         env::var("WS_REAUTH_GRACE_SECONDS")
@@ -161,6 +163,7 @@ async fn build_runtime_state() -> AppState {
         invite_service,
         moderation_service,
         profile_service,
+        profile_media_service,
         scylla_health_reporter,
         ws_reauth_grace,
         ws_ticket_ttl,

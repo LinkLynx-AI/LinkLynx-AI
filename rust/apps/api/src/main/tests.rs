@@ -26,7 +26,11 @@ mod tests {
         CreateModerationMuteInput, CreateModerationReportInput, ModerationError, ModerationReport,
         ModerationReportStatus, ModerationService, ModerationTargetType,
     };
-    use profile::{ProfileError, ProfilePatchInput, ProfileService, ProfileSettings};
+    use profile::{
+        ProfileError, ProfileMediaDownload, ProfileMediaService, ProfileMediaTarget,
+        ProfileMediaUpload, ProfileMediaUploadInput, ProfilePatchInput, ProfileService,
+        ProfileSettings, validate_profile_media_object_key,
+    };
     use scylla_health::{ScyllaHealthReport, ScyllaHealthReporter};
     use axum::{
         body::to_bytes,
@@ -71,6 +75,8 @@ mod tests {
     struct StaticModerationService;
     struct StaticProfileService;
     struct StaticUnavailableProfileService;
+    struct StaticProfileMediaService;
+    struct StaticUnavailableProfileMediaService;
     struct StaticInviteService;
     struct StaticUnavailableInviteService;
     struct RoleScenarioAuthorizer;
@@ -512,7 +518,14 @@ mod tests {
             Ok(ProfileSettings {
                 display_name: "Alice".to_owned(),
                 status_text: Some("Ready".to_owned()),
-                avatar_key: Some("avatars/alice.png".to_owned()),
+                avatar_key: Some(
+                    "v0/tenant/default/user/1001/profile/avatar/asset/550e8400-e29b-41d4-a716-446655440000/avatar.png"
+                        .to_owned(),
+                ),
+                banner_key: Some(
+                    "v0/tenant/default/user/1001/profile/banner/asset/550e8400-e29b-41d4-a716-446655440001/banner.png"
+                        .to_owned(),
+                ),
             })
         }
 
@@ -532,7 +545,14 @@ mod tests {
             let mut profile = ProfileSettings {
                 display_name: "Alice".to_owned(),
                 status_text: Some("Ready".to_owned()),
-                avatar_key: Some("avatars/alice.png".to_owned()),
+                avatar_key: Some(
+                    "v0/tenant/default/user/1001/profile/avatar/asset/550e8400-e29b-41d4-a716-446655440000/avatar.png"
+                        .to_owned(),
+                ),
+                banner_key: Some(
+                    "v0/tenant/default/user/1001/profile/banner/asset/550e8400-e29b-41d4-a716-446655440001/banner.png"
+                        .to_owned(),
+                ),
             };
 
             if let Some(display_name) = patch.display_name {
@@ -565,15 +585,37 @@ mod tests {
                 });
 
                 if let Some(value) = &normalized {
-                    let valid_format = value.bytes().all(|byte| {
-                        byte.is_ascii_alphanumeric() || matches!(byte, b'/' | b'_' | b'-' | b'.')
-                    });
-                    if !valid_format {
-                        return Err(ProfileError::validation("avatar_key_invalid_format"));
-                    }
+                    validate_profile_media_object_key(
+                        value,
+                        principal_id,
+                        ProfileMediaTarget::Avatar,
+                        "avatar_key",
+                    )?;
                 }
 
                 profile.avatar_key = normalized;
+            }
+
+            if let Some(banner_key) = patch.banner_key {
+                let normalized = banner_key.and_then(|value| {
+                    let trimmed = value.trim().to_owned();
+                    if trimmed.is_empty() {
+                        None
+                    } else {
+                        Some(trimmed)
+                    }
+                });
+
+                if let Some(value) = &normalized {
+                    validate_profile_media_object_key(
+                        value,
+                        principal_id,
+                        ProfileMediaTarget::Banner,
+                        "banner_key",
+                    )?;
+                }
+
+                profile.banner_key = normalized;
             }
 
             Ok(profile)
@@ -598,6 +640,86 @@ mod tests {
         ) -> Result<ProfileSettings, ProfileError> {
             Err(ProfileError::dependency_unavailable(
                 "profile_store_temporarily_unavailable",
+            ))
+        }
+    }
+
+    #[async_trait]
+    impl ProfileMediaService for StaticProfileMediaService {
+        async fn issue_upload_url(
+            &self,
+            principal_id: PrincipalId,
+            input: ProfileMediaUploadInput,
+        ) -> Result<ProfileMediaUpload, ProfileError> {
+            if principal_id.0 != 1001 {
+                return Err(ProfileError::not_found("user_not_found"));
+            }
+
+            Ok(ProfileMediaUpload {
+                target: input.target,
+                object_key: format!(
+                    "v0/tenant/default/user/{}/profile/{}/asset/550e8400-e29b-41d4-a716-446655440010/{}",
+                    principal_id.0,
+                    input.target.as_key_segment(),
+                    input.filename.trim()
+                ),
+                upload_url: format!(
+                    "https://storage.googleapis.com/profile-media/{}-upload",
+                    input.target.as_key_segment()
+                ),
+                expires_at: "2026-03-08T12:00:00Z".to_owned(),
+                method: "PUT".to_owned(),
+                required_headers: std::collections::BTreeMap::from([(
+                    "content-type".to_owned(),
+                    input.content_type,
+                )]),
+            })
+        }
+
+        async fn issue_download_url(
+            &self,
+            principal_id: PrincipalId,
+            target: ProfileMediaTarget,
+        ) -> Result<ProfileMediaDownload, ProfileError> {
+            if principal_id.0 != 1001 {
+                return Err(ProfileError::not_found("user_not_found"));
+            }
+
+            Ok(ProfileMediaDownload {
+                target,
+                object_key: format!(
+                    "v0/tenant/default/user/{}/profile/{}/asset/550e8400-e29b-41d4-a716-446655440011/file.png",
+                    principal_id.0,
+                    target.as_key_segment()
+                ),
+                download_url: format!(
+                    "https://storage.googleapis.com/profile-media/{}-download",
+                    target.as_key_segment()
+                ),
+                expires_at: "2026-03-08T12:00:00Z".to_owned(),
+            })
+        }
+    }
+
+    #[async_trait]
+    impl ProfileMediaService for StaticUnavailableProfileMediaService {
+        async fn issue_upload_url(
+            &self,
+            _principal_id: PrincipalId,
+            _input: ProfileMediaUploadInput,
+        ) -> Result<ProfileMediaUpload, ProfileError> {
+            Err(ProfileError::media_dependency_unavailable(
+                "profile_media_service_temporarily_unavailable",
+            ))
+        }
+
+        async fn issue_download_url(
+            &self,
+            _principal_id: PrincipalId,
+            _target: ProfileMediaTarget,
+        ) -> Result<ProfileMediaDownload, ProfileError> {
+            Err(ProfileError::media_dependency_unavailable(
+                "profile_media_service_temporarily_unavailable",
             ))
         }
     }
@@ -899,9 +1021,10 @@ mod tests {
     }
 
     async fn app_for_test_with_scylla_report(report: ScyllaHealthReport) -> Router {
-        let state = state_for_test_with_authorizer_profile_invite_and_scylla(
+        let state = state_for_test_with_authorizer_profile_media_invite_and_scylla(
             Arc::new(StaticAllowAllAuthorizer),
             Arc::new(StaticProfileService),
+            Arc::new(StaticProfileMediaService),
             Arc::new(StaticInviteService),
             Arc::new(StaticScyllaHealthReporter { report }),
         )
@@ -933,9 +1056,10 @@ mod tests {
         profile_service: Arc<dyn ProfileService>,
         invite_service: Arc<dyn InviteService>,
     ) -> AppState {
-        state_for_test_with_authorizer_profile_invite_and_scylla(
+        state_for_test_with_authorizer_profile_media_invite_and_scylla(
             authorizer,
             profile_service,
+            Arc::new(StaticProfileMediaService),
             invite_service,
             Arc::new(StaticScyllaHealthReporter {
                 report: ScyllaHealthReport::ready(),
@@ -944,9 +1068,10 @@ mod tests {
         .await
     }
 
-    async fn state_for_test_with_authorizer_profile_invite_and_scylla(
+    async fn state_for_test_with_authorizer_profile_media_invite_and_scylla(
         authorizer: Arc<dyn Authorizer>,
         profile_service: Arc<dyn ProfileService>,
+        profile_media_service: Arc<dyn ProfileMediaService>,
         invite_service: Arc<dyn InviteService>,
         scylla_health_reporter: Arc<dyn ScyllaHealthReporter>,
     ) -> AppState {
@@ -980,6 +1105,7 @@ mod tests {
             invite_service,
             moderation_service: Arc::new(StaticModerationService),
             profile_service,
+            profile_media_service,
             scylla_health_reporter,
             ws_reauth_grace: Duration::from_secs(30),
             ws_ticket_ttl: Duration::from_secs(60),
@@ -1011,6 +1137,24 @@ mod tests {
             authorizer,
             profile_service,
             Arc::new(StaticInviteService),
+        )
+        .await;
+        app_with_state(state)
+    }
+
+    async fn app_for_test_with_authorizer_profile_and_media(
+        authorizer: Arc<dyn Authorizer>,
+        profile_service: Arc<dyn ProfileService>,
+        profile_media_service: Arc<dyn ProfileMediaService>,
+    ) -> Router {
+        let state = state_for_test_with_authorizer_profile_media_invite_and_scylla(
+            authorizer,
+            profile_service,
+            profile_media_service,
+            Arc::new(StaticInviteService),
+            Arc::new(StaticScyllaHealthReporter {
+                report: ScyllaHealthReport::ready(),
+            }),
         )
         .await;
         app_with_state(state)
@@ -3329,7 +3473,14 @@ mod tests {
         let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
         assert_eq!(json["profile"]["display_name"], "Alice");
         assert_eq!(json["profile"]["status_text"], "Ready");
-        assert_eq!(json["profile"]["avatar_key"], "avatars/alice.png");
+        assert_eq!(
+            json["profile"]["avatar_key"],
+            "v0/tenant/default/user/1001/profile/avatar/asset/550e8400-e29b-41d4-a716-446655440000/avatar.png"
+        );
+        assert_eq!(
+            json["profile"]["banner_key"],
+            "v0/tenant/default/user/1001/profile/banner/asset/550e8400-e29b-41d4-a716-446655440001/banner.png"
+        );
     }
 
     #[tokio::test]
@@ -3383,6 +3534,34 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn patch_my_profile_updates_banner_key() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("PATCH")
+                    .uri("/users/me/profile")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"banner_key":"v0/tenant/default/user/1001/profile/banner/asset/550e8400-e29b-41d4-a716-446655440002/banner.png"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(
+            json["profile"]["banner_key"],
+            "v0/tenant/default/user/1001/profile/banner/asset/550e8400-e29b-41d4-a716-446655440002/banner.png"
+        );
+    }
+
+    #[tokio::test]
     async fn patch_my_profile_rejects_empty_payload() {
         let app = app_for_test().await;
         let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
@@ -3430,6 +3609,142 @@ mod tests {
             .unwrap();
         let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
         assert_eq!(json["code"], "VALIDATION_ERROR");
+    }
+
+    #[tokio::test]
+    async fn patch_my_profile_rejects_invalid_banner_key_format() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("PATCH")
+                    .uri("/users/me/profile")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"banner_key":"bad key"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "VALIDATION_ERROR");
+    }
+
+    #[tokio::test]
+    async fn patch_my_profile_rejects_cross_principal_banner_key() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("PATCH")
+                    .uri("/users/me/profile")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        r#"{"banner_key":"v0/tenant/default/user/999/profile/banner/asset/550e8400-e29b-41d4-a716-446655440002/banner.png"}"#,
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "VALIDATION_ERROR");
+    }
+
+    #[tokio::test]
+    async fn issue_my_profile_media_upload_url_returns_contract() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/users/me/profile/media/upload-url")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        r#"{"target":"avatar","filename":"avatar.png","content_type":"image/png"}"#,
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["upload"]["target"], "avatar");
+        assert_eq!(json["upload"]["method"], "PUT");
+        assert_eq!(json["upload"]["required_headers"]["content-type"], "image/png");
+    }
+
+    #[tokio::test]
+    async fn get_my_profile_media_download_url_returns_contract() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/users/me/profile/media/banner/download-url")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["media"]["target"], "banner");
+        assert_eq!(
+            json["media"]["download_url"],
+            "https://storage.googleapis.com/profile-media/banner-download"
+        );
+    }
+
+    #[tokio::test]
+    async fn get_my_profile_media_download_url_returns_media_unavailable() {
+        let app = app_for_test_with_authorizer_profile_and_media(
+            Arc::new(StaticAllowAllAuthorizer),
+            Arc::new(StaticProfileService),
+            Arc::new(StaticUnavailableProfileMediaService),
+        )
+        .await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/users/me/profile/media/avatar/download-url")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "PROFILE_MEDIA_UNAVAILABLE");
     }
 
     #[tokio::test]
