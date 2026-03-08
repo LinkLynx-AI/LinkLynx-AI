@@ -8,6 +8,7 @@ const useModerationReportsMock = vi.hoisted(() => vi.fn());
 const createReportMutateAsyncMock = vi.hoisted(() => vi.fn());
 const resolveReportMutateAsyncMock = vi.hoisted(() => vi.fn());
 const reopenReportMutateAsyncMock = vi.hoisted(() => vi.fn());
+const fetchNextPageMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/shared/api/queries", () => ({
   useActionGuard: useActionGuardMock,
@@ -43,6 +44,7 @@ describe("ModerationQueuePage", () => {
     createReportMutateAsyncMock.mockReset();
     resolveReportMutateAsyncMock.mockReset();
     reopenReportMutateAsyncMock.mockReset();
+    fetchNextPageMock.mockReset();
     useActionGuardMock.mockImplementation(() => ({
       status: "allowed",
       isAllowed: true,
@@ -50,17 +52,24 @@ describe("ModerationQueuePage", () => {
     }));
     useModerationReportsMock.mockReturnValue({
       data: {
-        reports: [],
-        pageInfo: {
-          nextAfter: null,
-          hasMore: false,
-          limit: 50,
-          status: null,
-        },
+        pages: [
+          {
+            reports: [],
+            pageInfo: {
+              nextAfter: null,
+              hasMore: false,
+              limit: 50,
+              status: null,
+            },
+          },
+        ],
       },
       isLoading: false,
       isError: false,
       error: null,
+      fetchNextPage: fetchNextPageMock,
+      hasNextPage: false,
+      isFetchingNextPage: false,
     });
   });
 
@@ -80,25 +89,32 @@ describe("ModerationQueuePage", () => {
     const user = userEvent.setup();
     useModerationReportsMock.mockReturnValue({
       data: {
-        reports: [
+        pages: [
           {
-            reportId: "7001",
-            targetType: "message",
-            targetId: "9001",
-            reason: "spam",
-            status: "open",
+            reports: [
+              {
+                reportId: "7001",
+                targetType: "message",
+                targetId: "9001",
+                reason: "spam",
+                status: "open",
+              },
+            ],
+            pageInfo: {
+              nextAfter: null,
+              hasMore: false,
+              limit: 50,
+              status: null,
+            },
           },
         ],
-        pageInfo: {
-          nextAfter: null,
-          hasMore: false,
-          limit: 50,
-          status: null,
-        },
       },
       isLoading: false,
       isError: false,
       error: null,
+      fetchNextPage: fetchNextPageMock,
+      hasNextPage: false,
+      isFetchingNextPage: false,
     });
 
     render(<ModerationQueuePage serverId="2001" />);
@@ -112,6 +128,45 @@ describe("ModerationQueuePage", () => {
       serverId: "2001",
       reportId: "7001",
     });
+  });
+
+  test("renders load more button when next page exists", async () => {
+    const user = userEvent.setup();
+    useModerationReportsMock.mockReturnValue({
+      data: {
+        pages: [
+          {
+            reports: [
+              {
+                reportId: "7001",
+                targetType: "message",
+                targetId: "9001",
+                reason: "spam",
+                status: "open",
+              },
+            ],
+            pageInfo: {
+              nextAfter: "2026-03-05T00:00:00Z|7001",
+              hasMore: true,
+              limit: 50,
+              status: null,
+            },
+          },
+        ],
+      },
+      isLoading: false,
+      isError: false,
+      error: null,
+      fetchNextPage: fetchNextPageMock,
+      hasNextPage: true,
+      isFetchingNextPage: false,
+    });
+
+    render(<ModerationQueuePage serverId="2001" />);
+
+    await user.click(screen.getByRole("button", { name: "次を読み込む" }));
+
+    expect(fetchNextPageMock).toHaveBeenCalledTimes(1);
   });
 
   test("submits a new report from the queue form", async () => {

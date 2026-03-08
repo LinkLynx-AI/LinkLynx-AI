@@ -747,6 +747,74 @@ describe("GuildChannelAPIClient", () => {
     }
   });
 
+  test("getModerationReports serializes filter and paging params and maps page info", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          reports: [
+            {
+              report_id: 7002,
+              guild_id: 2001,
+              reporter_id: 1002,
+              target_type: "message",
+              target_id: 9002,
+              reason: "spam",
+              status: "open",
+              resolved_by: null,
+              resolved_at: null,
+              created_at: "2026-03-05T00:01:00Z",
+              updated_at: "2026-03-05T00:01:00Z",
+            },
+          ],
+          page_info: {
+            next_after: "2026-03-05T00:01:00Z|7002",
+            has_more: true,
+            limit: 20,
+            status: "open",
+          },
+        }),
+        { status: 200 },
+      ),
+    );
+
+    const client = new GuildChannelAPIClient();
+    const page = await client.getModerationReports("2001", {
+      status: "open",
+      limit: 20,
+      after: "2026-03-05T00:02:00Z|7003",
+    });
+
+    expect(page).toEqual({
+      reports: [
+        {
+          reportId: "7002",
+          guildId: "2001",
+          reporterId: "1002",
+          targetType: "message",
+          targetId: "9002",
+          reason: "spam",
+          status: "open",
+          resolvedBy: null,
+          resolvedAt: null,
+          createdAt: "2026-03-05T00:01:00Z",
+          updatedAt: "2026-03-05T00:01:00Z",
+        },
+      ],
+      pageInfo: {
+        nextAfter: "2026-03-05T00:01:00Z|7002",
+        hasMore: true,
+        limit: 20,
+        status: "open",
+      },
+    });
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(
+      "http://localhost:8080/guilds/2001/moderation/reports?status=open&limit=20&after=2026-03-05T00%3A02%3A00Z%7C7003",
+    );
+    expect(init.method).toBe("GET");
+  });
+
   test("delays NEXT_PUBLIC_API_URL validation until first request", () => {
     delete process.env.NEXT_PUBLIC_API_URL;
 

@@ -8,6 +8,7 @@ import {
   useReopenModerationReport,
   useResolveModerationReport,
 } from "@/shared/api/mutations";
+import type { ModerationReport } from "@/shared/api/api-client";
 import {
   getActionGuardScreenKind,
   useActionGuard,
@@ -23,17 +24,20 @@ export function ModerationQueuePage({ serverId }: { serverId: string }) {
     requirement: "guild:moderate",
   });
   const {
-    data: reportPage,
+    data: reportPages,
     isLoading,
     isError,
     error,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
   } = useModerationReports(serverId, {
     enabled: moderateGuard.isAllowed,
   });
   const createReport = useCreateModerationReport();
   const resolveReport = useResolveModerationReport();
   const reopenReport = useReopenModerationReport();
-  const reports = reportPage?.reports ?? [];
+  const reports: ModerationReport[] = reportPages?.pages.flatMap((page) => page.reports) ?? [];
 
   const [targetType, setTargetType] = useState<"message" | "user">("message");
   const [targetId, setTargetId] = useState("");
@@ -177,51 +181,65 @@ export function ModerationQueuePage({ serverId }: { serverId: string }) {
           {reports.length === 0 ? (
             <div className="p-4 text-sm text-discord-text-muted">現在、通報はありません。</div>
           ) : (
-            <ul className="divide-y divide-discord-divider">
-              {reports.map((report) => (
-                <li key={report.reportId} className="flex items-center gap-3 px-4 py-3">
-                  <div className="min-w-0 flex-1">
-                    <Link
-                      href={buildModerationReportRoute(serverId, report.reportId)}
-                      className="text-sm font-medium text-discord-text-normal hover:underline"
+            <>
+              <ul className="divide-y divide-discord-divider">
+                {reports.map((report) => (
+                  <li key={report.reportId} className="flex items-center gap-3 px-4 py-3">
+                    <div className="min-w-0 flex-1">
+                      <Link
+                        href={buildModerationReportRoute(serverId, report.reportId)}
+                        className="text-sm font-medium text-discord-text-normal hover:underline"
+                      >
+                        Report #{report.reportId}
+                      </Link>
+                      <p className="mt-1 text-xs text-discord-text-muted">
+                        {report.targetType}:{report.targetId} / {report.reason}
+                      </p>
+                    </div>
+                    <span
+                      className={`rounded px-2 py-0.5 text-xs font-medium ${
+                        report.status === "resolved"
+                          ? "bg-discord-brand-green/20 text-discord-brand-green"
+                          : "bg-discord-brand-yellow/20 text-discord-brand-yellow"
+                      }`}
                     >
-                      Report #{report.reportId}
-                    </Link>
-                    <p className="mt-1 text-xs text-discord-text-muted">
-                      {report.targetType}:{report.targetId} / {report.reason}
-                    </p>
-                  </div>
-                  <span
-                    className={`rounded px-2 py-0.5 text-xs font-medium ${
-                      report.status === "resolved"
-                        ? "bg-discord-brand-green/20 text-discord-brand-green"
-                        : "bg-discord-brand-yellow/20 text-discord-brand-yellow"
-                    }`}
+                      {report.status}
+                    </span>
+                    {report.status === "open" ? (
+                      <button
+                        type="button"
+                        onClick={() => void handleResolve(report.reportId)}
+                        disabled={resolveReport.isPending || !moderateGuard.isAllowed}
+                        className="rounded bg-discord-brand-green px-2 py-1 text-xs font-medium text-white disabled:cursor-not-allowed disabled:opacity-70"
+                      >
+                        resolve
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => void handleReopen(report.reportId)}
+                        disabled={reopenReport.isPending || !moderateGuard.isAllowed}
+                        className="rounded bg-discord-brand-yellow px-2 py-1 text-xs font-medium text-black disabled:cursor-not-allowed disabled:opacity-70"
+                      >
+                        reopen
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+              {hasNextPage ? (
+                <div className="border-t border-discord-divider px-4 py-3">
+                  <button
+                    type="button"
+                    onClick={() => void fetchNextPage()}
+                    disabled={isFetchingNextPage}
+                    className="rounded border border-discord-divider bg-discord-bg-tertiary px-3 py-1.5 text-xs font-medium text-discord-text-normal disabled:cursor-not-allowed disabled:opacity-70"
                   >
-                    {report.status}
-                  </span>
-                  {report.status === "open" ? (
-                    <button
-                      type="button"
-                      onClick={() => void handleResolve(report.reportId)}
-                      disabled={resolveReport.isPending || !moderateGuard.isAllowed}
-                      className="rounded bg-discord-brand-green px-2 py-1 text-xs font-medium text-white disabled:cursor-not-allowed disabled:opacity-70"
-                    >
-                      resolve
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => void handleReopen(report.reportId)}
-                      disabled={reopenReport.isPending || !moderateGuard.isAllowed}
-                      className="rounded bg-discord-brand-yellow px-2 py-1 text-xs font-medium text-black disabled:cursor-not-allowed disabled:opacity-70"
-                    >
-                      reopen
-                    </button>
-                  )}
-                </li>
-              ))}
-            </ul>
+                    {isFetchingNextPage ? "読み込み中..." : "次を読み込む"}
+                  </button>
+                </div>
+              ) : null}
+            </>
           )}
         </div>
       </section>
