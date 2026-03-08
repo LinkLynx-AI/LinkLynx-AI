@@ -1,6 +1,31 @@
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::authz::AuthzError;
+    struct AllowManageAuthorizer;
+    struct DenyManageAuthorizer;
+    struct UnavailableManageAuthorizer;
+
+    #[async_trait]
+    impl Authorizer for AllowManageAuthorizer {
+        async fn check(&self, _input: &AuthzCheckInput) -> Result<(), AuthzError> {
+            Ok(())
+        }
+    }
+
+    #[async_trait]
+    impl Authorizer for DenyManageAuthorizer {
+        async fn check(&self, _input: &AuthzCheckInput) -> Result<(), AuthzError> {
+            Err(AuthzError::denied("guild_manage_denied"))
+        }
+    }
+
+    #[async_trait]
+    impl Authorizer for UnavailableManageAuthorizer {
+        async fn check(&self, _input: &AuthzCheckInput) -> Result<(), AuthzError> {
+            Err(AuthzError::unavailable("spicedb_unavailable"))
+        }
+    }
 
     #[test]
     fn moderation_error_forbidden_maps_to_authz_contract() {
@@ -68,6 +93,62 @@ mod tests {
                 kind: ModerationErrorKind::Validation,
                 reason,
             }) if reason == "report_id_must_be_positive"
+        ));
+    }
+
+    #[tokio::test]
+    async fn ensure_moderator_access_uses_authorizer_manage_check() {
+        let service = PostgresModerationService::new(
+            Arc::new(AllowManageAuthorizer),
+            "postgres://example".to_owned(),
+            true,
+        );
+
+        assert!(service
+            .ensure_moderator_access(2001, PrincipalId(9002))
+            .await
+            .is_ok());
+    }
+
+    #[tokio::test]
+    async fn ensure_moderator_access_maps_denied_to_forbidden() {
+        let service = PostgresModerationService::new(
+            Arc::new(DenyManageAuthorizer),
+            "postgres://example".to_owned(),
+            true,
+        );
+
+        let result = service
+            .ensure_moderator_access(2001, PrincipalId(9003))
+            .await;
+
+        assert!(matches!(
+            result,
+            Err(ModerationError {
+                kind: ModerationErrorKind::Forbidden,
+                reason,
+            }) if reason == "moderation_role_required"
+        ));
+    }
+
+    #[tokio::test]
+    async fn ensure_moderator_access_maps_unavailable_to_dependency_unavailable() {
+        let service = PostgresModerationService::new(
+            Arc::new(UnavailableManageAuthorizer),
+            "postgres://example".to_owned(),
+            true,
+        );
+
+        let result = service
+            .ensure_moderator_access(2001, PrincipalId(9003))
+            .await;
+
+        assert!(matches!(
+            result,
+            Err(ModerationError {
+                kind: ModerationErrorKind::DependencyUnavailable,
+                reason,
+            }) if reason.contains("moderation_authorizer_failed:spicedb_unavailable")
         ));
     }
 }

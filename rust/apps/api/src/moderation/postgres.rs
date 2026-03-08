@@ -3,6 +3,7 @@ use tokio_postgres::Row;
 /// Postgres-backed モデレーションサービスを表現する。
 #[derive(Clone)]
 pub struct PostgresModerationService {
+    authorizer: Arc<dyn Authorizer>,
     database_url: Arc<str>,
     allow_postgres_notls: bool,
     clients: Arc<RwLock<Vec<Arc<tokio_postgres::Client>>>>,
@@ -122,14 +123,20 @@ impl PostgresModerationService {
         SELECT";
 
     /// Postgresサービスを生成する。
+    /// @param authorizer 認可境界
     /// @param database_url 接続文字列
     /// @param allow_postgres_notls 平文接続許可フラグ
     /// @returns Postgresサービス
     /// @throws なし
-    pub fn new(database_url: String, allow_postgres_notls: bool) -> Self {
+    pub fn new(
+        authorizer: Arc<dyn Authorizer>,
+        database_url: String,
+        allow_postgres_notls: bool,
+    ) -> Self {
         let pool_size = Self::parse_pool_size_from_env();
 
         Self {
+            authorizer,
             database_url: Arc::from(database_url),
             allow_postgres_notls,
             clients: Arc::new(RwLock::new(Vec::new())),
@@ -323,34 +330,6 @@ impl PostgresModerationService {
         }
     }
 
-    /// owner/admin ロール有無を確認する。
-    /// @param client Postgresクライアント
-    /// @param guild_id 対象guild_id
-    /// @param user_id 対象user_id
-    /// @returns owner/admin の場合は `true`
-    /// @throws ModerationError 依存障害時
-    async fn is_moderator(
-        &self,
-        client: &tokio_postgres::Client,
-        guild_id: i64,
-        user_id: i64,
-    ) -> Result<bool, ModerationError> {
-        match client
-            .query_opt(
-                "SELECT 1
-                 FROM guild_member_roles_v2
-                 WHERE guild_id = $1
-                   AND user_id = $2
-                   AND role_key IN ('owner', 'admin')",
-                &[&guild_id, &user_id],
-            )
-            .await
-        {
-            Ok(row) => Ok(row.is_some()),
-            Err(error) => Err(self.map_read_error("moderator_role_lookup_failed", error).await),
-        }
-    }
-
     /// 通報作成可否を確認する。
     /// @param client Postgresクライアント
     /// @param guild_id 対象guild_id
@@ -375,26 +354,30 @@ impl PostgresModerationService {
     }
 
     /// モデレーター専用操作可否を確認する。
-    /// @param client Postgresクライアント
     /// @param guild_id 対象guild_id
     /// @param principal_id 実行主体
     /// @returns なし
-    /// @throws ModerationError 未存在/権限拒否/依存障害時
+    /// @throws ModerationError 権限拒否/依存障害時
     async fn ensure_moderator_access(
         &self,
-        client: &tokio_postgres::Client,
         guild_id: i64,
         principal_id: PrincipalId,
     ) -> Result<(), ModerationError> {
-        if self.is_moderator(client, guild_id, principal_id.0).await? {
-            return Ok(());
+        let input = AuthzCheckInput {
+            principal_id,
+            resource: AuthzResource::Guild { guild_id },
+            action: AuthzAction::Manage,
+        };
+        match self.authorizer.check(&input).await {
+            Ok(()) => Ok(()),
+            Err(error) if matches!(error.kind, AuthzErrorKind::Denied) => {
+                Err(ModerationError::forbidden("moderation_role_required"))
+            }
+            Err(error) => Err(ModerationError::dependency_unavailable(format!(
+                "moderation_authorizer_failed:{}",
+                error.reason
+            ))),
         }
-
-        if !self.has_guild(client, guild_id).await? {
-            return Err(ModerationError::not_found("guild_not_found"));
-        }
-
-        Err(ModerationError::forbidden("moderation_role_required"))
     }
 
     /// 書き込み系DBエラーをAPIエラーへ変換する。
@@ -647,7 +630,7 @@ impl ModerationService for PostgresModerationService {
         let expires_at = normalize_optional_expires_at(input.expires_at)?;
         let client = self.select_client().await?;
 
-        self.ensure_moderator_access(&client, input.guild_id, principal_id)
+        self.ensure_moderator_access(input.guild_id, principal_id)
             .await?;
 
         let row = match client
@@ -699,8 +682,7 @@ impl ModerationService for PostgresModerationService {
         guild_id: i64,
     ) -> Result<Vec<ModerationReport>, ModerationError> {
         let client = self.select_client().await?;
-        self.ensure_moderator_access(&client, guild_id, principal_id)
-            .await?;
+        self.ensure_moderator_access(guild_id, principal_id).await?;
 
         let sql = format!(
             "{} {} FROM moderation_reports WHERE guild_id = $1 ORDER BY created_at DESC, id DESC LIMIT 200",
@@ -730,8 +712,7 @@ impl ModerationService for PostgresModerationService {
     ) -> Result<ModerationReport, ModerationError> {
         let normalized_report_id = normalize_positive_id(report_id, "report_id_must_be_positive")?;
         let client = self.select_client().await?;
-        self.ensure_moderator_access(&client, guild_id, principal_id)
-            .await?;
+        self.ensure_moderator_access(guild_id, principal_id).await?;
 
         self.fetch_report(&client, guild_id, normalized_report_id).await
     }
@@ -750,8 +731,7 @@ impl ModerationService for PostgresModerationService {
     ) -> Result<ModerationReport, ModerationError> {
         let normalized_report_id = normalize_positive_id(report_id, "report_id_must_be_positive")?;
         let client = self.select_client().await?;
-        self.ensure_moderator_access(&client, guild_id, principal_id)
-            .await?;
+        self.ensure_moderator_access(guild_id, principal_id).await?;
 
         if let Some(updated) = self
             .update_report_to_resolved(&client, guild_id, normalized_report_id, principal_id)
@@ -784,8 +764,7 @@ impl ModerationService for PostgresModerationService {
     ) -> Result<ModerationReport, ModerationError> {
         let normalized_report_id = normalize_positive_id(report_id, "report_id_must_be_positive")?;
         let client = self.select_client().await?;
-        self.ensure_moderator_access(&client, guild_id, principal_id)
-            .await?;
+        self.ensure_moderator_access(guild_id, principal_id).await?;
 
         if let Some(updated) = self
             .update_report_to_open(&client, guild_id, normalized_report_id, principal_id)

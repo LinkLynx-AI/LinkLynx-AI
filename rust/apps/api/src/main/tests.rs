@@ -3088,6 +3088,55 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn list_moderation_reports_returns_queue_for_moderator() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/guilds/2001/moderation/reports")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["reports"][0]["report_id"], 4001);
+        assert_eq!(json["reports"][0]["status"], "open");
+    }
+
+    #[tokio::test]
+    async fn get_moderation_report_returns_detail_for_moderator() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/guilds/2001/moderation/reports/4001")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["report"]["report_id"], 4001);
+        assert_eq!(json["report"]["reason"], "spam");
+        assert_eq!(json["report"]["target_type"], "message");
+    }
+
+    #[tokio::test]
     async fn list_moderation_reports_returns_forbidden_for_non_moderator() {
         let app = app_for_test().await;
         let token = format!("u-unknown:{}", unix_timestamp_seconds() + 300);
@@ -3938,6 +3987,11 @@ mod tests {
             AuthzResource::Guild { guild_id } => assert_eq!(guild_id, 10),
             _ => panic!("permission snapshot path should map to guild resource"),
         }
+
+        match rest_authz_resource_from_path("/guilds/10/moderation/reports") {
+            AuthzResource::Guild { guild_id } => assert_eq!(guild_id, 10),
+            _ => panic!("guild moderation path should map to guild resource"),
+        }
     }
 
     #[test]
@@ -3949,6 +4003,25 @@ mod tests {
         assert!(matches!(
             rest_authz_action_for_request(&Method::POST, "/v1/dms/55/messages"),
             AuthzAction::Post
+        ));
+        assert!(matches!(
+            rest_authz_action_for_request(&Method::POST, "/guilds/10/moderation/reports"),
+            AuthzAction::View
+        ));
+        assert!(matches!(
+            rest_authz_action_for_request(&Method::GET, "/guilds/10/moderation/reports"),
+            AuthzAction::Manage
+        ));
+        assert!(matches!(
+            rest_authz_action_for_request(
+                &Method::POST,
+                "/guilds/10/moderation/reports/4001/resolve"
+            ),
+            AuthzAction::Manage
+        ));
+        assert!(matches!(
+            rest_authz_action_for_request(&Method::POST, "/guilds/10/moderation/mutes"),
+            AuthzAction::Manage
         ));
     }
 

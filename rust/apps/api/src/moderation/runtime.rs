@@ -1,8 +1,8 @@
 /// 実行時向けのモデレーションサービスを生成する。
-/// @param なし
+/// @param authorizer 認可境界
 /// @returns モデレーションサービス
 /// @throws なし
-pub fn build_runtime_moderation_service() -> Arc<dyn ModerationService> {
+pub fn build_runtime_moderation_service(authorizer: Arc<dyn Authorizer>) -> Arc<dyn ModerationService> {
     let database_url = match env::var("DATABASE_URL") {
         Ok(value) if !value.trim().is_empty() => value,
         _ => {
@@ -22,6 +22,7 @@ pub fn build_runtime_moderation_service() -> Arc<dyn ModerationService> {
     }
 
     Arc::new(PostgresModerationService::new(
+        authorizer,
         database_url,
         allow_postgres_notls,
     ))

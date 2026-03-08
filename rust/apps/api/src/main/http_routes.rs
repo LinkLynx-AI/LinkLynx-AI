@@ -2179,6 +2179,12 @@ fn rest_authz_action_for_request(method: &axum::http::Method, path: &str) -> Aut
     if path == "/internal/authz/cache/invalidate" {
         return AuthzAction::View;
     }
+    if method == axum::http::Method::POST && is_guild_moderation_report_create_path(path) {
+        return AuthzAction::View;
+    }
+    if parse_guild_moderation_path(path).is_some() {
+        return AuthzAction::Manage;
+    }
     rest_authz_action_from_method(method)
 }
 
@@ -2211,6 +2217,9 @@ fn rest_authz_resource_from_path(path: &str) -> AuthzResource {
     if let Some(guild_id) = parse_guild_invite_path(path) {
         return AuthzResource::Guild { guild_id };
     }
+    if let Some(guild_id) = parse_guild_moderation_path(path) {
+        return AuthzResource::Guild { guild_id };
+    }
     if let Some(guild_id) = parse_moderation_guild_path(path) {
         return AuthzResource::Guild { guild_id };
     }
@@ -2220,6 +2229,33 @@ fn rest_authz_resource_from_path(path: &str) -> AuthzResource {
     AuthzResource::RestPath {
         path: path.to_owned(),
     }
+}
+
+/// ギルド配下のモデレーションパスから guild_id を抽出する。
+/// @param path リクエストパス
+/// @returns guild_id
+/// @throws なし
+fn parse_guild_moderation_path(path: &str) -> Option<i64> {
+    let segments = path.trim_matches('/').split('/').collect::<Vec<_>>();
+    if segments.len() < 4 {
+        return None;
+    }
+    if segments[0] != "guilds" || segments[2] != "moderation" {
+        return None;
+    }
+    segments[1].parse::<i64>().ok()
+}
+
+/// ギルド配下の report 作成パスかを判定する。
+/// @param path リクエストパス
+/// @returns report 作成パスなら `true`
+/// @throws なし
+fn is_guild_moderation_report_create_path(path: &str) -> bool {
+    let segments = path.trim_matches('/').split('/').collect::<Vec<_>>();
+    matches!(
+        segments.as_slice(),
+        ["guilds", guild_id, "moderation", "reports"] if guild_id.parse::<i64>().is_ok()
+    )
 }
 
 /// ギルドパスから guild_id を抽出する。

@@ -136,7 +136,7 @@ async fn build_runtime_state() -> AppState {
     let authz_metrics = Arc::new(AuthzMetrics::default());
     let guild_channel_service = build_runtime_guild_channel_service();
     let invite_service = build_runtime_invite_service();
-    let moderation_service = build_runtime_moderation_service();
+    let moderation_service = build_runtime_moderation_service(Arc::clone(&authorizer));
     let profile_service = build_runtime_profile_service();
     let scylla_health_reporter = build_runtime_scylla_health_reporter().await;
     let ws_reauth_grace = Duration::from_secs(

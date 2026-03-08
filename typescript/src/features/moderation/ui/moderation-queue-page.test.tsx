@@ -1,10 +1,13 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, test, vi } from "vitest";
-import { render, screen } from "@/test/test-utils";
+import { render, screen, userEvent } from "@/test/test-utils";
 import { ModerationQueuePage } from "./moderation-queue-page";
 
 const useActionGuardMock = vi.hoisted(() => vi.fn());
 const useModerationReportsMock = vi.hoisted(() => vi.fn());
+const createReportMutateAsyncMock = vi.hoisted(() => vi.fn());
+const resolveReportMutateAsyncMock = vi.hoisted(() => vi.fn());
+const reopenReportMutateAsyncMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/shared/api/queries", () => ({
   useActionGuard: useActionGuardMock,
@@ -23,20 +26,23 @@ vi.mock("@/shared/api/queries", () => ({
 vi.mock("@/shared/api/mutations", () => ({
   useCreateModerationReport: () => ({
     isPending: false,
-    mutateAsync: vi.fn(),
+    mutateAsync: createReportMutateAsyncMock,
   }),
   useResolveModerationReport: () => ({
     isPending: false,
-    mutateAsync: vi.fn(),
+    mutateAsync: resolveReportMutateAsyncMock,
   }),
   useReopenModerationReport: () => ({
     isPending: false,
-    mutateAsync: vi.fn(),
+    mutateAsync: reopenReportMutateAsyncMock,
   }),
 }));
 
 describe("ModerationQueuePage", () => {
   beforeEach(() => {
+    createReportMutateAsyncMock.mockReset();
+    resolveReportMutateAsyncMock.mockReset();
+    reopenReportMutateAsyncMock.mockReset();
     useActionGuardMock.mockImplementation(() => ({
       status: "allowed",
       isAllowed: true,
@@ -60,5 +66,52 @@ describe("ModerationQueuePage", () => {
     render(<ModerationQueuePage serverId="2001" />);
 
     expect(screen.getByText("アクセス権限がありません")).not.toBeNull();
+  });
+
+  test("renders queue items and resolves an open report", async () => {
+    const user = userEvent.setup();
+    useModerationReportsMock.mockReturnValue({
+      data: [
+        {
+          reportId: "7001",
+          targetType: "message",
+          targetId: "9001",
+          reason: "spam",
+          status: "open",
+        },
+      ],
+      isLoading: false,
+      isError: false,
+      error: null,
+    });
+
+    render(<ModerationQueuePage serverId="2001" />);
+
+    expect(screen.getByText("Report #7001")).not.toBeNull();
+    expect(screen.getByText("message:9001 / spam")).not.toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "resolve" }));
+
+    expect(resolveReportMutateAsyncMock).toHaveBeenCalledWith({
+      serverId: "2001",
+      reportId: "7001",
+    });
+  });
+
+  test("submits a new report from the queue form", async () => {
+    const user = userEvent.setup();
+
+    render(<ModerationQueuePage serverId="2001" />);
+
+    await user.type(screen.getByLabelText("対象ID"), "9002");
+    await user.type(screen.getByLabelText("理由"), "abuse");
+    await user.click(screen.getByRole("button", { name: "通報を作成" }));
+
+    expect(createReportMutateAsyncMock).toHaveBeenCalledWith({
+      serverId: "2001",
+      targetType: "message",
+      targetId: "9002",
+      reason: "abuse",
+    });
   });
 });

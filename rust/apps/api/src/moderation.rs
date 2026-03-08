@@ -6,6 +6,7 @@ use std::{
     },
 };
 
+use crate::authz::{Authorizer, AuthzAction, AuthzCheckInput, AuthzErrorKind, AuthzResource};
 use async_trait::async_trait;
 use axum::{
     http::StatusCode,
