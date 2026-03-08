@@ -2,15 +2,25 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { getAPIClient } from "@/shared/api/api-client";
+import type { ModerationReportListParams } from "@/shared/api/api-client";
 
 /**
  * モデレーション通報一覧を取得する。
  */
-export function useModerationReports(serverId: string, options?: { enabled?: boolean }) {
+export function useModerationReports(
+  serverId: string,
+  options?: { enabled?: boolean; params?: ModerationReportListParams },
+) {
   const api = getAPIClient();
   return useQuery({
-    queryKey: ["moderation-reports", serverId],
-    queryFn: () => api.getModerationReports(serverId),
+    queryKey: [
+      "moderation-reports",
+      serverId,
+      options?.params?.status ?? null,
+      options?.params?.limit ?? null,
+      options?.params?.after ?? null,
+    ],
+    queryFn: () => api.getModerationReports(serverId, options?.params),
     enabled: (options?.enabled ?? true) && serverId.trim().length > 0,
   });
 }

@@ -67,6 +67,12 @@ const MODERATION_REPORT_SCHEMA = z.object({
 });
 const MODERATION_REPORT_LIST_RESPONSE_SCHEMA = z.object({
   reports: z.array(MODERATION_REPORT_SCHEMA),
+  page_info: z.object({
+    next_after: z.string().trim().min(1).nullable(),
+    has_more: z.boolean(),
+    limit: z.number().int().positive(),
+    status: z.enum(["open", "resolved"]).nullable(),
+  }),
 });
 const MODERATION_REPORT_RESPONSE_SCHEMA = z.object({
   report: MODERATION_REPORT_SCHEMA,
@@ -1087,17 +1093,56 @@ export class GuildChannelAPIClient extends NoDataAPIClient {
     return channel;
   }
 
-  async getModerationReports(serverId: string): Promise<ModerationReport[]> {
+  async getModerationReports(
+    serverId: string,
+    params?: { status?: "open" | "resolved"; limit?: number; after?: string | null },
+  ): Promise<{
+    reports: ModerationReport[];
+    pageInfo: {
+      nextAfter: string | null;
+      hasMore: boolean;
+      limit: number;
+      status: "open" | "resolved" | null;
+    };
+  }> {
     const normalizedServerId = serverId.trim();
     if (normalizedServerId.length === 0) {
-      return [];
+      return {
+        reports: [],
+        pageInfo: {
+          nextAfter: null,
+          hasMore: false,
+          limit: params?.limit ?? 50,
+          status: params?.status ?? null,
+        },
+      };
     }
 
+    const query = new URLSearchParams();
+    if (params?.status !== undefined) {
+      query.set("status", params.status);
+    }
+    if (params?.limit !== undefined) {
+      query.set("limit", String(params.limit));
+    }
+    if (params?.after !== undefined && params.after !== null && params.after.trim().length > 0) {
+      query.set("after", params.after.trim());
+    }
+    const queryString = query.toString();
+
     const response = await this.getJson(
-      `/guilds/${encodeURIComponent(normalizedServerId)}/moderation/reports`,
+      `/guilds/${encodeURIComponent(normalizedServerId)}/moderation/reports${queryString === "" ? "" : `?${queryString}`}`,
       MODERATION_REPORT_LIST_RESPONSE_SCHEMA,
     );
-    return response.reports.map(mapModerationReport);
+    return {
+      reports: response.reports.map(mapModerationReport),
+      pageInfo: {
+        nextAfter: response.page_info.next_after ?? null,
+        hasMore: response.page_info.has_more,
+        limit: response.page_info.limit,
+        status: response.page_info.status ?? null,
+      },
+    };
   }
 
   async getModerationReport(serverId: string, reportId: string): Promise<ModerationReport> {

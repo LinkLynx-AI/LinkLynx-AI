@@ -668,28 +668,78 @@ mod tests {
         async fn list_reports(
             &self,
             principal_id: PrincipalId,
-            guild_id: i64,
-        ) -> Result<Vec<ModerationReport>, ModerationError> {
-            if guild_id != 2001 {
+            input: moderation::ListModerationReportsInput,
+        ) -> Result<moderation::ModerationReportListPage, ModerationError> {
+            if input.guild_id != 2001 {
                 return Err(ModerationError::not_found("guild_not_found"));
             }
             if principal_id.0 != 1001 {
                 return Err(ModerationError::forbidden("moderation_role_required"));
             }
 
-            Ok(vec![ModerationReport {
-                report_id: 4001,
-                guild_id,
-                reporter_id: 1002,
-                target_type: ModerationTargetType::Message,
-                target_id: 9001,
-                reason: "spam".to_owned(),
-                status: ModerationReportStatus::Open,
-                resolved_by: None,
-                resolved_at: None,
-                created_at: "2026-03-05T00:00:00Z".to_owned(),
-                updated_at: "2026-03-05T00:00:00Z".to_owned(),
-            }])
+            let mut reports = vec![
+                ModerationReport {
+                    report_id: 4002,
+                    guild_id: input.guild_id,
+                    reporter_id: 1003,
+                    target_type: ModerationTargetType::User,
+                    target_id: 1004,
+                    reason: "abuse".to_owned(),
+                    status: ModerationReportStatus::Resolved,
+                    resolved_by: Some(1001),
+                    resolved_at: Some("2026-03-05T00:02:00Z".to_owned()),
+                    created_at: "2026-03-05T00:01:00Z".to_owned(),
+                    updated_at: "2026-03-05T00:02:00Z".to_owned(),
+                },
+                ModerationReport {
+                    report_id: 4001,
+                    guild_id: input.guild_id,
+                    reporter_id: 1002,
+                    target_type: ModerationTargetType::Message,
+                    target_id: 9001,
+                    reason: "spam".to_owned(),
+                    status: ModerationReportStatus::Open,
+                    resolved_by: None,
+                    resolved_at: None,
+                    created_at: "2026-03-05T00:00:00Z".to_owned(),
+                    updated_at: "2026-03-05T00:00:00Z".to_owned(),
+                },
+            ];
+
+            if let Some(status) = input.status {
+                reports.retain(|report| report.status == status);
+            }
+
+            if let Some(after) = input.after {
+                reports.retain(|report| {
+                    report.created_at < after.created_at
+                        || (report.created_at == after.created_at && report.report_id < after.report_id)
+                });
+            }
+
+            let has_more = reports.len() > input.limit;
+            reports.truncate(input.limit);
+            let next_after = if has_more {
+                reports.last().map(|report| {
+                    moderation::ModerationReportListCursor {
+                        created_at: report.created_at.clone(),
+                        report_id: report.report_id,
+                    }
+                    .encode()
+                })
+            } else {
+                None
+            };
+
+            Ok(moderation::ModerationReportListPage {
+                reports,
+                page_info: moderation::ModerationReportListPageInfo {
+                    next_after,
+                    has_more,
+                    limit: input.limit,
+                    status: input.status,
+                },
+            })
         }
 
         async fn get_report(
@@ -3107,8 +3157,14 @@ mod tests {
             .await
             .unwrap();
         let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
-        assert_eq!(json["reports"][0]["report_id"], 4001);
-        assert_eq!(json["reports"][0]["status"], "open");
+        assert_eq!(json["reports"][0]["report_id"], 4002);
+        assert_eq!(json["reports"][0]["status"], "resolved");
+        assert_eq!(json["reports"][1]["report_id"], 4001);
+        assert_eq!(json["reports"][1]["status"], "open");
+        assert_eq!(json["page_info"]["has_more"], false);
+        assert_eq!(json["page_info"]["next_after"], serde_json::Value::Null);
+        assert_eq!(json["page_info"]["limit"], 50);
+        assert_eq!(json["page_info"]["status"], serde_json::Value::Null);
     }
 
     #[tokio::test]
@@ -3159,6 +3215,128 @@ mod tests {
         let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
         assert_eq!(json["code"], "AUTHZ_DENIED");
         assert_eq!(json["request_id"], "moderation-forbidden-test");
+    }
+
+    #[tokio::test]
+    async fn list_moderation_reports_returns_page_info_and_supports_status_filter() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/guilds/2001/moderation/reports?status=resolved&limit=1")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["reports"].as_array().unwrap().len(), 1);
+        assert_eq!(json["reports"][0]["report_id"], 4002);
+        assert_eq!(json["page_info"]["status"], "resolved");
+        assert_eq!(json["page_info"]["limit"], 1);
+        assert_eq!(json["page_info"]["has_more"], false);
+        assert_eq!(json["page_info"]["next_after"], serde_json::Value::Null);
+    }
+
+    #[tokio::test]
+    async fn list_moderation_reports_supports_after_cursor() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/guilds/2001/moderation/reports?limit=1&after=2026-03-05T00:01:00Z%7C4002")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["reports"].as_array().unwrap().len(), 1);
+        assert_eq!(json["reports"][0]["report_id"], 4001);
+        assert_eq!(json["page_info"]["limit"], 1);
+    }
+
+    #[tokio::test]
+    async fn list_moderation_reports_rejects_invalid_status_filter() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/guilds/2001/moderation/reports?status=closed")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "VALIDATION_ERROR");
+    }
+
+    #[tokio::test]
+    async fn list_moderation_reports_rejects_invalid_after_cursor() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/guilds/2001/moderation/reports?after=not-a-timestamp%7C4001")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "VALIDATION_ERROR");
+    }
+
+    #[tokio::test]
+    async fn list_moderation_reports_rejects_invalid_after_cursor_timestamp() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/guilds/2001/moderation/reports?after=not-a-timestamp%7C4002")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "VALIDATION_ERROR");
     }
 
     #[tokio::test]

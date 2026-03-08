@@ -583,11 +583,52 @@ export class MockAPIClient implements APIClient {
     await this.simulateDelay();
   }
 
-  async getModerationReports(serverId: string): Promise<ModerationReport[]> {
+  async getModerationReports(
+    serverId: string,
+    params?: { status?: ModerationReportStatus; limit?: number; after?: string | null },
+  ): Promise<{
+    reports: ModerationReport[];
+    pageInfo: {
+      nextAfter: string | null;
+      hasMore: boolean;
+      limit: number;
+      status: ModerationReportStatus | null;
+    };
+  }> {
     await this.simulateDelay();
-    return this.moderationReports
+    let reports = this.moderationReports
       .filter((report) => report.guildId === serverId)
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    if (params?.status !== undefined) {
+      reports = reports.filter((report) => report.status === params.status);
+    }
+    if (params?.after !== undefined && params.after !== null && params.after.trim().length > 0) {
+      const [afterCreatedAt, afterReportId] = params.after.split("|");
+      reports = reports.filter((report) => {
+        if (afterCreatedAt === undefined || afterReportId === undefined) {
+          return false;
+        }
+        return (
+          report.createdAt < afterCreatedAt ||
+          (report.createdAt === afterCreatedAt && Number(report.reportId) < Number(afterReportId))
+        );
+      });
+    }
+    const limit = params?.limit ?? 50;
+    const hasMore = reports.length > limit;
+    const slicedReports = reports.slice(0, limit);
+    return {
+      reports: slicedReports,
+      pageInfo: {
+        nextAfter:
+          hasMore && slicedReports.length > 0
+            ? `${slicedReports[slicedReports.length - 1]?.createdAt ?? ""}|${slicedReports[slicedReports.length - 1]?.reportId ?? ""}`
+            : null,
+        hasMore,
+        limit,
+        status: params?.status ?? null,
+      },
+    };
   }
 
   async getModerationReport(serverId: string, reportId: string): Promise<ModerationReport> {

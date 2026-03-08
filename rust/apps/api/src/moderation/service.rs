@@ -52,6 +52,18 @@ pub enum ModerationReportStatus {
 }
 
 impl ModerationReportStatus {
+    /// API入力ラベルから通報ステータスを解釈する。
+    /// @param raw 生文字列
+    /// @returns 通報ステータス
+    /// @throws なし
+    pub fn parse_api_label(raw: &str) -> Option<Self> {
+        match raw.trim().to_ascii_lowercase().as_str() {
+            "open" => Some(Self::Open),
+            "resolved" => Some(Self::Resolved),
+            _ => None,
+        }
+    }
+
     /// DBラベルから通報ステータスを解釈する。
     /// @param raw DBラベル
     /// @returns 通報ステータス
@@ -61,6 +73,17 @@ impl ModerationReportStatus {
             "open" => Some(Self::Open),
             "resolved" => Some(Self::Resolved),
             _ => None,
+        }
+    }
+
+    /// DB保存向けラベルへ変換する。
+    /// @param なし
+    /// @returns DBラベル
+    /// @throws なし
+    pub fn as_db_label(&self) -> &'static str {
+        match self {
+            Self::Open => "open",
+            Self::Resolved => "resolved",
         }
     }
 }
@@ -81,6 +104,58 @@ pub struct CreateModerationMuteInput {
     pub target_user_id: i64,
     pub reason: String,
     pub expires_at: Option<String>,
+}
+
+/// 通報一覧カーソルを表現する。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ModerationReportListCursor {
+    pub created_at: String,
+    pub report_id: i64,
+}
+
+impl ModerationReportListCursor {
+    /// カーソル文字列へ変換する。
+    /// @param なし
+    /// @returns 直列化済みカーソル
+    /// @throws なし
+    pub fn encode(&self) -> String {
+        format!("{}|{}", self.created_at, self.report_id)
+    }
+
+    /// カーソル文字列を復元する。
+    /// @param raw 生カーソル文字列
+    /// @returns 復元済みカーソル
+    /// @throws なし
+    pub fn decode(raw: &str) -> Option<Self> {
+        let (created_at, report_id) = raw.trim().rsplit_once('|')?;
+        let created_at = created_at.trim();
+        if created_at.is_empty() {
+            return None;
+        }
+        time::OffsetDateTime::parse(
+            created_at,
+            &time::format_description::well_known::Rfc3339,
+        )
+        .ok()?;
+        let report_id = report_id.parse::<i64>().ok()?;
+        if report_id <= 0 {
+            return None;
+        }
+
+        Some(Self {
+            created_at: created_at.to_owned(),
+            report_id,
+        })
+    }
+}
+
+/// 通報一覧取得入力を表現する。
+#[derive(Debug, Clone)]
+pub struct ListModerationReportsInput {
+    pub guild_id: i64,
+    pub status: Option<ModerationReportStatus>,
+    pub limit: usize,
+    pub after: Option<ModerationReportListCursor>,
 }
 
 /// 通報要約を表現する。
@@ -111,6 +186,22 @@ pub struct ModerationMute {
     pub created_at: String,
 }
 
+/// 通報一覧ページ情報を表現する。
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct ModerationReportListPageInfo {
+    pub next_after: Option<String>,
+    pub has_more: bool,
+    pub limit: usize,
+    pub status: Option<ModerationReportStatus>,
+}
+
+/// 通報一覧ページを表現する。
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct ModerationReportListPage {
+    pub reports: Vec<ModerationReport>,
+    pub page_info: ModerationReportListPageInfo,
+}
+
 /// モデレーションAPIユースケース境界を表現する。
 #[async_trait]
 pub trait ModerationService: Send + Sync {
@@ -138,14 +229,14 @@ pub trait ModerationService: Send + Sync {
 
     /// モデレーションキューを返す。
     /// @param principal_id 実行主体
-    /// @param guild_id 対象guild_id
-    /// @returns 通報一覧
+    /// @param input 一覧取得入力
+    /// @returns 通報一覧ページ
     /// @throws ModerationError 権限拒否/依存障害時
     async fn list_reports(
         &self,
         principal_id: PrincipalId,
-        guild_id: i64,
-    ) -> Result<Vec<ModerationReport>, ModerationError>;
+        input: ListModerationReportsInput,
+    ) -> Result<ModerationReportListPage, ModerationError>;
 
     /// 通報詳細を返す。
     /// @param principal_id 実行主体
@@ -249,8 +340,8 @@ impl ModerationService for UnavailableModerationService {
     async fn list_reports(
         &self,
         _principal_id: PrincipalId,
-        _guild_id: i64,
-    ) -> Result<Vec<ModerationReport>, ModerationError> {
+        _input: ListModerationReportsInput,
+    ) -> Result<ModerationReportListPage, ModerationError> {
         Err(self.unavailable_error())
     }
 

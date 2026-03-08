@@ -344,8 +344,27 @@ export class NoDataAPIClient implements APIClient {
     return unsupportedPromise("updateMemberNickname");
   }
 
-  getModerationReports(_serverId: string): Promise<ModerationReport[]> {
-    return Promise.resolve([]);
+  getModerationReports(
+    _serverId: string,
+    _params?: { status?: "open" | "resolved"; limit?: number; after?: string | null },
+  ): Promise<{
+    reports: ModerationReport[];
+    pageInfo: {
+      nextAfter: string | null;
+      hasMore: boolean;
+      limit: number;
+      status: "open" | "resolved" | null;
+    };
+  }> {
+    return Promise.resolve({
+      reports: [],
+      pageInfo: {
+        nextAfter: null,
+        hasMore: false,
+        limit: 50,
+        status: null,
+      },
+    });
   }
 
   getModerationReport(_serverId: string, _reportId: string): Promise<ModerationReport> {

@@ -107,6 +107,11 @@ export type Relationship = {
 
 export type ModerationTargetType = "message" | "user";
 export type ModerationReportStatus = "open" | "resolved";
+export type ModerationReportListParams = {
+  status?: ModerationReportStatus;
+  limit?: number;
+  after?: string | null;
+};
 
 export type ModerationReport = {
   reportId: string;
@@ -120,6 +125,18 @@ export type ModerationReport = {
   resolvedAt: string | null;
   createdAt: string;
   updatedAt: string;
+};
+
+export type ModerationReportListPageInfo = {
+  nextAfter: string | null;
+  hasMore: boolean;
+  limit: number;
+  status: ModerationReportStatus | null;
+};
+
+export type ModerationReportListPage = {
+  reports: ModerationReport[];
+  pageInfo: ModerationReportListPageInfo;
 };
 
 export type ModerationMute = {
@@ -267,7 +284,10 @@ export type APIClient = {
   updateMemberNickname(serverId: string, userId: string, nickname: string): Promise<void>;
 
   // Moderation reports and mutes
-  getModerationReports(serverId: string): Promise<ModerationReport[]>;
+  getModerationReports(
+    serverId: string,
+    params?: ModerationReportListParams,
+  ): Promise<ModerationReportListPage>;
   getModerationReport(serverId: string, reportId: string): Promise<ModerationReport>;
   createModerationReport(
     serverId: string,

@@ -979,6 +979,13 @@ struct ModerationReportPathParams {
     report_id: String,
 }
 
+#[derive(Debug, Deserialize, Default)]
+struct ModerationReportListQuery {
+    status: Option<String>,
+    limit: Option<String>,
+    after: Option<String>,
+}
+
 #[derive(Debug, Deserialize)]
 struct CreateModerationReportRequest {
     target_type: String,
@@ -1001,6 +1008,7 @@ struct ModerationReportResponse {
 #[derive(Debug, Serialize)]
 struct ModerationReportListResponse {
     reports: Vec<moderation::ModerationReport>,
+    page_info: moderation::ModerationReportListPageInfo,
 }
 
 #[derive(Debug, Serialize)]
@@ -1296,6 +1304,71 @@ fn parse_report_id(raw_report_id: &str) -> Result<i64, ModerationError> {
     }
 
     Ok(parsed)
+}
+
+/// 通報一覧status queryを検証する。
+/// @param raw_status 生のstatus query
+/// @returns 検証済みstatus filter
+/// @throws ModerationError パラメータ不正時
+fn parse_report_list_status(
+    raw_status: Option<&str>,
+) -> Result<Option<moderation::ModerationReportStatus>, ModerationError> {
+    let Some(raw_status) = raw_status else {
+        return Ok(None);
+    };
+    let normalized = raw_status.trim();
+    if normalized.is_empty() {
+        return Err(ModerationError::validation("report_status_invalid"));
+    }
+
+    moderation::ModerationReportStatus::parse_api_label(normalized)
+        .map(Some)
+        .ok_or_else(|| ModerationError::validation("report_status_invalid"))
+}
+
+/// 通報一覧limit queryを検証する。
+/// @param raw_limit 生のlimit query
+/// @returns 検証済みlimit
+/// @throws ModerationError パラメータ不正時
+fn parse_report_list_limit(raw_limit: Option<&str>) -> Result<usize, ModerationError> {
+    const DEFAULT_LIMIT: usize = 50;
+    const MAX_LIMIT: usize = 100;
+
+    let Some(raw_limit) = raw_limit else {
+        return Ok(DEFAULT_LIMIT);
+    };
+    let normalized = raw_limit.trim();
+    if normalized.is_empty() {
+        return Err(ModerationError::validation("report_list_limit_invalid"));
+    }
+    let parsed = normalized
+        .parse::<usize>()
+        .map_err(|_| ModerationError::validation("report_list_limit_invalid"))?;
+    if parsed == 0 || parsed > MAX_LIMIT {
+        return Err(ModerationError::validation("report_list_limit_out_of_range"));
+    }
+
+    Ok(parsed)
+}
+
+/// 通報一覧after queryを検証する。
+/// @param raw_after 生のafter query
+/// @returns 検証済みcursor
+/// @throws ModerationError パラメータ不正時
+fn parse_report_list_after(
+    raw_after: Option<&str>,
+) -> Result<Option<moderation::ModerationReportListCursor>, ModerationError> {
+    let Some(raw_after) = raw_after else {
+        return Ok(None);
+    };
+    let normalized = raw_after.trim();
+    if normalized.is_empty() {
+        return Err(ModerationError::validation("report_list_after_invalid"));
+    }
+
+    moderation::ModerationReportListCursor::decode(normalized)
+        .map(Some)
+        .ok_or_else(|| ModerationError::validation("report_list_after_invalid"))
 }
 
 /// 公開invite用のレート制限キーを生成する。
@@ -1794,19 +1867,44 @@ async fn list_moderation_reports(
     State(state): State<AppState>,
     Extension(auth_context): Extension<AuthContext>,
     Path(params): Path<ModerationGuildPathParams>,
+    Query(query): Query<ModerationReportListQuery>,
 ) -> Response {
     let request_id = auth_context.request_id.clone();
     let guild_id = match parse_moderation_guild_id(&params.guild_id) {
         Ok(value) => value,
         Err(error) => return moderation_error_response(&error, request_id),
     };
+    let status = match parse_report_list_status(query.status.as_deref()) {
+        Ok(value) => value,
+        Err(error) => return moderation_error_response(&error, request_id),
+    };
+    let limit = match parse_report_list_limit(query.limit.as_deref()) {
+        Ok(value) => value,
+        Err(error) => return moderation_error_response(&error, request_id),
+    };
+    let after = match parse_report_list_after(query.after.as_deref()) {
+        Ok(value) => value,
+        Err(error) => return moderation_error_response(&error, request_id),
+    };
 
     match state
         .moderation_service
-        .list_reports(auth_context.principal_id, guild_id)
+        .list_reports(
+            auth_context.principal_id,
+            moderation::ListModerationReportsInput {
+                guild_id,
+                status,
+                limit,
+                after,
+            },
+        )
         .await
     {
-        Ok(reports) => Json(ModerationReportListResponse { reports }).into_response(),
+        Ok(page) => Json(ModerationReportListResponse {
+            reports: page.reports,
+            page_info: page.page_info,
+        })
+        .into_response(),
         Err(error) => moderation_error_response(&error, request_id),
     }
 }

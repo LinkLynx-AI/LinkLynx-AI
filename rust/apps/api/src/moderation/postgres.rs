@@ -119,8 +119,6 @@ impl PostgresModerationService {
             'expires_at', $5
           )
         )";
-    const LIST_REPORTS_SQL_PREFIX: &str = "
-        SELECT";
 
     /// Postgresサービスを生成する。
     /// @param authorizer 認可境界
@@ -472,6 +470,48 @@ impl PostgresModerationService {
         Self::parse_report_row(row)
     }
 
+    /// 通報一覧ページを構築する。
+    /// @param rows 取得済み行
+    /// @param limit ページサイズ
+    /// @param status 適用済みstatus filter
+    /// @returns 通報一覧ページ
+    /// @throws ModerationError 行変換失敗時
+    fn build_report_list_page(
+        rows: Vec<Row>,
+        limit: usize,
+        status: Option<ModerationReportStatus>,
+    ) -> Result<ModerationReportListPage, ModerationError> {
+        let mut reports = rows
+            .into_iter()
+            .map(Self::parse_report_row)
+            .collect::<Result<Vec<_>, _>>()?;
+        let has_more = reports.len() > limit;
+        if has_more {
+            reports.truncate(limit);
+        }
+        let next_after = if has_more {
+            reports.last().map(|report| {
+                ModerationReportListCursor {
+                    created_at: report.created_at.clone(),
+                    report_id: report.report_id,
+                }
+                .encode()
+            })
+        } else {
+            None
+        };
+
+        Ok(ModerationReportListPage {
+            reports,
+            page_info: ModerationReportListPageInfo {
+                next_after,
+                has_more,
+                limit,
+                status,
+            },
+        })
+    }
+
     /// 通報をresolve状態へ更新する。
     /// @param client Postgresクライアント
     /// @param guild_id 対象guild_id
@@ -679,23 +719,77 @@ impl ModerationService for PostgresModerationService {
     async fn list_reports(
         &self,
         principal_id: PrincipalId,
-        guild_id: i64,
-    ) -> Result<Vec<ModerationReport>, ModerationError> {
+        input: ListModerationReportsInput,
+    ) -> Result<ModerationReportListPage, ModerationError> {
         let client = self.select_client().await?;
-        self.ensure_moderator_access(guild_id, principal_id).await?;
+        self.ensure_moderator_access(input.guild_id, principal_id).await?;
 
-        let sql = format!(
-            "{} {} FROM moderation_reports WHERE guild_id = $1 ORDER BY created_at DESC, id DESC LIMIT 200",
-            Self::LIST_REPORTS_SQL_PREFIX,
-            Self::REPORT_ROW_SELECT
-        );
+        let fetch_limit = (input.limit as i64).saturating_add(1);
+        let status_text = input.status.map(|status| status.as_db_label().to_owned());
+        let after_created_at = input.after.as_ref().map(|cursor| cursor.created_at.clone());
+        let after_report_id = input.after.as_ref().map(|cursor| cursor.report_id);
 
-        let rows = match client.query(&sql, &[&guild_id]).await {
+        let sql = match (status_text.as_ref(), after_created_at.as_ref()) {
+            (None, None) => format!(
+                "SELECT {} FROM moderation_reports WHERE guild_id = $1 ORDER BY created_at DESC, id DESC LIMIT $2",
+                Self::REPORT_ROW_SELECT
+            ),
+            (Some(_), None) => format!(
+                "SELECT {} FROM moderation_reports WHERE guild_id = $1 AND status = $2::moderation_report_status ORDER BY created_at DESC, id DESC LIMIT $3",
+                Self::REPORT_ROW_SELECT
+            ),
+            (None, Some(_)) => format!(
+                "SELECT {} FROM moderation_reports WHERE guild_id = $1 AND (created_at, id) < ($2::timestamptz, $3) ORDER BY created_at DESC, id DESC LIMIT $4",
+                Self::REPORT_ROW_SELECT
+            ),
+            (Some(_), Some(_)) => format!(
+                "SELECT {} FROM moderation_reports WHERE guild_id = $1 AND status = $2::moderation_report_status AND (created_at, id) < ($3::timestamptz, $4) ORDER BY created_at DESC, id DESC LIMIT $5",
+                Self::REPORT_ROW_SELECT
+            ),
+        };
+
+        let rows = match (status_text.as_ref(), after_created_at.as_ref(), after_report_id.as_ref()) {
+            (None, None, None) => client.query(&sql, &[&input.guild_id, &fetch_limit]).await,
+            (Some(status_text), None, None) => {
+                client
+                    .query(&sql, &[&input.guild_id, status_text, &fetch_limit])
+                    .await
+            }
+            (None, Some(after_created_at), Some(after_report_id)) => {
+                client
+                    .query(
+                        &sql,
+                        &[&input.guild_id, after_created_at, after_report_id, &fetch_limit],
+                    )
+                    .await
+            }
+            (Some(status_text), Some(after_created_at), Some(after_report_id)) => {
+                client
+                    .query(
+                        &sql,
+                        &[
+                            &input.guild_id,
+                            status_text,
+                            after_created_at,
+                            after_report_id,
+                            &fetch_limit,
+                        ],
+                    )
+                    .await
+            }
+            _ => {
+                return Err(ModerationError::dependency_unavailable(
+                    "report_list_input_mismatch",
+                ));
+            }
+        };
+
+        let rows = match rows {
             Ok(rows) => rows,
             Err(error) => return Err(self.map_read_error("report_list_query_failed", error).await),
         };
 
-        rows.into_iter().map(Self::parse_report_row).collect()
+        Self::build_report_list_page(rows, input.limit, input.status)
     }
 
     /// 通報詳細を返す。

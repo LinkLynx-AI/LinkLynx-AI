@@ -23,7 +23,7 @@ export function ModerationQueuePage({ serverId }: { serverId: string }) {
     requirement: "guild:moderate",
   });
   const {
-    data: reports,
+    data: reportPage,
     isLoading,
     isError,
     error,
@@ -33,6 +33,7 @@ export function ModerationQueuePage({ serverId }: { serverId: string }) {
   const createReport = useCreateModerationReport();
   const resolveReport = useResolveModerationReport();
   const reopenReport = useReopenModerationReport();
+  const reports = reportPage?.reports ?? [];
 
   const [targetType, setTargetType] = useState<"message" | "user">("message");
   const [targetId, setTargetId] = useState("");
@@ -173,11 +174,11 @@ export function ModerationQueuePage({ serverId }: { serverId: string }) {
         </header>
 
         <div className="flex-1 overflow-y-auto discord-scrollbar">
-          {(reports?.length ?? 0) === 0 ? (
+          {reports.length === 0 ? (
             <div className="p-4 text-sm text-discord-text-muted">現在、通報はありません。</div>
           ) : (
             <ul className="divide-y divide-discord-divider">
-              {reports?.map((report) => (
+              {reports.map((report) => (
                 <li key={report.reportId} className="flex items-center gap-3 px-4 py-3">
                   <div className="min-w-0 flex-1">
                     <Link

@@ -96,6 +96,13 @@ mod tests {
         ));
     }
 
+    #[test]
+    fn moderation_report_list_cursor_rejects_invalid_timestamp() {
+        let cursor = ModerationReportListCursor::decode("not-a-timestamp|4001");
+
+        assert_eq!(cursor, None);
+    }
+
     #[tokio::test]
     async fn ensure_moderator_access_uses_authorizer_manage_check() {
         let service = PostgresModerationService::new(

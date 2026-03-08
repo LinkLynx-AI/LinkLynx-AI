@@ -49,7 +49,15 @@ describe("ModerationQueuePage", () => {
       message: null,
     }));
     useModerationReportsMock.mockReturnValue({
-      data: [],
+      data: {
+        reports: [],
+        pageInfo: {
+          nextAfter: null,
+          hasMore: false,
+          limit: 50,
+          status: null,
+        },
+      },
       isLoading: false,
       isError: false,
       error: null,
@@ -71,15 +79,23 @@ describe("ModerationQueuePage", () => {
   test("renders queue items and resolves an open report", async () => {
     const user = userEvent.setup();
     useModerationReportsMock.mockReturnValue({
-      data: [
-        {
-          reportId: "7001",
-          targetType: "message",
-          targetId: "9001",
-          reason: "spam",
-          status: "open",
+      data: {
+        reports: [
+          {
+            reportId: "7001",
+            targetType: "message",
+            targetId: "9001",
+            reason: "spam",
+            status: "open",
+          },
+        ],
+        pageInfo: {
+          nextAfter: null,
+          hasMore: false,
+          limit: 50,
+          status: null,
         },
-      ],
+      },
       isLoading: false,
       isError: false,
       error: null,
