@@ -1,6 +1,7 @@
 mod auth;
 mod authz;
 mod guild_channel;
+mod invite;
 mod moderation;
 mod profile;
 mod ratelimit;
@@ -52,6 +53,7 @@ use linklynx_protocol_ws::{
     ClientMessageFrameV1, GuildChannelSubscriptionTargetV1, MessageSubscriptionStateV1,
     ServerMessageFrameV1,
 };
+use invite::{build_runtime_invite_service, invite_error_response, InviteService};
 use moderation::{
     build_runtime_moderation_service, moderation_error_response, ModerationError, ModerationService,
 };
@@ -60,7 +62,8 @@ use profile::{
     ProfileService,
 };
 use ratelimit::{
-    build_runtime_rest_rate_limit_service, rest_rate_limit_action_for_request, RestRateLimitService,
+    build_runtime_rest_rate_limit_service, rest_rate_limit_action_for_request, RestRateLimitAction,
+    RestRateLimitService,
 };
 use scylla_health::{build_runtime_scylla_health_reporter, ScyllaHealthReporter};
 use serde::{Deserialize, Serialize};
@@ -73,6 +76,7 @@ pub(crate) struct AppState {
     authorizer: Arc<dyn Authorizer>,
     authz_metrics: Arc<AuthzMetrics>,
     guild_channel_service: Arc<dyn GuildChannelService>,
+    invite_service: Arc<dyn InviteService>,
     moderation_service: Arc<dyn ModerationService>,
     profile_service: Arc<dyn ProfileService>,
     scylla_health_reporter: Arc<dyn ScyllaHealthReporter>,
@@ -131,6 +135,7 @@ async fn build_runtime_state() -> AppState {
     let authorizer = build_runtime_authorizer();
     let authz_metrics = Arc::new(AuthzMetrics::default());
     let guild_channel_service = build_runtime_guild_channel_service();
+    let invite_service = build_runtime_invite_service();
     let moderation_service = build_runtime_moderation_service();
     let profile_service = build_runtime_profile_service();
     let scylla_health_reporter = build_runtime_scylla_health_reporter().await;
@@ -153,6 +158,7 @@ async fn build_runtime_state() -> AppState {
         authorizer,
         authz_metrics,
         guild_channel_service,
+        invite_service,
         moderation_service,
         profile_service,
         scylla_health_reporter,

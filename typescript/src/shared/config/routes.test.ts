@@ -9,9 +9,12 @@ import {
   buildModerationReportRoute,
   buildSettingsRoute,
   classifyAppRoute,
+  normalizeInviteResumeCode,
   normalizeReturnToPath,
+  parseInviteAutoJoinFlag,
   parseGuildChannelRoute,
   parseLoginRedirectReason,
+  resolvePostAuthRedirectPath,
 } from "./routes";
 
 describe("routes", () => {
@@ -30,6 +33,7 @@ describe("routes", () => {
   test("invite ルートを生成する", () => {
     expect(buildInviteRoute("abc123")).toBe("/invite/abc123");
     expect(buildInviteRoute("a/b c")).toBe("/invite/a%2Fb%20c");
+    expect(buildInviteRoute("abc123", { autoJoin: true })).toBe("/invite/abc123?autoJoin=1");
   });
 
   test("channel ルートを生成する", () => {
@@ -94,6 +98,12 @@ describe("routes", () => {
     expect(normalizeReturnToPath(null)).toBeNull();
   });
 
+  test("invite resume code は空文字を除外する", () => {
+    expect(normalizeInviteResumeCode(" DEVJOIN2026 ")).toBe("DEVJOIN2026");
+    expect(normalizeInviteResumeCode("   ")).toBeNull();
+    expect(normalizeInviteResumeCode(undefined)).toBeNull();
+  });
+
   test("login ルートを returnTo / reason 付きで生成する", () => {
     expect(
       buildLoginRoute({
@@ -102,6 +112,7 @@ describe("routes", () => {
       }),
     ).toBe("/login?returnTo=%2Fchannels%2Fme%3Ftab%3Dall&reason=session-expired");
     expect(buildLoginRoute({ returnTo: "/invite/abc" })).toBe("/login");
+    expect(buildLoginRoute({ inviteCode: "DEVJOIN2026" })).toBe("/login?invite=DEVJOIN2026");
     expect(buildLoginRoute()).toBe("/login");
   });
 
@@ -110,5 +121,27 @@ describe("routes", () => {
     expect(parseLoginRedirectReason(["session-expired"])).toBe("session-expired");
     expect(parseLoginRedirectReason("unknown")).toBeNull();
     expect(parseLoginRedirectReason(undefined)).toBeNull();
+  });
+
+  test("invite resume がある場合は post-auth redirect を invite autoJoin に固定する", () => {
+    expect(
+      resolvePostAuthRedirectPath({
+        inviteCode: "DEVJOIN2026",
+        returnTo: "/channels/me",
+      }),
+    ).toBe("/invite/DEVJOIN2026?autoJoin=1");
+    expect(
+      resolvePostAuthRedirectPath({
+        returnTo: "/channels/me?tab=all",
+      }),
+    ).toBe("/channels/me?tab=all");
+    expect(resolvePostAuthRedirectPath({})).toBe("/channels/me");
+  });
+
+  test("invite autoJoin フラグを判定する", () => {
+    expect(parseInviteAutoJoinFlag("1")).toBe(true);
+    expect(parseInviteAutoJoinFlag(["1"])).toBe(true);
+    expect(parseInviteAutoJoinFlag("0")).toBe(false);
+    expect(parseInviteAutoJoinFlag(undefined)).toBe(false);
   });
 });

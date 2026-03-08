@@ -7,6 +7,7 @@ export type {
   ChannelShellNavigation,
   GuildUiGateway,
   InvitePageContent,
+  InvitePageStatus,
   MemberListItem,
   MessagePreviewContent,
   MessageUiGateway,

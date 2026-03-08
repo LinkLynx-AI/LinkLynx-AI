@@ -91,6 +91,8 @@ fn app_with_state(state: AppState) -> Router {
     Router::new()
         .route("/", get(root))
         .route("/health", get(health_check))
+        .route("/v1/invites/{invite_code}", get(get_public_invite))
+        .route("/v1/invites/{invite_code}/join", post(join_public_invite))
         .route("/internal/scylla/health", get(scylla_health_check))
         .route("/ws", get(ws_handler))
         .route("/auth/ws-ticket", post(issue_ws_ticket))
@@ -155,6 +157,20 @@ struct GuildInviteResponse {
     principal_id: i64,
     guild_id: i64,
     invite_code: String,
+}
+
+#[derive(Debug, Serialize)]
+struct InviteVerifyResponse {
+    ok: bool,
+    request_id: String,
+    invite: invite::PublicInviteLookup,
+}
+
+#[derive(Debug, Serialize)]
+struct InviteJoinResponse {
+    ok: bool,
+    request_id: String,
+    join: invite::InviteJoinResult,
 }
 
 #[derive(Debug, Serialize)]
@@ -258,6 +274,172 @@ async fn get_guild_invite(
         guild_id,
         invite_code,
     })
+}
+
+/// 公開招待コードの状態を返す。
+/// @param state アプリケーション状態
+/// @param headers HTTPヘッダー
+/// @param params パスパラメータ
+/// @returns 招待検証レスポンス
+/// @throws なし
+async fn get_public_invite(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(params): Path<InviteVerifyPathParams>,
+) -> Response {
+    let request_id = request_id_from_headers(&headers);
+    let rate_limit_decision = state
+        .rest_rate_limit_service
+        .evaluate_key(
+            public_invite_rate_limit_key(),
+            RestRateLimitAction::InviteAccess,
+        )
+        .await;
+    if !rate_limit_decision.allowed() {
+        let error_class = if rate_limit_decision.is_fail_close() {
+            "rate_limit_fail_close"
+        } else {
+            "rate_limited"
+        };
+        let reason = if rate_limit_decision.is_fail_close() {
+            "dragonfly_degraded_fail_close"
+        } else {
+            "rate_limit_exceeded"
+        };
+        let message = if rate_limit_decision.is_fail_close() {
+            "request rejected while rate-limit dependency is degraded"
+        } else {
+            "request rate limit exceeded"
+        };
+        tracing::warn!(
+            decision = "deny",
+            request_id = %request_id,
+            error_class = error_class,
+            reason = reason,
+            resource = "/v1/invites/{invite_code}",
+            action = rate_limit_decision.action().label(),
+            operation_class = ?rate_limit_decision.operation_class(),
+            degraded = rate_limit_decision.degraded(),
+            decision_source = "rest_rate_limit_service",
+            "public invite verification rejected by rate limit"
+        );
+        return rate_limit_error_response(
+            "RATE_LIMITED",
+            message,
+            request_id,
+            rate_limit_decision.retry_after_seconds().unwrap_or(1),
+        );
+    }
+
+    match state
+        .invite_service
+        .verify_public_invite(params.invite_code)
+        .await
+    {
+        Ok(invite) => Json(InviteVerifyResponse {
+            ok: true,
+            request_id,
+            invite,
+        })
+        .into_response(),
+        Err(error) => invite_error_response(&error, request_id),
+    }
+}
+
+/// 認証済みユーザーを公開招待コードでギルドへ参加させる。
+/// @param state アプリケーション状態
+/// @param headers HTTPヘッダー
+/// @param params パスパラメータ
+/// @returns 招待参加レスポンス
+/// @throws なし
+async fn join_public_invite(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(params): Path<InviteVerifyPathParams>,
+) -> Response {
+    let request_id = request_id_from_headers(&headers);
+    let token = match bearer_token_from_headers(&headers) {
+        Ok(token) => token,
+        Err(error) => {
+            tracing::warn!(
+                decision = %error.decision(),
+                request_id = %request_id,
+                error_class = %error.log_class(),
+                reason = %error.reason,
+                "invite join rejected at header parsing"
+            );
+            return auth_error_response(&error, request_id);
+        }
+    };
+
+    let authenticated = match state.auth_service.authenticate_token(&token).await {
+        Ok(authenticated) => authenticated,
+        Err(error) => {
+            tracing::warn!(
+                decision = %error.decision(),
+                request_id = %request_id,
+                error_class = %error.log_class(),
+                reason = %error.reason,
+                "invite join rejected at authentication"
+            );
+            return auth_error_response(&error, request_id);
+        }
+    };
+
+    let rate_limit_decision = state
+        .rest_rate_limit_service
+        .evaluate(authenticated.principal_id, RestRateLimitAction::InviteAccess)
+        .await;
+    if !rate_limit_decision.allowed() {
+        let error_class = if rate_limit_decision.is_fail_close() {
+            "rate_limit_fail_close"
+        } else {
+            "rate_limited"
+        };
+        let reason = if rate_limit_decision.is_fail_close() {
+            "dragonfly_degraded_fail_close"
+        } else {
+            "rate_limit_exceeded"
+        };
+        let message = if rate_limit_decision.is_fail_close() {
+            "request rejected while rate-limit dependency is degraded"
+        } else {
+            "request rate limit exceeded"
+        };
+        tracing::warn!(
+            decision = "deny",
+            request_id = %request_id,
+            principal_id = authenticated.principal_id.0,
+            error_class = error_class,
+            reason = reason,
+            resource = "/v1/invites/{invite_code}/join",
+            action = rate_limit_decision.action().label(),
+            operation_class = ?rate_limit_decision.operation_class(),
+            degraded = rate_limit_decision.degraded(),
+            decision_source = "rest_rate_limit_service",
+            "invite join rejected by rate limit"
+        );
+        return rate_limit_error_response(
+            "RATE_LIMITED",
+            message,
+            request_id,
+            rate_limit_decision.retry_after_seconds().unwrap_or(1),
+        );
+    }
+
+    match state
+        .invite_service
+        .join_invite(authenticated.principal_id, params.invite_code)
+        .await
+    {
+        Ok(join) => Json(InviteJoinResponse {
+            ok: true,
+            request_id,
+            join,
+        })
+        .into_response(),
+        Err(error) => invite_error_response(&error, request_id),
+    }
 }
 
 /// ギルドチャンネル情報の最小応答を返す。
@@ -711,6 +893,11 @@ struct GuildChannelPathParams {
 }
 
 #[derive(Debug, Deserialize)]
+struct InviteVerifyPathParams {
+    invite_code: String,
+}
+
+#[derive(Debug, Deserialize)]
 struct PermissionSnapshotQuery {
     channel_id: Option<String>,
 }
@@ -1109,6 +1296,14 @@ fn parse_report_id(raw_report_id: &str) -> Result<i64, ModerationError> {
     }
 
     Ok(parsed)
+}
+
+/// 公開invite用のレート制限キーを生成する。
+/// 未認証かつ trusted peer 情報を利用していないため共有匿名バケットを用いる。
+/// @returns レート制限キー
+/// @throws なし
+fn public_invite_rate_limit_key() -> &'static str {
+    "public:anonymous:invite_access"
 }
 
 /// JSON入力を検証してモデレーションペイロードを取得する。

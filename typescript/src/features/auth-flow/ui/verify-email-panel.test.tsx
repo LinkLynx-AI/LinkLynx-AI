@@ -125,7 +125,12 @@ describe("VerifyEmailPanel", () => {
 
   function renderPanel() {
     render(
-      <VerifyEmailPanel initialEmail="verify@example.com" initialSent={null} returnTo={null} />,
+      <VerifyEmailPanel
+        initialEmail="verify@example.com"
+        initialSent={null}
+        inviteCode={null}
+        returnTo={null}
+      />,
     );
   }
 

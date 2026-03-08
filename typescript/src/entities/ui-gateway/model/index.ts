@@ -58,9 +58,17 @@ export type SettingsShellNavigation = {
   closeHint: string;
 };
 
+export type InvitePageStatus = "valid" | "invalid" | "expired" | "unavailable";
+
 export type InvitePageContent = {
+  status: InvitePageStatus;
   title: string;
   description: string;
+  inviteCode: string;
+  guildName: string | null;
+  expiresAt: string | null;
+  uses: number | null;
+  maxUses: number | null;
   primaryAction: UiGatewayLink;
   secondaryAction: UiGatewayLink;
 };

@@ -2,7 +2,11 @@
 
 import { useState } from "react";
 import { sendPasswordResetEmailByAddress } from "@/entities";
-import { PASSWORD_RESET_COMPLETION_MESSAGE, validatePasswordResetInput } from "../model";
+import {
+  PASSWORD_RESET_COMPLETION_MESSAGE,
+  PASSWORD_RESET_RETRY_GUIDANCE_MESSAGE,
+  validatePasswordResetInput,
+} from "../model";
 
 type PasswordResetFormState = {
   email: string;
@@ -20,6 +24,7 @@ export function PasswordResetForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [completionMessage, setCompletionMessage] = useState<string | null>(null);
+  const hasSubmitted = completionMessage !== null;
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -73,9 +78,13 @@ export function PasswordResetForm() {
       )}
 
       {completionMessage !== null && (
-        <p className="rounded bg-discord-btn-success/10 px-3 py-2 text-sm text-discord-btn-success">
-          {completionMessage}
-        </p>
+        <div
+          className="space-y-2 rounded bg-discord-btn-success/10 px-3 py-2 text-sm text-discord-btn-success"
+          aria-live="polite"
+        >
+          <p>{completionMessage}</p>
+          <p className="text-discord-text-muted">{PASSWORD_RESET_RETRY_GUIDANCE_MESSAGE}</p>
+        </div>
       )}
 
       <button
@@ -83,7 +92,7 @@ export function PasswordResetForm() {
         disabled={isSubmitting}
         className="mt-2 w-full rounded bg-discord-brand-blurple px-4 py-3 text-sm font-medium text-white transition hover:bg-discord-btn-blurple-hover disabled:cursor-not-allowed disabled:opacity-50"
       >
-        {isSubmitting ? "送信中..." : "再設定メールを送る"}
+        {isSubmitting ? "送信中..." : hasSubmitted ? "もう一度送る" : "再設定メールを送る"}
       </button>
     </form>
   );

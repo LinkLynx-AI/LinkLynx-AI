@@ -18,6 +18,10 @@ mod tests {
         GuildPatchInput, GuildSummary,
         GuildChannelService,
     };
+    use invite::{
+        InviteError, InviteJoinResult, InviteJoinStatus, InviteService, PublicInviteGuild,
+        PublicInviteLookup, PublicInviteStatus,
+    };
     use moderation::{
         CreateModerationMuteInput, CreateModerationReportInput, ModerationError, ModerationReport,
         ModerationReportStatus, ModerationService, ModerationTargetType,
@@ -67,6 +71,8 @@ mod tests {
     struct StaticModerationService;
     struct StaticProfileService;
     struct StaticUnavailableProfileService;
+    struct StaticInviteService;
+    struct StaticUnavailableInviteService;
     struct RoleScenarioAuthorizer;
     struct StaticScyllaHealthReporter {
         report: ScyllaHealthReport,
@@ -780,38 +786,157 @@ mod tests {
         }
     }
 
+    #[async_trait]
+    impl InviteService for StaticInviteService {
+        async fn verify_public_invite(
+            &self,
+            invite_code: String,
+        ) -> Result<PublicInviteLookup, InviteError> {
+            let normalized_invite_code = invite_code.trim().to_owned();
+            if normalized_invite_code.is_empty() {
+                return Err(InviteError::validation("invite_code_required"));
+            }
+
+            let guild = PublicInviteGuild {
+                guild_id: 2001,
+                name: "LinkLynx Guild".to_owned(),
+                icon_key: None,
+            };
+
+            match normalized_invite_code.as_str() {
+                "DEVJOIN2026" => Ok(PublicInviteLookup {
+                    status: PublicInviteStatus::Valid,
+                    invite_code: normalized_invite_code,
+                    guild: Some(guild),
+                    expires_at: Some("2026-03-21T00:00:00Z".to_owned()),
+                    uses: Some(3),
+                    max_uses: Some(100),
+                }),
+                "EXPIRED2026" => Ok(PublicInviteLookup {
+                    status: PublicInviteStatus::Expired,
+                    invite_code: normalized_invite_code,
+                    guild: Some(guild),
+                    expires_at: Some("2026-03-01T00:00:00Z".to_owned()),
+                    uses: Some(10),
+                    max_uses: Some(10),
+                }),
+                "DISABLED2026" => Ok(PublicInviteLookup {
+                    status: PublicInviteStatus::Invalid,
+                    invite_code: normalized_invite_code,
+                    guild: Some(guild),
+                    expires_at: Some("2026-03-21T00:00:00Z".to_owned()),
+                    uses: Some(3),
+                    max_uses: Some(10),
+                }),
+                _ => Ok(PublicInviteLookup {
+                    status: PublicInviteStatus::Invalid,
+                    invite_code: normalized_invite_code,
+                    guild: None,
+                    expires_at: None,
+                    uses: None,
+                    max_uses: None,
+                }),
+            }
+        }
+
+        async fn join_invite(
+            &self,
+            _principal_id: PrincipalId,
+            invite_code: String,
+        ) -> Result<InviteJoinResult, InviteError> {
+            let normalized_invite_code = invite_code.trim().to_owned();
+            if normalized_invite_code.is_empty() {
+                return Err(InviteError::validation("invite_code_required"));
+            }
+
+            match normalized_invite_code.as_str() {
+                "DEVJOIN2026" => Ok(InviteJoinResult {
+                    invite_code: normalized_invite_code,
+                    guild_id: 2001,
+                    status: InviteJoinStatus::Joined,
+                }),
+                "ALREADY2026" => Ok(InviteJoinResult {
+                    invite_code: normalized_invite_code,
+                    guild_id: 2001,
+                    status: InviteJoinStatus::AlreadyMember,
+                }),
+                "EXPIRED2026" => Err(InviteError::expired_invite("invite_expired")),
+                _ => Err(InviteError::invalid_invite("invite_invalid")),
+            }
+        }
+    }
+
+    #[async_trait]
+    impl InviteService for StaticUnavailableInviteService {
+        async fn verify_public_invite(
+            &self,
+            _invite_code: String,
+        ) -> Result<PublicInviteLookup, InviteError> {
+            Err(InviteError::dependency_unavailable(
+                "invite_store_unconfigured",
+            ))
+        }
+
+        async fn join_invite(
+            &self,
+            _principal_id: PrincipalId,
+            _invite_code: String,
+        ) -> Result<InviteJoinResult, InviteError> {
+            Err(InviteError::dependency_unavailable(
+                "invite_store_unconfigured",
+            ))
+        }
+    }
+
     async fn app_for_test() -> Router {
-        app_for_test_with_authorizer_and_profile(
+        let state = state_for_test_with_authorizer_and_profile_and_invite(
             Arc::new(StaticAllowAllAuthorizer),
             Arc::new(StaticProfileService),
+            Arc::new(StaticInviteService),
         )
-        .await
+        .await;
+        app_with_state(state)
     }
 
     async fn app_for_test_with_scylla_report(report: ScyllaHealthReport) -> Router {
-        app_for_test_with_authorizer_profile_and_scylla(
+        let state = state_for_test_with_authorizer_profile_invite_and_scylla(
             Arc::new(StaticAllowAllAuthorizer),
             Arc::new(StaticProfileService),
+            Arc::new(StaticInviteService),
             Arc::new(StaticScyllaHealthReporter { report }),
+        )
+        .await;
+        app_with_state(state)
+    }
+
+    async fn app_for_test_with_authorizer(authorizer: Arc<dyn Authorizer>) -> Router {
+        let state = state_for_test_with_authorizer_and_profile_and_invite(
+            authorizer,
+            Arc::new(StaticProfileService),
+            Arc::new(StaticInviteService),
+        )
+        .await;
+        app_with_state(state)
+    }
+
+    async fn state_for_test_with_authorizer(authorizer: Arc<dyn Authorizer>) -> AppState {
+        state_for_test_with_authorizer_and_profile_and_invite(
+            authorizer,
+            Arc::new(StaticProfileService),
+            Arc::new(StaticInviteService),
         )
         .await
     }
 
-    async fn app_for_test_with_authorizer(authorizer: Arc<dyn Authorizer>) -> Router {
-        app_for_test_with_authorizer_and_profile(authorizer, Arc::new(StaticProfileService)).await
-    }
-
-    async fn state_for_test_with_authorizer(authorizer: Arc<dyn Authorizer>) -> AppState {
-        state_for_test_with_authorizer_and_profile(authorizer, Arc::new(StaticProfileService)).await
-    }
-
-    async fn state_for_test_with_authorizer_and_profile(
+    async fn state_for_test_with_authorizer_and_profile_and_invite(
         authorizer: Arc<dyn Authorizer>,
         profile_service: Arc<dyn ProfileService>,
+        invite_service: Arc<dyn InviteService>,
     ) -> AppState {
-        state_for_test_with_authorizer_profile_and_scylla(
+        state_for_test_with_authorizer_profile_invite_and_scylla(
             authorizer,
             profile_service,
+            invite_service,
             Arc::new(StaticScyllaHealthReporter {
                 report: ScyllaHealthReport::ready(),
             }),
@@ -819,9 +944,10 @@ mod tests {
         .await
     }
 
-    async fn state_for_test_with_authorizer_profile_and_scylla(
+    async fn state_for_test_with_authorizer_profile_invite_and_scylla(
         authorizer: Arc<dyn Authorizer>,
         profile_service: Arc<dyn ProfileService>,
+        invite_service: Arc<dyn InviteService>,
         scylla_health_reporter: Arc<dyn ScyllaHealthReporter>,
     ) -> AppState {
         let metrics = Arc::new(AuthMetrics::default());
@@ -851,6 +977,7 @@ mod tests {
             authorizer,
             authz_metrics: Arc::new(AuthzMetrics::default()),
             guild_channel_service: Arc::new(StaticGuildChannelService),
+            invite_service,
             moderation_service: Arc::new(StaticModerationService),
             profile_service,
             scylla_health_reporter,
@@ -880,19 +1007,20 @@ mod tests {
         authorizer: Arc<dyn Authorizer>,
         profile_service: Arc<dyn ProfileService>,
     ) -> Router {
-        let state = state_for_test_with_authorizer_and_profile(authorizer, profile_service).await;
+        let state = state_for_test_with_authorizer_and_profile_and_invite(
+            authorizer,
+            profile_service,
+            Arc::new(StaticInviteService),
+        )
+        .await;
         app_with_state(state)
     }
 
-    async fn app_for_test_with_authorizer_profile_and_scylla(
-        authorizer: Arc<dyn Authorizer>,
-        profile_service: Arc<dyn ProfileService>,
-        scylla_health_reporter: Arc<dyn ScyllaHealthReporter>,
-    ) -> Router {
-        let state = state_for_test_with_authorizer_profile_and_scylla(
-            authorizer,
-            profile_service,
-            scylla_health_reporter,
+    async fn app_for_test_with_invite_service(invite_service: Arc<dyn InviteService>) -> Router {
+        let state = state_for_test_with_authorizer_and_profile_and_invite(
+            Arc::new(StaticAllowAllAuthorizer),
+            Arc::new(StaticProfileService),
+            invite_service,
         )
         .await;
         app_with_state(state)
@@ -1034,6 +1162,441 @@ mod tests {
         let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
         assert_eq!(json["status"], "error");
         assert_eq!(json["reason"], "connect_failed");
+    }
+
+    #[tokio::test]
+    async fn public_invite_endpoint_is_available_without_authentication() {
+        let app = app_for_test().await;
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/v1/invites/DEVJOIN2026")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["invite"]["status"], "valid");
+        assert_eq!(json["invite"]["guild"]["guild_id"], 2001);
+    }
+
+    #[tokio::test]
+    async fn public_invite_endpoint_returns_expired_status() {
+        let app = app_for_test().await;
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/v1/invites/EXPIRED2026")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["invite"]["status"], "expired");
+    }
+
+    #[tokio::test]
+    async fn public_invite_endpoint_returns_invalid_status_for_missing_code() {
+        let app = app_for_test().await;
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/v1/invites/UNKNOWN2026")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["invite"]["status"], "invalid");
+        assert!(json["invite"]["guild"].is_null());
+    }
+
+    #[tokio::test]
+    async fn public_invite_endpoint_returns_service_unavailable_when_invite_service_fails() {
+        let app = app_for_test_with_invite_service(Arc::new(StaticUnavailableInviteService)).await;
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/v1/invites/DEVJOIN2026")
+                    .header("x-request-id", "invite-unavailable-test")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "INVITE_UNAVAILABLE");
+        assert_eq!(json["request_id"], "invite-unavailable-test");
+    }
+
+    #[tokio::test]
+    async fn public_invite_endpoint_returns_retry_after_when_rate_limited() {
+        let app = app_for_test().await;
+        let mut last_response = None;
+
+        for _ in 0..11 {
+            last_response = Some(
+                app.clone()
+                    .oneshot(
+                        Request::builder()
+                            .uri("/v1/invites/DEVJOIN2026")
+                            .body(Body::empty())
+                            .unwrap(),
+                    )
+                    .await
+                    .unwrap(),
+            );
+        }
+
+        let response = last_response.unwrap();
+        assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
+        assert_eq!(
+            response
+                .headers()
+                .get(RETRY_AFTER)
+                .and_then(|value| value.to_str().ok()),
+            Some("60")
+        );
+    }
+
+    #[tokio::test]
+    async fn public_invite_endpoint_ignores_spoofed_forwarded_for_headers_for_rate_limit() {
+        let app = app_for_test().await;
+        let mut last_response = None;
+
+        for index in 0..11 {
+            last_response = Some(
+                app.clone()
+                    .oneshot(
+                        Request::builder()
+                            .uri(format!("/v1/invites/SPOOFED{index}"))
+                            .header("x-forwarded-for", format!("203.0.113.{index}"))
+                            .body(Body::empty())
+                            .unwrap(),
+                    )
+                    .await
+                    .unwrap(),
+            );
+        }
+
+        let response = last_response.unwrap();
+        assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
+    }
+
+    #[tokio::test]
+    async fn public_invite_endpoint_rate_limits_across_codes_without_headers() {
+        let app = app_for_test().await;
+        let mut last_response = None;
+
+        for index in 0..11 {
+            last_response = Some(
+                app.clone()
+                    .oneshot(
+                        Request::builder()
+                            .uri(format!("/v1/invites/CODE{index}"))
+                            .body(Body::empty())
+                            .unwrap(),
+                    )
+                    .await
+                    .unwrap(),
+            );
+        }
+
+        let response = last_response.unwrap();
+        assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
+    }
+
+    #[tokio::test]
+    async fn public_invite_endpoint_fail_closes_when_ratelimit_degraded() {
+        let state = state_for_test_with_authorizer(Arc::new(StaticAllowAllAuthorizer)).await;
+        state.rest_rate_limit_service.set_degraded_for_test(true).await;
+        let app = app_with_state(state);
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/v1/invites/DEVJOIN2026")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
+        assert_eq!(
+            response
+                .headers()
+                .get(RETRY_AFTER)
+                .and_then(|value| value.to_str().ok()),
+            Some("60")
+        );
+    }
+
+    #[tokio::test]
+    async fn invite_join_endpoint_rejects_missing_token() {
+        let app = app_for_test().await;
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method(Method::POST)
+                    .uri("/v1/invites/DEVJOIN2026/join")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn invite_join_endpoint_accepts_valid_token_without_authz_membership() {
+        let app = app_for_test_with_authorizer(Arc::new(StaticDenyAuthorizer)).await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method(Method::POST)
+                    .uri("/v1/invites/DEVJOIN2026/join")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["join"]["status"], "joined");
+        assert_eq!(json["join"]["guild_id"], 2001);
+    }
+
+    #[tokio::test]
+    async fn invite_join_endpoint_returns_already_member_for_duplicate_join() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method(Method::POST)
+                    .uri("/v1/invites/ALREADY2026/join")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["join"]["status"], "already_member");
+        assert_eq!(json["join"]["guild_id"], 2001);
+    }
+
+    #[tokio::test]
+    async fn invite_join_endpoint_returns_conflict_for_expired_invite() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method(Method::POST)
+                    .uri("/v1/invites/EXPIRED2026/join")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::CONFLICT);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "INVITE_EXPIRED");
+    }
+
+    #[tokio::test]
+    async fn invite_join_endpoint_returns_conflict_for_invalid_invite() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method(Method::POST)
+                    .uri("/v1/invites/UNKNOWN2026/join")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::CONFLICT);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "INVITE_INVALID");
+    }
+
+    #[tokio::test]
+    async fn invite_join_endpoint_returns_service_unavailable_when_invite_service_fails() {
+        let app = app_for_test_with_invite_service(Arc::new(StaticUnavailableInviteService)).await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method(Method::POST)
+                    .uri("/v1/invites/DEVJOIN2026/join")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("x-request-id", "invite-join-unavailable-test")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "INVITE_UNAVAILABLE");
+        assert_eq!(json["request_id"], "invite-join-unavailable-test");
+    }
+
+    #[tokio::test]
+    async fn invite_join_endpoint_returns_retry_after_when_rate_limited() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let mut last_response = None;
+
+        for _ in 0..11 {
+            last_response = Some(
+                app.clone()
+                    .oneshot(
+                        Request::builder()
+                            .method(Method::POST)
+                            .uri("/v1/invites/DEVJOIN2026/join")
+                            .header("authorization", format!("Bearer {token}"))
+                            .body(Body::empty())
+                            .unwrap(),
+                    )
+                    .await
+                    .unwrap(),
+            );
+        }
+
+        let response = last_response.unwrap();
+        assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
+        assert_eq!(
+            response
+                .headers()
+                .get(RETRY_AFTER)
+                .and_then(|value| value.to_str().ok()),
+            Some("60")
+        );
+    }
+
+    #[tokio::test]
+    async fn invite_join_endpoint_uses_principal_scoped_rate_limit() {
+        let app = app_for_test().await;
+        let primary_token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let secondary_token = format!("u-3:{}", unix_timestamp_seconds() + 300);
+        let mut last_primary_response = None;
+
+        for _ in 0..11 {
+            last_primary_response = Some(
+                app.clone()
+                    .oneshot(
+                        Request::builder()
+                            .method(Method::POST)
+                            .uri("/v1/invites/DEVJOIN2026/join")
+                            .header("authorization", format!("Bearer {primary_token}"))
+                            .body(Body::empty())
+                            .unwrap(),
+                    )
+                    .await
+                    .unwrap(),
+            );
+        }
+
+        let primary_response = last_primary_response.unwrap();
+        assert_eq!(primary_response.status(), StatusCode::TOO_MANY_REQUESTS);
+
+        let secondary_response = app
+            .oneshot(
+                Request::builder()
+                    .method(Method::POST)
+                    .uri("/v1/invites/DEVJOIN2026/join")
+                    .header("authorization", format!("Bearer {secondary_token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(secondary_response.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn invite_join_endpoint_fail_closes_when_ratelimit_degraded() {
+        let state = state_for_test_with_authorizer(Arc::new(StaticAllowAllAuthorizer)).await;
+        state.rest_rate_limit_service.set_degraded_for_test(true).await;
+        let app = app_with_state(state);
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method(Method::POST)
+                    .uri("/v1/invites/DEVJOIN2026/join")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
+        assert_eq!(
+            response
+                .headers()
+                .get(RETRY_AFTER)
+                .and_then(|value| value.to_str().ok()),
+            Some("60")
+        );
     }
 
     #[tokio::test]
