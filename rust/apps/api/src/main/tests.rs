@@ -22,6 +22,7 @@ mod tests {
         InviteError, InviteJoinResult, InviteJoinStatus, InviteService, PublicInviteGuild,
         PublicInviteLookup, PublicInviteStatus,
     };
+    use message::{MessageError, MessageService};
     use moderation::{
         CreateModerationMuteInput, CreateModerationReportInput, ModerationError, ModerationReport,
         ModerationReportStatus, ModerationService, ModerationTargetType,
@@ -35,7 +36,14 @@ mod tests {
             Method, StatusCode,
         },
     };
-    use linklynx_message_api::{MessageCursorKeyV1, MessageItemV1};
+    use linklynx_message_api::{
+        CreateGuildChannelMessageRequestV1,
+        CreateGuildChannelMessageResponseV1,
+        ListGuildChannelMessagesQueryV1,
+        ListGuildChannelMessagesResponseV1,
+        MessageCursorKeyV1,
+        MessageItemV1,
+    };
     use linklynx_protocol_ws::{ClientMessageFrameV1, GuildChannelSubscriptionTargetV1, ServerMessageFrameV1};
     use linklynx_shared::PrincipalId;
     use tokio::{
@@ -68,6 +76,9 @@ mod tests {
     struct WsTextUnavailableAuthorizer;
     struct PermissionSnapshotUnavailableAuthorizer;
     struct StaticGuildChannelService;
+    struct StaticMessageService;
+    struct StaticNotFoundMessageService;
+    struct StaticUnavailableMessageService;
     struct StaticModerationService;
     struct StaticProfileService;
     struct StaticUnavailableProfileService;
@@ -295,6 +306,89 @@ mod tests {
     impl ScyllaHealthReporter for StaticScyllaHealthReporter {
         async fn report(&self) -> ScyllaHealthReport {
             self.report.clone()
+        }
+    }
+
+    #[async_trait]
+    impl MessageService for StaticMessageService {
+        async fn list_guild_channel_messages(
+            &self,
+            guild_id: i64,
+            channel_id: i64,
+            query: ListGuildChannelMessagesQueryV1,
+        ) -> Result<ListGuildChannelMessagesResponseV1, MessageError> {
+            linklynx_message_api::paginate_messages(&message_fixture(guild_id, channel_id), &query)
+                .map_err(MessageError::from)
+        }
+
+        async fn create_guild_channel_message(
+            &self,
+            principal_id: PrincipalId,
+            guild_id: i64,
+            channel_id: i64,
+            _request_id: &str,
+            request: CreateGuildChannelMessageRequestV1,
+        ) -> Result<CreateGuildChannelMessageResponseV1, MessageError> {
+            linklynx_message_api::validate_create_request(&request).map_err(MessageError::from)?;
+
+            Ok(CreateGuildChannelMessageResponseV1 {
+                message: create_message_fixture(
+                    guild_id,
+                    channel_id,
+                    principal_id.0,
+                    request.content,
+                ),
+            })
+        }
+    }
+
+    #[async_trait]
+    impl MessageService for StaticUnavailableMessageService {
+        async fn list_guild_channel_messages(
+            &self,
+            _guild_id: i64,
+            _channel_id: i64,
+            _query: ListGuildChannelMessagesQueryV1,
+        ) -> Result<ListGuildChannelMessagesResponseV1, MessageError> {
+            Err(MessageError::dependency_unavailable(
+                "message_body_store_unavailable",
+            ))
+        }
+
+        async fn create_guild_channel_message(
+            &self,
+            _principal_id: PrincipalId,
+            _guild_id: i64,
+            _channel_id: i64,
+            _request_id: &str,
+            _request: CreateGuildChannelMessageRequestV1,
+        ) -> Result<CreateGuildChannelMessageResponseV1, MessageError> {
+            Err(MessageError::dependency_unavailable(
+                "message_body_store_unavailable",
+            ))
+        }
+    }
+
+    #[async_trait]
+    impl MessageService for StaticNotFoundMessageService {
+        async fn list_guild_channel_messages(
+            &self,
+            _guild_id: i64,
+            _channel_id: i64,
+            _query: ListGuildChannelMessagesQueryV1,
+        ) -> Result<ListGuildChannelMessagesResponseV1, MessageError> {
+            Err(MessageError::channel_not_found("message_channel_not_found"))
+        }
+
+        async fn create_guild_channel_message(
+            &self,
+            _principal_id: PrincipalId,
+            _guild_id: i64,
+            _channel_id: i64,
+            _request_id: &str,
+            _request: CreateGuildChannelMessageRequestV1,
+        ) -> Result<CreateGuildChannelMessageResponseV1, MessageError> {
+            Err(MessageError::channel_not_found("message_channel_not_found"))
         }
     }
 
@@ -933,13 +1027,14 @@ mod tests {
         profile_service: Arc<dyn ProfileService>,
         invite_service: Arc<dyn InviteService>,
     ) -> AppState {
-        state_for_test_with_authorizer_profile_invite_and_scylla(
+        state_for_test_with_authorizer_profile_invite_scylla_and_message(
             authorizer,
             profile_service,
             invite_service,
             Arc::new(StaticScyllaHealthReporter {
                 report: ScyllaHealthReport::ready(),
             }),
+            Arc::new(StaticMessageService),
         )
         .await
     }
@@ -949,6 +1044,23 @@ mod tests {
         profile_service: Arc<dyn ProfileService>,
         invite_service: Arc<dyn InviteService>,
         scylla_health_reporter: Arc<dyn ScyllaHealthReporter>,
+    ) -> AppState {
+        state_for_test_with_authorizer_profile_invite_scylla_and_message(
+            authorizer,
+            profile_service,
+            invite_service,
+            scylla_health_reporter,
+            Arc::new(StaticMessageService),
+        )
+        .await
+    }
+
+    async fn state_for_test_with_authorizer_profile_invite_scylla_and_message(
+        authorizer: Arc<dyn Authorizer>,
+        profile_service: Arc<dyn ProfileService>,
+        invite_service: Arc<dyn InviteService>,
+        scylla_health_reporter: Arc<dyn ScyllaHealthReporter>,
+        message_service: Arc<dyn MessageService>,
     ) -> AppState {
         let metrics = Arc::new(AuthMetrics::default());
         let verifier: Arc<dyn TokenVerifier> = Arc::new(StaticTokenVerifier);
@@ -978,6 +1090,7 @@ mod tests {
             authz_metrics: Arc::new(AuthzMetrics::default()),
             guild_channel_service: Arc::new(StaticGuildChannelService),
             invite_service,
+            message_service,
             moderation_service: Arc::new(StaticModerationService),
             profile_service,
             scylla_health_reporter,
@@ -1011,6 +1124,23 @@ mod tests {
             authorizer,
             profile_service,
             Arc::new(StaticInviteService),
+        )
+        .await;
+        app_with_state(state)
+    }
+
+    async fn app_for_test_with_authorizer_and_message_service(
+        authorizer: Arc<dyn Authorizer>,
+        message_service: Arc<dyn MessageService>,
+    ) -> Router {
+        let state = state_for_test_with_authorizer_profile_invite_scylla_and_message(
+            authorizer,
+            Arc::new(StaticProfileService),
+            Arc::new(StaticInviteService),
+            Arc::new(StaticScyllaHealthReporter {
+                report: ScyllaHealthReport::ready(),
+            }),
+            message_service,
         )
         .await;
         app_with_state(state)
@@ -3774,6 +3904,64 @@ mod tests {
         let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
         assert_eq!(json["code"], "VALIDATION_ERROR");
         assert_eq!(json["message"], "request payload is invalid");
+    }
+
+    #[tokio::test]
+    async fn create_channel_message_returns_service_unavailable_when_message_service_fails_close() {
+        let app = app_for_test_with_authorizer_and_message_service(
+            Arc::new(RoleScenarioAuthorizer),
+            Arc::new(StaticUnavailableMessageService),
+        )
+        .await;
+        let token = format!("u-member:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/v1/guilds/10/channels/20/messages")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"content":"hello contract"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "AUTHZ_UNAVAILABLE");
+        assert_eq!(json["message"], "authorization dependency is unavailable");
+    }
+
+    #[tokio::test]
+    async fn list_channel_messages_returns_not_found_when_message_service_reports_missing_channel() {
+        let app = app_for_test_with_authorizer_and_message_service(
+            Arc::new(RoleScenarioAuthorizer),
+            Arc::new(StaticNotFoundMessageService),
+        )
+        .await;
+        let token = format!("u-member:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/v1/guilds/10/channels/20/messages")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "CHANNEL_NOT_FOUND");
+        assert_eq!(json["message"], "channel resource was not found");
     }
 
     #[tokio::test]
