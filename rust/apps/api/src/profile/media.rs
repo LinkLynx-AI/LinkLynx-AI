@@ -277,6 +277,10 @@ impl GcsSignedUrlSigner {
     ) -> Result<ProfileMediaUpload, ProfileError> {
         let normalized_filename = sanitize_profile_media_filename(&input.filename)?;
         let normalized_content_type = normalize_profile_media_content_type(&input.content_type)?;
+        validate_profile_media_content_type_filename_match(
+            &normalized_content_type,
+            &normalized_filename,
+        )?;
         let asset_id = uuid::Uuid::new_v4().to_string();
         let object_key = format!(
             "v0/tenant/{}/user/{}/profile/{}/asset/{}/{}",
@@ -523,6 +527,39 @@ fn normalize_profile_media_content_type(raw_content_type: &str) -> Result<String
     }
 
     Ok(normalized)
+}
+
+/// content-type と filename 拡張子の既知組み合わせを検証する。
+/// @param content_type 正規化済み content-type
+/// @param filename 正規化済み filename
+/// @returns 整合時は Ok
+/// @throws ProfileError 既知拡張子と矛盾する場合
+fn validate_profile_media_content_type_filename_match(
+    content_type: &str,
+    filename: &str,
+) -> Result<(), ProfileError> {
+    let Some((_, extension)) = filename.rsplit_once('.') else {
+        return Ok(());
+    };
+    let normalized_extension = extension.to_ascii_lowercase();
+    let expected_content_types = match normalized_extension.as_str() {
+        "png" => Some(&["image/png"][..]),
+        "jpg" | "jpeg" => Some(&["image/jpeg"][..]),
+        "gif" => Some(&["image/gif"][..]),
+        "webp" => Some(&["image/webp"][..]),
+        "avif" => Some(&["image/avif"][..]),
+        _ => None,
+    };
+
+    if let Some(expected_content_types) = expected_content_types {
+        if !expected_content_types.contains(&content_type) {
+            return Err(ProfileError::validation(
+                "profile_media_content_type_extension_mismatch",
+            ));
+        }
+    }
+
+    Ok(())
 }
 
 #[derive(Deserialize)]

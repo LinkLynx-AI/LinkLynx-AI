@@ -28,6 +28,10 @@
 
 ## Review
 - Manual review after final contract-alignment fixes: no actionable findings remained
+- Claude review follow-up:
+  - fixed `database/postgres/schema.sql` column order so DB schema CI matches the additive `ALTER TABLE ... ADD COLUMN` result
+  - added a low-risk validation that rejects mismatched known filename extensions and `content_type` pairs during upload URL issuance
+  - documented minimum signer/bucket IAM requirements in the profile-media runbook
 - Focus points:
   - `PATCH /users/me/profile` cannot persist arbitrary/cross-principal profile media keys
   - runtime signer path now matches the documented local vs attached-service-account execution model

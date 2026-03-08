@@ -82,6 +82,7 @@ v0/tenant/default/user/{user_id}/profile/{avatar|banner}/asset/{asset_id}/{filen
   - `target`
   - `filename`
   - `content_type`
+  - known image extensions must stay consistent with the requested `content_type`
 - Response:
   - `object_key`
   - `upload_url`

@@ -54,6 +54,11 @@ Out of scope:
 2. Staging/production:
    - Use the workload/service-account identity attached to the runtime.
    - Keep the bucket private and signer permissions minimal.
+   - Grant only the minimum permissions required to issue and use signed URLs:
+     - `storage.objects.create`
+     - `storage.objects.get`
+     - `storage.buckets.get`
+     - IAM Credentials `signBlob` on the signer identity when runtime signing uses the metadata/IAM path
 
 ### 3.3 Bucket baseline
 

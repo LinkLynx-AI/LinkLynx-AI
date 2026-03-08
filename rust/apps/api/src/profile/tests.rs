@@ -259,6 +259,26 @@ mod tests {
     }
 
     #[test]
+    fn validate_profile_media_content_type_filename_match_rejects_known_mismatch() {
+        let result =
+            validate_profile_media_content_type_filename_match("image/png", "avatar.jpg");
+        assert!(matches!(
+            result,
+            Err(ProfileError {
+                kind: ProfileErrorKind::Validation,
+                reason,
+            }) if reason == "profile_media_content_type_extension_mismatch"
+        ));
+    }
+
+    #[test]
+    fn validate_profile_media_content_type_filename_match_allows_unknown_extension() {
+        let result =
+            validate_profile_media_content_type_filename_match("image/svg+xml", "avatar.svg");
+        assert!(result.is_ok());
+    }
+
+    #[test]
     fn signed_url_contains_expected_profile_media_segments() {
         let signer = GcsSignedUrlSigner::from_service_account_path(
             "profile-media".to_owned(),
