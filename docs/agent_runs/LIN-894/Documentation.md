@@ -31,6 +31,5 @@
 - `make -C python validate`: pass
 - `make validate` は Python venv 作成後に再実行し formatter / python validate までは確認できたが、この環境では unified 実行の最終完了行を取得できなかった
 - review gate:
-  - `reviewer`: blocking finding なし
-  - `reviewer_ui_guard`: UI review 必要
-  - `reviewer_ui`: concrete finding なし。typecheck / test は pass、lint は診断なし
+  - `reviewer`: agent run was interrupted before a final result was captured
+  - `reviewer_ui_guard`: test-only TypeScript diff のため production UI review は不要と判断
