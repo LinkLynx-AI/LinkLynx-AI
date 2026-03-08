@@ -138,22 +138,32 @@ async fn build_runtime_scylla_health_reporter_from_parts(
 async fn build_live_scylla_health_reporter(
     config: &ScyllaRuntimeConfig,
 ) -> Result<LiveScyllaHealthReporter, String> {
-    let mut builder = SessionBuilder::new();
-    for host in &config.hosts {
-        builder = builder.known_node(host);
-    }
-
     let request_timeout = Duration::from_millis(config.request_timeout_ms);
-    let session = timeout(request_timeout, builder.build())
-        .await
-        .map_err(|_| format!("scylla_connect_timeout:{}ms", config.request_timeout_ms))?
-        .map_err(|error| format!("scylla_connect_failed:{error}"))?;
+    let session = build_runtime_scylla_session(config).await?;
 
     Ok(LiveScyllaHealthReporter::new(
         session,
         config.keyspace.clone(),
         request_timeout,
     ))
+}
+
+/// 実行時設定から Scylla session を初期化する。
+/// @param config Scylla runtime 設定
+/// @returns 初期化済み session
+/// @throws String session 初期化失敗時
+pub(crate) async fn build_runtime_scylla_session(
+    config: &ScyllaRuntimeConfig,
+) -> Result<Session, String> {
+    let mut builder = SessionBuilder::new();
+    for host in &config.hosts {
+        builder = builder.known_node(host);
+    }
+
+    timeout(Duration::from_millis(config.request_timeout_ms), builder.build())
+        .await
+        .map_err(|_| format!("scylla_connect_timeout:{}ms", config.request_timeout_ms))?
+        .map_err(|error| format!("scylla_connect_failed:{error}"))
 }
 
 /// 必須環境変数を CSV として読み取る。

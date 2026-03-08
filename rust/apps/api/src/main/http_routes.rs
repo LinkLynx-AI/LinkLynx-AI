@@ -466,6 +466,7 @@ async fn get_guild_channel(
 /// @returns メッセージ一覧最小応答
 /// @throws なし
 async fn list_channel_messages(
+    State(state): State<AppState>,
     Extension(auth_context): Extension<AuthContext>,
     Path(params): Path<GuildChannelPathParams>,
     query: Result<Query<ListGuildChannelMessagesQueryV1>, QueryRejection>,
@@ -484,9 +485,13 @@ async fn list_channel_messages(
         Err(error) => return guild_channel_error_response(&error, request_id),
     };
 
-    match paginate_messages(&message_fixture(guild_id, channel_id), &query) {
+    match state
+        .message_service
+        .list_guild_channel_messages(guild_id, channel_id, query)
+        .await
+    {
         Ok(response) => Json(response).into_response(),
-        Err(error) => message_api_error_response(&error, request_id),
+        Err(error) => message_error_response(&error, request_id),
     }
 }
 
@@ -497,6 +502,7 @@ async fn list_channel_messages(
 /// @returns メッセージ作成レスポンス
 /// @throws なし
 async fn create_channel_message(
+    State(state): State<AppState>,
     Extension(auth_context): Extension<AuthContext>,
     Path(params): Path<GuildChannelPathParams>,
     payload: Result<Json<CreateGuildChannelMessageRequestV1>, JsonRejection>,
@@ -514,20 +520,21 @@ async fn create_channel_message(
         Ok(value) => value,
         Err(error) => return guild_channel_error_response(&error, request_id),
     };
-    if let Err(error) = validate_create_request(&payload) {
-        return message_api_error_response(&error, request_id);
-    }
 
-    let response = CreateGuildChannelMessageResponseV1 {
-        message: create_message_fixture(
+    match state
+        .message_service
+        .create_guild_channel_message(
+            auth_context.principal_id,
             guild_id,
             channel_id,
-            auth_context.principal_id.0,
-            payload.content,
-        ),
-    };
-
-    (StatusCode::CREATED, Json(response)).into_response()
+            &request_id,
+            payload,
+        )
+        .await
+    {
+        Ok(response) => (StatusCode::CREATED, Json(response)).into_response(),
+        Err(error) => message_error_response(&error, request_id),
+    }
 }
 
 /// DMチャンネル情報の最小応答を返す。
@@ -1070,24 +1077,15 @@ fn parse_message_list_query(
         .map_err(|_| GuildChannelError::validation("message_query_invalid"))
 }
 
-/// message API validation エラーを既存レスポンス契約へ写像する。
-/// @param error message API エラー
-/// @param request_id リクエスト識別子
-/// @returns エラーレスポンス
-/// @throws なし
-fn message_api_error_response(error: &MessageApiError, request_id: String) -> Response {
-    let api_error = GuildChannelError::validation(error.reason_code());
-    guild_channel_error_response(&api_error, request_id)
-}
-
 /// contract 固定用のメッセージ fixture を返す。
 /// @param guild_id 対象 guild_id
 /// @param channel_id 対象 channel_id
 /// @returns newest-first のメッセージ列
 /// @throws なし
-fn message_fixture(guild_id: i64, channel_id: i64) -> Vec<MessageItemV1> {
+#[cfg(test)]
+fn message_fixture(guild_id: i64, channel_id: i64) -> Vec<linklynx_message_api::MessageItemV1> {
     vec![
-        MessageItemV1 {
+        linklynx_message_api::MessageItemV1 {
             message_id: 120_110,
             guild_id,
             channel_id,
@@ -1098,7 +1096,7 @@ fn message_fixture(guild_id: i64, channel_id: i64) -> Vec<MessageItemV1> {
             edited_at: None,
             is_deleted: false,
         },
-        MessageItemV1 {
+        linklynx_message_api::MessageItemV1 {
             message_id: 120_108,
             guild_id,
             channel_id,
@@ -1109,7 +1107,7 @@ fn message_fixture(guild_id: i64, channel_id: i64) -> Vec<MessageItemV1> {
             edited_at: None,
             is_deleted: false,
         },
-        MessageItemV1 {
+        linklynx_message_api::MessageItemV1 {
             message_id: 120_107,
             guild_id,
             channel_id,
@@ -1120,7 +1118,7 @@ fn message_fixture(guild_id: i64, channel_id: i64) -> Vec<MessageItemV1> {
             edited_at: None,
             is_deleted: false,
         },
-        MessageItemV1 {
+        linklynx_message_api::MessageItemV1 {
             message_id: 120_105,
             guild_id,
             channel_id,
@@ -1131,7 +1129,7 @@ fn message_fixture(guild_id: i64, channel_id: i64) -> Vec<MessageItemV1> {
             edited_at: None,
             is_deleted: false,
         },
-        MessageItemV1 {
+        linklynx_message_api::MessageItemV1 {
             message_id: 120_102,
             guild_id,
             channel_id,
@@ -1152,13 +1150,14 @@ fn message_fixture(guild_id: i64, channel_id: i64) -> Vec<MessageItemV1> {
 /// @param content 投稿内容
 /// @returns メッセージスナップショット
 /// @throws なし
+#[cfg(test)]
 fn create_message_fixture(
     guild_id: i64,
     channel_id: i64,
     author_id: i64,
     content: String,
-) -> MessageItemV1 {
-    MessageItemV1 {
+) -> linklynx_message_api::MessageItemV1 {
+    linklynx_message_api::MessageItemV1 {
         message_id: 120_111,
         guild_id,
         channel_id,

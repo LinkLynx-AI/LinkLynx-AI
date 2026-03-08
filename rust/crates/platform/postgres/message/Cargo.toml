@@ -1,0 +1,11 @@
+[package]
+name = "linklynx_platform_postgres_message"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+async-trait.workspace = true
+linklynx_message_domain = { path = "../../../domains/message" }
+tokio.workspace = true
+tokio-postgres.workspace = true
+tracing.workspace = true
