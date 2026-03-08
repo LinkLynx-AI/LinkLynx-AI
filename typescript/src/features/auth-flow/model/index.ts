@@ -39,6 +39,7 @@ export {
   getRegisterErrorMessage,
   getVerifyEmailErrorMessage,
   PASSWORD_RESET_COMPLETION_MESSAGE,
+  PASSWORD_RESET_RETRY_GUIDANCE_MESSAGE,
 } from "./error-message";
 export {
   validateLoginInput,
