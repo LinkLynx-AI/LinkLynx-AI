@@ -227,3 +227,45 @@ v0 での認可関連 SoR:
   - deny: close `1008`（`AUTHZ_DENIED`）
   - unavailable: close `1011`（`AUTHZ_UNAVAILABLE`）
 - 最小観測基盤として `GET /internal/authz/metrics` を追加し、`allow_total` / `deny_total` / `unavailable_total` を公開する。
+
+## 15. LIN-925 Permission snapshot contract baseline
+
+- FE が v1 で必要な `can_*` 判定を 1 リクエストで取得する最小契約として、`GET /guilds/{guild_id}/permission-snapshot` を追加する。
+- route 自体は `rest_auth_middleware` 配下に置き、`AuthzResource::Guild { guild_id } + View` を通過条件とする。
+- 成功レスポンス shape は以下で固定する。
+
+```json
+{
+  "request_id": "req_...",
+  "snapshot": {
+    "guild_id": 2001,
+    "channel_id": 3001,
+    "guild": {
+      "can_view": true,
+      "can_create_channel": false,
+      "can_create_invite": false,
+      "can_manage_settings": false,
+      "can_moderate": false
+    },
+    "channel": {
+      "can_view": true,
+      "can_post": true,
+      "can_manage": false
+    }
+  }
+}
+```
+
+- `channel_id` は query parameter で受け取る。未指定時は `snapshot.channel_id = null` かつ `snapshot.channel = null`。
+- v1 最小粒度は以下で固定する。
+  - guild scope: `can_view`, `can_create_channel`, `can_create_invite`, `can_manage_settings`, `can_moderate`
+  - channel scope: `can_view`, `can_post`, `can_manage`
+- 判定写像は以下で固定する。
+  - `guild.can_view`: route が `200` の場合は常に `true`
+  - `guild.can_create_channel` / `guild.can_create_invite` / `guild.can_manage_settings` / `guild.can_moderate`: `AuthzResource::Guild { guild_id } + Manage`
+  - `channel.can_view`: `AuthzResource::GuildChannel { guild_id, channel_id } + View`
+  - `channel.can_post`: `AuthzResource::GuildChannel { guild_id, channel_id } + Post`
+  - `channel.can_manage`: `AuthzResource::GuildChannel { guild_id, channel_id } + Manage`
+- `Denied` は snapshot 内で boolean `false` に畳み込む。
+- `DependencyUnavailable` は fail-close を維持し、endpoint 全体を `503/AUTHZ_UNAVAILABLE` で返す。部分成功や stale fallback は許可しない。
+- 本 issue の範囲は contract と取得I/F の固定までであり、snapshot を使った UI ActionGuard 適用は `LIN-926` に分離する。

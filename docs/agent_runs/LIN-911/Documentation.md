@@ -1,8 +1,8 @@
 # Documentation.md (Status / audit log)
 
 ## Current status
-- Now: `LIN-911` 実装・検証完了。review blocker 修正込みで gate 再確認済み。
-- Next: PR 用サマリを整える。
+- Now: `LIN-911` 実装・検証完了。2026-03-08 に latest `origin/main` を取り込み、conflict 解消まで反映済み。
+- Next: 更新済み branch の PR check / human review を待てる状態。
 
 ## Decisions
 - `LIN-891` 親 issueではなく `LIN-911` にスコープを限定する。
@@ -23,6 +23,8 @@
   - `cd typescript && npm run typecheck`
   - `make validate`
   - `make rust-lint`
+  - `cargo test -p linklynx_backend public_invite_endpoint`
+  - `cargo test -p linklynx_backend scylla_health_`
 - Python 側の dev tools 未セット環境では `cd python && make setup` が必要だったため、repo 内 `.venv` を作成して validation を通した。
 
 ## Review notes
@@ -33,6 +35,15 @@
   - disabled/maxed-out と expired が同時成立する場合に `invalid` を優先。
   - unavailable UI を `invalid` から分離し、内部エラー文言を非表示化。
 - CI follow-up として `db-schema-check` job の Postgres wait を `pg_isready` 単体から `select 1` 成功を含む query-ready 判定へ強化した。
+- 2026-03-08 branch update では `origin/main` を merge し、以下の競合を解消した。
+  - `.github/workflows/ci.yml`: query-ready 判定と TCP 固定の両方を維持。
+  - `docs/AUTHZ_API_MATRIX.md`: public invite verify と Scylla health の両 endpoint を public 一覧へ保持。
+  - `rust/apps/api/src/main/http_routes.rs`: invite verify route / scylla health route / permission snapshot struct を併存。
+  - `rust/apps/api/src/main/tests.rs`: public invite tests と scylla health tests の両方が通る helper 構成へ再統合。
+- reviewer gate:
+  - `reviewer_simple`: pass（blocking finding なし）
+  - `reviewer_ui_guard`: UI review required（main 取り込みの TypeScript 差分を検知）
+  - `reviewer_ui`: pass（concrete finding なし）
 
 ## Known issues / follow-ups
 - `LIN-912` で join API と membership 整合を実装する必要がある。

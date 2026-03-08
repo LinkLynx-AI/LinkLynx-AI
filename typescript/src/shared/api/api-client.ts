@@ -144,6 +144,36 @@ export type CreateModerationMuteData = {
   expiresAt?: string | null;
 };
 
+export type GuildPermissionSnapshot = {
+  canView: boolean;
+  canCreateChannel: boolean;
+  canCreateInvite: boolean;
+  canManageSettings: boolean;
+  canModerate: boolean;
+};
+
+export type ChannelPermissionSnapshot = {
+  canView: boolean;
+  canPost: boolean;
+  canManage: boolean;
+};
+
+/**
+ * permission snapshot 契約を表す。
+ *
+ * Contract:
+ * - backend の numeric ID を frontend では string として扱う
+ * - channel 指定なしの snapshot では `channel` と `channelId` は `null`
+ */
+export type PermissionSnapshot = {
+  /** backend i64 を string へ変換した guild ID。 */
+  guildId: string;
+  /** backend i64 を string へ変換した channel ID。未指定時は `null`。 */
+  channelId: string | null;
+  guild: GuildPermissionSnapshot;
+  channel: ChannelPermissionSnapshot | null;
+};
+
 export type APIClient = {
   // Auth
   getCurrentUser(): Promise<User>;
@@ -246,6 +276,12 @@ export type APIClient = {
   resolveModerationReport(serverId: string, reportId: string): Promise<ModerationReport>;
   reopenModerationReport(serverId: string, reportId: string): Promise<ModerationReport>;
   createModerationMute(serverId: string, data: CreateModerationMuteData): Promise<ModerationMute>;
+
+  // AuthZ snapshot
+  getPermissionSnapshot(
+    serverId: string,
+    params?: { channelId?: string | null },
+  ): Promise<PermissionSnapshot>;
 
   // Typing
   triggerTyping(channelId: string): Promise<void>;

@@ -2,13 +2,16 @@ import { z } from "zod";
 import { getFirebaseAuth } from "@/shared/lib";
 import type { Channel, Guild } from "@/shared/model/types";
 import type {
+  ChannelPermissionSnapshot,
   CreateChannelData,
   CreateGuildData,
   CreateModerationMuteData,
   CreateModerationReportData,
+  GuildPermissionSnapshot,
   MyProfile,
   ModerationMute,
   ModerationReport,
+  PermissionSnapshot,
   UpdateGuildData,
   UpdateMyProfileInput,
 } from "./api-client";
@@ -88,6 +91,27 @@ const MY_PROFILE_SCHEMA = z.object({
 const MY_PROFILE_RESPONSE_SCHEMA = z.object({
   profile: MY_PROFILE_SCHEMA,
 });
+const PERMISSION_SNAPSHOT_RESPONSE_SCHEMA = z.object({
+  request_id: z.string().trim().min(1),
+  snapshot: z.object({
+    guild_id: z.number().int().positive(),
+    channel_id: z.number().int().positive().nullable(),
+    guild: z.object({
+      can_view: z.boolean(),
+      can_create_channel: z.boolean(),
+      can_create_invite: z.boolean(),
+      can_manage_settings: z.boolean(),
+      can_moderate: z.boolean(),
+    }),
+    channel: z
+      .object({
+        can_view: z.boolean(),
+        can_post: z.boolean(),
+        can_manage: z.boolean(),
+      })
+      .nullable(),
+  }),
+});
 const BACKEND_ERROR_RESPONSE_SCHEMA = z.object({
   code: z.string().trim().min(1),
   message: z.string().trim().min(1),
@@ -144,6 +168,7 @@ type GuildUpdateResponse = z.infer<typeof GUILD_UPDATE_RESPONSE_SCHEMA>;
 type ChannelListResponse = z.infer<typeof CHANNEL_LIST_RESPONSE_SCHEMA>;
 type ChannelSummaryResponse = z.infer<typeof CHANNEL_SUMMARY_SCHEMA>;
 type MyProfileResponse = z.infer<typeof MY_PROFILE_RESPONSE_SCHEMA>;
+type PermissionSnapshotResponse = z.infer<typeof PERMISSION_SNAPSHOT_RESPONSE_SCHEMA>;
 type SupportedChannelType = (typeof SUPPORTED_CHANNEL_TYPES)[number];
 type ModerationReportApi = z.infer<typeof MODERATION_REPORT_SCHEMA>;
 type ModerationMuteApi = z.infer<typeof MODERATION_MUTE_SCHEMA>;
@@ -424,6 +449,41 @@ function mapMyProfile(response: MyProfileResponse): MyProfile {
     displayName: response.profile.display_name,
     statusText: response.profile.status_text,
     avatarKey: response.profile.avatar_key,
+  };
+}
+
+function mapGuildPermissionSnapshot(
+  snapshot: PermissionSnapshotResponse["snapshot"]["guild"],
+): GuildPermissionSnapshot {
+  return {
+    canView: snapshot.can_view,
+    canCreateChannel: snapshot.can_create_channel,
+    canCreateInvite: snapshot.can_create_invite,
+    canManageSettings: snapshot.can_manage_settings,
+    canModerate: snapshot.can_moderate,
+  };
+}
+
+function mapChannelPermissionSnapshot(
+  snapshot: PermissionSnapshotResponse["snapshot"]["channel"],
+): ChannelPermissionSnapshot | null {
+  if (snapshot === null) {
+    return null;
+  }
+
+  return {
+    canView: snapshot.can_view,
+    canPost: snapshot.can_post,
+    canManage: snapshot.can_manage,
+  };
+}
+
+function mapPermissionSnapshot(response: PermissionSnapshotResponse): PermissionSnapshot {
+  return {
+    guildId: String(response.snapshot.guild_id),
+    channelId: response.snapshot.channel_id === null ? null : String(response.snapshot.channel_id),
+    guild: mapGuildPermissionSnapshot(response.snapshot.guild),
+    channel: mapChannelPermissionSnapshot(response.snapshot.channel),
   };
 }
 
@@ -731,6 +791,32 @@ export class GuildChannelAPIClient extends NoDataAPIClient {
     }
 
     return server;
+  }
+
+  async getPermissionSnapshot(
+    serverId: string,
+    params?: { channelId?: string | null },
+  ): Promise<PermissionSnapshot> {
+    const normalizedServerId = serverId.trim();
+    if (normalizedServerId.length === 0) {
+      throw new GuildChannelApiError("Server not found.", {
+        status: 404,
+        code: "GUILD_NOT_FOUND",
+      });
+    }
+
+    const normalizedChannelId = params?.channelId?.trim() ?? "";
+    const searchParams = new URLSearchParams();
+    if (normalizedChannelId.length > 0) {
+      searchParams.set("channel_id", normalizedChannelId);
+    }
+
+    const suffix = searchParams.size > 0 ? `?${searchParams.toString()}` : "";
+    const response = await this.getJson(
+      `/guilds/${encodeURIComponent(normalizedServerId)}/permission-snapshot${suffix}`,
+      PERMISSION_SNAPSHOT_RESPONSE_SCHEMA,
+    );
+    return mapPermissionSnapshot(response);
   }
 
   private async fetchChannelsForServer(serverId: string): Promise<Channel[]> {
