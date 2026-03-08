@@ -9,6 +9,7 @@
 - `authz-spicedb-local-ci-runtime-runbook.md`: SpiceDB local/CI runtime baseline (env contract, docker startup, health check, and troubleshooting).
 - `authz-spicedb-tuple-sync-operations-runbook.md`: Postgres -> SpiceDB tuple mapping/backfill/outbox delta-sync baseline and full-resync operational hook.
 - `session-resume-dragonfly-operations-runbook.md`: Session/resume/TTL continuity baseline on Dragonfly, including degraded behavior and TTL rollout/rollback procedure.
+- `message-v1-api-ws-contract-runbook.md`: v1 text message REST/WS contract baseline, opaque cursor paging, shared message snapshot, and durable message_create event naming.
 - `dragonfly-ratelimit-operations-runbook.md`: Dragonfly-backed rate-limit degraded enter/exit, `429 + Retry-After`, and outage simulation baseline for minimal v1 abuse controls.
 - `realtime-nats-core-subject-subscription-runbook.md`: NATS Core subject naming contract, Gateway/Fanout subscribe-unsubscribe lifecycle, reconnect baseline, and outage handling for v0 realtime delivery.
 - `scylla-node-loss-backup-runbook.md`: Scylla node-loss continuity decisions and minimum backup/restore execution baseline for v0.

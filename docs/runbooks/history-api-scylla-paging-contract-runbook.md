@@ -19,7 +19,7 @@ In scope:
 - Cursor format and ordering rules
 - Initial/latest retrieval and older-page retrieval behavior
 - Duplicate elimination policy
-- Reconnect differential fetch policy (`last_seen` / `ack` boundary)
+- Reconnect differential fetch policy via `after` boundary
 - Failure and retry behavior
 
 Out of scope:
@@ -41,23 +41,24 @@ Optional:
 
 - `before` cursor for older-page fetch
 - `after` cursor for forward differential fetch
-- `last_seen_message_id` for reconnect catch-up boundary
 
 ## 2.2 Response payload
 
-- `items[]` sorted by descending `(created_at, message_id)` in page payload
+- `items[]`
 - `next_before` cursor for older page
 - `next_after` cursor for forward continuation
 - `has_more` boolean
 
-Cursor payload must include both `created_at` and `message_id` to maintain deterministic ordering.
+Cursor value is opaque externally, but it must encode both `created_at` and `message_id` to maintain deterministic ordering.
 
 ## 3. Paging and ordering rules
 
 1. Initial fetch returns latest N messages.
 2. Older-page fetch uses `before` cursor and returns strictly older items.
-3. Differential fetch after reconnect uses `after` or `last_seen_message_id` boundary.
+3. Differential fetch after reconnect uses `after` boundary.
 4. Ordering tie-break uses `message_id` when `created_at` collides.
+5. Initial fetch and `before` fetch return newest -> oldest.
+6. `after` fetch returns oldest -> newest.
 
 ## 4. Duplicate elimination policy
 
@@ -74,8 +75,8 @@ Client-facing expectation:
 
 On reconnect/resume fallback:
 
-1. Client sends `last_seen_message_id` when available.
-2. Server resolves boundary and returns messages newer than boundary.
+1. Client sends `after` cursor when a prior boundary is available.
+2. Server returns messages newer than that boundary.
 3. If boundary is unknown or expired, server falls back to latest N + pagination guidance.
 4. Missing realtime deliveries are compensated only through this history contract.
 

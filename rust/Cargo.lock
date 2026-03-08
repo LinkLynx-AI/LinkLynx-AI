@@ -896,6 +896,9 @@ dependencies = [
  "futures-util",
  "http",
  "jsonwebtoken",
+ "linklynx_message_api",
+ "linklynx_protocol_events",
+ "linklynx_protocol_ws",
  "linklynx_shared",
  "reqwest",
  "scylla",
@@ -936,6 +939,33 @@ version = "0.1.0"
 dependencies = [
  "linklynx_domains",
  "uuid",
+]
+
+[[package]]
+name = "linklynx_message_api"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
+name = "linklynx_protocol_events"
+version = "0.1.0"
+dependencies = [
+ "linklynx_message_api",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "linklynx_protocol_ws"
+version = "0.1.0"
+dependencies = [
+ "linklynx_message_api",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

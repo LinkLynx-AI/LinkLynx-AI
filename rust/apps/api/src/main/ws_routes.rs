@@ -497,23 +497,39 @@ async fn handle_ready_message(
         Message::Text(text) => {
             let text = text.to_string();
 
-            match parse_client_ws_message(&text) {
-                Some(ClientWsMessage::Identify { .. }) => {
-                    let _ = close_socket(socket, 1008, "unexpected_identify").await;
+            if matches!(parse_client_ws_message(&text), Some(ClientWsMessage::Identify { .. })) {
+                let _ = close_socket(socket, 1008, "unexpected_identify").await;
+                return false;
+            }
+
+            if parse_reauth_id_token(&text).is_none() {
+                if reauth_deadline.is_some() {
+                    state.auth_service.metrics().record_ws_reauth(false);
+                    let _ = close_socket(socket, 1008, "reauth_required").await;
                     return false;
                 }
-                Some(ClientWsMessage::Reauthenticate { .. }) => {}
-                None => {
-                    if reauth_deadline.is_some() {
-                        state.auth_service.metrics().record_ws_reauth(false);
-                        let _ = close_socket(socket, 1008, "reauth_required").await;
+
+                if let Some(frame) = parse_message_client_frame(&text) {
+                    if !authorize_message_frame_operation(
+                        state,
+                        authenticated,
+                        request_id,
+                        socket,
+                        &frame,
+                    )
+                    .await
+                    {
                         return false;
                     }
-                    if !authorize_ws_stream_operation(state, authenticated, request_id, socket).await {
-                        return false;
-                    }
-                    return socket.send(Message::Text(text.into())).await.is_ok();
+
+                    let response = build_message_server_frame(frame);
+                    return send_json_message(socket, &response).await.is_ok();
                 }
+
+                if !authorize_ws_stream_operation(state, authenticated, request_id, socket).await {
+                    return false;
+                }
+                return socket.send(Message::Text(text.into())).await.is_ok();
             }
 
             let Some(token) = parse_reauth_id_token(&text) else {
@@ -656,6 +672,25 @@ fn parse_reauth_id_token(text: &str) -> Option<String> {
     }
 }
 
+/// テキストメッセージを message WS frame として解釈する。
+/// @param text クライアント送信テキスト
+/// @returns 解釈済み message frame
+/// @throws なし
+fn parse_message_client_frame(text: &str) -> Option<ClientMessageFrameV1> {
+    serde_json::from_str::<ClientMessageFrameV1>(text).ok()
+}
+
+fn build_message_server_frame(frame: ClientMessageFrameV1) -> ServerMessageFrameV1 {
+    match frame {
+        ClientMessageFrameV1::Subscribe(target) => {
+            ServerMessageFrameV1::Subscribed(MessageSubscriptionStateV1::from(target))
+        }
+        ClientMessageFrameV1::Unsubscribe(target) => {
+            ServerMessageFrameV1::Unsubscribed(MessageSubscriptionStateV1::from(target))
+        }
+    }
+}
+
 fn identify_rate_key(origin_header: Option<&str>) -> String {
     let key = origin_header
         .map(str::trim)
@@ -738,6 +773,30 @@ async fn authorize_ws_stream_operation(
     }
 }
 
+/// guild message frame の認可を検証する。
+/// @param state アプリケーション状態
+/// @param authenticated 認証済み主体
+/// @param request_id 接続識別子
+/// @param socket WebSocket接続
+/// @param frame message frame
+/// @returns 継続可否
+/// @throws なし
+async fn authorize_message_frame_operation(
+    state: &AppState,
+    authenticated: &AuthenticatedPrincipal,
+    request_id: &str,
+    socket: &mut WebSocket,
+    frame: &ClientMessageFrameV1,
+) -> bool {
+    match authorize_message_frame_access(state, authenticated, request_id, frame).await {
+        Ok(()) => true,
+        Err(error) => {
+            let _ = close_socket(socket, error.ws_close_code(), error.app_code()).await;
+            false
+        }
+    }
+}
+
 /// WSストリーム操作の認可を評価する。
 /// @param state アプリケーション状態
 /// @param authenticated 認証済み主体
@@ -745,6 +804,20 @@ async fn authorize_ws_stream_operation(
 /// @returns 認可成功時は `Ok(())`
 /// @throws authz::AuthzError 認可拒否または依存障害時
 async fn authorize_ws_stream_access(
+    state: &AppState,
+    authenticated: &AuthenticatedPrincipal,
+    request_id: &str,
+) -> Result<(), authz::AuthzError> {
+    check_ws_stream_access(state, authenticated, request_id).await
+}
+
+/// WSストリーム操作の生判定を評価する。
+/// @param state アプリケーション状態
+/// @param authenticated 認証済み主体
+/// @param request_id 接続識別子
+/// @returns 認可成功時は `Ok(())`
+/// @throws authz::AuthzError 認可拒否または依存障害時
+async fn check_ws_stream_access(
     state: &AppState,
     authenticated: &AuthenticatedPrincipal,
     request_id: &str,
@@ -773,4 +846,76 @@ async fn authorize_ws_stream_access(
     }
     state.authz_metrics.record_allow();
     Ok(())
+}
+
+/// guild message frame の認可を評価する。
+/// @param state アプリケーション状態
+/// @param authenticated 認証済み主体
+/// @param request_id 接続識別子
+/// @param frame message frame
+/// @returns 認可成功時は `Ok(())`
+/// @throws authz::AuthzError 認可拒否または依存障害時
+async fn authorize_message_frame_access(
+    state: &AppState,
+    authenticated: &AuthenticatedPrincipal,
+    request_id: &str,
+    frame: &ClientMessageFrameV1,
+) -> Result<(), authz::AuthzError> {
+    check_ws_stream_access(state, authenticated, request_id).await?;
+    check_message_frame_target_access(state, authenticated, request_id, frame).await
+}
+
+/// guild message frame target の生判定を評価する。
+/// @param state アプリケーション状態
+/// @param authenticated 認証済み主体
+/// @param request_id 接続識別子
+/// @param frame message frame
+/// @returns 認可成功時は `Ok(())`
+/// @throws authz::AuthzError 認可拒否または依存障害時
+async fn check_message_frame_target_access(
+    state: &AppState,
+    authenticated: &AuthenticatedPrincipal,
+    request_id: &str,
+    frame: &ClientMessageFrameV1,
+) -> Result<(), authz::AuthzError> {
+    let target = message_frame_target(frame);
+    let authz_input = AuthzCheckInput {
+        principal_id: authenticated.principal_id,
+        resource: AuthzResource::GuildChannel {
+            guild_id: target.guild_id,
+            channel_id: target.channel_id,
+        },
+        action: AuthzAction::View,
+    };
+    if let Err(error) = state.authorizer.check(&authz_input).await {
+        state.authz_metrics.record_error(&error);
+        tracing::warn!(
+            decision = %error.decision(),
+            request_id = %request_id,
+            principal_id = authenticated.principal_id.0,
+            guild_id = target.guild_id,
+            channel_id = target.channel_id,
+            error_class = %error.log_class(),
+            reason = %error.reason,
+            resource = "guild_channel",
+            action = "view",
+            decision_source = "authorizer",
+            "WS authz rejected at message frame operation"
+        );
+        return Err(error);
+    }
+    state.authz_metrics.record_allow();
+    Ok(())
+}
+
+/// message frame から購読対象を抽出する。
+/// @param frame message frame
+/// @returns 購読対象 guild/channel
+/// @throws なし
+fn message_frame_target(frame: &ClientMessageFrameV1) -> &GuildChannelSubscriptionTargetV1 {
+    match frame {
+        ClientMessageFrameV1::Subscribe(target) | ClientMessageFrameV1::Unsubscribe(target) => {
+            target
+        }
+    }
 }

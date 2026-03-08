@@ -30,7 +30,7 @@ use authz::{
 use axum::{
     body::Body,
     extract::{
-        rejection::JsonRejection,
+        rejection::{JsonRejection, QueryRejection},
         ws::{CloseFrame, Message, WebSocket, WebSocketUpgrade},
         Extension, Path, Query, State,
     },
@@ -45,6 +45,15 @@ use guild_channel::{
     GuildChannelService,
 };
 use invite::{build_runtime_invite_service, invite_error_response, InviteService};
+use linklynx_message_api::{
+    paginate_messages, validate_create_request, CreateGuildChannelMessageRequestV1,
+    CreateGuildChannelMessageResponseV1, ListGuildChannelMessagesQueryV1, MessageApiError,
+    MessageItemV1,
+};
+use linklynx_protocol_ws::{
+    ClientMessageFrameV1, GuildChannelSubscriptionTargetV1, MessageSubscriptionStateV1,
+    ServerMessageFrameV1,
+};
 use moderation::{
     build_runtime_moderation_service, moderation_error_response, ModerationError, ModerationService,
 };

@@ -35,6 +35,8 @@ mod tests {
             Method, StatusCode,
         },
     };
+    use linklynx_message_api::{MessageCursorKeyV1, MessageItemV1};
+    use linklynx_protocol_ws::{ClientMessageFrameV1, GuildChannelSubscriptionTargetV1, ServerMessageFrameV1};
     use linklynx_shared::PrincipalId;
     use tokio::{
         net::{TcpListener, TcpStream},
@@ -58,6 +60,10 @@ mod tests {
     struct StaticAllowAllAuthorizer;
     struct StaticDenyAuthorizer;
     struct StaticUnavailableAuthorizer;
+    struct StreamAllowedGuildChannelDeniedAuthorizer;
+    struct StreamDeniedGuildChannelAllowedAuthorizer;
+    struct StreamAllowedGuildChannelUnavailableAuthorizer;
+    struct StreamUnavailableGuildChannelAllowedAuthorizer;
     struct WsTextDeniedAuthorizer;
     struct WsTextUnavailableAuthorizer;
     struct PermissionSnapshotUnavailableAuthorizer;
@@ -121,6 +127,27 @@ mod tests {
     }
 
     #[async_trait]
+    impl Authorizer for StreamAllowedGuildChannelDeniedAuthorizer {
+        async fn check(&self, input: &AuthzCheckInput) -> Result<(), AuthzError> {
+            match (&input.resource, input.action) {
+                (AuthzResource::RestPath { path }, AuthzAction::View) if path == "/ws/stream" => {
+                    Ok(())
+                }
+                (
+                    AuthzResource::GuildChannel {
+                        guild_id,
+                        channel_id,
+                    },
+                    AuthzAction::View,
+                ) if *guild_id == 10 && *channel_id == 20 => {
+                    Err(AuthzError::denied("guild_channel_access_denied"))
+                }
+                _ => Err(AuthzError::denied("unsupported_stream_channel_scenario")),
+            }
+        }
+    }
+
+    #[async_trait]
     impl Authorizer for WsTextDeniedAuthorizer {
         async fn check(&self, input: &AuthzCheckInput) -> Result<(), AuthzError> {
             match (&input.resource, input.action) {
@@ -129,6 +156,65 @@ mod tests {
                     Err(AuthzError::denied("ws_text_denied"))
                 }
                 _ => Ok(()),
+            }
+        }
+    }
+
+    #[async_trait]
+    impl Authorizer for StreamDeniedGuildChannelAllowedAuthorizer {
+        async fn check(&self, input: &AuthzCheckInput) -> Result<(), AuthzError> {
+            match (&input.resource, input.action) {
+                (AuthzResource::RestPath { path }, AuthzAction::View) if path == "/ws/stream" => {
+                    Err(AuthzError::denied("ws_stream_access_denied"))
+                }
+                (
+                    AuthzResource::GuildChannel {
+                        guild_id,
+                        channel_id,
+                    },
+                    AuthzAction::View,
+                ) if *guild_id == 10 && *channel_id == 20 => Ok(()),
+                _ => Err(AuthzError::denied("unsupported_stream_channel_scenario")),
+            }
+        }
+    }
+
+    #[async_trait]
+    impl Authorizer for StreamAllowedGuildChannelUnavailableAuthorizer {
+        async fn check(&self, input: &AuthzCheckInput) -> Result<(), AuthzError> {
+            match (&input.resource, input.action) {
+                (AuthzResource::RestPath { path }, AuthzAction::View) if path == "/ws/stream" => {
+                    Ok(())
+                }
+                (
+                    AuthzResource::GuildChannel {
+                        guild_id,
+                        channel_id,
+                    },
+                    AuthzAction::View,
+                ) if *guild_id == 10 && *channel_id == 20 => {
+                    Err(AuthzError::unavailable("guild_channel_access_unavailable"))
+                }
+                _ => Err(AuthzError::denied("unsupported_stream_channel_scenario")),
+            }
+        }
+    }
+
+    #[async_trait]
+    impl Authorizer for StreamUnavailableGuildChannelAllowedAuthorizer {
+        async fn check(&self, input: &AuthzCheckInput) -> Result<(), AuthzError> {
+            match (&input.resource, input.action) {
+                (AuthzResource::RestPath { path }, AuthzAction::View) if path == "/ws/stream" => {
+                    Err(AuthzError::unavailable("ws_stream_access_unavailable"))
+                }
+                (
+                    AuthzResource::GuildChannel {
+                        guild_id,
+                        channel_id,
+                    },
+                    AuthzAction::View,
+                ) if *guild_id == 10 && *channel_id == 20 => Ok(()),
+                _ => Err(AuthzError::denied("unsupported_stream_channel_scenario")),
             }
         }
     }
@@ -1722,6 +1808,119 @@ mod tests {
         assert!(authorize_ws_stream_access(&state, &authenticated, "ws-test")
             .await
             .is_ok());
+    }
+
+    #[tokio::test]
+    async fn message_frame_access_denies_when_target_channel_is_forbidden() {
+        let state = state_for_test_with_authorizer(Arc::new(
+            StreamAllowedGuildChannelDeniedAuthorizer,
+        ))
+        .await;
+        let authenticated = AuthenticatedPrincipal {
+            principal_id: PrincipalId(9003),
+            firebase_uid: "u-member".to_owned(),
+            expires_at_epoch: unix_timestamp_seconds() + 300,
+        };
+        let frame = ClientMessageFrameV1::Subscribe(GuildChannelSubscriptionTargetV1 {
+            guild_id: 10,
+            channel_id: 20,
+        });
+
+        let error = authorize_message_frame_access(&state, &authenticated, "ws-test", &frame)
+            .await
+            .unwrap_err();
+        assert_eq!(error.kind, AuthzErrorKind::Denied);
+    }
+
+    #[tokio::test]
+    async fn message_frame_access_denies_when_ws_stream_is_forbidden() {
+        let state = state_for_test_with_authorizer(Arc::new(
+            StreamDeniedGuildChannelAllowedAuthorizer,
+        ))
+        .await;
+        let authenticated = AuthenticatedPrincipal {
+            principal_id: PrincipalId(9003),
+            firebase_uid: "u-member".to_owned(),
+            expires_at_epoch: unix_timestamp_seconds() + 300,
+        };
+        let frame = ClientMessageFrameV1::Subscribe(GuildChannelSubscriptionTargetV1 {
+            guild_id: 10,
+            channel_id: 20,
+        });
+
+        let error = authorize_message_frame_access(&state, &authenticated, "ws-test", &frame)
+            .await
+            .unwrap_err();
+        assert_eq!(error.kind, AuthzErrorKind::Denied);
+    }
+
+    #[tokio::test]
+    async fn message_frame_access_records_allow_for_each_authz_check() {
+        let state = state_for_test_with_authorizer(Arc::new(StaticAllowAllAuthorizer)).await;
+        let authenticated = AuthenticatedPrincipal {
+            principal_id: PrincipalId(9003),
+            firebase_uid: "u-member".to_owned(),
+            expires_at_epoch: unix_timestamp_seconds() + 300,
+        };
+        let frame = ClientMessageFrameV1::Subscribe(GuildChannelSubscriptionTargetV1 {
+            guild_id: 10,
+            channel_id: 20,
+        });
+
+        assert!(authorize_message_frame_access(&state, &authenticated, "ws-test", &frame)
+            .await
+            .is_ok());
+        let metrics = state.authz_metrics.snapshot();
+        let value = serde_json::to_value(metrics).unwrap();
+        assert_eq!(value["allow_total"], 2);
+        assert_eq!(value["deny_total"], 0);
+        assert_eq!(value["unavailable_total"], 0);
+    }
+
+    #[tokio::test]
+    async fn message_frame_access_returns_unavailable_when_ws_stream_is_unavailable() {
+        let state = state_for_test_with_authorizer(Arc::new(
+            StreamUnavailableGuildChannelAllowedAuthorizer,
+        ))
+        .await;
+        let authenticated = AuthenticatedPrincipal {
+            principal_id: PrincipalId(9003),
+            firebase_uid: "u-member".to_owned(),
+            expires_at_epoch: unix_timestamp_seconds() + 300,
+        };
+        let frame = ClientMessageFrameV1::Subscribe(GuildChannelSubscriptionTargetV1 {
+            guild_id: 10,
+            channel_id: 20,
+        });
+
+        let error = authorize_message_frame_access(&state, &authenticated, "ws-test", &frame)
+            .await
+            .unwrap_err();
+        assert_eq!(error.kind, AuthzErrorKind::DependencyUnavailable);
+        assert_eq!(error.ws_close_code(), 1011);
+    }
+
+    #[tokio::test]
+    async fn message_frame_access_returns_unavailable_when_target_channel_is_unavailable() {
+        let state = state_for_test_with_authorizer(Arc::new(
+            StreamAllowedGuildChannelUnavailableAuthorizer,
+        ))
+        .await;
+        let authenticated = AuthenticatedPrincipal {
+            principal_id: PrincipalId(9003),
+            firebase_uid: "u-member".to_owned(),
+            expires_at_epoch: unix_timestamp_seconds() + 300,
+        };
+        let frame = ClientMessageFrameV1::Subscribe(GuildChannelSubscriptionTargetV1 {
+            guild_id: 10,
+            channel_id: 20,
+        });
+
+        let error = authorize_message_frame_access(&state, &authenticated, "ws-test", &frame)
+            .await
+            .unwrap_err();
+        assert_eq!(error.kind, AuthzErrorKind::DependencyUnavailable);
+        assert_eq!(error.ws_close_code(), 1011);
     }
 
     #[tokio::test]
@@ -3386,6 +3585,198 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn list_channel_messages_returns_contract_payload_with_next_before() {
+        let app = app_for_test_with_authorizer(Arc::new(RoleScenarioAuthorizer)).await;
+        let token = format!("u-member:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/v1/guilds/10/channels/20/messages?limit=3")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+
+        assert_eq!(json["items"][0]["message_id"], 120110);
+        assert_eq!(json["items"][1]["message_id"], 120108);
+        assert_eq!(json["items"][2]["message_id"], 120107);
+        assert!(json["next_before"].as_str().is_some());
+        assert_eq!(json["next_after"], serde_json::Value::Null);
+        assert_eq!(json["has_more"], true);
+    }
+
+    #[tokio::test]
+    async fn list_channel_messages_returns_after_page_in_ascending_order() {
+        let app = app_for_test_with_authorizer(Arc::new(RoleScenarioAuthorizer)).await;
+        let token = format!("u-member:{}", unix_timestamp_seconds() + 300);
+        let cursor = MessageCursorKeyV1 {
+            created_at: "2026-02-21T10:00:05Z".to_owned(),
+            message_id: 120107,
+        }
+        .encode();
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri(format!(
+                        "/v1/guilds/10/channels/20/messages?limit=1&after={cursor}"
+                    ))
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+
+        assert_eq!(json["items"][0]["message_id"], 120108);
+        assert_eq!(json["next_before"], serde_json::Value::Null);
+        assert!(json["next_after"].as_str().is_some());
+        assert_eq!(json["has_more"], true);
+    }
+
+    #[tokio::test]
+    async fn list_channel_messages_rejects_before_after_conflict() {
+        let app = app_for_test_with_authorizer(Arc::new(RoleScenarioAuthorizer)).await;
+        let token = format!("u-member:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/v1/guilds/10/channels/20/messages?before=a&after=b")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "VALIDATION_ERROR");
+        assert_eq!(json["message"], "request payload is invalid");
+    }
+
+    #[tokio::test]
+    async fn list_channel_messages_rejects_invalid_cursor() {
+        let app = app_for_test_with_authorizer(Arc::new(RoleScenarioAuthorizer)).await;
+        let token = format!("u-member:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/v1/guilds/10/channels/20/messages?after=not-a-cursor")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "VALIDATION_ERROR");
+        assert_eq!(json["message"], "request payload is invalid");
+    }
+
+    #[tokio::test]
+    async fn create_channel_message_returns_contract_payload() {
+        let app = app_for_test_with_authorizer(Arc::new(RoleScenarioAuthorizer)).await;
+        let token = format!("u-member:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/v1/guilds/10/channels/20/messages")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"content":"hello contract"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::CREATED);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["message"]["guild_id"], 10);
+        assert_eq!(json["message"]["channel_id"], 20);
+        assert_eq!(json["message"]["author_id"], 9003);
+        assert_eq!(json["message"]["content"], "hello contract");
+        assert_eq!(json["message"]["is_deleted"], false);
+    }
+
+    #[tokio::test]
+    async fn create_channel_message_rejects_blank_content() {
+        let app = app_for_test_with_authorizer(Arc::new(RoleScenarioAuthorizer)).await;
+        let token = format!("u-member:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/v1/guilds/10/channels/20/messages")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from("{\"content\":\"   \"}"))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "VALIDATION_ERROR");
+        assert_eq!(json["message"], "request payload is invalid");
+    }
+
+    #[tokio::test]
+    async fn create_channel_message_rejects_malformed_json() {
+        let app = app_for_test_with_authorizer(Arc::new(RoleScenarioAuthorizer)).await;
+        let token = format!("u-member:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/v1/guilds/10/channels/20/messages")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"content":"unterminated""#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "VALIDATION_ERROR");
+        assert_eq!(json["message"], "request payload is invalid");
+    }
+
+    #[tokio::test]
     async fn moderation_endpoint_returns_unavailable_when_authz_unavailable() {
         let app = app_for_test_with_authorizer(Arc::new(StaticUnavailableAuthorizer)).await;
         let token = format!("u-owner:{}", unix_timestamp_seconds() + 300);
@@ -3571,6 +3962,59 @@ mod tests {
     fn parse_reauth_id_token_ignores_non_reauth_messages() {
         let text = r#"{"type":"message.create","body":"hi"}"#;
         assert_eq!(parse_reauth_id_token(text), None);
+    }
+
+    #[test]
+    fn parse_message_client_frame_extracts_subscription_target() {
+        let text = r#"{"type":"message.subscribe","d":{"guild_id":10,"channel_id":20}}"#;
+        let frame = parse_message_client_frame(text).unwrap();
+
+        assert_eq!(
+            frame,
+            ClientMessageFrameV1::Subscribe(GuildChannelSubscriptionTargetV1 {
+                guild_id: 10,
+                channel_id: 20,
+            })
+        );
+    }
+
+    #[test]
+    fn build_message_server_frame_returns_subscribed_ack() {
+        let frame = build_message_server_frame(ClientMessageFrameV1::Subscribe(
+            GuildChannelSubscriptionTargetV1 {
+                guild_id: 10,
+                channel_id: 20,
+            },
+        ));
+
+        let value = serde_json::to_value(frame).unwrap();
+        assert_eq!(value["type"], "message.subscribed");
+        assert_eq!(value["d"]["guild_id"], 10);
+        assert_eq!(value["d"]["channel_id"], 20);
+    }
+
+    #[test]
+    fn message_item_fixture_uses_shared_contract_shape() {
+        let message = MessageItemV1 {
+            message_id: 1,
+            guild_id: 10,
+            channel_id: 20,
+            author_id: 30,
+            content: "hello".to_owned(),
+            created_at: "2026-03-07T10:00:00Z".to_owned(),
+            version: 1,
+            edited_at: None,
+            is_deleted: false,
+        };
+        let frame = ServerMessageFrameV1::Created(linklynx_protocol_ws::MessageCreatedFrameDataV1 {
+            guild_id: 10,
+            channel_id: 20,
+            message,
+        });
+
+        let value = serde_json::to_value(frame).unwrap();
+        assert_eq!(value["type"], "message.created");
+        assert_eq!(value["d"]["message"]["message_id"], 1);
     }
 
     #[test]

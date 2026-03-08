@@ -8,6 +8,9 @@ async-trait.workspace = true
 axum.workspace = true
 http.workspace = true
 jsonwebtoken.workspace = true
+linklynx_message_api = { path = "../../crates/contracts/message-api" }
+linklynx_protocol_events = { path = "../../crates/contracts/protocol-events" }
+linklynx_protocol_ws = { path = "../../crates/contracts/protocol-ws" }
 linklynx_shared = { path = "../../crates/shared" }
 reqwest.workspace = true
 scylla.workspace = true

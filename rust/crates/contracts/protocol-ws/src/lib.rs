@@ -1,0 +1,142 @@
+use linklynx_message_api::MessageItemV1;
+use serde::{Deserialize, Serialize};
+
+/// guild text channel の購読対象を表現する。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GuildChannelSubscriptionTargetV1 {
+    pub guild_id: i64,
+    pub channel_id: i64,
+}
+
+/// client -> server の message WS frame を表現する。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "type", content = "d")]
+pub enum ClientMessageFrameV1 {
+    #[serde(rename = "message.subscribe")]
+    Subscribe(GuildChannelSubscriptionTargetV1),
+    #[serde(rename = "message.unsubscribe")]
+    Unsubscribe(GuildChannelSubscriptionTargetV1),
+}
+
+/// server -> client の購読状態 payload を表現する。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MessageSubscriptionStateV1 {
+    pub guild_id: i64,
+    pub channel_id: i64,
+}
+
+/// server -> client の message.created payload を表現する。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MessageCreatedFrameDataV1 {
+    pub guild_id: i64,
+    pub channel_id: i64,
+    pub message: MessageItemV1,
+}
+
+/// server -> client の message WS frame を表現する。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "type", content = "d")]
+pub enum ServerMessageFrameV1 {
+    #[serde(rename = "message.subscribed")]
+    Subscribed(MessageSubscriptionStateV1),
+    #[serde(rename = "message.unsubscribed")]
+    Unsubscribed(MessageSubscriptionStateV1),
+    #[serde(rename = "message.created")]
+    Created(MessageCreatedFrameDataV1),
+}
+
+impl From<GuildChannelSubscriptionTargetV1> for MessageSubscriptionStateV1 {
+    fn from(value: GuildChannelSubscriptionTargetV1) -> Self {
+        Self {
+            guild_id: value.guild_id,
+            channel_id: value.channel_id,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn sample_message() -> MessageItemV1 {
+        MessageItemV1 {
+            message_id: 100,
+            guild_id: 10,
+            channel_id: 20,
+            author_id: 30,
+            content: "hello".to_owned(),
+            created_at: "2026-03-07T10:00:00Z".to_owned(),
+            version: 1,
+            edited_at: None,
+            is_deleted: false,
+        }
+    }
+
+    #[test]
+    fn client_subscribe_frame_uses_type_and_d_contract() {
+        let frame = ClientMessageFrameV1::Subscribe(GuildChannelSubscriptionTargetV1 {
+            guild_id: 10,
+            channel_id: 20,
+        });
+
+        let value = serde_json::to_value(&frame).unwrap();
+        assert_eq!(value["type"], "message.subscribe");
+        assert_eq!(value["d"]["guild_id"], 10);
+        assert_eq!(value["d"]["channel_id"], 20);
+    }
+
+    #[test]
+    fn server_created_frame_deserializes_with_future_message_fields() {
+        let payload = serde_json::json!({
+            "type": "message.created",
+            "d": {
+                "guild_id": 10,
+                "channel_id": 20,
+                "message": {
+                    "message_id": 100,
+                    "guild_id": 10,
+                    "channel_id": 20,
+                    "author_id": 30,
+                    "content": "hello",
+                    "created_at": "2026-03-07T10:00:00Z",
+                    "version": 1,
+                    "edited_at": null,
+                    "is_deleted": false,
+                    "future_field": "ignored"
+                }
+            }
+        });
+
+        let parsed = serde_json::from_value::<ServerMessageFrameV1>(payload).unwrap();
+        match parsed {
+            ServerMessageFrameV1::Created(data) => assert_eq!(data.message.message_id, 100),
+            _ => panic!("expected message.created frame"),
+        }
+    }
+
+    #[test]
+    fn server_unsubscribed_frame_serializes_with_subscription_state() {
+        let frame = ServerMessageFrameV1::Unsubscribed(MessageSubscriptionStateV1 {
+            guild_id: 10,
+            channel_id: 20,
+        });
+
+        let value = serde_json::to_value(&frame).unwrap();
+        assert_eq!(value["type"], "message.unsubscribed");
+        assert_eq!(value["d"]["guild_id"], 10);
+        assert_eq!(value["d"]["channel_id"], 20);
+    }
+
+    #[test]
+    fn created_frame_keeps_message_snapshot() {
+        let frame = ServerMessageFrameV1::Created(MessageCreatedFrameDataV1 {
+            guild_id: 10,
+            channel_id: 20,
+            message: sample_message(),
+        });
+
+        let value = serde_json::to_value(&frame).unwrap();
+        assert_eq!(value["d"]["message"]["message_id"], 100);
+        assert_eq!(value["d"]["message"]["content"], "hello");
+    }
+}
