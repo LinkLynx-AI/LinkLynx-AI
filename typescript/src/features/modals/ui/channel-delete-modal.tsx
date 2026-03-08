@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { findFirstTextChannel } from "@/features/channel-navigation";
 import { toDeleteActionErrorText } from "@/shared/api/guild-channel-api-client";
 import { useDeleteChannel } from "@/shared/api/mutations/use-channel-actions";
+import { useActionGuard } from "@/shared/api/queries";
 import { useChannels } from "@/shared/api/queries/use-channels";
 import { buildChannelRoute, buildGuildRoute, parseGuildChannelRoute } from "@/shared/config/routes";
 import type { Channel } from "@/shared/model/types";
@@ -30,7 +31,15 @@ export function ChannelDeleteModal({
   const queryClient = useQueryClient();
   const deleteChannel = useDeleteChannel();
   const { data: channels } = useChannels(serverId ?? "");
+  const manageChannelGuard = useActionGuard({
+    serverId: serverId ?? "",
+    channelId,
+    requirement: "channel:manage",
+    enabled: serverId !== undefined && channelId !== undefined,
+  });
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const guardMessage =
+    serverId === undefined || channelId === undefined ? null : manageChannelGuard.message;
 
   const routeSelection = parseGuildChannelRoute(pathname ?? "");
   const isDeletingSelectedChannel =
@@ -41,6 +50,10 @@ export function ChannelDeleteModal({
   const handleDelete = async () => {
     if (serverId === undefined || channelId === undefined) {
       setSubmitError("チャンネル情報を確認してから再試行してください。");
+      return;
+    }
+    if (!manageChannelGuard.isAllowed) {
+      setSubmitError(manageChannelGuard.message);
       return;
     }
 
@@ -77,6 +90,17 @@ export function ChannelDeleteModal({
         <p className="mt-2 text-sm text-discord-text-muted">
           この操作は取り消せません。削除するとチャンネル一覧から除外されます。
         </p>
+        {submitError === null && guardMessage !== null && (
+          <p
+            className={`mt-3 text-sm ${
+              manageChannelGuard.status === "loading"
+                ? "text-discord-text-muted"
+                : "text-discord-btn-danger"
+            }`}
+          >
+            {guardMessage}
+          </p>
+        )}
         {submitError !== null && (
           <p className="mt-3 text-sm text-discord-btn-danger">{submitError}</p>
         )}
@@ -87,7 +111,12 @@ export function ChannelDeleteModal({
         </Button>
         <Button
           variant="danger"
-          disabled={deleteChannel.isPending || channelId === undefined || serverId === undefined}
+          disabled={
+            deleteChannel.isPending ||
+            channelId === undefined ||
+            serverId === undefined ||
+            !manageChannelGuard.isAllowed
+          }
           onClick={() => void handleDelete()}
         >
           {deleteChannel.isPending ? "削除中..." : "チャンネルを削除"}

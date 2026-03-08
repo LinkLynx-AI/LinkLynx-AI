@@ -8,6 +8,7 @@ const useChannelMock = vi.hoisted(() => vi.fn());
 const useChannelsMock = vi.hoisted(() => vi.fn());
 const useUpdateChannelMock = vi.hoisted(() => vi.fn());
 const useDeleteChannelMock = vi.hoisted(() => vi.fn());
+const useActionGuardMock = vi.hoisted(() => vi.fn());
 const mutateAsyncMock = vi.hoisted(() => vi.fn());
 const deleteMutateAsyncMock = vi.hoisted(() => vi.fn());
 
@@ -22,6 +23,10 @@ vi.mock("@/shared/api/mutations/use-channel-update", () => ({
 
 vi.mock("@/shared/api/mutations/use-channel-actions", () => ({
   useDeleteChannel: useDeleteChannelMock,
+}));
+
+vi.mock("@/shared/api/queries", () => ({
+  useActionGuard: useActionGuardMock,
 }));
 
 vi.mock("next/navigation", () => ({
@@ -64,6 +69,11 @@ describe("ChannelEditOverview", () => {
       isPending: false,
       mutateAsync: deleteMutateAsyncMock,
     });
+    useActionGuardMock.mockImplementation(() => ({
+      status: "allowed",
+      isAllowed: true,
+      message: null,
+    }));
   });
 
   test("submits name patch and closes modal on success", async () => {
@@ -132,5 +142,22 @@ describe("ChannelEditOverview", () => {
 
     expect(screen.getByText("#general を削除します。")).not.toBeNull();
     expect(screen.getAllByRole("button", { name: "チャンネルを削除" })).toHaveLength(2);
+  });
+
+  test("blocks update and delete when channel manage permission is missing", () => {
+    useActionGuardMock.mockImplementation(() => ({
+      status: "forbidden",
+      isAllowed: false,
+      message: "この操作を行う権限がありません。",
+    }));
+
+    render(<ChannelEditOverview channelId="3001" />);
+
+    expect(screen.getByText("この操作を行う権限がありません。")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "変更を保存" })).toHaveProperty("disabled", true);
+    expect(screen.getAllByRole("button", { name: "チャンネルを削除" })[0]).toHaveProperty(
+      "disabled",
+      true,
+    );
   });
 });

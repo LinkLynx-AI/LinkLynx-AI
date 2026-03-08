@@ -8,6 +8,7 @@ const mutateAsyncMock = vi.hoisted(() => vi.fn());
 const replaceMock = vi.hoisted(() => vi.fn());
 const usePathnameMock = vi.hoisted(() => vi.fn(() => "/channels/2001/3001"));
 const useChannelsMock = vi.hoisted(() => vi.fn());
+const useActionGuardMock = vi.hoisted(() => vi.fn());
 
 vi.mock("next/navigation", () => ({
   usePathname: usePathnameMock,
@@ -25,6 +26,10 @@ vi.mock("@/shared/api/mutations/use-channel-actions", () => ({
 
 vi.mock("@/shared/api/queries/use-channels", () => ({
   useChannels: useChannelsMock,
+}));
+
+vi.mock("@/shared/api/queries", () => ({
+  useActionGuard: useActionGuardMock,
 }));
 
 function createChannel(id: string, position: number) {
@@ -49,6 +54,11 @@ describe("ChannelDeleteModal", () => {
     useChannelsMock.mockReturnValue({
       data: [createChannel("3001", 1), createChannel("3002", 2)],
     });
+    useActionGuardMock.mockImplementation(() => ({
+      status: "allowed",
+      isAllowed: true,
+      message: null,
+    }));
   });
 
   test("deletes channel and redirects to fallback when current channel is removed", async () => {
@@ -101,5 +111,29 @@ describe("ChannelDeleteModal", () => {
     });
     expect(replaceMock).not.toHaveBeenCalled();
     expect(onClose).not.toHaveBeenCalled();
+  });
+
+  test("keeps delete disabled when channel manage permission is missing", () => {
+    useActionGuardMock.mockImplementation(() => ({
+      status: "forbidden",
+      isAllowed: false,
+      message: "この操作を行う権限がありません。",
+    }));
+
+    render(
+      <ChannelDeleteModal
+        channelId="3001"
+        channelName="general"
+        onClose={vi.fn()}
+        serverId="2001"
+      />,
+    );
+
+    expect(screen.getByText("この操作を行う権限がありません。")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "チャンネルを削除" })).toHaveProperty(
+      "disabled",
+      true,
+    );
+    expect(mutateAsyncMock).not.toHaveBeenCalled();
   });
 });

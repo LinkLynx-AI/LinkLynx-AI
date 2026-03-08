@@ -3,20 +3,30 @@
 import { useQuery } from "@tanstack/react-query";
 import { getAPIClient } from "@/shared/api/api-client";
 
-export function useModerationReports(serverId: string) {
+/**
+ * モデレーション通報一覧を取得する。
+ */
+export function useModerationReports(serverId: string, options?: { enabled?: boolean }) {
   const api = getAPIClient();
   return useQuery({
     queryKey: ["moderation-reports", serverId],
     queryFn: () => api.getModerationReports(serverId),
-    enabled: serverId.trim().length > 0,
+    enabled: (options?.enabled ?? true) && serverId.trim().length > 0,
   });
 }
 
-export function useModerationReport(serverId: string, reportId: string) {
+/**
+ * モデレーション通報詳細を取得する。
+ */
+export function useModerationReport(
+  serverId: string,
+  reportId: string,
+  options?: { enabled?: boolean },
+) {
   const api = getAPIClient();
   return useQuery({
     queryKey: ["moderation-report", serverId, reportId],
     queryFn: () => api.getModerationReport(serverId, reportId),
-    enabled: serverId.trim().length > 0 && reportId.trim().length > 0,
+    enabled: (options?.enabled ?? true) && serverId.trim().length > 0 && reportId.trim().length > 0,
   });
 }

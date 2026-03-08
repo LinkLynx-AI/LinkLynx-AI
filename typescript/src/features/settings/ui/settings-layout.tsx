@@ -2,6 +2,8 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { X } from "lucide-react";
+import { RouteGuardScreen } from "@/features/route-guard";
+import { getActionGuardScreenKind, useActionGuard } from "@/shared/api/queries";
 import { cn } from "@/shared/lib/cn";
 import { ServerOverview } from "./server/server-overview";
 import { ServerRoles } from "./server/server-roles";
@@ -106,6 +108,11 @@ export function SettingsLayout({
   const nav = type === "server" ? serverNav : userNav;
   const defaultPage = type === "server" ? "overview" : "account";
   const [activePage, setActivePage] = useState(defaultPage);
+  const manageSettingsGuard = useActionGuard({
+    serverId: serverId ?? "",
+    requirement: "guild:manage-settings",
+    enabled: type === "server",
+  });
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
@@ -118,6 +125,21 @@ export function SettingsLayout({
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [handleKeyDown]);
+
+  const guardScreenKind =
+    type === "server" ? getActionGuardScreenKind(manageSettingsGuard.status) : null;
+
+  if (type === "server" && manageSettingsGuard.status === "loading") {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-discord-bg-primary text-sm text-discord-text-muted">
+        権限を確認中です...
+      </div>
+    );
+  }
+
+  if (guardScreenKind !== null) {
+    return <RouteGuardScreen kind={guardScreenKind} />;
+  }
 
   function renderContent() {
     if (type === "server") {

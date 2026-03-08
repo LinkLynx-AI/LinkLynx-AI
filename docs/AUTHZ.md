@@ -269,3 +269,17 @@ v0 での認可関連 SoR:
 - `Denied` は snapshot 内で boolean `false` に畳み込む。
 - `DependencyUnavailable` は fail-close を維持し、endpoint 全体を `503/AUTHZ_UNAVAILABLE` で返す。部分成功や stale fallback は許可しない。
 - 本 issue の範囲は contract と取得I/F の固定までであり、snapshot を使った UI ActionGuard 適用は `LIN-926` に分離する。
+
+### 15.1 LIN-926 FE ActionGuard baseline
+
+- FE は permission snapshot を `allowed | forbidden | unavailable | loading` の 4 状態へ正規化して扱う。
+- fail-close baseline:
+  - `loading`: 操作は disabled
+  - `forbidden`: page は `RouteGuardScreen(kind="forbidden")`、個別操作は disabled
+  - `unavailable`: page は `RouteGuardScreen(kind="service-unavailable")`、個別操作は disabled
+- v1 の requirement と UI 対応は以下で固定する。
+  - `guild:create-channel` -> server context menu の create channel / create-channel modal
+  - `guild:manage-settings` -> server settings modal
+  - `guild:moderate` -> moderation queue / moderation report detail / resolve / reopen / mute
+  - `channel:manage` -> channel context menu の edit/delete / channel item settings shortcut / channel edit overview / channel delete modal
+- invite 作成は real API/client が未実装のため、`LIN-926` では導線を disabled にして停止し、`CreateInviteModal` も fail-close placeholder に固定する。

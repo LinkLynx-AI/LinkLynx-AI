@@ -2,18 +2,34 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { RouteGuardScreen } from "@/features/route-guard";
 import {
   useCreateModerationReport,
   useReopenModerationReport,
   useResolveModerationReport,
 } from "@/shared/api/mutations";
-import { useModerationReports } from "@/shared/api/queries";
+import {
+  getActionGuardScreenKind,
+  useActionGuard,
+  useModerationReports,
+} from "@/shared/api/queries";
 import { toApiErrorText } from "@/shared/api/guild-channel-api-client";
 import { buildModerationReportRoute } from "@/shared/config/routes";
 import { ModerationStatePlaceholder } from "./moderation-state-placeholder";
 
 export function ModerationQueuePage({ serverId }: { serverId: string }) {
-  const { data: reports, isLoading, isError, error } = useModerationReports(serverId);
+  const moderateGuard = useActionGuard({
+    serverId,
+    requirement: "guild:moderate",
+  });
+  const {
+    data: reports,
+    isLoading,
+    isError,
+    error,
+  } = useModerationReports(serverId, {
+    enabled: moderateGuard.isAllowed,
+  });
   const createReport = useCreateModerationReport();
   const resolveReport = useResolveModerationReport();
   const reopenReport = useReopenModerationReport();
@@ -26,6 +42,10 @@ export function ModerationQueuePage({ serverId }: { serverId: string }) {
   const handleCreateReport = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setCreateError(null);
+    if (!moderateGuard.isAllowed) {
+      setCreateError(moderateGuard.message);
+      return;
+    }
 
     try {
       await createReport.mutateAsync({
@@ -41,12 +61,35 @@ export function ModerationQueuePage({ serverId }: { serverId: string }) {
   };
 
   const handleResolve = async (reportId: string) => {
+    if (!moderateGuard.isAllowed) {
+      return;
+    }
     await resolveReport.mutateAsync({ serverId, reportId });
   };
 
   const handleReopen = async (reportId: string) => {
+    if (!moderateGuard.isAllowed) {
+      return;
+    }
     await reopenReport.mutateAsync({ serverId, reportId });
   };
+
+  const guardScreenKind = getActionGuardScreenKind(moderateGuard.status);
+
+  if (moderateGuard.status === "loading") {
+    return (
+      <div className="p-6">
+        <ModerationStatePlaceholder
+          title="モデレーション権限を確認中です"
+          description="アクセス可能な操作を確認しています。"
+        />
+      </div>
+    );
+  }
+
+  if (guardScreenKind !== null) {
+    return <RouteGuardScreen kind={guardScreenKind} />;
+  }
 
   if (isLoading) {
     return (
@@ -113,7 +156,7 @@ export function ModerationQueuePage({ serverId }: { serverId: string }) {
           </label>
           <button
             type="submit"
-            disabled={createReport.isPending}
+            disabled={createReport.isPending || !moderateGuard.isAllowed}
             className="rounded bg-discord-brand-green px-3 py-1.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-70"
           >
             {createReport.isPending ? "作成中..." : "通報を作成"}
@@ -160,7 +203,7 @@ export function ModerationQueuePage({ serverId }: { serverId: string }) {
                     <button
                       type="button"
                       onClick={() => void handleResolve(report.reportId)}
-                      disabled={resolveReport.isPending}
+                      disabled={resolveReport.isPending || !moderateGuard.isAllowed}
                       className="rounded bg-discord-brand-green px-2 py-1 text-xs font-medium text-white disabled:cursor-not-allowed disabled:opacity-70"
                     >
                       resolve
@@ -169,7 +212,7 @@ export function ModerationQueuePage({ serverId }: { serverId: string }) {
                     <button
                       type="button"
                       onClick={() => void handleReopen(report.reportId)}
-                      disabled={reopenReport.isPending}
+                      disabled={reopenReport.isPending || !moderateGuard.isAllowed}
                       className="rounded bg-discord-brand-yellow px-2 py-1 text-xs font-medium text-black disabled:cursor-not-allowed disabled:opacity-70"
                     >
                       reopen
