@@ -24,6 +24,7 @@
 | --- | --- | --- | --- | --- | --- |
 | GET | `/` | Public | なし | なし | ルート疎通 |
 | GET | `/health` | Public | なし | なし | ヘルスチェック |
+| GET | `/v1/invites/:invite_code` | Public | なし | なし | Public invite verify |
 | GET | `/internal/scylla/health` | Public | なし | なし | Scylla ヘルス。詳細はログに残し、レスポンスは coarse reason code のみ返す |
 | GET | `/internal/auth/metrics` | Public | なし | なし | 認証メトリクス取得 |
 | GET | `/internal/authz/metrics` | Public | なし | なし | 認可メトリクス取得 |
@@ -51,6 +52,7 @@
 ### Public (AuthZ excluded)
 - `GET /`
 - `GET /health`
+- `GET /v1/invites/:invite_code`
 - `GET /internal/scylla/health`
 - `GET /internal/auth/metrics`
 - `GET /internal/authz/metrics`
@@ -79,6 +81,7 @@
 | Surface | Operation | Principal | Resource | Action | Expected decision handling |
 | --- | --- | --- | --- | --- | --- |
 | REST | `GET /v1/protected/ping` | AuthN済み `principal_id` | `AuthzResource::RestPath { path: "/v1/protected/ping" }` | `View` | deny=`403/AUTHZ_DENIED`, unavailable=`503/AUTHZ_UNAVAILABLE` |
+| REST | `GET /v1/invites/:invite_code` | なし（Public route） | AuthZ対象外 | N/A | Public verify endpoint。rate limit は invite access を適用 |
 | REST | `GET /v1/guilds/:guild_id` | AuthN済み `principal_id` | `AuthzResource::Guild { guild_id }` | `View` | deny=`403/AUTHZ_DENIED`, unavailable=`503/AUTHZ_UNAVAILABLE` |
 | REST | `PATCH /v1/guilds/:guild_id` | AuthN済み `principal_id` | `AuthzResource::Guild { guild_id }` | `Manage` | deny=`403/AUTHZ_DENIED`, unavailable=`503/AUTHZ_UNAVAILABLE` |
 | REST | `GET /v1/guilds/:guild_id/channels/:channel_id` | AuthN済み `principal_id` | `AuthzResource::GuildChannel { guild_id, channel_id }` | `View` | deny=`403/AUTHZ_DENIED`, unavailable=`503/AUTHZ_UNAVAILABLE` |
