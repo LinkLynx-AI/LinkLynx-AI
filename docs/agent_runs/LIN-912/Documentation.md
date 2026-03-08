@@ -1,8 +1,8 @@
 # Documentation.md (Status / audit log)
 
 ## Current status
-- Now: stacked PR 作成済み。残りは PR merge 待ちのみ。
-- Next: LIN-913 の未認証復帰と post-join redirect に着手する。
+- Now: PR `#1133` は 2026-03-08 に latest `origin/main` を再取り込みし、conflict 解消と targeted validation を再実施済み。
+- Next: 更新済み branch の PR check / human review を待てる状態。
 
 ## Decisions
 - `POST /v1/invites/:invite_code/join` を追加し、AuthN 必須 / AuthZ 除外の明示例外として扱う。
@@ -15,6 +15,9 @@
 
 ## How to run / demo
 - `cargo test -p linklynx_backend invite`
+- `cargo test -p linklynx_backend public_invite_join`
+- `cargo test -p linklynx_backend scylla_health_`
+- `cargo test -p linklynx_backend -- --nocapture`
 - `docker compose down -v && docker compose up -d postgres && ... && INVITE_POSTGRES_INTEGRATION=true cargo test -p linklynx_backend postgres_join_invite_integration_ -- --nocapture`
 - `cd typescript && npm run typecheck`
 - `make rust-lint`
@@ -27,3 +30,12 @@
 - PR: `https://github.com/LinkLynx-AI/LinkLynx-AI/pull/1133`
 - `LIN-913` で未認証復帰と参加後遷移を閉じる。
 - TypeScript test の `act(...)` warning と verify-email の想定 error log は既存ノイズとして継続。
+
+## Review notes
+- 2026-03-08 branch repair では latest `origin/main` を再 merge し、以下の競合を解消した。
+  - `docs/AUTHZ_API_MATRIX.md`: public invite verify / invite join / scylla health を併存。
+  - `rust/apps/api/src/main/http_routes.rs`: invite join route と scylla health route を同時に保持。
+- reviewer gate:
+  - `reviewer_simple`: pass（blocking finding なし）
+  - `reviewer_ui_guard`: UI review required（`typescript/src/features/auth-flow/ui/password-reset-form.tsx` を含む main 取り込み差分を検知）
+  - `reviewer_ui`: pass（concrete finding なし）

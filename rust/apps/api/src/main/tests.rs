@@ -27,6 +27,7 @@ mod tests {
         ModerationReportStatus, ModerationService, ModerationTargetType,
     };
     use profile::{ProfileError, ProfilePatchInput, ProfileService, ProfileSettings};
+    use scylla_health::{ScyllaHealthReport, ScyllaHealthReporter};
     use axum::{
         body::to_bytes,
         http::{
@@ -59,6 +60,7 @@ mod tests {
     struct StaticUnavailableAuthorizer;
     struct WsTextDeniedAuthorizer;
     struct WsTextUnavailableAuthorizer;
+    struct PermissionSnapshotUnavailableAuthorizer;
     struct StaticGuildChannelService;
     struct StaticModerationService;
     struct StaticProfileService;
@@ -66,6 +68,9 @@ mod tests {
     struct StaticInviteService;
     struct StaticUnavailableInviteService;
     struct RoleScenarioAuthorizer;
+    struct StaticScyllaHealthReporter {
+        report: ScyllaHealthReport,
+    }
 
     type TestWsStream = WebSocketStream<MaybeTlsStream<TcpStream>>;
 
@@ -142,6 +147,19 @@ mod tests {
     }
 
     #[async_trait]
+    impl Authorizer for PermissionSnapshotUnavailableAuthorizer {
+        async fn check(&self, input: &AuthzCheckInput) -> Result<(), AuthzError> {
+            match (&input.resource, input.action) {
+                (AuthzResource::Guild { .. }, AuthzAction::View) => Ok(()),
+                (AuthzResource::Guild { .. }, AuthzAction::Manage) => {
+                    Err(AuthzError::unavailable("permission_snapshot_unavailable"))
+                }
+                _ => Err(AuthzError::denied("unsupported_permission_snapshot_scenario")),
+            }
+        }
+    }
+
+    #[async_trait]
     impl Authorizer for RoleScenarioAuthorizer {
         async fn check(&self, input: &AuthzCheckInput) -> Result<(), AuthzError> {
             match (&input.resource, input.action) {
@@ -184,6 +202,13 @@ mod tests {
                 }
                 _ => Err(AuthzError::denied("unsupported_role_scenario")),
             }
+        }
+    }
+
+    #[async_trait]
+    impl ScyllaHealthReporter for StaticScyllaHealthReporter {
+        async fn report(&self) -> ScyllaHealthReport {
+            self.report.clone()
         }
     }
 
@@ -688,7 +713,7 @@ mod tests {
 
             let guild = PublicInviteGuild {
                 guild_id: 2001,
-                name: "LinkLynx Developers".to_owned(),
+                name: "LinkLynx Guild".to_owned(),
                 icon_key: None,
             };
 
@@ -698,7 +723,7 @@ mod tests {
                     invite_code: normalized_invite_code,
                     guild: Some(guild),
                     expires_at: Some("2026-03-21T00:00:00Z".to_owned()),
-                    uses: Some(2),
+                    uses: Some(3),
                     max_uses: Some(100),
                 }),
                 "EXPIRED2026" => Ok(PublicInviteLookup {
@@ -778,7 +803,7 @@ mod tests {
     }
 
     async fn app_for_test() -> Router {
-        let state = state_for_test_with_services(
+        let state = state_for_test_with_authorizer_and_profile_and_invite(
             Arc::new(StaticAllowAllAuthorizer),
             Arc::new(StaticProfileService),
             Arc::new(StaticInviteService),
@@ -787,8 +812,19 @@ mod tests {
         app_with_state(state)
     }
 
+    async fn app_for_test_with_scylla_report(report: ScyllaHealthReport) -> Router {
+        let state = state_for_test_with_authorizer_profile_invite_and_scylla(
+            Arc::new(StaticAllowAllAuthorizer),
+            Arc::new(StaticProfileService),
+            Arc::new(StaticInviteService),
+            Arc::new(StaticScyllaHealthReporter { report }),
+        )
+        .await;
+        app_with_state(state)
+    }
+
     async fn app_for_test_with_authorizer(authorizer: Arc<dyn Authorizer>) -> Router {
-        let state = state_for_test_with_services(
+        let state = state_for_test_with_authorizer_and_profile_and_invite(
             authorizer,
             Arc::new(StaticProfileService),
             Arc::new(StaticInviteService),
@@ -798,7 +834,7 @@ mod tests {
     }
 
     async fn state_for_test_with_authorizer(authorizer: Arc<dyn Authorizer>) -> AppState {
-        state_for_test_with_services(
+        state_for_test_with_authorizer_and_profile_and_invite(
             authorizer,
             Arc::new(StaticProfileService),
             Arc::new(StaticInviteService),
@@ -806,10 +842,27 @@ mod tests {
         .await
     }
 
-    async fn state_for_test_with_services(
+    async fn state_for_test_with_authorizer_and_profile_and_invite(
         authorizer: Arc<dyn Authorizer>,
         profile_service: Arc<dyn ProfileService>,
         invite_service: Arc<dyn InviteService>,
+    ) -> AppState {
+        state_for_test_with_authorizer_profile_invite_and_scylla(
+            authorizer,
+            profile_service,
+            invite_service,
+            Arc::new(StaticScyllaHealthReporter {
+                report: ScyllaHealthReport::ready(),
+            }),
+        )
+        .await
+    }
+
+    async fn state_for_test_with_authorizer_profile_invite_and_scylla(
+        authorizer: Arc<dyn Authorizer>,
+        profile_service: Arc<dyn ProfileService>,
+        invite_service: Arc<dyn InviteService>,
+        scylla_health_reporter: Arc<dyn ScyllaHealthReporter>,
     ) -> AppState {
         let metrics = Arc::new(AuthMetrics::default());
         let verifier: Arc<dyn TokenVerifier> = Arc::new(StaticTokenVerifier);
@@ -841,6 +894,7 @@ mod tests {
             invite_service,
             moderation_service: Arc::new(StaticModerationService),
             profile_service,
+            scylla_health_reporter,
             ws_reauth_grace: Duration::from_secs(30),
             ws_ticket_ttl: Duration::from_secs(60),
             auth_identify_timeout: Duration::from_secs(5),
@@ -867,14 +921,17 @@ mod tests {
         authorizer: Arc<dyn Authorizer>,
         profile_service: Arc<dyn ProfileService>,
     ) -> Router {
-        let state =
-            state_for_test_with_services(authorizer, profile_service, Arc::new(StaticInviteService))
-                .await;
+        let state = state_for_test_with_authorizer_and_profile_and_invite(
+            authorizer,
+            profile_service,
+            Arc::new(StaticInviteService),
+        )
+        .await;
         app_with_state(state)
     }
 
     async fn app_for_test_with_invite_service(invite_service: Arc<dyn InviteService>) -> Router {
-        let state = state_for_test_with_services(
+        let state = state_for_test_with_authorizer_and_profile_and_invite(
             Arc::new(StaticAllowAllAuthorizer),
             Arc::new(StaticProfileService),
             invite_service,
@@ -946,6 +1003,79 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(body.as_ref(), b"OK");
+    }
+
+    #[tokio::test]
+    async fn scylla_health_ready_returns_ok_json() {
+        let app = app_for_test_with_scylla_report(ScyllaHealthReport::ready()).await;
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/internal/scylla/health")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["service"], "scylla");
+        assert_eq!(json["status"], "ready");
+        assert!(json.get("reason").is_none());
+    }
+
+    #[tokio::test]
+    async fn scylla_health_degraded_returns_ok_json() {
+        let app = app_for_test_with_scylla_report(ScyllaHealthReport::degraded(
+            "scylla_table_missing:chat.messages_by_channel",
+        ))
+        .await;
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/internal/scylla/health")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["status"], "degraded");
+        assert_eq!(json["reason"], "table_missing");
+    }
+
+    #[tokio::test]
+    async fn scylla_health_error_returns_service_unavailable() {
+        let app = app_for_test_with_scylla_report(ScyllaHealthReport::error(
+            "scylla_connect_failed:connection refused",
+        ))
+        .await;
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/internal/scylla/health")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["status"], "error");
+        assert_eq!(json["reason"], "connect_failed");
     }
 
     #[tokio::test]
@@ -1766,6 +1896,63 @@ mod tests {
         let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
         assert_eq!(json["guilds"][0]["guild_id"], 2001);
         assert_eq!(json["guilds"][0]["name"], "LinkLynx Developers");
+    }
+
+    #[tokio::test]
+    async fn permission_snapshot_returns_guild_and_channel_flags_for_member() {
+        let app = app_for_test_with_authorizer(Arc::new(RoleScenarioAuthorizer)).await;
+        let token = format!("u-member:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/guilds/2001/permission-snapshot?channel_id=3001")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["snapshot"]["guild_id"], 2001);
+        assert_eq!(json["snapshot"]["channel_id"], 3001);
+        assert_eq!(json["snapshot"]["guild"]["can_view"], true);
+        assert_eq!(json["snapshot"]["guild"]["can_create_channel"], false);
+        assert_eq!(json["snapshot"]["guild"]["can_create_invite"], false);
+        assert_eq!(json["snapshot"]["guild"]["can_manage_settings"], false);
+        assert_eq!(json["snapshot"]["guild"]["can_moderate"], false);
+        assert_eq!(json["snapshot"]["channel"]["can_view"], true);
+        assert_eq!(json["snapshot"]["channel"]["can_post"], true);
+        assert_eq!(json["snapshot"]["channel"]["can_manage"], false);
+    }
+
+    #[tokio::test]
+    async fn permission_snapshot_returns_unavailable_when_downstream_authz_is_unavailable() {
+        let app = app_for_test_with_authorizer(Arc::new(PermissionSnapshotUnavailableAuthorizer)).await;
+        let token = format!("u-member:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/guilds/2001/permission-snapshot")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("x-request-id", "permission-snapshot-unavailable")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "AUTHZ_UNAVAILABLE");
+        assert_eq!(json["request_id"], "permission-snapshot-unavailable");
     }
 
     #[tokio::test]
@@ -3354,6 +3541,11 @@ mod tests {
         match rest_authz_resource_from_path("/guilds/10") {
             AuthzResource::Guild { guild_id } => assert_eq!(guild_id, 10),
             _ => panic!("non-v1 guild path should map to guild resource"),
+        }
+
+        match rest_authz_resource_from_path("/guilds/10/permission-snapshot") {
+            AuthzResource::Guild { guild_id } => assert_eq!(guild_id, 10),
+            _ => panic!("permission snapshot path should map to guild resource"),
         }
     }
 

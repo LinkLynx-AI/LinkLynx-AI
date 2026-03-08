@@ -37,6 +37,8 @@ services:
       dockerfile: Dockerfile
     ports:
       - "8080:8080"
+    volumes:
+      - ./database/scylla:/app/database/scylla:ro
     environment:
       FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID:?FIREBASE_PROJECT_ID is required}
       DATABASE_URL: postgres://postgres:password@postgres:5432/linklynx
@@ -53,6 +55,10 @@ services:
       AUTHZ_CACHE_DENY_TTL_MS: ${AUTHZ_CACHE_DENY_TTL_MS:-1000}
       SPICEDB_POLICY_VERSION: ${SPICEDB_POLICY_VERSION:-lin862-v1}
       SPICEDB_SCHEMA_PATH: ${SPICEDB_SCHEMA_PATH:-database/contracts/lin862_spicedb_namespace_relation_permission_contract.md}
+      SCYLLA_HOSTS: scylladb:9042
+      SCYLLA_KEYSPACE: ${SCYLLA_KEYSPACE:-chat}
+      SCYLLA_SCHEMA_PATH: ${SCYLLA_SCHEMA_PATH:-database/scylla/001_lin139_messages.cql}
+      SCYLLA_REQUEST_TIMEOUT_MS: ${SCYLLA_REQUEST_TIMEOUT_MS:-1000}
       RUST_LOG: ${RUST_LOG:-info}
       WS_REAUTH_GRACE_SECONDS: ${WS_REAUTH_GRACE_SECONDS:-30}
       WS_TICKET_TTL_SECONDS: ${WS_TICKET_TTL_SECONDS:-60}
@@ -64,6 +70,8 @@ services:
       postgres:
         condition: service_healthy
       spicedb:
+        condition: service_started
+      scylladb:
         condition: service_started
     networks:
       - linklynx-network
