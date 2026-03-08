@@ -2,6 +2,8 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InviteErrorKind {
     Validation,
+    InvalidInvite,
+    ExpiredInvite,
     DependencyUnavailable,
 }
 
@@ -24,6 +26,28 @@ impl InviteError {
         }
     }
 
+    /// 無効な招待エラーを生成する。
+    /// @param reason 失敗理由
+    /// @returns 無効な招待エラー
+    /// @throws なし
+    pub fn invalid_invite(reason: impl Into<String>) -> Self {
+        Self {
+            kind: InviteErrorKind::InvalidInvite,
+            reason: reason.into(),
+        }
+    }
+
+    /// 期限切れ招待エラーを生成する。
+    /// @param reason 失敗理由
+    /// @returns 期限切れ招待エラー
+    /// @throws なし
+    pub fn expired_invite(reason: impl Into<String>) -> Self {
+        Self {
+            kind: InviteErrorKind::ExpiredInvite,
+            reason: reason.into(),
+        }
+    }
+
     /// 依存障害エラーを生成する。
     /// @param reason 失敗理由
     /// @returns 依存障害エラー
@@ -42,6 +66,7 @@ impl InviteError {
     pub fn status_code(&self) -> StatusCode {
         match self.kind {
             InviteErrorKind::Validation => StatusCode::BAD_REQUEST,
+            InviteErrorKind::InvalidInvite | InviteErrorKind::ExpiredInvite => StatusCode::CONFLICT,
             InviteErrorKind::DependencyUnavailable => StatusCode::SERVICE_UNAVAILABLE,
         }
     }
@@ -53,6 +78,8 @@ impl InviteError {
     pub fn app_code(&self) -> &'static str {
         match self.kind {
             InviteErrorKind::Validation => "VALIDATION_ERROR",
+            InviteErrorKind::InvalidInvite => "INVITE_INVALID",
+            InviteErrorKind::ExpiredInvite => "INVITE_EXPIRED",
             InviteErrorKind::DependencyUnavailable => "INVITE_UNAVAILABLE",
         }
     }
@@ -64,7 +91,9 @@ impl InviteError {
     pub fn public_message(&self) -> &'static str {
         match self.kind {
             InviteErrorKind::Validation => "request payload is invalid",
-            InviteErrorKind::DependencyUnavailable => "invite verification dependency is unavailable",
+            InviteErrorKind::InvalidInvite => "invite is invalid",
+            InviteErrorKind::ExpiredInvite => "invite is expired",
+            InviteErrorKind::DependencyUnavailable => "invite dependency is unavailable",
         }
     }
 }
@@ -86,7 +115,7 @@ pub fn invite_error_response(error: &InviteError, request_id: String) -> Respons
         request_id = %request_id,
         error_kind = ?error.kind,
         reason = %error.reason,
-        "invite verification request rejected"
+        "invite request rejected"
     );
 
     let body = InviteErrorBody {

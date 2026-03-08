@@ -1,4 +1,3 @@
-export { joinInvite } from "./api";
 export {
   createInviteJoinError,
   type InviteJoinError,
@@ -6,5 +5,4 @@ export {
   type InviteJoinResult,
   type InviteJoinStatus,
   type InviteJoinSuccess,
-} from "./model";
-export { InviteRoutePreview } from "./ui";
+} from "./join-invite";

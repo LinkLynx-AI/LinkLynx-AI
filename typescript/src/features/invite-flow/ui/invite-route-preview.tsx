@@ -1,4 +1,5 @@
 import type { InvitePageContent } from "@/entities";
+import type { ReactNode } from "react";
 
 const STATUS_LABELS: Record<InvitePageContent["status"], string> = {
   valid: "有効",
@@ -26,10 +27,34 @@ function formatUsage(content: InvitePageContent): string | null {
   return `${content.uses} / ${content.maxUses} 回使用済み`;
 }
 
+type InviteRouteNotice = {
+  tone: "info" | "error";
+  text: string;
+};
+
+type InviteRoutePreviewProps = InvitePageContent & {
+  notice?: InviteRouteNotice | null;
+  primaryActionElement?: ReactNode;
+  secondaryActionElement?: ReactNode;
+};
+
+function resolveNoticeClassName(tone: InviteRouteNotice["tone"]): string {
+  if (tone === "error") {
+    return "bg-discord-brand-red/10 text-discord-brand-red";
+  }
+
+  return "bg-discord-bg-secondary text-discord-text-muted";
+}
+
 /**
  * 公開招待ページの検証結果を表示する。
  */
-export function InviteRoutePreview(content: InvitePageContent) {
+export function InviteRoutePreview({
+  notice = null,
+  primaryActionElement,
+  secondaryActionElement,
+  ...content
+}: InviteRoutePreviewProps) {
   const usageText = formatUsage(content);
 
   return (
@@ -89,19 +114,31 @@ export function InviteRoutePreview(content: InvitePageContent) {
           )}
         </div>
 
+        {notice === null ? null : (
+          <p
+            className={`mt-6 rounded-[8px] px-3 py-2 text-sm ${resolveNoticeClassName(notice.tone)}`}
+          >
+            {notice.text}
+          </p>
+        )}
+
         <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-          <a
-            href={content.primaryAction.href}
-            className="inline-flex h-11 flex-1 items-center justify-center rounded-[8px] bg-discord-brand-blurple px-4 text-sm font-semibold text-white transition hover:bg-discord-btn-blurple-hover"
-          >
-            {content.primaryAction.label}
-          </a>
-          <a
-            href={content.secondaryAction.href}
-            className="inline-flex h-11 flex-1 items-center justify-center rounded-[8px] border border-discord-divider px-4 text-sm font-semibold text-discord-text-normal transition hover:bg-discord-bg-secondary"
-          >
-            {content.secondaryAction.label}
-          </a>
+          {primaryActionElement ?? (
+            <a
+              href={content.primaryAction.href}
+              className="inline-flex h-11 flex-1 items-center justify-center rounded-[8px] bg-discord-brand-blurple px-4 text-sm font-semibold text-white transition hover:bg-discord-btn-blurple-hover"
+            >
+              {content.primaryAction.label}
+            </a>
+          )}
+          {secondaryActionElement ?? (
+            <a
+              href={content.secondaryAction.href}
+              className="inline-flex h-11 flex-1 items-center justify-center rounded-[8px] border border-discord-divider px-4 text-sm font-semibold text-discord-text-normal transition hover:bg-discord-bg-secondary"
+            >
+              {content.secondaryAction.label}
+            </a>
+          )}
         </div>
       </section>
     </main>
