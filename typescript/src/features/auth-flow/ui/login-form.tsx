@@ -7,7 +7,7 @@ import {
   loginWithEmailAndPassword,
   signInWithGooglePopup,
 } from "@/entities";
-import { APP_ROUTES, type LoginRedirectReason, normalizeReturnToPath } from "@/shared/config";
+import { APP_ROUTES, type LoginRedirectReason, resolvePostAuthRedirectPath } from "@/shared/config";
 import Link from "next/link";
 import {
   buildVerifyEmailRoute,
@@ -29,6 +29,7 @@ const INITIAL_FORM_STATE: LoginFormState = {
 };
 
 type LoginFormProps = {
+  inviteCode: string | null;
   returnTo: string | null;
   reason: LoginRedirectReason | null;
 };
@@ -50,13 +51,16 @@ function resolveReasonMessage(reason: LoginRedirectReason | null): string | null
 /**
  * ログインフォームを表示し Firebase 認証へ接続する。
  */
-export function LoginForm({ returnTo, reason }: LoginFormProps) {
+export function LoginForm({ inviteCode, returnTo, reason }: LoginFormProps) {
   const [form, setForm] = useState<LoginFormState>(INITIAL_FORM_STATE);
   const [submitKind, setSubmitKind] = useState<SubmitKind>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const isSubmitting = submitKind !== null;
   const reasonMessage = resolveReasonMessage(reason);
-  const redirectPath = normalizeReturnToPath(returnTo) ?? APP_ROUTES.channels.me;
+  const redirectPath = resolvePostAuthRedirectPath({
+    inviteCode,
+    returnTo,
+  });
 
   function updateForm<K extends keyof LoginFormState>(key: K, value: LoginFormState[K]) {
     setForm((current) => ({
@@ -71,7 +75,8 @@ export function LoginForm({ returnTo, reason }: LoginFormProps) {
       window.location.assign(
         buildVerifyEmailRoute({
           email: user.email,
-          returnTo: redirectPath,
+          returnTo,
+          inviteCode,
         }),
       );
       return;
