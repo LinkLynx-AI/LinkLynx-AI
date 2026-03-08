@@ -11,6 +11,7 @@ import type {
   ModerationReport,
   ModerationReportStatus,
   MyProfile,
+  PermissionSnapshot,
   Role,
   UpdateMyProfileInput,
   Webhook,
@@ -680,6 +681,43 @@ export class MockAPIClient implements APIClient {
     };
     this.moderationMutes.push(mute);
     return mute;
+  }
+
+  async getPermissionSnapshot(
+    serverId: string,
+    params?: { channelId?: string | null },
+  ): Promise<PermissionSnapshot> {
+    await this.simulateDelay();
+    const server = mockServers.find((candidate) => candidate.id === serverId);
+    if (!server) {
+      throw new Error("Server not found");
+    }
+
+    const channelId = params?.channelId ?? null;
+    const channel =
+      channelId === null
+        ? null
+        : ((mockChannels[serverId] ?? []).find((candidate) => candidate.id === channelId) ?? null);
+
+    return {
+      guildId: serverId,
+      channelId,
+      guild: {
+        canView: true,
+        canCreateChannel: server.ownerId === mockCurrentUser.id,
+        canCreateInvite: server.ownerId === mockCurrentUser.id,
+        canManageSettings: server.ownerId === mockCurrentUser.id,
+        canModerate: server.ownerId === mockCurrentUser.id,
+      },
+      channel:
+        channel === null
+          ? null
+          : {
+              canView: true,
+              canPost: true,
+              canManage: server.ownerId === mockCurrentUser.id,
+            },
+    };
   }
 
   // Typing

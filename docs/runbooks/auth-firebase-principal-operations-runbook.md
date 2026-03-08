@@ -1,7 +1,7 @@
 # Firebase Auth / principal_id Operations Runbook (Draft)
 
 - Status: Draft
-- Last updated: 2026-03-02
+- Last updated: 2026-03-07
 - Owner scope: v1 auth operations baseline for REST/WS shared authentication
 - References:
   - [ADR-005 Dragonfly Outage RateLimit Failure Policy (Hybrid)](../adr/ADR-005-dragonfly-ratelimit-failure-policy.md)
@@ -130,15 +130,26 @@ Local steps (runbook-only reproducible flow):
    - `cp rust/.env.example rust/.env`
    - `cp typescript/.env.example typescript/.env.local`
 2. Set real Firebase test project values in `.env` and `typescript/.env.local` (never commit secrets).
+   - For smoke verification, also set `AUTH_SMOKE_EMAIL` and `AUTH_SMOKE_PASSWORD` in `typescript/.env.local`.
 3. Start local stack.
    - `docker compose up -d postgres`
    - `docker compose up -d rust typescript`
 4. Verify startup.
    - `docker compose logs rust` should not contain env validation errors.
    - `docker compose logs typescript` should not contain frontend env validation errors.
-5. Verify auth path.
-   - call protected REST path with valid Firebase token and confirm `200`.
-  - validate missing/invalid token path still maps to `401/403/503` per section 2.3.
+5. Run smoke verification.
+   - `cd typescript && npm run smoke:auth -- --mode=happy-path`
+6. Verify auth path expectations.
+   - `happy-path` must complete `Firebase login -> GET /protected/ping -> POST /auth/ws-ticket -> GET /ws + auth.identify`.
+   - `protected/ping` success payload must include `request_id`, `principal_id`, `firebase_uid`.
+   - `auth.ready` payload must include `principalId` and match the REST `principal_id`.
+7. Validate missing/invalid token path separately when needed.
+   - invalid token path still maps to `401/403/503` per section 2.3.
+
+Operational note:
+
+- The smoke script uses Firebase Identity Toolkit login and local backend endpoints directly.
+- The script must not print ID tokens or WS tickets; only status, request IDs, and close codes are allowed in output.
 
 ## 3. Required logs and audit fields
 
@@ -237,11 +248,32 @@ Primary response:
 2. Verify duplicate/parallel login burst behavior from clients.
 3. Keep fail-close response and resolve conflicting identity records operationally.
 
+### 5.5 Scenario E: local smoke triage
+
+This scenario is the default first triage path when `npm run smoke:auth` fails locally.
+
+1. Firebase login step fails:
+   - Confirm `NEXT_PUBLIC_FIREBASE_API_KEY`, `AUTH_SMOKE_EMAIL`, and `AUTH_SMOKE_PASSWORD` in `typescript/.env.local`.
+   - Confirm the smoke user exists in the Firebase test project and the password is current.
+2. `protected/ping` fails with `401` or `403`:
+   - Confirm the smoke user is `emailVerified=true`.
+   - Confirm backend auth logs include the same `firebase_uid` and an expected `request_id`.
+3. `protected/ping` fails with `503` unexpectedly:
+   - Check backend startup logs for `DATABASE_URL`, JWKS, or AuthZ provider initialization failures.
+   - If `AUTHZ_PROVIDER=spicedb`, verify SpiceDB health before treating it as AuthN failure.
+4. `ws-ticket` issuance fails:
+   - Confirm the same ID token succeeds on `protected/ping`.
+   - Confirm the backend returns an auth code (`AUTH_*`) instead of transport errors.
+5. `/ws + auth.identify` fails:
+   - Confirm `WS_ALLOWED_ORIGINS` includes the local frontend origin.
+   - Distinguish deterministic close (`1008`) from dependency unavailable (`1011`) before escalating.
+
 ## 6. Verification procedure
 
 1. Valid token + mapped UID:
 - REST protected endpoint returns `200`.
 - WS handshake succeeds.
+- `cd typescript && npm run smoke:auth -- --mode=happy-path` passes.
 
 2. Invalid/expired token:
 - REST returns `401`.
@@ -252,9 +284,16 @@ Primary response:
 - REST returns `403` when conflict is unrecoverable.
 - WS follows equivalent allow/deny behavior.
 
-4. Dependency unavailable simulation (JWKS/store):
+4. AuthZ provider unavailable simulation (local smoke):
 - REST returns `503`.
 - WS closes with `1011`.
+- For local AuthZ outage verification, use the AuthZ SpiceDB runbook and run:
+  - `cd typescript && npm run smoke:auth -- --mode=dependency-unavailable`
+
+Operational note:
+
+- `dependency-unavailable` mode verifies the AuthZ provider outage path (`AUTHZ_UNAVAILABLE`) only.
+- AuthN dependency outages such as JWKS or principal store failures remain manual verification scenarios in section 5.
 
 5. Unverified email token:
 - REST returns `403` with `AUTH_EMAIL_NOT_VERIFIED`.

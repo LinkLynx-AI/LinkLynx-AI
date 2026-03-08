@@ -23,8 +23,8 @@ use auth::{
 };
 use authz::{
     authz_error_response, build_runtime_authorizer, Authorizer, AuthzAction,
-    AuthzCacheInvalidationEvent, AuthzCacheInvalidationEventKind, AuthzCheckInput, AuthzMetrics,
-    AuthzMetricsSnapshot, AuthzResource,
+    AuthzCacheInvalidationEvent, AuthzCacheInvalidationEventKind, AuthzCheckInput, AuthzErrorKind,
+    AuthzMetrics, AuthzMetricsSnapshot, AuthzResource,
 };
 use axum::{
     body::Body,

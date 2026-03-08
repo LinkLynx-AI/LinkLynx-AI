@@ -2,6 +2,7 @@ import { useAuthStore } from "@/shared/model/stores/auth-store";
 import type {
   APIClient,
   AuditLogEntry,
+  PermissionSnapshot,
   CreateModerationMuteData,
   CreateModerationReportData,
   CreateChannelData,
@@ -371,6 +372,13 @@ export class NoDataAPIClient implements APIClient {
     _data: CreateModerationMuteData,
   ): Promise<ModerationMute> {
     return unsupportedPromise("createModerationMute");
+  }
+
+  getPermissionSnapshot(
+    _serverId: string,
+    _params?: { channelId?: string | null },
+  ): Promise<PermissionSnapshot> {
+    return unsupportedPromise("getPermissionSnapshot");
   }
 
   triggerTyping(_channelId: string): Promise<void> {

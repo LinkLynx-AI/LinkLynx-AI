@@ -62,6 +62,7 @@ mod tests {
     struct StreamUnavailableGuildChannelAllowedAuthorizer;
     struct WsTextDeniedAuthorizer;
     struct WsTextUnavailableAuthorizer;
+    struct PermissionSnapshotUnavailableAuthorizer;
     struct StaticGuildChannelService;
     struct StaticModerationService;
     struct StaticProfileService;
@@ -221,6 +222,19 @@ mod tests {
                     Err(AuthzError::unavailable("ws_text_unavailable"))
                 }
                 _ => Ok(()),
+            }
+        }
+    }
+
+    #[async_trait]
+    impl Authorizer for PermissionSnapshotUnavailableAuthorizer {
+        async fn check(&self, input: &AuthzCheckInput) -> Result<(), AuthzError> {
+            match (&input.resource, input.action) {
+                (AuthzResource::Guild { .. }, AuthzAction::View) => Ok(()),
+                (AuthzResource::Guild { .. }, AuthzAction::Manage) => {
+                    Err(AuthzError::unavailable("permission_snapshot_unavailable"))
+                }
+                _ => Err(AuthzError::denied("unsupported_permission_snapshot_scenario")),
             }
         }
     }
@@ -1518,6 +1532,63 @@ mod tests {
         let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
         assert_eq!(json["guilds"][0]["guild_id"], 2001);
         assert_eq!(json["guilds"][0]["name"], "LinkLynx Developers");
+    }
+
+    #[tokio::test]
+    async fn permission_snapshot_returns_guild_and_channel_flags_for_member() {
+        let app = app_for_test_with_authorizer(Arc::new(RoleScenarioAuthorizer)).await;
+        let token = format!("u-member:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/guilds/2001/permission-snapshot?channel_id=3001")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["snapshot"]["guild_id"], 2001);
+        assert_eq!(json["snapshot"]["channel_id"], 3001);
+        assert_eq!(json["snapshot"]["guild"]["can_view"], true);
+        assert_eq!(json["snapshot"]["guild"]["can_create_channel"], false);
+        assert_eq!(json["snapshot"]["guild"]["can_create_invite"], false);
+        assert_eq!(json["snapshot"]["guild"]["can_manage_settings"], false);
+        assert_eq!(json["snapshot"]["guild"]["can_moderate"], false);
+        assert_eq!(json["snapshot"]["channel"]["can_view"], true);
+        assert_eq!(json["snapshot"]["channel"]["can_post"], true);
+        assert_eq!(json["snapshot"]["channel"]["can_manage"], false);
+    }
+
+    #[tokio::test]
+    async fn permission_snapshot_returns_unavailable_when_downstream_authz_is_unavailable() {
+        let app = app_for_test_with_authorizer(Arc::new(PermissionSnapshotUnavailableAuthorizer)).await;
+        let token = format!("u-member:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/guilds/2001/permission-snapshot")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("x-request-id", "permission-snapshot-unavailable")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "AUTHZ_UNAVAILABLE");
+        assert_eq!(json["request_id"], "permission-snapshot-unavailable");
     }
 
     #[tokio::test]
@@ -3298,6 +3369,11 @@ mod tests {
         match rest_authz_resource_from_path("/guilds/10") {
             AuthzResource::Guild { guild_id } => assert_eq!(guild_id, 10),
             _ => panic!("non-v1 guild path should map to guild resource"),
+        }
+
+        match rest_authz_resource_from_path("/guilds/10/permission-snapshot") {
+            AuthzResource::Guild { guild_id } => assert_eq!(guild_id, 10),
+            _ => panic!("permission snapshot path should map to guild resource"),
         }
     }
 
