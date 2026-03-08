@@ -2,6 +2,7 @@ mod auth;
 mod authz;
 mod guild_channel;
 mod invite;
+mod message;
 mod moderation;
 mod profile;
 mod ratelimit;
@@ -50,10 +51,12 @@ use linklynx_message_api::{
     CreateGuildChannelMessageResponseV1, ListGuildChannelMessagesQueryV1, MessageApiError,
     MessageItemV1,
 };
+use linklynx_message_domain::MessageService;
 use linklynx_protocol_ws::{
     ClientMessageFrameV1, GuildChannelSubscriptionTargetV1, MessageSubscriptionStateV1,
     ServerMessageFrameV1,
 };
+use message::build_runtime_message_service;
 use moderation::{
     build_runtime_moderation_service, moderation_error_response, ModerationError, ModerationService,
 };
@@ -77,6 +80,8 @@ pub(crate) struct AppState {
     authz_metrics: Arc<AuthzMetrics>,
     guild_channel_service: Arc<dyn GuildChannelService>,
     invite_service: Arc<dyn InviteService>,
+    #[allow(dead_code)]
+    _message_service: Arc<dyn MessageService>,
     moderation_service: Arc<dyn ModerationService>,
     profile_service: Arc<dyn ProfileService>,
     scylla_health_reporter: Arc<dyn ScyllaHealthReporter>,
@@ -136,6 +141,7 @@ async fn build_runtime_state() -> AppState {
     let authz_metrics = Arc::new(AuthzMetrics::default());
     let guild_channel_service = build_runtime_guild_channel_service();
     let invite_service = build_runtime_invite_service();
+    let message_service = build_runtime_message_service().await;
     let moderation_service = build_runtime_moderation_service();
     let profile_service = build_runtime_profile_service();
     let scylla_health_reporter = build_runtime_scylla_health_reporter().await;
@@ -159,6 +165,7 @@ async fn build_runtime_state() -> AppState {
         authz_metrics,
         guild_channel_service,
         invite_service,
+        _message_service: message_service,
         moderation_service,
         profile_service,
         scylla_health_reporter,

@@ -1,0 +1,13 @@
+[package]
+name = "linklynx_message_domain"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+async-trait.workspace = true
+linklynx_message_api = { path = "../../contracts/message-api" }
+linklynx_shared = { path = "../../shared" }
+thiserror.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true

@@ -36,6 +36,10 @@ mod tests {
         },
     };
     use linklynx_message_api::{MessageCursorKeyV1, MessageItemV1};
+    use linklynx_message_domain::{
+        CreateGuildChannelMessageCommand, MessageDomainError, MessageService,
+        ListGuildChannelMessagesCommand,
+    };
     use linklynx_protocol_ws::{ClientMessageFrameV1, GuildChannelSubscriptionTargetV1, ServerMessageFrameV1};
     use linklynx_shared::PrincipalId;
     use tokio::{
@@ -77,6 +81,7 @@ mod tests {
     struct StaticScyllaHealthReporter {
         report: ScyllaHealthReport,
     }
+    struct StaticMessageService;
 
     type TestWsStream = WebSocketStream<MaybeTlsStream<TcpStream>>;
 
@@ -288,6 +293,27 @@ mod tests {
                 }
                 _ => Err(AuthzError::denied("unsupported_role_scenario")),
             }
+        }
+    }
+
+    #[async_trait]
+    impl MessageService for StaticMessageService {
+        async fn list_guild_channel_messages(
+            &self,
+            _command: ListGuildChannelMessagesCommand,
+        ) -> Result<linklynx_message_api::ListGuildChannelMessagesResponseV1, MessageDomainError> {
+            Err(MessageDomainError::dependency_unavailable(
+                "message_service_unused_in_test",
+            ))
+        }
+
+        async fn create_guild_channel_message(
+            &self,
+            _command: CreateGuildChannelMessageCommand,
+        ) -> Result<linklynx_message_api::CreateGuildChannelMessageResponseV1, MessageDomainError> {
+            Err(MessageDomainError::dependency_unavailable(
+                "message_service_unused_in_test",
+            ))
         }
     }
 
@@ -978,6 +1004,7 @@ mod tests {
             authz_metrics: Arc::new(AuthzMetrics::default()),
             guild_channel_service: Arc::new(StaticGuildChannelService),
             invite_service,
+            _message_service: Arc::new(StaticMessageService),
             moderation_service: Arc::new(StaticModerationService),
             profile_service,
             scylla_health_reporter,
