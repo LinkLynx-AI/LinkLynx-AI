@@ -4,29 +4,29 @@
 - Stop-and-fix: validation が落ちたら次の工程へ進む前に修正する。
 
 ## Milestones
-### M1: ギャップ特定と run 証跡の整備
+### M1: parent-child run 証跡の整備
 - Acceptance criteria:
-  - [ ] moderation 実装の現状差分が整理されている
-  - [ ] `docs/agent_runs/LIN-894/` の run 台帳が揃っている
+  - [ ] `LIN-927` / `LIN-928` / `LIN-929` の順序と状態が整理されている
+  - [ ] `docs/agent_runs/LIN-894/` の run 台帳が parent issue 前提に揃っている
 - Validation:
   - `git status --short`
-  - `rg -n "moderation|guild:moderate" rust/apps/api/src typescript/src docs`
+  - `rg -n "LIN-927|LIN-928|LIN-929|leaf issue|parent issue" docs/agent_runs/LIN-894`
 
-### M2: moderation 導線の不足差分を実装
+### M2: child issue 進捗の反映
 - Acceptance criteria:
-  - [ ] backend / frontend の受け入れ基準ギャップが解消されている
-  - [ ] `/guilds/{guild_id}/moderation/*` の authz resource / action が `guild:moderate` contract と矛盾しない
-  - [ ] service 側の moderator 判定が authorizer の `Guild + Manage` と整合している
+  - [ ] `LIN-927` 完了済み、`LIN-928` 実装中、`LIN-929` 未着手の状態が記録されている
+  - [ ] 親ブランチに入っている moderation 差分がどの child issue の受け入れ条件に対応するか追跡できる
   - [ ] out-of-scope 変更を含めていない
 - Validation:
   - `cargo test -p linklynx_backend moderation -- --nocapture`
   - `cd typescript && npm run typecheck`
-  - `pnpm --dir typescript test -- moderation`
+  - `pnpm --dir typescript test -- --run moderation`
 
 ### M3: 総合検証と PR 証跡の確定
 - Acceptance criteria:
   - [ ] `make validate` が通る
   - [ ] review gate 結果が記録されている
+  - [ ] child PR / 親ブランチの証跡が記録されている
   - [ ] runtime smoke の結果または skip 理由が記録されている
 - Validation:
   - `make validate`
