@@ -47,12 +47,14 @@ pub async fn build_runtime_message_service() -> Arc<dyn MessageService> {
         }
     };
 
+    let metadata_repository = Arc::new(PostgresMessageMetadataRepository::new(
+        database_url,
+        allow_postgres_notls,
+    ));
     let usecase: Arc<dyn MessageUsecase> = Arc::new(LiveMessageUsecase::new(
         Arc::new(ScyllaMessageStore::new(session, scylla_config.keyspace.clone())),
-        Arc::new(PostgresMessageMetadataRepository::new(
-            database_url,
-            allow_postgres_notls,
-        )),
+        metadata_repository.clone(),
+        metadata_repository,
     ));
 
     Arc::new(RuntimeMessageService::new(usecase))

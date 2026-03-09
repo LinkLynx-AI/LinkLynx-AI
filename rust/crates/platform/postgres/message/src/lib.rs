@@ -8,11 +8,13 @@ use std::{
 
 use async_trait::async_trait;
 use linklynx_message_domain::{
-    GuildChannelContext, MessageMetadataRepository, MessageUsecaseError,
+    GuildChannelContext, MessageCreateIdempotency, MessageCreateIdempotencyRepository,
+    MessageCreateReservation, MessageCreateReservationState, MessageCreateReserveResult,
+    MessageIdentity, MessageMetadataRepository, MessageUsecaseError,
 };
 use tokio::sync::RwLock;
 use tokio_postgres::{NoTls, Row};
-use tracing::warn;
+use tracing::{error, warn};
 
 const SELECT_CHANNEL_CONTEXT_SQL: &str = "
     SELECT
@@ -42,6 +44,40 @@ const UPSERT_LAST_MESSAGE_SQL: &str = "
          channel_last_message.last_message_at = EXCLUDED.last_message_at
          AND channel_last_message.last_message_id < EXCLUDED.last_message_id
        )";
+const UPSERT_CREATE_RESERVATION_SQL: &str = "
+    INSERT INTO message_create_idempotency_keys (
+      principal_id,
+      channel_id,
+      idempotency_key,
+      payload_fingerprint,
+      state,
+      message_id,
+      message_created_at,
+      completed_at,
+      created_at,
+      updated_at
+    )
+    VALUES ($1, $2, $3, $4, 'reserved', $5, $6::timestamptz, NULL, now(), now())
+    ON CONFLICT (principal_id, channel_id, idempotency_key)
+    DO UPDATE SET
+      updated_at = now()
+    RETURNING
+      payload_fingerprint,
+      state,
+      message_id,
+      to_char(
+        message_created_at AT TIME ZONE 'UTC',
+        'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"'
+      ) AS message_created_at";
+const MARK_CREATE_RESERVATION_COMPLETED_SQL: &str = "
+    UPDATE message_create_idempotency_keys
+    SET
+      state = 'completed',
+      completed_at = COALESCE(completed_at, now()),
+      updated_at = now()
+    WHERE principal_id = $1
+      AND channel_id = $2
+      AND idempotency_key = $3";
 
 /// Postgres-backed message metadata repository を表現する。
 #[derive(Clone)]
@@ -201,6 +237,56 @@ impl PostgresMessageMetadataRepository {
             })?,
         })
     }
+
+    fn map_reservation_state(
+        &self,
+        state: &str,
+    ) -> Result<MessageCreateReservationState, MessageUsecaseError> {
+        match state {
+            "reserved" => Ok(MessageCreateReservationState::Reserved),
+            "completed" => Ok(MessageCreateReservationState::Completed),
+            other => Err(MessageUsecaseError::dependency_unavailable(format!(
+                "message_idempotency_state_invalid:{other}"
+            ))),
+        }
+    }
+
+    fn map_reservation_row(
+        &self,
+        row: Row,
+    ) -> Result<(String, MessageCreateReservation), MessageUsecaseError> {
+        let payload_fingerprint: String = row.try_get("payload_fingerprint").map_err(|error| {
+            MessageUsecaseError::dependency_unavailable(format!(
+                "message_idempotency_payload_decode_failed:{error}"
+            ))
+        })?;
+        let state: String = row.try_get("state").map_err(|error| {
+            MessageUsecaseError::dependency_unavailable(format!(
+                "message_idempotency_state_decode_failed:{error}"
+            ))
+        })?;
+        let message_id: i64 = row.try_get("message_id").map_err(|error| {
+            MessageUsecaseError::dependency_unavailable(format!(
+                "message_idempotency_message_id_decode_failed:{error}"
+            ))
+        })?;
+        let created_at: String = row.try_get("message_created_at").map_err(|error| {
+            MessageUsecaseError::dependency_unavailable(format!(
+                "message_idempotency_created_at_decode_failed:{error}"
+            ))
+        })?;
+
+        Ok((
+            payload_fingerprint,
+            MessageCreateReservation {
+                identity: MessageIdentity {
+                    message_id,
+                    created_at,
+                },
+                state: self.map_reservation_state(&state)?,
+            },
+        ))
+    }
 }
 
 #[async_trait]
@@ -259,9 +345,109 @@ impl MessageMetadataRepository for PostgresMessageMetadataRepository {
     }
 }
 
+#[async_trait]
+impl MessageCreateIdempotencyRepository for PostgresMessageMetadataRepository {
+    /// create reservation を取得または再利用する。
+    /// @param principal_id 投稿主体
+    /// @param channel_id 対象 channel_id
+    /// @param idempotency durable idempotency 入力
+    /// @param proposed_identity 新規予約時に使う候補 identity
+    /// @returns reservation 結果
+    /// @throws MessageUsecaseError 依存障害時
+    async fn reserve_guild_channel_message_create(
+        &self,
+        principal_id: i64,
+        channel_id: i64,
+        idempotency: &MessageCreateIdempotency,
+        proposed_identity: &MessageIdentity,
+    ) -> Result<MessageCreateReserveResult, MessageUsecaseError> {
+        let client = self.select_client().await?;
+        let row = match client
+            .query_one(
+                UPSERT_CREATE_RESERVATION_SQL,
+                &[
+                    &principal_id,
+                    &channel_id,
+                    &idempotency.key,
+                    &idempotency.payload_fingerprint,
+                    &proposed_identity.message_id,
+                    &proposed_identity.created_at,
+                ],
+            )
+            .await
+        {
+            Ok(row) => row,
+            Err(error) => {
+                error!(
+                    principal_id,
+                    channel_id,
+                    payload_fingerprint = %idempotency.payload_fingerprint,
+                    reason = %error,
+                    "message create idempotency reservation failed"
+                );
+                self.invalidate_pool().await;
+                return Err(MessageUsecaseError::dependency_unavailable(format!(
+                    "message_idempotency_reserve_failed:{error}"
+                )));
+            }
+        };
+        let (payload_fingerprint, reservation) = self.map_reservation_row(row)?;
+        if payload_fingerprint != idempotency.payload_fingerprint {
+            return Ok(MessageCreateReserveResult::PayloadMismatch);
+        }
+        Ok(MessageCreateReserveResult::Reserved(reservation))
+    }
+
+    /// create reservation を完了状態へ更新する。
+    /// @param principal_id 投稿主体
+    /// @param channel_id 対象 channel_id
+    /// @param idempotency_key 完了対象 key
+    /// @returns 更新成功時は `()`
+    /// @throws MessageUsecaseError 依存障害時
+    async fn mark_guild_channel_message_create_completed(
+        &self,
+        principal_id: i64,
+        channel_id: i64,
+        idempotency_key: &str,
+    ) -> Result<(), MessageUsecaseError> {
+        let client = self.select_client().await?;
+        let updated = match client
+            .execute(
+                MARK_CREATE_RESERVATION_COMPLETED_SQL,
+                &[&principal_id, &channel_id, &idempotency_key],
+            )
+            .await
+        {
+            Ok(updated) => updated,
+            Err(error) => {
+                error!(
+                    principal_id,
+                    channel_id,
+                    idempotency_key_present = true,
+                    reason = %error,
+                    "message create idempotency completion failed"
+                );
+                self.invalidate_pool().await;
+                return Err(MessageUsecaseError::dependency_unavailable(format!(
+                    "message_idempotency_complete_failed:{error}"
+                )));
+            }
+        };
+        if updated == 0 {
+            return Err(MessageUsecaseError::dependency_unavailable(
+                "message_idempotency_reservation_missing",
+            ));
+        }
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{SELECT_CHANNEL_CONTEXT_SQL, UPSERT_LAST_MESSAGE_SQL};
+    use super::{
+        MARK_CREATE_RESERVATION_COMPLETED_SQL, SELECT_CHANNEL_CONTEXT_SQL,
+        UPSERT_CREATE_RESERVATION_SQL, UPSERT_LAST_MESSAGE_SQL,
+    };
 
     #[test]
     fn select_channel_context_sql_scopes_to_guild_text_channels() {
@@ -275,5 +461,19 @@ mod tests {
             .contains("channel_last_message.last_message_at < EXCLUDED.last_message_at"));
         assert!(UPSERT_LAST_MESSAGE_SQL
             .contains("channel_last_message.last_message_id < EXCLUDED.last_message_id"));
+    }
+
+    #[test]
+    fn reservation_sql_uses_composite_key_and_returns_existing_identity() {
+        assert!(UPSERT_CREATE_RESERVATION_SQL
+            .contains("ON CONFLICT (principal_id, channel_id, idempotency_key)"));
+        assert!(UPSERT_CREATE_RESERVATION_SQL.contains("payload_fingerprint"));
+        assert!(UPSERT_CREATE_RESERVATION_SQL.contains("message_created_at"));
+    }
+
+    #[test]
+    fn completion_sql_updates_state_idempotently() {
+        assert!(MARK_CREATE_RESERVATION_COMPLETED_SQL.contains("state = 'completed'"));
+        assert!(MARK_CREATE_RESERVATION_COMPLETED_SQL.contains("COALESCE(completed_at, now())"));
     }
 }

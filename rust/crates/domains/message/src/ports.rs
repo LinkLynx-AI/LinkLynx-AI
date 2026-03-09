@@ -3,7 +3,10 @@ use linklynx_message_api::{
     ListGuildChannelMessagesQueryV1, ListGuildChannelMessagesResponseV1, MessageItemV1,
 };
 
-use crate::{GuildChannelContext, MessageUsecaseError};
+use crate::{
+    GuildChannelContext, MessageCreateIdempotency, MessageCreateReserveResult, MessageIdentity,
+    MessageUsecaseError,
+};
 
 /// message body SoR port を表現する。
 #[async_trait]
@@ -52,5 +55,37 @@ pub trait MessageMetadataRepository: Send + Sync {
         channel_id: i64,
         message_id: i64,
         created_at: &str,
+    ) -> Result<(), MessageUsecaseError>;
+}
+
+/// guild message create durable idempotency repository を表現する。
+#[async_trait]
+pub trait MessageCreateIdempotencyRepository: Send + Sync {
+    /// create reservation を取得または再利用する。
+    /// @param principal_id 投稿主体
+    /// @param channel_id 対象 channel_id
+    /// @param idempotency durable idempotency 入力
+    /// @param proposed_identity 新規予約時に使う候補 identity
+    /// @returns reservation 結果
+    /// @throws MessageUsecaseError 依存障害時
+    async fn reserve_guild_channel_message_create(
+        &self,
+        principal_id: i64,
+        channel_id: i64,
+        idempotency: &MessageCreateIdempotency,
+        proposed_identity: &MessageIdentity,
+    ) -> Result<MessageCreateReserveResult, MessageUsecaseError>;
+
+    /// create reservation を完了状態へ更新する。
+    /// @param principal_id 投稿主体
+    /// @param channel_id 対象 channel_id
+    /// @param idempotency_key 完了対象 key
+    /// @returns 更新成功時は `()`
+    /// @throws MessageUsecaseError 依存障害時
+    async fn mark_guild_channel_message_create_completed(
+        &self,
+        principal_id: i64,
+        channel_id: i64,
+        idempotency_key: &str,
     ) -> Result<(), MessageUsecaseError>;
 }

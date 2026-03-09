@@ -72,6 +72,10 @@ Request payload:
 
 - `content`
 
+Optional request headers:
+
+- `Idempotency-Key`
+
 Success payload:
 
 - `message`
@@ -79,7 +83,28 @@ Success payload:
 Validation baseline:
 
 1. blank-only `content` is rejected.
-2. Error transport remains existing `VALIDATION_ERROR` / `AUTHZ_DENIED` / `AUTHZ_UNAVAILABLE`.
+2. blank / invalid `Idempotency-Key` is rejected.
+3. same `Idempotency-Key` + different payload is rejected as `VALIDATION_ERROR`.
+4. Error transport remains existing `VALIDATION_ERROR` / `AUTHZ_DENIED` / `AUTHZ_UNAVAILABLE`.
+
+Validation reason baseline:
+
+- blank / invalid `Idempotency-Key`: `message_idempotency_key_invalid`
+- same `Idempotency-Key` + different payload: `message_idempotency_payload_mismatch`
+- missing / cross-guild channel: `message_channel_not_found`
+
+Idempotency baseline:
+
+1. `Idempotency-Key` is optional and caller opt-in.
+2. same key + same payload reuses the same `message_id` / `created_at` across retries.
+3. replay success still returns `201 Created`.
+4. idempotency repository / Postgres unavailable is handled fail-close as dependency unavailable.
+
+Troubleshooting baseline:
+
+- If retries with the same `Idempotency-Key` stop reusing `message_id`, first verify that the request payload canonicalizes to the same fingerprint and that the caller is not mutating `content`.
+- If create starts returning dependency unavailable during replay, inspect API logs for `message create idempotency reservation failed` or `message create idempotency completion failed` and confirm Postgres connectivity before retrying.
+- If replay remains stuck behind partial failure, prefer resending the same payload with the same `Idempotency-Key`; the reservation is designed to reuse the fixed identity once Postgres recovers.
 
 ## 3. Shared message snapshot
 
