@@ -68,21 +68,88 @@ impl PostgresGuildChannelService {
                     icon_key,
                     owner_id
                  FROM created_guild";
-    const CREATE_GUILD_CHANNEL_SQL: &str = "INSERT INTO channels (type, guild_id, name, created_by)
+    const CREATE_GUILD_CHANNEL_SQL: &str = "WITH manageable AS (
+                    SELECT gm.guild_id
+                    FROM guild_members gm
+                    WHERE gm.guild_id = $1
+                      AND gm.user_id = $4
+                      AND EXISTS (
+                        SELECT 1
+                        FROM guild_member_roles_v2 gmr
+                        JOIN guild_roles_v2 gr
+                          ON gr.guild_id = gmr.guild_id
+                         AND gr.role_key = gmr.role_key
+                        WHERE gmr.guild_id = gm.guild_id
+                          AND gmr.user_id = $4
+                          AND gmr.role_key IN ('owner', 'admin')
+                          AND gr.allow_manage = TRUE
+                      )
+                    FOR KEY SHARE
+                 ),
+                 validated_parent AS (
+                    SELECT
+                      c.id AS parent_channel_id,
+                      c.guild_id
+                    FROM channels c
+                    JOIN manageable m
+                      ON m.guild_id = c.guild_id
+                    WHERE c.id = $3
+                      AND c.type = 'guild_category'
+                 ),
+                 inserted_channel AS (
+                    INSERT INTO channels (type, guild_id, name, created_by)
+                    SELECT
+                      CASE $2
+                        WHEN 'guild_text' THEN 'guild_text'::channel_type
+                        WHEN 'guild_category' THEN 'guild_category'::channel_type
+                      END,
+                      m.guild_id,
+                      $5,
+                      $4
+                    FROM manageable m
+                    WHERE ($2 = 'guild_category' AND $3 IS NULL)
+                       OR ($2 = 'guild_text' AND $3 IS NULL)
+                       OR ($2 = 'guild_text' AND EXISTS (SELECT 1 FROM validated_parent))
+                    RETURNING
+                      id AS channel_id,
+                      guild_id,
+                      type::text AS channel_type,
+                      name,
+                      created_at
+                 ),
+                 inserted_hierarchy AS (
+                    INSERT INTO channel_hierarchies_v2 (
+                      child_channel_id,
+                      guild_id,
+                      parent_channel_id,
+                      hierarchy_kind,
+                      position
+                    )
+                    SELECT
+                      ic.channel_id,
+                      ic.guild_id,
+                      vp.parent_channel_id,
+                      'category_child'::channel_hierarchy_kind,
+                      COALESCE((
+                        SELECT MAX(existing.position) + 1
+                        FROM channel_hierarchies_v2 existing
+                        WHERE existing.parent_channel_id = vp.parent_channel_id
+                          AND existing.hierarchy_kind = 'category_child'
+                      ), 0)
+                    FROM inserted_channel ic
+                    JOIN validated_parent vp
+                      ON $3 IS NOT NULL
+                    RETURNING parent_channel_id, position
+                 )
                  SELECT
-                    'guild_text',
-                    gm.guild_id,
-                    $2,
-                    $3
-                 FROM guild_members gm
-                 WHERE gm.guild_id = $1
-                   AND gm.user_id = $3
-                 FOR KEY SHARE
-                 RETURNING
-                    id AS channel_id,
-                    guild_id,
-                    name,
-                    to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS created_at";
+                    ic.channel_id,
+                    ic.guild_id,
+                    ic.channel_type,
+                    ic.name,
+                    (SELECT parent_channel_id FROM inserted_hierarchy LIMIT 1) AS parent_channel_id,
+                    COALESCE((SELECT position FROM inserted_hierarchy LIMIT 1), 0)::INT AS position,
+                    to_char(ic.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS created_at
+                 FROM inserted_channel ic";
     const LIST_GUILD_CHANNELS_SQL: &str = "WITH member AS (
                     SELECT gm.guild_id
                     FROM guild_members gm
@@ -93,13 +160,52 @@ impl PostgresGuildChannelService {
                  SELECT
                     c.id AS channel_id,
                     m.guild_id,
+                    c.type::text AS channel_type,
                     c.name,
+                    h.parent_channel_id,
+                    CASE
+                      WHEN c.id IS NULL THEN NULL
+                      WHEN h.position IS NOT NULL THEN h.position
+                      ELSE GREATEST(
+                        ROW_NUMBER() OVER (
+                          PARTITION BY (h.parent_channel_id IS NOT NULL)
+                          ORDER BY c.created_at ASC, c.id ASC
+                        ) - 1,
+                        0
+                      )::INT
+                    END AS position,
                     to_char(c.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS created_at_text
                  FROM member m
                  LEFT JOIN channels c
                    ON c.guild_id = m.guild_id
-                  AND c.type = 'guild_text'
+                  AND c.type IN ('guild_text', 'guild_category')
+                 LEFT JOIN channel_hierarchies_v2 h
+                   ON h.child_channel_id = c.id
+                  AND h.hierarchy_kind = 'category_child'
                  ORDER BY c.created_at ASC NULLS LAST, c.id ASC NULLS LAST";
+    const GET_GUILD_CHANNEL_SUMMARY_SQL: &str = "WITH member AS (
+                    SELECT gm.guild_id
+                    FROM guild_members gm
+                    WHERE gm.guild_id = $1
+                      AND gm.user_id = $3
+                    FOR KEY SHARE
+                 )
+                 SELECT
+                    c.id AS channel_id,
+                    c.guild_id,
+                    c.type::text AS channel_type,
+                    c.name,
+                    h.parent_channel_id,
+                    COALESCE(h.position, 0)::INT AS position,
+                    to_char(c.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS created_at_text
+                 FROM member m
+                 JOIN channels c
+                   ON c.guild_id = m.guild_id
+                  AND c.id = $2
+                  AND c.type IN ('guild_text', 'guild_category')
+                 LEFT JOIN channel_hierarchies_v2 h
+                   ON h.child_channel_id = c.id
+                  AND h.hierarchy_kind = 'category_child'";
     const UPDATE_GUILD_SQL: &str = "WITH target AS (
                     SELECT id, owner_id
                     FROM guilds
@@ -175,7 +281,7 @@ impl PostgresGuildChannelService {
                        c.guild_id
                     FROM channels c
                     WHERE c.id = $1
-                      AND c.type = 'guild_text'
+                      AND c.type IN ('guild_text', 'guild_category')
                       AND EXISTS (
                         SELECT 1
                         FROM guild_members gm
@@ -200,20 +306,27 @@ impl PostgresGuildChannelService {
                     name = $3,
                     updated_at = now()
                  FROM editable e
+                 LEFT JOIN channel_hierarchies_v2 h
+                   ON h.child_channel_id = e.channel_id
+                  AND h.hierarchy_kind = 'category_child'
                  WHERE c.id = e.channel_id
                    AND c.guild_id = e.guild_id
                  RETURNING
                     c.id AS channel_id,
                     c.guild_id,
+                    c.type::text AS channel_type,
                     c.name,
+                    h.parent_channel_id,
+                    COALESCE(h.position, 0)::INT AS position,
                     to_char(c.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS created_at";
     const DELETE_GUILD_CHANNEL_SQL: &str = "WITH deletable AS (
                     SELECT
                        c.id AS channel_id,
-                       c.guild_id
+                       c.guild_id,
+                       c.type::text AS channel_type
                     FROM channels c
                     WHERE c.id = $1
-                      AND c.type = 'guild_text'
+                      AND c.type IN ('guild_text', 'guild_category')
                       AND EXISTS (
                         SELECT 1
                         FROM guild_members gm
@@ -232,12 +345,24 @@ impl PostgresGuildChannelService {
                           AND gmr.role_key IN ('owner', 'admin')
                           AND gr.allow_manage = TRUE
                       )
+                 ),
+                 deleted_children AS (
+                    DELETE FROM channels c
+                    USING channel_hierarchies_v2 h, deletable d
+                    WHERE d.channel_type = 'guild_category'
+                      AND h.parent_channel_id = d.channel_id
+                      AND h.hierarchy_kind = 'category_child'
+                      AND c.id = h.child_channel_id
+                    RETURNING c.id
+                 ),
+                 deleted_target AS (
+                    DELETE FROM channels c
+                    USING deletable d
+                    WHERE c.id = d.channel_id
+                      AND c.guild_id = d.guild_id
+                    RETURNING c.id AS channel_id
                  )
-                 DELETE FROM channels c
-                 USING deletable d
-                 WHERE c.id = d.channel_id
-                   AND c.guild_id = d.guild_id
-                 RETURNING c.id AS channel_id";
+                 SELECT channel_id FROM deleted_target";
 
     /// Postgresサービスを生成する。
     /// @param database_url 接続文字列
@@ -436,7 +561,7 @@ impl PostgresGuildChannelService {
                 "SELECT guild_id
                  FROM channels
                  WHERE id = $1
-                   AND type = 'guild_text'
+                   AND type IN ('guild_text', 'guild_category')
                    AND guild_id IS NOT NULL",
                 &[&channel_id],
             )
@@ -445,6 +570,36 @@ impl PostgresGuildChannelService {
             Ok(Some(row)) => Ok(Some(row.get::<&str, i64>("guild_id"))),
             Ok(None) => Ok(None),
             Err(error) => Err(self.map_read_error("channel_lookup_failed", error).await),
+        }
+    }
+
+    /// channelの所属guildと種別を取得する。
+    /// @param client Postgresクライアント
+    /// @param channel_id 対象channel_id
+    /// @returns channelが存在する場合は `Some((guild_id, kind))`
+    /// @throws GuildChannelError 依存障害時
+    async fn find_channel_scope(
+        &self,
+        client: &tokio_postgres::Client,
+        channel_id: i64,
+    ) -> Result<Option<(i64, ChannelKind)>, GuildChannelError> {
+        match client
+            .query_opt(
+                "SELECT guild_id, type::text AS channel_type
+                 FROM channels
+                 WHERE id = $1
+                   AND type IN ('guild_text', 'guild_category')
+                   AND guild_id IS NOT NULL",
+                &[&channel_id],
+            )
+            .await
+        {
+            Ok(Some(row)) => Ok(Some((
+                row.get::<&str, i64>("guild_id"),
+                ChannelKind::parse(&row.get::<&str, String>("channel_type"))?,
+            ))),
+            Ok(None) => Ok(None),
+            Err(error) => Err(self.map_read_error("channel_scope_lookup_failed", error).await),
         }
     }
 
@@ -563,6 +718,7 @@ impl PostgresGuildChannelService {
 
         GuildChannelError::dependency_unavailable(format!("{context}:{error}"))
     }
+
 }
 
 #[async_trait]
@@ -778,52 +934,147 @@ impl GuildChannelService for PostgresGuildChannelService {
             return Err(GuildChannelError::not_found("guild_not_found"));
         }
 
-        let channels = rows
-            .into_iter()
-            .filter_map(|row| {
-                let channel_id = row.get::<&str, Option<i64>>("channel_id")?;
-                let name = row.get::<&str, Option<String>>("name")?;
-                let created_at = row.get::<&str, Option<String>>("created_at_text")?;
-                Some(ChannelSummary {
-                    channel_id,
-                    guild_id: row.get::<&str, i64>("guild_id"),
-                    name,
-                    created_at,
-                })
-            })
-            .collect();
+        let mut channels = Vec::with_capacity(rows.len());
+        for row in rows {
+            let Some(channel_id) = row.get::<&str, Option<i64>>("channel_id") else {
+                continue;
+            };
+            let Some(channel_type) = row.get::<&str, Option<String>>("channel_type") else {
+                continue;
+            };
+            let Some(name) = row.get::<&str, Option<String>>("name") else {
+                continue;
+            };
+            let Some(position) = row.get::<&str, Option<i32>>("position") else {
+                continue;
+            };
+            let Some(created_at) = row.get::<&str, Option<String>>("created_at_text") else {
+                continue;
+            };
+
+            channels.push(ChannelSummary {
+                channel_id,
+                guild_id: row.get::<&str, i64>("guild_id"),
+                kind: ChannelKind::parse(&channel_type)?,
+                name,
+                parent_id: row.get::<&str, Option<i64>>("parent_channel_id"),
+                position,
+                created_at,
+            });
+        }
 
         Ok(channels)
+    }
+
+    /// guild配下のchannel要約を1件返す。
+    /// @param principal_id 認証済みprincipal_id
+    /// @param guild_id 対象guild_id
+    /// @param channel_id 対象channel_id
+    /// @returns channel要約
+    /// @throws GuildChannelError 非メンバー/未存在/依存障害時
+    async fn get_guild_channel_summary(
+        &self,
+        principal_id: PrincipalId,
+        guild_id: i64,
+        channel_id: i64,
+    ) -> Result<ChannelSummary, GuildChannelError> {
+        let client = self.select_client().await?;
+        let row = match client
+            .query_opt(
+                Self::GET_GUILD_CHANNEL_SUMMARY_SQL,
+                &[&guild_id, &channel_id, &principal_id.0],
+            )
+            .await
+        {
+            Ok(Some(row)) => row,
+            Ok(None) => {
+                if !self.has_guild(&client, guild_id).await? {
+                    return Err(GuildChannelError::not_found("guild_not_found"));
+                }
+                if !self
+                    .has_guild_membership(&client, guild_id, principal_id.0)
+                    .await?
+                {
+                    return Err(GuildChannelError::forbidden("guild_membership_required"));
+                }
+                return Err(GuildChannelError::channel_not_found("channel_not_found"));
+            }
+            Err(error) => return Err(self.map_read_error("channel_get_query_failed", error).await),
+        };
+
+        Ok(ChannelSummary {
+            channel_id: row.get::<&str, i64>("channel_id"),
+            guild_id: row.get::<&str, i64>("guild_id"),
+            kind: ChannelKind::parse(&row.get::<&str, String>("channel_type"))?,
+            name: row.get::<&str, String>("name"),
+            parent_id: row.get::<&str, Option<i64>>("parent_channel_id"),
+            position: row.get::<&str, i32>("position"),
+            created_at: row.get::<&str, String>("created_at_text"),
+        })
     }
 
     /// guild配下へchannelを作成する。
     /// @param principal_id 作成主体
     /// @param guild_id 対象guild_id
-    /// @param name channel名
+    /// @param input channel作成入力
     /// @returns 作成結果
     /// @throws GuildChannelError 入力不正/非メンバー/未存在/依存障害時
     async fn create_guild_channel(
         &self,
         principal_id: PrincipalId,
         guild_id: i64,
-        name: String,
+        input: CreateChannelInput,
     ) -> Result<CreatedChannel, GuildChannelError> {
-        let normalized_name = normalize_non_empty_name(&name, "channel_name_required")?;
+        let normalized_input = normalize_channel_create_input(input)?;
+        if matches!(normalized_input.kind, ChannelKind::GuildCategory) && normalized_input.parent_id.is_some()
+        {
+            return Err(GuildChannelError::validation("category_parent_not_allowed"));
+        }
         let client = self.select_client().await?;
 
         let row = match client
             .query_opt(
                 Self::CREATE_GUILD_CHANNEL_SQL,
-                &[&guild_id, &normalized_name, &principal_id.0],
+                &[
+                    &guild_id,
+                    &normalized_input.kind.as_db_str(),
+                    &normalized_input.parent_id,
+                    &principal_id.0,
+                    &normalized_input.name,
+                ],
             )
             .await
         {
             Ok(Some(row)) => row,
             Ok(None) => {
-                if self.has_guild(&client, guild_id).await? {
+                if !self.has_guild(&client, guild_id).await? {
+                    return Err(GuildChannelError::not_found("guild_not_found"));
+                }
+                if !self
+                    .has_guild_membership(&client, guild_id, principal_id.0)
+                    .await?
+                {
                     return Err(GuildChannelError::forbidden("guild_membership_required"));
                 }
-                return Err(GuildChannelError::not_found("guild_not_found"));
+                if !self.has_manage_permission(&client, principal_id, guild_id).await? {
+                    return Err(GuildChannelError::forbidden("channel_manage_permission_required"));
+                }
+                if let Some(parent_id) = normalized_input.parent_id {
+                    let Some((parent_guild_id, parent_kind)) =
+                        self.find_channel_scope(&client, parent_id).await?
+                    else {
+                        return Err(GuildChannelError::channel_not_found("parent_channel_not_found"));
+                    };
+                    if parent_guild_id != guild_id {
+                        return Err(GuildChannelError::validation("parent_channel_cross_guild"));
+                    }
+                    if parent_kind != ChannelKind::GuildCategory {
+                        return Err(GuildChannelError::validation("parent_channel_must_be_category"));
+                    }
+                }
+                return Err(GuildChannelError::dependency_unavailable(
+                    "channel_create_rejected_without_reason",
+                ));
             }
             Err(error) => {
                 self.invalidate_pool().await;
@@ -834,7 +1085,10 @@ impl GuildChannelService for PostgresGuildChannelService {
         Ok(CreatedChannel {
             channel_id: row.get::<&str, i64>("channel_id"),
             guild_id: row.get::<&str, i64>("guild_id"),
+            kind: ChannelKind::parse(&row.get::<&str, String>("channel_type"))?,
             name: row.get::<&str, String>("name"),
+            parent_id: row.get::<&str, Option<i64>>("parent_channel_id"),
+            position: row.get::<&str, i32>("position"),
             created_at: row.get::<&str, String>("created_at"),
         })
     }
@@ -892,7 +1146,10 @@ impl GuildChannelService for PostgresGuildChannelService {
         Ok(ChannelSummary {
             channel_id: row.get::<&str, i64>("channel_id"),
             guild_id: row.get::<&str, i64>("guild_id"),
+            kind: ChannelKind::parse(&row.get::<&str, String>("channel_type"))?,
             name: row.get::<&str, String>("name"),
+            parent_id: row.get::<&str, Option<i64>>("parent_channel_id"),
+            position: row.get::<&str, i32>("position"),
             created_at: row.get::<&str, String>("created_at"),
         })
     }
