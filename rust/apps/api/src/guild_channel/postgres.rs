@@ -73,16 +73,23 @@ impl PostgresGuildChannelService {
                     FROM guild_members gm
                     WHERE gm.guild_id = $1
                       AND gm.user_id = $4
-                      AND EXISTS (
-                        SELECT 1
-                        FROM guild_member_roles_v2 gmr
-                        JOIN guild_roles_v2 gr
-                          ON gr.guild_id = gmr.guild_id
-                         AND gr.role_key = gmr.role_key
-                        WHERE gmr.guild_id = gm.guild_id
-                          AND gmr.user_id = $4
-                          AND gmr.role_key IN ('owner', 'admin')
-                          AND gr.allow_manage = TRUE
+                      AND (
+                        EXISTS (
+                          SELECT 1
+                          FROM guilds g
+                          WHERE g.id = gm.guild_id
+                            AND g.owner_id = $4
+                        )
+                        OR EXISTS (
+                          SELECT 1
+                          FROM guild_member_roles_v2 gmr
+                          JOIN guild_roles_v2 gr
+                            ON gr.guild_id = gmr.guild_id
+                           AND gr.role_key = gmr.role_key
+                          WHERE gmr.guild_id = gm.guild_id
+                            AND gmr.user_id = $4
+                            AND gr.allow_manage = TRUE
+                        )
                       )
                     FOR KEY SHARE
                  ),
@@ -289,16 +296,23 @@ impl PostgresGuildChannelService {
                           AND gm.user_id = $2
                         FOR KEY SHARE
                       )
-                      AND EXISTS (
-                        SELECT 1
-                        FROM guild_member_roles_v2 gmr
-                        JOIN guild_roles_v2 gr
-                          ON gr.guild_id = gmr.guild_id
-                         AND gr.role_key = gmr.role_key
-                        WHERE gmr.guild_id = c.guild_id
-                          AND gmr.user_id = $2
-                          AND gmr.role_key IN ('owner', 'admin')
-                          AND gr.allow_manage = TRUE
+                      AND (
+                        EXISTS (
+                          SELECT 1
+                          FROM guilds g
+                          WHERE g.id = c.guild_id
+                            AND g.owner_id = $2
+                        )
+                        OR EXISTS (
+                          SELECT 1
+                          FROM guild_member_roles_v2 gmr
+                          JOIN guild_roles_v2 gr
+                            ON gr.guild_id = gmr.guild_id
+                           AND gr.role_key = gmr.role_key
+                          WHERE gmr.guild_id = c.guild_id
+                            AND gmr.user_id = $2
+                            AND gr.allow_manage = TRUE
+                        )
                       )
                  )
                  UPDATE channels c
@@ -334,16 +348,23 @@ impl PostgresGuildChannelService {
                           AND gm.user_id = $2
                         FOR KEY SHARE
                       )
-                      AND EXISTS (
-                        SELECT 1
-                        FROM guild_member_roles_v2 gmr
-                        JOIN guild_roles_v2 gr
-                          ON gr.guild_id = gmr.guild_id
-                         AND gr.role_key = gmr.role_key
-                        WHERE gmr.guild_id = c.guild_id
-                          AND gmr.user_id = $2
-                          AND gmr.role_key IN ('owner', 'admin')
-                          AND gr.allow_manage = TRUE
+                      AND (
+                        EXISTS (
+                          SELECT 1
+                          FROM guilds g
+                          WHERE g.id = c.guild_id
+                            AND g.owner_id = $2
+                        )
+                        OR EXISTS (
+                          SELECT 1
+                          FROM guild_member_roles_v2 gmr
+                          JOIN guild_roles_v2 gr
+                            ON gr.guild_id = gmr.guild_id
+                           AND gr.role_key = gmr.role_key
+                          WHERE gmr.guild_id = c.guild_id
+                            AND gmr.user_id = $2
+                            AND gr.allow_manage = TRUE
+                        )
                       )
                  ),
                  deleted_children AS (
@@ -636,32 +657,6 @@ impl PostgresGuildChannelService {
     /// @param user_id 対象user_id
     /// @returns owner/admin管理権限を持つ場合は `true`
     /// @throws GuildChannelError 依存障害時
-    async fn has_guild_manage_role(
-        &self,
-        client: &tokio_postgres::Client,
-        guild_id: i64,
-        user_id: i64,
-    ) -> Result<bool, GuildChannelError> {
-        match client
-            .query_opt(
-                "SELECT 1
-                 FROM guild_member_roles_v2 gmr
-                 JOIN guild_roles_v2 gr
-                   ON gr.guild_id = gmr.guild_id
-                  AND gr.role_key = gmr.role_key
-                 WHERE gmr.guild_id = $1
-                   AND gmr.user_id = $2
-                   AND gmr.role_key IN ('owner', 'admin')
-                   AND gr.allow_manage = TRUE",
-                &[&guild_id, &user_id],
-            )
-            .await
-        {
-            Ok(row) => Ok(row.is_some()),
-            Err(error) => Err(self.map_read_error("guild_manage_role_lookup_failed", error).await),
-        }
-    }
-
     /// principalがguild管理権限を持つか確認する。
     /// @param client Postgresクライアント
     /// @param principal_id 認証済みprincipal_id
@@ -1129,7 +1124,7 @@ impl GuildChannelService for PostgresGuildChannelService {
                 }
 
                 if !self
-                    .has_guild_manage_role(&client, guild_id, principal_id.0)
+                    .has_manage_permission(&client, principal_id, guild_id)
                     .await?
                 {
                     return Err(GuildChannelError::forbidden("channel_manage_permission_required"));
@@ -1184,7 +1179,7 @@ impl GuildChannelService for PostgresGuildChannelService {
                 }
 
                 if !self
-                    .has_guild_manage_role(&client, guild_id, principal_id.0)
+                    .has_manage_permission(&client, principal_id, guild_id)
                     .await?
                 {
                     return Err(GuildChannelError::forbidden("channel_manage_permission_required"));

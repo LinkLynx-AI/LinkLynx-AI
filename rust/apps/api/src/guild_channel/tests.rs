@@ -155,10 +155,12 @@ mod tests {
         let sql = PostgresGuildChannelService::CREATE_GUILD_CHANNEL_SQL;
 
         assert!(sql.contains("FROM guild_members"));
+        assert!(sql.contains("owner_id = $4"));
         assert!(sql.contains("validated_parent"));
         assert!(sql.contains("channel_hierarchies_v2"));
         assert!(sql.contains("FOR KEY SHARE"));
         assert!(!sql.contains("VALUES ('guild_text'"));
+        assert!(!sql.contains("role_key IN ('owner', 'admin')"));
     }
 
     #[test]
@@ -214,24 +216,26 @@ mod tests {
     }
 
     #[test]
-    fn update_guild_channel_sql_requires_manage_role_lookup() {
+    fn update_guild_channel_sql_requires_manage_permission_lookup() {
         let sql = PostgresGuildChannelService::UPDATE_GUILD_CHANNEL_SQL;
 
         assert!(sql.contains("UPDATE channels"));
         assert!(sql.contains("guild_member_roles_v2"));
         assert!(sql.contains("guild_roles_v2"));
-        assert!(sql.contains("role_key IN ('owner', 'admin')"));
+        assert!(sql.contains("owner_id = $2"));
         assert!(sql.contains("allow_manage = TRUE"));
+        assert!(!sql.contains("role_key IN ('owner', 'admin')"));
     }
 
     #[test]
-    fn delete_guild_channel_sql_requires_manage_role_lookup() {
+    fn delete_guild_channel_sql_requires_manage_permission_lookup() {
         let sql = PostgresGuildChannelService::DELETE_GUILD_CHANNEL_SQL;
 
         assert!(sql.contains("DELETE FROM channels"));
         assert!(sql.contains("guild_member_roles_v2"));
         assert!(sql.contains("guild_roles_v2"));
-        assert!(sql.contains("role_key IN ('owner', 'admin')"));
+        assert!(sql.contains("owner_id = $2"));
         assert!(sql.contains("allow_manage = TRUE"));
+        assert!(!sql.contains("role_key IN ('owner', 'admin')"));
     }
 }

@@ -497,7 +497,7 @@ async fn require_messageable_guild_channel(
         .get_guild_channel_summary(auth_context.principal_id, guild_id, channel_id)
         .await?;
     if !channel.kind.is_messageable() {
-        return Err(GuildChannelError::validation("channel_not_messageable"));
+        return Err(GuildChannelError::forbidden("channel_not_messageable"));
     }
 
     Ok(channel)
