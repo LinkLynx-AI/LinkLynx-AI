@@ -1,6 +1,6 @@
 # DATABASE.md
 
-最終更新: 2026-03-07
+最終更新: 2026-03-08
 
 このドキュメントは、リポジトリ内の定義ファイルを基準にした「現在のDB状態」をまとめたものです。
 実行中のDBインスタンスを直接参照したスナップショットではありません。
@@ -38,10 +38,12 @@
 14. `0014_lin637_attachment_metadata_persistence`
 15. `0015_lin803_server_channel_minimal_contract`
 16. `0016_lin822_minimal_moderation`
+17. `0017_lin941_channel_category_contract`
+18. `0018_lin941_channel_category_constraints`
 
 ### 2.1 型（ENUM）
 
-- `channel_type`: `guild_text`, `dm`
+- `channel_type`: `guild_text`, `guild_category`, `dm`
 - `channel_hierarchy_kind`: `category_child`, `thread`
 - `moderation_report_status`: `open`, `resolved`
 - `audit_action`: `INVITE_CREATE`, `INVITE_DISABLE`, `GUILD_MEMBER_JOIN`, `GUILD_MEMBER_LEAVE`, `ROLE_ASSIGN`, `ROLE_REVOKE`, `CHANNEL_CREATE`, `CHANNEL_UPDATE`, `CHANNEL_DELETE`, `MESSAGE_DELETE_MOD`, `USER_BAN`, `USER_UNBAN`, `REPORT_CREATE`, `MUTE_CREATE`, `REPORT_RESOLVE`, `REPORT_REOPEN`
@@ -81,12 +83,12 @@
 - `guilds.id` と `channels.id` はデフォルト採番（`guilds_id_seq` / `channels_id_seq`）を許容
 - `auth_identities(provider, provider_subject)` は外部認証主体（例: Firebase UID）を一意化し、`principal_id -> users.id` へ正規化
 - `guild_members(guild_id, user_id)` は `guilds/users` への多対多
-- `channels` は `channel_type` でギルドチャネル/DM を表現
-- `guilds.name` と `channels(type='guild_text').name` は空文字（空白のみ）を拒否
+- `channels` は `channel_type` でギルドテキストチャネル/カテゴリコンテナ/DM を表現
+- `guilds.name` と `channels(type in ('guild_text', 'guild_category')).name` は空文字（空白のみ）を拒否
 - `dm_pairs` は `user_low < user_high` 制約と `channel_id` 一意制約で DM 1対1 を保証
 - `guild_roles_v2` + `guild_member_roles_v2` + `channel_role_permission_overrides_v2` は LIN-632 で導入された任意ロールモデル（LIN-857でv0資産を削除し単一化）
 - `channel_user_permission_overrides_v2` は LIN-633 で導入されたユーザー単位の tri-state override で、`channel_role_permission_overrides_v2` と併存する
-- `channel_hierarchies_v2` は LIN-634 で導入されたカテゴリ配下/スレッド識別の階層メタデータで、`channels` 本体互換を維持したまま親子関係を保持する
+- `channel_hierarchies_v2` は LIN-634 で導入されたカテゴリ配下/スレッド識別の階層メタデータで、`guild_category -> guild_text` または `guild_text -> guild_text(thread)` の親子関係を保持する
 - `message_references_v2` は LIN-635 で導入された返信参照メタデータで、`message_id` 単位で `reply_to_message_id` を一意追跡する
 - `channel_pins_v2` は LIN-635 で導入されたピン留め状態メタデータで、`pinned_at/pinned_by` と `unpinned_at/unpinned_by` により監査可能な状態遷移を保持する
 - `message_reactions_v2` は LIN-636 で導入されたリアクションメタデータで、`(message_id, emoji, user_id)` 主キーにより重複リアクションを防止する
@@ -121,8 +123,8 @@
 - `idx_auth_identities_principal_id`
 - `idx_guild_members_user`
 - `idx_guild_members_user_joined_guild`
-- `idx_channels_guild`（`type='guild_text'` 条件付き）
-- `idx_channels_guild_created_id`（`type='guild_text'` 条件付き）
+- `idx_channels_guild`（`type in ('guild_text', 'guild_category')` 条件付き）
+- `idx_channels_guild_created_id`（`type in ('guild_text', 'guild_category')` 条件付き）
 - `idx_dm_participants_user`
 - `idx_invites_guild`, `idx_invites_expires`
 - `idx_channel_hierarchies_v2_parent_pos`
@@ -193,43 +195,49 @@ The source of truth for channel hierarchy schema (category/thread), scope constr
 
 - `database/contracts/lin634_channel_hierarchy_category_thread_contract.md`
 
-### 2.14 Legacy Permission Assets Removal Contract (LIN-857)
+### 2.14 Channel Category Contract Delta (LIN-941)
+
+The source of truth for v1 category container representation (`channel_type.guild_category`), category-child parent scope, and category non-messageable compatibility policy is:
+
+- `database/contracts/lin634_channel_hierarchy_category_thread_contract.md`
+
+### 2.15 Legacy Permission Assets Removal Contract (LIN-857)
 
 The source of truth for post-cutover removal of legacy permission tables/columns is:
 
 - `database/contracts/lin857_legacy_permission_assets_removal_contract.md`
 
-### 2.15 Message Reply/Pin Persistence Contract (LIN-635)
+### 2.16 Message Reply/Pin Persistence Contract (LIN-635)
 
 The source of truth for message reply reference tracking, pin/unpin audit columns, and tombstone compatibility policy is:
 
 - `database/contracts/lin635_message_reply_pin_persistence_contract.md`
 
-### 2.16 Message Reaction Persistence Contract (LIN-636)
+### 2.17 Message Reaction Persistence Contract (LIN-636)
 
 The source of truth for message reaction persistence, duplicate-prevention constraints, and message-based aggregation index policy is:
 
 - `database/contracts/lin636_message_reaction_persistence_contract.md`
 
-### 2.17 Attachment Metadata Persistence Contract (LIN-637)
+### 2.18 Attachment Metadata Persistence Contract (LIN-637)
 
 The source of truth for attachment metadata persistence, logical deletion/retention audit columns, and LIN-590 alignment policy is:
 
 - `database/contracts/lin637_attachment_metadata_persistence_contract.md`
 
-### 2.18 Minimal Moderation Contract (LIN-822)
+### 2.19 Minimal Moderation Contract (LIN-822)
 
 The source of truth for minimal moderation persistence (`moderation_reports`, `moderation_mutes`), `audit_action` enum extension, and report state transitions is:
 
 - `database/contracts/lin822_minimal_moderation_contract.md`
 
-### 2.19 SpiceDB Namespace/Relation/Permission Model Contract (LIN-862)
+### 2.20 SpiceDB Namespace/Relation/Permission Model Contract (LIN-862)
 
 The source of truth for SpiceDB namespace/relation/permission design aligned with LIN-861 matrix and LIN-632/LIN-633 tuple mapping is:
 
 - `database/contracts/lin862_spicedb_namespace_relation_permission_contract.md`
 
-### 2.20 Postgres -> SpiceDB Tuple Mapping/Sync Contract (LIN-864)
+### 2.21 Postgres -> SpiceDB Tuple Mapping/Sync Contract (LIN-864)
 
 The source of truth for Postgres `*_v2` permission data to canonical SpiceDB tuple conversion, initial backfill contract, outbox delta-sync semantics, and full-resync operational hook is:
 
