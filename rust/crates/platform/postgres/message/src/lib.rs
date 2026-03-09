@@ -14,7 +14,7 @@ use linklynx_message_domain::{
 };
 use tokio::sync::RwLock;
 use tokio_postgres::{NoTls, Row};
-use tracing::warn;
+use tracing::{error, warn};
 
 const SELECT_CHANNEL_CONTEXT_SQL: &str = "
     SELECT
@@ -378,6 +378,13 @@ impl MessageCreateIdempotencyRepository for PostgresMessageMetadataRepository {
         {
             Ok(row) => row,
             Err(error) => {
+                error!(
+                    principal_id,
+                    channel_id,
+                    payload_fingerprint = %idempotency.payload_fingerprint,
+                    reason = %error,
+                    "message create idempotency reservation failed"
+                );
                 self.invalidate_pool().await;
                 return Err(MessageUsecaseError::dependency_unavailable(format!(
                     "message_idempotency_reserve_failed:{error}"
@@ -413,6 +420,13 @@ impl MessageCreateIdempotencyRepository for PostgresMessageMetadataRepository {
         {
             Ok(updated) => updated,
             Err(error) => {
+                error!(
+                    principal_id,
+                    channel_id,
+                    idempotency_key_present = true,
+                    reason = %error,
+                    "message create idempotency completion failed"
+                );
                 self.invalidate_pool().await;
                 return Err(MessageUsecaseError::dependency_unavailable(format!(
                     "message_idempotency_complete_failed:{error}"
