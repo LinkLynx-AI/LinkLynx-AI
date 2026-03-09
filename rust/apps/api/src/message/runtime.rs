@@ -51,8 +51,19 @@ pub async fn build_runtime_message_service() -> Arc<dyn MessageService> {
         database_url,
         allow_postgres_notls,
     ));
+    let message_store = match ScyllaMessageStore::new(session, scylla_config.keyspace.clone()) {
+        Ok(store) => Arc::new(store),
+        Err(error) => {
+            let reason = error.reason_code().to_owned();
+            warn!(
+                reason = %reason,
+                "Scylla message store configuration is invalid; message service will fail-close"
+            );
+            return Arc::new(UnavailableMessageService::new(reason));
+        }
+    };
     let usecase: Arc<dyn MessageUsecase> = Arc::new(LiveMessageUsecase::new(
-        Arc::new(ScyllaMessageStore::new(session, scylla_config.keyspace.clone())),
+        message_store,
         metadata_repository.clone(),
         metadata_repository,
     ));
@@ -171,7 +182,6 @@ mod runtime_tests {
         scoped.set("AUTH_ALLOW_POSTGRES_NOTLS", "true");
         scoped.set("SCYLLA_HOSTS", "127.0.0.1:9043");
         scoped.set("SCYLLA_SCHEMA_PATH", "database/scylla/001_lin139_messages.cql");
-        scoped.set("SCYLLA_REQUEST_TIMEOUT_MS", "50");
 
         let service = build_runtime_message_service().await;
         let error = service

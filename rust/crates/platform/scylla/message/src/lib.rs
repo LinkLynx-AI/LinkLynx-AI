@@ -155,9 +155,10 @@ impl ScyllaMessageStore {
     /// @param session 初期化済み Scylla session
     /// @returns message store
     /// @throws なし
-    pub fn new(session: Session, keyspace: impl Into<String>) -> Self {
+    pub fn new(session: Session, keyspace: impl Into<String>) -> Result<Self, MessageUsecaseError> {
         let keyspace = keyspace.into();
-        Self {
+        validate_keyspace_identifier(&keyspace)?;
+        Ok(Self {
             session: Arc::new(session),
             insert_message_sql: qualify_messages_by_channel_sql(
                 INSERT_MESSAGE_SQL_TEMPLATE,
@@ -183,7 +184,7 @@ impl ScyllaMessageStore {
                 LIST_BUCKET_AFTER_SQL_TEMPLATE,
                 &keyspace,
             ),
-        }
+        })
     }
 
     async fn select_message(
@@ -489,6 +490,25 @@ fn qualify_messages_by_channel_sql(template: &str, keyspace: &str) -> String {
         "chat.messages_by_channel",
         &format!("{keyspace}.messages_by_channel"),
     )
+}
+
+fn validate_keyspace_identifier(keyspace: &str) -> Result<(), MessageUsecaseError> {
+    let mut chars = keyspace.chars();
+    let Some(first) = chars.next() else {
+        return Err(MessageUsecaseError::dependency_unavailable(
+            "message_keyspace_invalid",
+        ));
+    };
+
+    if !first.is_ascii_alphabetic()
+        || !chars.all(|value| value.is_ascii_alphanumeric() || value == '_')
+    {
+        return Err(MessageUsecaseError::dependency_unavailable(
+            "message_keyspace_invalid",
+        ));
+    }
+
+    Ok(())
 }
 
 fn collect_unique_items(

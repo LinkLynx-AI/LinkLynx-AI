@@ -412,6 +412,25 @@ mod tests {
         env::var("SCYLLA_KEYSPACE").unwrap_or_else(|_| "chat".to_owned())
     }
 
+    fn qualify_integration_messages_table(keyspace: &str) -> String {
+        let mut chars = keyspace.chars();
+        let Some(first) = chars.next() else {
+            panic!("invalid integration keyspace");
+        };
+        assert!(
+            first.is_ascii_alphabetic()
+                && chars.all(|value| value.is_ascii_alphanumeric() || value == '_'),
+            "invalid integration keyspace"
+        );
+        format!("{keyspace}.messages_by_channel")
+    }
+
+    fn bucket_from_created_at(value: &str) -> i32 {
+        let parsed = OffsetDateTime::parse(value, &Rfc3339).expect("timestamp should parse");
+        let date = parsed.date();
+        date.year() * 10_000 + date.month() as i32 * 100 + date.day() as i32
+    }
+
     async fn connect_integration_database() -> Option<(String, tokio_postgres::Client)> {
         if !integration_test_enabled() {
             return None;
@@ -558,8 +577,9 @@ mod tests {
         bucket: i32,
         row: SeedMessageRow,
     ) {
+        let messages_table = qualify_integration_messages_table(keyspace);
         let sql = format!(
-            "INSERT INTO {keyspace}.messages_by_channel (
+            "INSERT INTO {messages_table} (
                channel_id,
                bucket,
                message_id,
@@ -600,8 +620,9 @@ mod tests {
         channel_id: i64,
         bucket: i32,
     ) -> i64 {
+        let messages_table = qualify_integration_messages_table(keyspace);
         let sql = format!(
-            "SELECT COUNT(*) FROM {keyspace}.messages_by_channel
+            "SELECT COUNT(*) FROM {messages_table}
              WHERE channel_id = ?
                AND bucket = ?"
         );
@@ -625,7 +646,7 @@ mod tests {
     fn build_live_usecase(database_url: String, session: Session, keyspace: String) -> LiveMessageUsecase {
         let metadata = Arc::new(PostgresMessageMetadataRepository::new(database_url, true));
         LiveMessageUsecase::new(
-            Arc::new(ScyllaMessageStore::new(session, keyspace)),
+            Arc::new(ScyllaMessageStore::new(session, keyspace).expect("valid scylla keyspace")),
             metadata.clone(),
             metadata,
         )
@@ -754,7 +775,6 @@ mod tests {
 
         let base_id = next_integration_id_block(10);
         let channel_id = base_id;
-        let bucket = 20260308;
         let message = linklynx_message_api::MessageItemV1 {
             message_id: base_id + 1,
             guild_id: 10,
@@ -766,7 +786,9 @@ mod tests {
             edited_at: None,
             is_deleted: false,
         };
-        let store = ScyllaMessageStore::new(store_session, keyspace.clone());
+        let bucket = bucket_from_created_at(&message.created_at);
+        let store =
+            ScyllaMessageStore::new(store_session, keyspace.clone()).expect("valid scylla keyspace");
 
         let first = store
             .append_guild_channel_message(&message)
@@ -904,7 +926,14 @@ mod tests {
                 created_at: "2026-03-08T10:00:05Z",
             },
         ] {
-            insert_scylla_message(&session, &keyspace, channel_id, 20260308, row).await;
+            insert_scylla_message(
+                &session,
+                &keyspace,
+                channel_id,
+                bucket_from_created_at(row.created_at),
+                row,
+            )
+            .await;
         }
         for row in [
             SeedMessageRow {
@@ -928,7 +957,14 @@ mod tests {
                 created_at: "2026-03-07T09:00:02Z",
             },
         ] {
-            insert_scylla_message(&session, &keyspace, channel_id, 20260307, row).await;
+            insert_scylla_message(
+                &session,
+                &keyspace,
+                channel_id,
+                bucket_from_created_at(row.created_at),
+                row,
+            )
+            .await;
         }
 
         let usecase = build_live_usecase(database_url, session, keyspace);
