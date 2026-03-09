@@ -4,7 +4,7 @@
 - Now:
   - `origin/main` を基点に `codex/LIN-941-channel-category-contract` を作成済み。
   - `LIN-940` 親計画に基づく最初の child issue として、DB/AuthZ/API contract 差分を docs + migration + schema snapshot に固定した。
-  - `0017_lin941_channel_category_contract` で `channel_type.guild_category`、category-child parent scope、guild-scoped index/constraint 更新を定義した。
+  - `0017_lin941_channel_category_contract` と `0018_lin941_channel_category_constraints` に分割し、enum 追加と constraint/trigger/index 更新の transaction 境界を分離した。
   - `LIN-942`/`LIN-943` へ跨る runtime/UI 差分はこの branch から外し、後続 child issue へ分離した。
 - Next:
   - reviewer gate と UI guard の証跡を追加する。
@@ -45,16 +45,19 @@
 - 2026-03-08: `make validate` 成功
 - 2026-03-08: `make rust-lint` 成功
 - 2026-03-08: `cd typescript && npm run typecheck` 成功
-- 2026-03-08: `make db-migrate` は `/bin/sh: sqlx: command not found` で失敗
-- 2026-03-08: `make db-schema` は `service "postgres" is not running` で失敗
-- 2026-03-08: `make db-schema-check` は `service "postgres" is not running` で失敗
+- 2026-03-08: `make db-migrate` は当初 `/bin/sh: sqlx: command not found` で失敗したが、`/Users/reiya.mac/.cargo/bin/sqlx` を PATH に追加して再実行可能化した
+- 2026-03-08: local Postgres に対する `sqlx migrate run` で `unsafe use of new value "guild_category" of enum type channel_type` を検出し、`0017` を enum-only migration に縮小して `0018` へ残差分を分離した
+- 2026-03-08: `/bin/zsh -lc 'export PATH=/Users/reiya.mac/.cargo/bin:$PATH; make db-migrate'` 成功
+- 2026-03-08: `/bin/zsh -lc 'POSTGRES_DUMP_CMD="docker exec tmp-postgres-1 pg_dump -U postgres -d linklynx --schema-only --no-owner --no-privileges --exclude-table=_sqlx_migrations" make db-schema'` 成功
+- 2026-03-08: `/bin/zsh -lc 'POSTGRES_DUMP_CMD="docker exec tmp-postgres-1 pg_dump -U postgres -d linklynx --schema-only --no-owner --no-privileges --exclude-table=_sqlx_migrations" make db-schema-check'` 成功
 
 ## Review log
-- 2026-03-08: manual blocking review を実施し、migration/schema consistency の修正後は blocking finding なし
+- 2026-03-08: reviewer fallback で `db-migrate` / `db-schema` / `db-schema-check` の成功証跡不足が block 指摘として上がった
+- 2026-03-08: 上記 block に対し migration 分割 (`0017` + `0018`) と live DB 検証を実施し、再レビュー待ち状態へ更新した
 - 2026-03-08: UI review は skip。理由: `LIN-941` の差分は docs / migration / schema snapshot のみで UI 変更を含まない
 - 2026-03-08: `reviewer` / `reviewer_ui_guard` の自動実行はこの session で安定しなかったため、manual fallback を採用
 
 ## Known issues / follow-ups
 - `LIN-942` で service / SQL / HTTP route を category-aware に拡張し、invalid parent / cross-guild parent / category message deny を実装する必要がある。
 - `LIN-943` で `GuildChannelAPIClient`、sidebar、create/edit/delete 導線、category 非遷移、cascade delete 後フォールバックを接続する必要がある。
-- DB 系 validation を再実行するには、`sqlx` CLI の用意と `postgres` service 起動が必要。
+- default の `make db-schema*` は compose service `postgres` を前提にする。今回は既存 local container `tmp-postgres-1` を `POSTGRES_DUMP_CMD` で差し替えて検証した。

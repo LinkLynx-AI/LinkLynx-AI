@@ -39,6 +39,7 @@
 15. `0015_lin803_server_channel_minimal_contract`
 16. `0016_lin822_minimal_moderation`
 17. `0017_lin941_channel_category_contract`
+18. `0018_lin941_channel_category_constraints`
 
 ### 2.1 型（ENUM）
 

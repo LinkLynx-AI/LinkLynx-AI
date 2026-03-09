@@ -43,8 +43,8 @@ CREATE TYPE public.channel_hierarchy_kind AS ENUM (
 
 CREATE TYPE public.channel_type AS ENUM (
     'guild_text',
-    'guild_category',
-    'dm'
+    'dm',
+    'guild_category'
 );
 
 
@@ -1254,6 +1254,7 @@ ALTER TABLE ONLY public.moderation_reports
 
 ALTER TABLE ONLY public.moderation_reports
     ADD CONSTRAINT moderation_reports_resolved_by_fkey FOREIGN KEY (resolved_by) REFERENCES public.users(id) ON DELETE SET NULL;
+
 
 
 
