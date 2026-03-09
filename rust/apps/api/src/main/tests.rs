@@ -1,6 +1,12 @@
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::message::test_support::{
+        bucket_from_created_at, build_live_message_service, connect_integration_database,
+        connect_integration_scylla, count_scylla_messages, insert_scylla_message,
+        next_integration_id_block, query_last_message, seed_guild_text_channel, seed_user,
+        upsert_channel_last_message, SeedMessageRow,
+    };
     use crate::ratelimit::RestRateLimitConfig;
     use async_trait::async_trait;
     use std::collections::{HashMap, HashSet};
@@ -3924,6 +3930,292 @@ mod tests {
         assert_eq!(json["message"]["author_id"], 9003);
         assert_eq!(json["message"]["content"], "hello contract");
         assert_eq!(json["message"]["is_deleted"], false);
+    }
+
+    #[tokio::test]
+    async fn message_scylla_integration_http_create_and_list_channel_messages_use_live_storage() {
+        let Some((database_url, client)) = connect_integration_database().await else {
+            return;
+        };
+        let Some((service_session, keyspace)) = connect_integration_scylla().await else {
+            return;
+        };
+        let Some((assert_session, _)) = connect_integration_scylla().await else {
+            return;
+        };
+
+        let base_id = next_integration_id_block(10);
+        let guild_id = base_id;
+        let channel_id = base_id + 1;
+        let owner_id = 9001;
+        let author_id = 9003;
+
+        seed_user(&client, owner_id, "live-http-owner").await;
+        seed_user(&client, author_id, "live-http-member").await;
+        seed_guild_text_channel(
+            &client,
+            guild_id,
+            owner_id,
+            channel_id,
+            "2026-03-07T00:00:00Z",
+        )
+        .await;
+
+        let app = app_for_test_with_authorizer_and_message_service(
+            Arc::new(RoleScenarioAuthorizer),
+            build_live_message_service(database_url, service_session, keyspace.clone()),
+        )
+        .await;
+        let token = format!("u-member:{}", unix_timestamp_seconds() + 300);
+
+        let create_response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri(format!(
+                        "/v1/guilds/{guild_id}/channels/{channel_id}/messages"
+                    ))
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"content":"hello live http"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(create_response.status(), StatusCode::CREATED);
+        let create_body = to_bytes(create_response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let create_json = serde_json::from_slice::<serde_json::Value>(&create_body).unwrap();
+        let message_id = create_json["message"]["message_id"].as_i64().unwrap();
+        let created_at = create_json["message"]["created_at"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        assert_eq!(create_json["message"]["guild_id"], guild_id);
+        assert_eq!(create_json["message"]["channel_id"], channel_id);
+        assert_eq!(create_json["message"]["author_id"], author_id);
+        assert_eq!(create_json["message"]["content"], "hello live http");
+
+        let bucket = bucket_from_created_at(&created_at);
+        assert_eq!(
+            count_scylla_messages(&assert_session, &keyspace, channel_id, bucket).await,
+            1
+        );
+        let (last_message_id, last_message_at) = query_last_message(&client, channel_id).await;
+        assert_eq!(last_message_id, message_id);
+        assert_eq!(last_message_at, created_at);
+
+        let list_response = app
+            .oneshot(
+                Request::builder()
+                    .uri(format!(
+                        "/v1/guilds/{guild_id}/channels/{channel_id}/messages?limit=10"
+                    ))
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(list_response.status(), StatusCode::OK);
+        let list_body = to_bytes(list_response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let list_json = serde_json::from_slice::<serde_json::Value>(&list_body).unwrap();
+        assert_eq!(list_json["items"][0]["message_id"], message_id);
+        assert_eq!(list_json["items"][0]["content"], "hello live http");
+        assert_eq!(list_json["items"][0]["author_id"], author_id);
+        assert_eq!(list_json["has_more"], false);
+        assert_eq!(list_json["next_before"], serde_json::Value::Null);
+        assert_eq!(list_json["next_after"], serde_json::Value::Null);
+    }
+
+    #[tokio::test]
+    async fn message_scylla_integration_http_list_channel_messages_respects_bucket_boundaries() {
+        let Some((database_url, client)) = connect_integration_database().await else {
+            return;
+        };
+        let Some((seed_session, keyspace)) = connect_integration_scylla().await else {
+            return;
+        };
+        let Some((service_session, _)) = connect_integration_scylla().await else {
+            return;
+        };
+
+        let base_id = next_integration_id_block(10);
+        let guild_id = base_id;
+        let channel_id = base_id + 1;
+        let owner_id = 9001;
+
+        seed_user(&client, owner_id, "http-paging-owner").await;
+        seed_guild_text_channel(
+            &client,
+            guild_id,
+            owner_id,
+            channel_id,
+            "2026-03-07T00:00:00Z",
+        )
+        .await;
+        upsert_channel_last_message(&client, channel_id, 130_205, "2026-03-08T10:00:06Z").await;
+
+        for row in [
+            SeedMessageRow {
+                message_id: 130_205,
+                author_id: owner_id,
+                created_at: "2026-03-08T10:00:06Z",
+            },
+            SeedMessageRow {
+                message_id: 130_203,
+                author_id: owner_id,
+                created_at: "2026-03-08T10:00:05Z",
+            },
+        ] {
+            insert_scylla_message(
+                &seed_session,
+                &keyspace,
+                channel_id,
+                bucket_from_created_at(row.created_at),
+                row,
+            )
+            .await;
+        }
+        for row in [
+            SeedMessageRow {
+                message_id: 130_202,
+                author_id: owner_id,
+                created_at: "2026-03-07T09:00:05Z",
+            },
+            SeedMessageRow {
+                message_id: 130_201,
+                author_id: owner_id,
+                created_at: "2026-03-07T09:00:05Z",
+            },
+            SeedMessageRow {
+                message_id: 130_199,
+                author_id: owner_id,
+                created_at: "2026-03-07T09:00:04Z",
+            },
+            SeedMessageRow {
+                message_id: 130_198,
+                author_id: owner_id,
+                created_at: "2026-03-07T09:00:02Z",
+            },
+        ] {
+            insert_scylla_message(
+                &seed_session,
+                &keyspace,
+                channel_id,
+                bucket_from_created_at(row.created_at),
+                row,
+            )
+            .await;
+        }
+
+        let app = app_for_test_with_authorizer_and_message_service(
+            Arc::new(RoleScenarioAuthorizer),
+            build_live_message_service(database_url, service_session, keyspace),
+        )
+        .await;
+        let token = format!("u-member:{}", unix_timestamp_seconds() + 300);
+
+        let first_page = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri(format!(
+                        "/v1/guilds/{guild_id}/channels/{channel_id}/messages?limit=3"
+                    ))
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(first_page.status(), StatusCode::OK);
+        let first_body = to_bytes(first_page.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let first_json = serde_json::from_slice::<serde_json::Value>(&first_body).unwrap();
+        assert_eq!(
+            first_json["items"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|item| item["message_id"].as_i64().unwrap())
+                .collect::<Vec<_>>(),
+            vec![130_205, 130_203, 130_202]
+        );
+        assert_eq!(first_json["has_more"], true);
+        let next_before = first_json["next_before"].as_str().unwrap().to_owned();
+        assert_eq!(first_json["next_after"], serde_json::Value::Null);
+
+        let second_page = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri(format!(
+                        "/v1/guilds/{guild_id}/channels/{channel_id}/messages?limit=3&before={next_before}"
+                    ))
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(second_page.status(), StatusCode::OK);
+        let second_body = to_bytes(second_page.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let second_json = serde_json::from_slice::<serde_json::Value>(&second_body).unwrap();
+        assert_eq!(
+            second_json["items"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|item| item["message_id"].as_i64().unwrap())
+                .collect::<Vec<_>>(),
+            vec![130_201, 130_199, 130_198]
+        );
+        assert_eq!(second_json["has_more"], false);
+        assert_eq!(second_json["next_before"], serde_json::Value::Null);
+
+        let after_cursor = MessageCursorKeyV1 {
+            created_at: "2026-03-07T09:00:05Z".to_owned(),
+            message_id: 130_201,
+        }
+        .encode();
+        let newer_page = app
+            .oneshot(
+                Request::builder()
+                    .uri(format!(
+                        "/v1/guilds/{guild_id}/channels/{channel_id}/messages?limit=3&after={after_cursor}"
+                    ))
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(newer_page.status(), StatusCode::OK);
+        let newer_body = to_bytes(newer_page.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let newer_json = serde_json::from_slice::<serde_json::Value>(&newer_body).unwrap();
+        assert_eq!(
+            newer_json["items"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|item| item["message_id"].as_i64().unwrap())
+                .collect::<Vec<_>>(),
+            vec![130_202, 130_203, 130_205]
+        );
+        assert_eq!(newer_json["has_more"], false);
+        assert_eq!(newer_json["next_after"], serde_json::Value::Null);
     }
 
     #[tokio::test]

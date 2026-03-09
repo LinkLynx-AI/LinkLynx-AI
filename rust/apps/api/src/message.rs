@@ -31,3 +31,6 @@ use tracing::warn;
 include!("message/errors.rs");
 include!("message/service.rs");
 include!("message/runtime.rs");
+
+#[cfg(test)]
+pub(crate) mod test_support;
