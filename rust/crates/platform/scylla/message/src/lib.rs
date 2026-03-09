@@ -93,7 +93,7 @@ const LIST_BUCKET_BEFORE_SQL_TEMPLATE: &str = "
     FROM chat.messages_by_channel
     WHERE channel_id = ?
       AND bucket = ?
-      AND (created_at, message_id) < (?, ?)
+      AND message_id < ?
     ORDER BY message_id DESC
     LIMIT ?
     ALLOW FILTERING";
@@ -113,7 +113,7 @@ const LIST_BUCKET_AFTER_SQL_TEMPLATE: &str = "
     FROM chat.messages_by_channel
     WHERE channel_id = ?
       AND bucket = ?
-      AND (created_at, message_id) > (?, ?)
+      AND message_id > ?
     ORDER BY message_id ASC
     LIMIT ?
     ALLOW FILTERING";
@@ -155,9 +155,10 @@ impl ScyllaMessageStore {
     /// @param session 初期化済み Scylla session
     /// @returns message store
     /// @throws なし
-    pub fn new(session: Session, keyspace: impl Into<String>) -> Self {
+    pub fn new(session: Session, keyspace: impl Into<String>) -> Result<Self, MessageUsecaseError> {
         let keyspace = keyspace.into();
-        Self {
+        validate_keyspace_identifier(&keyspace)?;
+        Ok(Self {
             session: Arc::new(session),
             insert_message_sql: qualify_messages_by_channel_sql(
                 INSERT_MESSAGE_SQL_TEMPLATE,
@@ -183,7 +184,7 @@ impl ScyllaMessageStore {
                 LIST_BUCKET_AFTER_SQL_TEMPLATE,
                 &keyspace,
             ),
-        }
+        })
     }
 
     async fn select_message(
@@ -304,13 +305,7 @@ impl ScyllaMessageStore {
         self.query_messages(
             guild_id,
             &self.list_bucket_before_sql,
-            (
-                channel_id,
-                bucket,
-                timestamp_to_cql(parse_rfc3339_timestamp(&cursor.created_at)?),
-                cursor.message_id,
-                limit as i32,
-            ),
+            (channel_id, bucket, cursor.message_id, limit as i32),
         )
         .await
     }
@@ -326,13 +321,7 @@ impl ScyllaMessageStore {
         self.query_messages(
             guild_id,
             &self.list_bucket_after_sql,
-            (
-                channel_id,
-                bucket,
-                timestamp_to_cql(parse_rfc3339_timestamp(&cursor.created_at)?),
-                cursor.message_id,
-                limit as i32,
-            ),
+            (channel_id, bucket, cursor.message_id, limit as i32),
         )
         .await
     }
@@ -501,6 +490,25 @@ fn qualify_messages_by_channel_sql(template: &str, keyspace: &str) -> String {
         "chat.messages_by_channel",
         &format!("{keyspace}.messages_by_channel"),
     )
+}
+
+fn validate_keyspace_identifier(keyspace: &str) -> Result<(), MessageUsecaseError> {
+    let mut chars = keyspace.chars();
+    let Some(first) = chars.next() else {
+        return Err(MessageUsecaseError::dependency_unavailable(
+            "message_keyspace_invalid",
+        ));
+    };
+
+    if !first.is_ascii_alphabetic()
+        || !chars.all(|value| value.is_ascii_alphanumeric() || value == '_')
+    {
+        return Err(MessageUsecaseError::dependency_unavailable(
+            "message_keyspace_invalid",
+        ));
+    }
+
+    Ok(())
 }
 
 fn collect_unique_items(

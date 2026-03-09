@@ -263,7 +263,8 @@ The source of truth for Postgres `*_v2` permission data to canonical SpiceDB tup
 ### 3.3 運用契約（関連クエリ）
 
 - 履歴カーソル: `database/scylla/queries/lin288_history_cursor_paging.cql`
-  - `(created_at, message_id)` で forward/backward 走査
+  - 外部カーソルは `(created_at, message_id)` を保持
+  - bucket 解決後の in-bucket 境界判定は Scylla の clustering key 制約に合わせて `message_id` で forward/backward 走査
 - 冪等保存: `database/scylla/queries/lin289_idempotent_write_strategy.cql`
   - `INSERT ... IF NOT EXISTS` による重複防止
   - 再送時の read-before-retry を規定

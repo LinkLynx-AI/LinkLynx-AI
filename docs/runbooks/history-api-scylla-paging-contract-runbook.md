@@ -59,6 +59,7 @@ Cursor value is opaque externally, but it must encode both `created_at` and `mes
 4. Ordering tie-break uses `message_id` when `created_at` collides.
 5. Initial fetch and `before` fetch return newest -> oldest.
 6. `after` fetch returns oldest -> newest.
+7. Scylla query boundary uses `message_id` as the strict range filter inside the bucket resolved from cursor `created_at`.
 
 ## 4. Duplicate elimination policy
 

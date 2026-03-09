@@ -47,8 +47,9 @@ Query parameters:
 Rules:
 
 1. `before` and `after` must not be used together.
-2. Cursor compare key remains `(created_at, message_id)`.
-3. External cursor value is opaque; clients must not inspect or construct it manually.
+2. External cursor payload remains `(created_at, message_id)`.
+3. Storage-layer boundary checks resolve the bucket from `created_at` and apply strict in-bucket paging with `message_id`.
+4. External cursor value is opaque; clients must not inspect or construct it manually.
 
 Success payload:
 

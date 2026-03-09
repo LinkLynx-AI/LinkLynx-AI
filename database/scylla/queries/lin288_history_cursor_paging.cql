@@ -8,7 +8,6 @@
 -- 想定入力:
 -- - :channel_id      bigint
 -- - :bucket          int
--- - :cursor_ts       timestamp
 -- - :cursor_message_id bigint
 -- - :limit_plus_one  int   -- 呼び出し側で `limit + 1` を計算して渡す
 
@@ -34,8 +33,8 @@ LIMIT :limit_plus_one;
 
 -- 2) forward (older) ページ
 --    走査方向: 新しい -> 古い
---    cursor より「古い」行を取得する。
---    同一 timestamp は message_id でタイブレークする。
+--    cursor の `created_at` から bucket を解決した上で、
+--    同一 bucket 内では clustering key の `message_id` で「古い」行を取得する。
 SELECT
   channel_id,
   bucket,
@@ -51,15 +50,15 @@ SELECT
 FROM chat.messages_by_channel
 WHERE channel_id = :channel_id
   AND bucket = :bucket
-  AND (created_at, message_id) < (:cursor_ts, :cursor_message_id)
+  AND message_id < :cursor_message_id
 ORDER BY message_id DESC
 LIMIT :limit_plus_one
 ALLOW FILTERING;
 
 -- 3) backward (newer) ページ
 --    走査方向: 古い -> 新しい（逆方向移動）
---    cursor より「新しい」行を取得し、返却前に昇順へ反転する前提。
---    同一 timestamp は message_id でタイブレークする。
+--    cursor の `created_at` から bucket を解決した上で、
+--    同一 bucket 内では clustering key の `message_id` で「新しい」行を取得する。
 SELECT
   channel_id,
   bucket,
@@ -75,7 +74,7 @@ SELECT
 FROM chat.messages_by_channel
 WHERE channel_id = :channel_id
   AND bucket = :bucket
-  AND (created_at, message_id) > (:cursor_ts, :cursor_message_id)
+  AND message_id > :cursor_message_id
 ORDER BY message_id ASC
 LIMIT :limit_plus_one
 ALLOW FILTERING;

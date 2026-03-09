@@ -76,6 +76,7 @@ cqlsh -f database/scylla/testdata/lin291_history_edge_cases.cql
 
 LIN-288 整合:
 - 比較演算が厳密不等号（`<` / `>`）であること
+- bucket は cursor の `created_at` から解決し、同一 bucket 内では `message_id` が境界に使われること
 - `limit + 1` 取得の境界（余剰1件あり/なし）を再現していること
 
 LIN-289 整合:
