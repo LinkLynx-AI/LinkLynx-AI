@@ -93,7 +93,7 @@ const LIST_BUCKET_BEFORE_SQL_TEMPLATE: &str = "
     FROM chat.messages_by_channel
     WHERE channel_id = ?
       AND bucket = ?
-      AND (created_at, message_id) < (?, ?)
+      AND message_id < ?
     ORDER BY message_id DESC
     LIMIT ?
     ALLOW FILTERING";
@@ -113,7 +113,7 @@ const LIST_BUCKET_AFTER_SQL_TEMPLATE: &str = "
     FROM chat.messages_by_channel
     WHERE channel_id = ?
       AND bucket = ?
-      AND (created_at, message_id) > (?, ?)
+      AND message_id > ?
     ORDER BY message_id ASC
     LIMIT ?
     ALLOW FILTERING";
@@ -304,13 +304,7 @@ impl ScyllaMessageStore {
         self.query_messages(
             guild_id,
             &self.list_bucket_before_sql,
-            (
-                channel_id,
-                bucket,
-                timestamp_to_cql(parse_rfc3339_timestamp(&cursor.created_at)?),
-                cursor.message_id,
-                limit as i32,
-            ),
+            (channel_id, bucket, cursor.message_id, limit as i32),
         )
         .await
     }
@@ -326,13 +320,7 @@ impl ScyllaMessageStore {
         self.query_messages(
             guild_id,
             &self.list_bucket_after_sql,
-            (
-                channel_id,
-                bucket,
-                timestamp_to_cql(parse_rfc3339_timestamp(&cursor.created_at)?),
-                cursor.message_id,
-                limit as i32,
-            ),
+            (channel_id, bucket, cursor.message_id, limit as i32),
         )
         .await
     }

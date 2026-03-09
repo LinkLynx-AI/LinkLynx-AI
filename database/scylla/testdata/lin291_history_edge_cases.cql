@@ -110,13 +110,14 @@ LIMIT 4;
 
 -- [5] 同一 timestamp 境界（forward / older）
 -- cursor=(2026-02-21T10:00:05Z, 120107)
--- 同一 timestamp の 120108 は除外されることを確認する。
+-- bucket は cursor timestamp から解決し、同一 bucket 内では message_id で厳密境界を取る。
+-- 同一 timestamp の 120108 は message_id 境界で除外されることを確認する。
 -- 期待順: 120105,120102,120100,120099
 SELECT message_id, created_at
 FROM chat.messages_by_channel
 WHERE channel_id = 910001
   AND bucket = 20260221
-  AND (created_at, message_id) < ('2026-02-21T10:00:05Z', 120107)
+  AND message_id < 120107
 ORDER BY message_id DESC
 LIMIT 4
 ALLOW FILTERING;
@@ -128,7 +129,7 @@ SELECT message_id, created_at
 FROM chat.messages_by_channel
 WHERE channel_id = 910001
   AND bucket = 20260221
-  AND (created_at, message_id) > ('2026-02-21T10:00:05Z', 120107)
+  AND message_id > 120107
 ORDER BY message_id ASC
 LIMIT 4
 ALLOW FILTERING;
@@ -140,7 +141,7 @@ SELECT message_id, created_at
 FROM chat.messages_by_channel
 WHERE channel_id = 910001
   AND bucket = 20260221
-  AND (created_at, message_id) < ('2026-02-21T10:00:02Z', 120100)
+  AND message_id < 120100
 ORDER BY message_id DESC
 LIMIT 4
 ALLOW FILTERING;

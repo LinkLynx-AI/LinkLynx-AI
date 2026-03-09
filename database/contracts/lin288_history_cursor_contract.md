@@ -23,8 +23,11 @@
 
 比較規則（厳密不等号）:
 
-- older 側へ進む（forward）: `(created_at, message_id) < (cursor_ts, cursor_message_id)`
-- newer 側へ戻る（backward）: `(created_at, message_id) > (cursor_ts, cursor_message_id)`
+- cursor には引き続き `(created_at, message_id)` を保持する
+- bucket 解決には `created_at` を使う
+- 同一 bucket 内の Scylla range filter は clustering key 制約に合わせて `message_id` を使う
+- older 側へ進む（forward）: `message_id < cursor_message_id`
+- newer 側へ戻る（backward）: `message_id > cursor_message_id`
 
 ## 2. limit + 1 規約
 
@@ -65,6 +68,7 @@
 ページ境界での重複は次の規約で禁止する。
 
 - 比較演算は必ず厳密不等号（`<` / `>`）を使用し、カーソル行自身を再取得しない。
+- Scylla query では clustering key の `message_id` のみを range filter に使い、bucket は `created_at` から解決する。
 - アプリケーション側の重複キーは `(message_id)` を正とする。
 - 同一ページ内・ページ跨ぎ双方で、`message_id` が重複した要素は返却集合から除外する。
 

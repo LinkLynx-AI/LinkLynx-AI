@@ -33,7 +33,7 @@ const SELECT_CHANNEL_CONTEXT_SQL: &str = "
       AND c.type = 'guild_text'";
 const UPSERT_LAST_MESSAGE_SQL: &str = "
     INSERT INTO channel_last_message (channel_id, last_message_id, last_message_at)
-    VALUES ($1, $2, $3::timestamptz)
+    VALUES ($1, $2, CAST($3 AS text)::timestamptz)
     ON CONFLICT (channel_id)
     DO UPDATE SET
       last_message_id = EXCLUDED.last_message_id,
@@ -57,7 +57,7 @@ const UPSERT_CREATE_RESERVATION_SQL: &str = "
       created_at,
       updated_at
     )
-    VALUES ($1, $2, $3, $4, 'reserved', $5, $6::timestamptz, NULL, now(), now())
+    VALUES ($1, $2, $3, $4, 'reserved', $5, CAST($6 AS text)::timestamptz, NULL, now(), now())
     ON CONFLICT (principal_id, channel_id, idempotency_key)
     DO UPDATE SET
       updated_at = now()

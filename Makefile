@@ -3,6 +3,7 @@
 .PHONY: db-up db-down db-reset db-migrate db-migrate-revert db-migrate-info db-schema db-schema-check db-seed db-table-regex db-doc worktree-sync-env codex-worktree
 .PHONY: authz-spicedb-up authz-spicedb-down authz-spicedb-health
 .PHONY: scylla-bootstrap scylla-health
+.PHONY: message-scylla-integration
 
 # 色設定
 GREEN  := \033[0;32m
@@ -55,6 +56,7 @@ help: ## ヘルプを表示
 	@echo "$(YELLOW)言語別ショートカット$(NC)"
 	@echo "  $(GREEN)ts-*$(NC)               ts-dev / ts-build / ts-format / ts-lint / ts-test / ts-validate / ts-fsd-check"
 	@echo "  $(GREEN)rust-*$(NC)             rust-dev / rust-build / rust-fmt / rust-lint / rust-test / rust-validate"
+	@echo "  $(GREEN)message-scylla-integration$(NC)  実Scylla/実Postgres前提の message integration test"
 	@echo "  $(GREEN)py-*$(NC)               py-dev / py-install / py-format / py-lint / py-test / py-validate"
 	@echo ""
 	@echo "$(YELLOW)DB運用$(NC)"
@@ -196,6 +198,15 @@ scylla-bootstrap: ## Scylla schema をローカル compose に適用
 
 scylla-health: ## API の Scylla health probe を確認
 	curl -i -sS http://127.0.0.1:8080/internal/scylla/health
+
+message-scylla-integration: ## 実Scylla/実Postgres前提の message integration test を実行
+	cd rust && \
+	DATABASE_URL="$(DATABASE_URL)" \
+	AUTH_ALLOW_POSTGRES_NOTLS=true \
+	SCYLLA_HOSTS="$${SCYLLA_HOSTS:-127.0.0.1:9042}" \
+	SCYLLA_KEYSPACE="$${SCYLLA_KEYSPACE:-chat}" \
+	MESSAGE_SCYLLA_INTEGRATION=true \
+	cargo test -p linklynx_backend message_scylla_integration_ -- --nocapture
 
 clean: ## コンテナ・ボリューム・イメージを削除
 	docker compose down -v --rmi local
