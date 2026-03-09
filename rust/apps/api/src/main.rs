@@ -51,7 +51,9 @@ use linklynx_protocol_ws::{
     ClientMessageFrameV1, GuildChannelSubscriptionTargetV1, MessageSubscriptionStateV1,
     ServerMessageFrameV1,
 };
-use message::{build_runtime_message_service, message_error_response, MessageService};
+use message::{
+    build_runtime_message_service, message_error_response, MessageError, MessageService,
+};
 use moderation::{
     build_runtime_moderation_service, moderation_error_response, ModerationError, ModerationService,
 };

@@ -72,6 +72,10 @@ Request payload:
 
 - `content`
 
+Optional request headers:
+
+- `Idempotency-Key`
+
 Success payload:
 
 - `message`
@@ -79,7 +83,15 @@ Success payload:
 Validation baseline:
 
 1. blank-only `content` is rejected.
-2. Error transport remains existing `VALIDATION_ERROR` / `AUTHZ_DENIED` / `AUTHZ_UNAVAILABLE`.
+2. blank / invalid `Idempotency-Key` is rejected.
+3. same `Idempotency-Key` + different payload is rejected as `VALIDATION_ERROR`.
+4. Error transport remains existing `VALIDATION_ERROR` / `AUTHZ_DENIED` / `AUTHZ_UNAVAILABLE`.
+
+Idempotency baseline:
+
+1. `Idempotency-Key` is optional and caller opt-in.
+2. same key + same payload reuses the same `message_id` / `created_at` across retries.
+3. replay success still returns `201 Created`.
 
 ## 3. Shared message snapshot
 

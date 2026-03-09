@@ -7,20 +7,21 @@ use linklynx_message_api::{
 };
 
 use crate::{
-    AppendGuildChannelMessageCommand, GuildChannelContext, MessageBodyStore,
-    MessageMetadataRepository, MessageUsecaseError,
+    CreateGuildChannelMessageCommand, GuildChannelContext, MessageBodyStore,
+    MessageCreateIdempotencyRepository, MessageCreateReservationState, MessageCreateReserveResult,
+    MessageIdentity, MessageMetadataRepository, MessageUsecaseError,
 };
 
 /// message append/list usecase 境界を表現する。
 #[async_trait]
 pub trait MessageUsecase: Send + Sync {
-    /// guild channel message を append する。
-    /// @param command append command
+    /// guild channel message を create する。
+    /// @param command create command
     /// @returns 保存済み message snapshot
     /// @throws MessageUsecaseError validation / not found / dependency unavailable 時
-    async fn append_guild_channel_message(
+    async fn create_guild_channel_message(
         &self,
-        command: AppendGuildChannelMessageCommand,
+        command: CreateGuildChannelMessageCommand,
     ) -> Result<MessageItemV1, MessageUsecaseError>;
 
     /// guild channel message history を list する。
@@ -42,6 +43,7 @@ pub trait MessageUsecase: Send + Sync {
 pub struct LiveMessageUsecase {
     body_store: Arc<dyn MessageBodyStore>,
     metadata_repository: Arc<dyn MessageMetadataRepository>,
+    idempotency_repository: Arc<dyn MessageCreateIdempotencyRepository>,
 }
 
 impl LiveMessageUsecase {
@@ -53,10 +55,12 @@ impl LiveMessageUsecase {
     pub fn new(
         body_store: Arc<dyn MessageBodyStore>,
         metadata_repository: Arc<dyn MessageMetadataRepository>,
+        idempotency_repository: Arc<dyn MessageCreateIdempotencyRepository>,
     ) -> Self {
         Self {
             body_store,
             metadata_repository,
+            idempotency_repository,
         }
     }
 
@@ -86,35 +90,79 @@ impl LiveMessageUsecase {
         }
         Ok(context)
     }
-}
 
-#[async_trait]
-impl MessageUsecase for LiveMessageUsecase {
-    /// guild channel message を append する。
-    /// @param command append command
-    /// @returns 保存済み message snapshot
-    /// @throws MessageUsecaseError validation / not found / dependency unavailable 時
-    async fn append_guild_channel_message(
+    async fn append_message(
         &self,
-        command: AppendGuildChannelMessageCommand,
+        channel_id: i64,
+        identity: &MessageIdentity,
+        command: &CreateGuildChannelMessageCommand,
     ) -> Result<MessageItemV1, MessageUsecaseError> {
-        validate_create_request(&command.to_create_request())?;
-        let context = self
-            .load_channel_context(command.guild_id, command.channel_id)
-            .await?;
-        let message = command.to_message_item();
+        let message = command.to_message_item(identity);
         let stored_message = self
             .body_store
             .append_guild_channel_message(&message)
             .await?;
         self.metadata_repository
             .upsert_last_message(
-                context.channel_id,
+                channel_id,
                 stored_message.message_id,
                 &stored_message.created_at,
             )
             .await?;
         Ok(stored_message)
+    }
+}
+
+#[async_trait]
+impl MessageUsecase for LiveMessageUsecase {
+    /// guild channel message を create する。
+    /// @param command create command
+    /// @returns 保存済み message snapshot
+    /// @throws MessageUsecaseError validation / not found / dependency unavailable 時
+    async fn create_guild_channel_message(
+        &self,
+        command: CreateGuildChannelMessageCommand,
+    ) -> Result<MessageItemV1, MessageUsecaseError> {
+        validate_create_request(&command.to_create_request())?;
+        let context = self
+            .load_channel_context(command.guild_id, command.channel_id)
+            .await?;
+        let Some(idempotency) = command.idempotency.as_ref() else {
+            return self
+                .append_message(context.channel_id, &command.proposed_identity, &command)
+                .await;
+        };
+
+        let reservation = self
+            .idempotency_repository
+            .reserve_guild_channel_message_create(
+                command.author_id,
+                context.channel_id,
+                idempotency,
+                &command.proposed_identity,
+            )
+            .await?;
+        match reservation {
+            MessageCreateReserveResult::PayloadMismatch => Err(MessageUsecaseError::validation(
+                "message_idempotency_payload_mismatch",
+            )),
+            MessageCreateReserveResult::Reserved(reservation) => {
+                if reservation.state == MessageCreateReservationState::Completed {
+                    return Ok(command.to_message_item(&reservation.identity));
+                }
+                let stored_message = self
+                    .append_message(context.channel_id, &reservation.identity, &command)
+                    .await?;
+                self.idempotency_repository
+                    .mark_guild_channel_message_create_completed(
+                        command.author_id,
+                        context.channel_id,
+                        &idempotency.key,
+                    )
+                    .await?;
+                Ok(stored_message)
+            }
+        }
     }
 
     /// guild channel message history を list する。
@@ -161,13 +209,13 @@ impl UnavailableMessageUsecase {
 
 #[async_trait]
 impl MessageUsecase for UnavailableMessageUsecase {
-    /// guild channel message を append する。
-    /// @param _command append command
+    /// guild channel message を create する。
+    /// @param _command create command
     /// @returns なし
     /// @throws MessageUsecaseError 常に unavailable
-    async fn append_guild_channel_message(
+    async fn create_guild_channel_message(
         &self,
-        _command: AppendGuildChannelMessageCommand,
+        _command: CreateGuildChannelMessageCommand,
     ) -> Result<MessageItemV1, MessageUsecaseError> {
         Err(self.unavailable_error())
     }
@@ -199,7 +247,11 @@ mod tests {
     };
     use tokio::sync::Mutex;
 
-    use crate::{AppendGuildChannelMessageCommand, GuildChannelContext, MessageUsecase};
+    use crate::{
+        CreateGuildChannelMessageCommand, GuildChannelContext, MessageCreateIdempotency,
+        MessageCreateIdempotencyRepository, MessageCreateReservation,
+        MessageCreateReservationState, MessageCreateReserveResult, MessageIdentity, MessageUsecase,
+    };
 
     use super::{
         LiveMessageUsecase, MessageBodyStore, MessageMetadataRepository, MessageUsecaseError,
@@ -274,14 +326,66 @@ mod tests {
         }
     }
 
-    fn command() -> AppendGuildChannelMessageCommand {
-        AppendGuildChannelMessageCommand {
+    #[derive(Default)]
+    struct FakeIdempotencyRepository {
+        reserve_result: Mutex<Option<Result<MessageCreateReserveResult, MessageUsecaseError>>>,
+        reservations: Mutex<Vec<(i64, i64, MessageCreateIdempotency, MessageIdentity)>>,
+        completions: Mutex<Vec<(i64, i64, String)>>,
+    }
+
+    #[async_trait]
+    impl MessageCreateIdempotencyRepository for FakeIdempotencyRepository {
+        async fn reserve_guild_channel_message_create(
+            &self,
+            principal_id: i64,
+            channel_id: i64,
+            idempotency: &MessageCreateIdempotency,
+            proposed_identity: &MessageIdentity,
+        ) -> Result<MessageCreateReserveResult, MessageUsecaseError> {
+            self.reservations.lock().await.push((
+                principal_id,
+                channel_id,
+                idempotency.clone(),
+                proposed_identity.clone(),
+            ));
+            if let Some(result) = self.reserve_result.lock().await.take() {
+                result
+            } else {
+                Ok(MessageCreateReserveResult::Reserved(
+                    MessageCreateReservation {
+                        identity: proposed_identity.clone(),
+                        state: MessageCreateReservationState::Reserved,
+                    },
+                ))
+            }
+        }
+
+        async fn mark_guild_channel_message_create_completed(
+            &self,
+            principal_id: i64,
+            channel_id: i64,
+            idempotency_key: &str,
+        ) -> Result<(), MessageUsecaseError> {
+            self.completions.lock().await.push((
+                principal_id,
+                channel_id,
+                idempotency_key.to_owned(),
+            ));
+            Ok(())
+        }
+    }
+
+    fn command() -> CreateGuildChannelMessageCommand {
+        CreateGuildChannelMessageCommand {
             guild_id: 10,
             channel_id: 20,
             author_id: 30,
-            message_id: 120_111,
             content: "hello".to_owned(),
-            created_at: "2026-03-08T10:00:00Z".to_owned(),
+            proposed_identity: MessageIdentity {
+                message_id: 120_111,
+                created_at: "2026-03-08T10:00:00Z".to_owned(),
+            },
+            idempotency: None,
         }
     }
 
@@ -303,10 +407,11 @@ mod tests {
                 context: Some(context()),
                 upserts: Mutex::new(vec![]),
             }),
+            Arc::new(FakeIdempotencyRepository::default()),
         );
 
         let error = usecase
-            .append_guild_channel_message(AppendGuildChannelMessageCommand {
+            .create_guild_channel_message(CreateGuildChannelMessageCommand {
                 content: "   ".to_owned(),
                 ..command()
             })
@@ -326,10 +431,12 @@ mod tests {
             context: Some(context()),
             upserts: Mutex::new(vec![]),
         });
-        let usecase = LiveMessageUsecase::new(body_store.clone(), metadata.clone());
+        let idempotency = Arc::new(FakeIdempotencyRepository::default());
+        let usecase =
+            LiveMessageUsecase::new(body_store.clone(), metadata.clone(), idempotency.clone());
 
         let stored = usecase
-            .append_guild_channel_message(command())
+            .create_guild_channel_message(command())
             .await
             .unwrap();
 
@@ -339,20 +446,22 @@ mod tests {
             metadata.upserts.lock().await.as_slice(),
             &[(20, 120_111, "2026-03-08T10:00:00Z".to_owned())]
         );
+        assert!(idempotency.completions.lock().await.is_empty());
     }
 
     #[tokio::test]
-    async fn append_returns_not_found_when_channel_is_missing() {
+    async fn create_returns_not_found_when_channel_is_missing() {
         let usecase = LiveMessageUsecase::new(
             Arc::new(FakeBodyStore::default()),
             Arc::new(FakeMetadataRepository {
                 context: None,
                 upserts: Mutex::new(vec![]),
             }),
+            Arc::new(FakeIdempotencyRepository::default()),
         );
 
         let error = usecase
-            .append_guild_channel_message(command())
+            .create_guild_channel_message(command())
             .await
             .unwrap_err();
 
@@ -371,6 +480,7 @@ mod tests {
                 context: Some(context()),
                 upserts: Mutex::new(vec![]),
             }),
+            Arc::new(FakeIdempotencyRepository::default()),
         );
 
         let _ = usecase
@@ -394,6 +504,7 @@ mod tests {
                 }),
                 upserts: Mutex::new(vec![]),
             }),
+            Arc::new(FakeIdempotencyRepository::default()),
         );
 
         let error = usecase
@@ -419,5 +530,123 @@ mod tests {
             error,
             MessageUsecaseError::channel_not_found("message_channel_not_found")
         );
+    }
+
+    #[tokio::test]
+    async fn create_rejects_payload_mismatch_when_idempotency_key_reused() {
+        let idempotency = Arc::new(FakeIdempotencyRepository {
+            reserve_result: Mutex::new(Some(Ok(MessageCreateReserveResult::PayloadMismatch))),
+            ..FakeIdempotencyRepository::default()
+        });
+        let usecase = LiveMessageUsecase::new(
+            Arc::new(FakeBodyStore::default()),
+            Arc::new(FakeMetadataRepository {
+                context: Some(context()),
+                upserts: Mutex::new(vec![]),
+            }),
+            idempotency,
+        );
+
+        let error = usecase
+            .create_guild_channel_message(CreateGuildChannelMessageCommand {
+                idempotency: Some(MessageCreateIdempotency {
+                    key: "same-key".to_owned(),
+                    payload_fingerprint: "abc".to_owned(),
+                }),
+                ..command()
+            })
+            .await
+            .unwrap_err();
+
+        assert_eq!(
+            error,
+            MessageUsecaseError::validation("message_idempotency_payload_mismatch")
+        );
+    }
+
+    #[tokio::test]
+    async fn create_retries_append_for_reserved_idempotency_key() {
+        let body_store = Arc::new(FakeBodyStore::default());
+        let idempotency = Arc::new(FakeIdempotencyRepository {
+            reserve_result: Mutex::new(Some(Ok(MessageCreateReserveResult::Reserved(
+                MessageCreateReservation {
+                    identity: MessageIdentity {
+                        message_id: 120_222,
+                        created_at: "2026-03-08T11:00:00Z".to_owned(),
+                    },
+                    state: MessageCreateReservationState::Reserved,
+                },
+            )))),
+            ..FakeIdempotencyRepository::default()
+        });
+        let metadata = Arc::new(FakeMetadataRepository {
+            context: Some(context()),
+            upserts: Mutex::new(vec![]),
+        });
+        let usecase =
+            LiveMessageUsecase::new(body_store.clone(), metadata.clone(), idempotency.clone());
+
+        let stored = usecase
+            .create_guild_channel_message(CreateGuildChannelMessageCommand {
+                idempotency: Some(MessageCreateIdempotency {
+                    key: "retry-key".to_owned(),
+                    payload_fingerprint: "abc".to_owned(),
+                }),
+                ..command()
+            })
+            .await
+            .unwrap();
+
+        assert_eq!(stored.message_id, 120_222);
+        assert_eq!(stored.created_at, "2026-03-08T11:00:00Z");
+        assert_eq!(
+            metadata.upserts.lock().await.as_slice(),
+            &[(20, 120_222, "2026-03-08T11:00:00Z".to_owned())]
+        );
+        assert_eq!(
+            idempotency.completions.lock().await.as_slice(),
+            &[(30, 20, "retry-key".to_owned())]
+        );
+        assert_eq!(body_store.appended.lock().await[0].message_id, 120_222);
+    }
+
+    #[tokio::test]
+    async fn create_reuses_completed_idempotency_key_without_append() {
+        let body_store = Arc::new(FakeBodyStore::default());
+        let idempotency = Arc::new(FakeIdempotencyRepository {
+            reserve_result: Mutex::new(Some(Ok(MessageCreateReserveResult::Reserved(
+                MessageCreateReservation {
+                    identity: MessageIdentity {
+                        message_id: 120_333,
+                        created_at: "2026-03-08T12:00:00Z".to_owned(),
+                    },
+                    state: MessageCreateReservationState::Completed,
+                },
+            )))),
+            ..FakeIdempotencyRepository::default()
+        });
+        let usecase = LiveMessageUsecase::new(
+            body_store.clone(),
+            Arc::new(FakeMetadataRepository {
+                context: Some(context()),
+                upserts: Mutex::new(vec![]),
+            }),
+            idempotency.clone(),
+        );
+
+        let stored = usecase
+            .create_guild_channel_message(CreateGuildChannelMessageCommand {
+                idempotency: Some(MessageCreateIdempotency {
+                    key: "done-key".to_owned(),
+                    payload_fingerprint: "abc".to_owned(),
+                }),
+                ..command()
+            })
+            .await
+            .unwrap();
+
+        assert_eq!(stored.message_id, 120_333);
+        assert!(body_store.appended.lock().await.is_empty());
+        assert!(idempotency.completions.lock().await.is_empty());
     }
 }

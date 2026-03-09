@@ -2,6 +2,10 @@ mod domain;
 mod ports;
 mod usecase;
 
-pub use domain::{AppendGuildChannelMessageCommand, GuildChannelContext, MessageUsecaseError};
-pub use ports::{MessageBodyStore, MessageMetadataRepository};
+pub use domain::{
+    CreateGuildChannelMessageCommand, GuildChannelContext, MessageCreateIdempotency,
+    MessageCreateReservation, MessageCreateReservationState, MessageCreateReserveResult,
+    MessageIdentity, MessageUsecaseError,
+};
+pub use ports::{MessageBodyStore, MessageCreateIdempotencyRepository, MessageMetadataRepository};
 pub use usecase::{LiveMessageUsecase, MessageUsecase, UnavailableMessageUsecase};

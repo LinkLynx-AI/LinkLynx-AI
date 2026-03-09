@@ -3,7 +3,7 @@ mod tests {
     use super::*;
     use crate::ratelimit::RestRateLimitConfig;
     use async_trait::async_trait;
-    use std::collections::HashSet;
+    use std::collections::{HashMap, HashSet};
     use auth::{
         CachingPrincipalResolver, InMemoryPrincipalCache, InMemoryPrincipalStore,
         PrincipalProvisioner, PrincipalResolver, PrincipalStore, TokenVerifier, TokenVerifyError,
@@ -48,6 +48,7 @@ mod tests {
     use linklynx_shared::PrincipalId;
     use tokio::{
         net::{TcpListener, TcpStream},
+        sync::Mutex,
         task::JoinHandle,
         time::timeout,
     };
@@ -326,7 +327,7 @@ mod tests {
             principal_id: PrincipalId,
             guild_id: i64,
             channel_id: i64,
-            _request_id: &str,
+            _idempotency_key: Option<&str>,
             request: CreateGuildChannelMessageRequestV1,
         ) -> Result<CreateGuildChannelMessageResponseV1, MessageError> {
             linklynx_message_api::validate_create_request(&request).map_err(MessageError::from)?;
@@ -339,6 +340,77 @@ mod tests {
                     request.content,
                 ),
             })
+        }
+    }
+
+    #[derive(Default)]
+    struct StaticIdempotencyMessageService {
+        state: Mutex<IdempotencyState>,
+    }
+
+    #[derive(Default)]
+    struct IdempotencyState {
+        next_message_id: i64,
+        entries: HashMap<String, MessageItemV1>,
+    }
+
+    #[async_trait]
+    impl MessageService for StaticIdempotencyMessageService {
+        async fn list_guild_channel_messages(
+            &self,
+            _guild_id: i64,
+            _channel_id: i64,
+            _query: ListGuildChannelMessagesQueryV1,
+        ) -> Result<ListGuildChannelMessagesResponseV1, MessageError> {
+            Ok(ListGuildChannelMessagesResponseV1 {
+                items: vec![],
+                next_before: None,
+                next_after: None,
+                has_more: false,
+            })
+        }
+
+        async fn create_guild_channel_message(
+            &self,
+            principal_id: PrincipalId,
+            guild_id: i64,
+            channel_id: i64,
+            idempotency_key: Option<&str>,
+            request: CreateGuildChannelMessageRequestV1,
+        ) -> Result<CreateGuildChannelMessageResponseV1, MessageError> {
+            linklynx_message_api::validate_create_request(&request).map_err(MessageError::from)?;
+            let mut state = self.state.lock().await;
+
+            if let Some(key) = idempotency_key {
+                if let Some(existing) = state.entries.get(key) {
+                    if existing.content != request.content {
+                        return Err(MessageError::validation(
+                            "message_idempotency_payload_mismatch",
+                        ));
+                    }
+                    return Ok(CreateGuildChannelMessageResponseV1 {
+                        message: existing.clone(),
+                    });
+                }
+            }
+
+            state.next_message_id += 1;
+            let message = MessageItemV1 {
+                message_id: 120_110 + state.next_message_id,
+                guild_id,
+                channel_id,
+                author_id: principal_id.0,
+                content: request.content,
+                created_at: format!("2026-03-07T10:00:{:02}Z", state.next_message_id),
+                version: 1,
+                edited_at: None,
+                is_deleted: false,
+            };
+            if let Some(key) = idempotency_key {
+                state.entries.insert(key.to_owned(), message.clone());
+            }
+
+            Ok(CreateGuildChannelMessageResponseV1 { message })
         }
     }
 
@@ -360,7 +432,7 @@ mod tests {
             _principal_id: PrincipalId,
             _guild_id: i64,
             _channel_id: i64,
-            _request_id: &str,
+            _idempotency_key: Option<&str>,
             _request: CreateGuildChannelMessageRequestV1,
         ) -> Result<CreateGuildChannelMessageResponseV1, MessageError> {
             Err(MessageError::dependency_unavailable(
@@ -385,7 +457,7 @@ mod tests {
             _principal_id: PrincipalId,
             _guild_id: i64,
             _channel_id: i64,
-            _request_id: &str,
+            _idempotency_key: Option<&str>,
             _request: CreateGuildChannelMessageRequestV1,
         ) -> Result<CreateGuildChannelMessageResponseV1, MessageError> {
             Err(MessageError::channel_not_found("message_channel_not_found"))
@@ -3855,6 +3927,102 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn create_channel_message_reuses_message_identity_for_same_idempotency_key() {
+        let app = app_for_test_with_authorizer_and_message_service(
+            Arc::new(RoleScenarioAuthorizer),
+            Arc::new(StaticIdempotencyMessageService::default()),
+        )
+        .await;
+        let token = format!("u-member:{}", unix_timestamp_seconds() + 300);
+
+        let first = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/v1/guilds/10/channels/20/messages")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .header("Idempotency-Key", "idem-1")
+                    .body(Body::from(r#"{"content":"hello contract"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let second = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/v1/guilds/10/channels/20/messages")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .header("Idempotency-Key", "idem-1")
+                    .body(Body::from(r#"{"content":"hello contract"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(first.status(), StatusCode::CREATED);
+        assert_eq!(second.status(), StatusCode::CREATED);
+
+        let first_body = to_bytes(first.into_body(), MAX_RESPONSE_BYTES).await.unwrap();
+        let second_body = to_bytes(second.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let first_json = serde_json::from_slice::<serde_json::Value>(&first_body).unwrap();
+        let second_json = serde_json::from_slice::<serde_json::Value>(&second_body).unwrap();
+        assert_eq!(first_json["message"]["message_id"], second_json["message"]["message_id"]);
+        assert_eq!(first_json["message"]["created_at"], second_json["message"]["created_at"]);
+    }
+
+    #[tokio::test]
+    async fn create_channel_message_rejects_payload_mismatch_for_same_idempotency_key() {
+        let app = app_for_test_with_authorizer_and_message_service(
+            Arc::new(RoleScenarioAuthorizer),
+            Arc::new(StaticIdempotencyMessageService::default()),
+        )
+        .await;
+        let token = format!("u-member:{}", unix_timestamp_seconds() + 300);
+
+        let _ = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/v1/guilds/10/channels/20/messages")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .header("Idempotency-Key", "idem-1")
+                    .body(Body::from(r#"{"content":"hello contract"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/v1/guilds/10/channels/20/messages")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .header("Idempotency-Key", "idem-1")
+                    .body(Body::from(r#"{"content":"different"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "VALIDATION_ERROR");
+        assert_eq!(json["message"], "request payload is invalid");
+    }
+
+    #[tokio::test]
     async fn create_channel_message_rejects_blank_content() {
         let app = app_for_test_with_authorizer(Arc::new(RoleScenarioAuthorizer)).await;
         let token = format!("u-member:{}", unix_timestamp_seconds() + 300);
@@ -3866,6 +4034,33 @@ mod tests {
                     .header("authorization", format!("Bearer {token}"))
                     .header("content-type", "application/json")
                     .body(Body::from("{\"content\":\"   \"}"))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "VALIDATION_ERROR");
+        assert_eq!(json["message"], "request payload is invalid");
+    }
+
+    #[tokio::test]
+    async fn create_channel_message_rejects_blank_idempotency_key() {
+        let app = app_for_test_with_authorizer(Arc::new(RoleScenarioAuthorizer)).await;
+        let token = format!("u-member:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/v1/guilds/10/channels/20/messages")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .header("Idempotency-Key", "   ")
+                    .body(Body::from(r#"{"content":"hello contract"}"#))
                     .unwrap(),
             )
             .await

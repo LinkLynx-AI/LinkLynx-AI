@@ -503,6 +503,7 @@ async fn list_channel_messages(
 /// @throws なし
 async fn create_channel_message(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Extension(auth_context): Extension<AuthContext>,
     Path(params): Path<GuildChannelPathParams>,
     payload: Result<Json<CreateGuildChannelMessageRequestV1>, JsonRejection>,
@@ -520,6 +521,10 @@ async fn create_channel_message(
         Ok(value) => value,
         Err(error) => return guild_channel_error_response(&error, request_id),
     };
+    let idempotency_key = match parse_idempotency_key(&headers) {
+        Ok(value) => value,
+        Err(error) => return message_error_response(&error, request_id),
+    };
 
     match state
         .message_service
@@ -527,7 +532,7 @@ async fn create_channel_message(
             auth_context.principal_id,
             guild_id,
             channel_id,
-            &request_id,
+            idempotency_key.as_deref(),
             payload,
         )
         .await
@@ -535,6 +540,26 @@ async fn create_channel_message(
         Ok(response) => (StatusCode::CREATED, Json(response)).into_response(),
         Err(error) => message_error_response(&error, request_id),
     }
+}
+
+/// create message 用 idempotency key を取り出す。
+/// @param headers HTTP ヘッダー
+/// @returns optional idempotency key
+/// @throws MessageError ヘッダー値が空または不正な場合
+fn parse_idempotency_key(headers: &HeaderMap) -> Result<Option<String>, MessageError> {
+    let Some(value) = headers.get("Idempotency-Key") else {
+        return Ok(None);
+    };
+    let value = value
+        .to_str()
+        .map_err(|_| MessageError::validation("message_idempotency_key_invalid"))?;
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return Err(MessageError::validation(
+            "message_idempotency_key_invalid",
+        ));
+    }
+    Ok(Some(trimmed.to_owned()))
 }
 
 /// DMチャンネル情報の最小応答を返す。
