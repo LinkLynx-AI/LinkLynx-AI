@@ -33,17 +33,72 @@ impl GuildPatchInput {
     }
 }
 
+/// channel種別を表現する。
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ChannelKind {
+    GuildText,
+    GuildCategory,
+}
+
+impl ChannelKind {
+    /// DB保存用の channel type 文字列へ変換する。
+    /// @param なし
+    /// @returns DB保存用の channel type
+    /// @throws なし
+    pub fn as_db_str(self) -> &'static str {
+        match self {
+            Self::GuildText => "guild_text",
+            Self::GuildCategory => "guild_category",
+        }
+    }
+
+    /// DB由来の channel type をパースする。
+    /// @param raw_type DB由来の channel type
+    /// @returns 対応するchannel種別
+    /// @throws GuildChannelError 未知のchannel type時
+    pub fn parse(raw_type: &str) -> Result<Self, GuildChannelError> {
+        match raw_type {
+            "guild_text" => Ok(Self::GuildText),
+            "guild_category" => Ok(Self::GuildCategory),
+            _ => Err(GuildChannelError::dependency_unavailable(format!(
+                "unsupported_channel_type:{raw_type}"
+            ))),
+        }
+    }
+
+    /// message target として扱えるかを返す。
+    /// @param なし
+    /// @returns messageable なら true
+    /// @throws なし
+    pub fn is_messageable(self) -> bool {
+        matches!(self, Self::GuildText)
+    }
+}
+
 /// channel一覧要素を表現する。
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 pub struct ChannelSummary {
     pub channel_id: i64,
     pub guild_id: i64,
+    #[serde(rename = "type")]
+    pub kind: ChannelKind,
     pub name: String,
+    pub parent_id: Option<i64>,
+    pub position: i32,
     pub created_at: String,
 }
 
 /// channel作成結果を表現する。
 pub type CreatedChannel = ChannelSummary;
+
+/// channel作成入力を表現する。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CreateChannelInput {
+    pub name: String,
+    pub kind: ChannelKind,
+    pub parent_id: Option<i64>,
+}
 
 /// channel更新入力を表現する。
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -109,17 +164,30 @@ pub trait GuildChannelService: Send + Sync {
         guild_id: i64,
     ) -> Result<Vec<ChannelSummary>, GuildChannelError>;
 
+    /// guild配下のchannel要約を1件返す。
+    /// @param principal_id 認証済みprincipal_id
+    /// @param guild_id 対象guild_id
+    /// @param channel_id 対象channel_id
+    /// @returns channel要約
+    /// @throws GuildChannelError 非メンバー/未存在/依存障害時
+    async fn get_guild_channel_summary(
+        &self,
+        principal_id: PrincipalId,
+        guild_id: i64,
+        channel_id: i64,
+    ) -> Result<ChannelSummary, GuildChannelError>;
+
     /// guild配下へchannelを作成する。
     /// @param principal_id 作成主体
     /// @param guild_id 対象guild_id
-    /// @param name channel名
+    /// @param input channel作成入力
     /// @returns 作成結果
     /// @throws GuildChannelError 入力不正/非メンバー/未存在/依存障害時
     async fn create_guild_channel(
         &self,
         principal_id: PrincipalId,
         guild_id: i64,
-        name: String,
+        input: CreateChannelInput,
     ) -> Result<CreatedChannel, GuildChannelError>;
 
     /// channelを更新する。
@@ -240,17 +308,32 @@ impl GuildChannelService for UnavailableGuildChannelService {
         Err(self.unavailable_error())
     }
 
+    /// channel要約を返す。
+    /// @param _principal_id 認証済みprincipal_id
+    /// @param _guild_id 対象guild_id
+    /// @param _channel_id 対象channel_id
+    /// @returns なし
+    /// @throws GuildChannelError 常に依存障害
+    async fn get_guild_channel_summary(
+        &self,
+        _principal_id: PrincipalId,
+        _guild_id: i64,
+        _channel_id: i64,
+    ) -> Result<ChannelSummary, GuildChannelError> {
+        Err(self.unavailable_error())
+    }
+
     /// channelを作成する。
     /// @param _principal_id 作成主体
     /// @param _guild_id 対象guild_id
-    /// @param _name channel名
+    /// @param _input channel作成入力
     /// @returns なし
     /// @throws GuildChannelError 常に依存障害
     async fn create_guild_channel(
         &self,
         _principal_id: PrincipalId,
         _guild_id: i64,
-        _name: String,
+        _input: CreateChannelInput,
     ) -> Result<CreatedChannel, GuildChannelError> {
         Err(self.unavailable_error())
     }
@@ -326,6 +409,30 @@ fn normalize_channel_patch_input(patch: ChannelPatchInput) -> Result<String, Gui
     }
 
     Ok(normalized)
+}
+
+/// channel作成入力を正規化して検証する。
+/// @param input 作成入力
+/// @returns 正規化済み作成入力
+/// @throws GuildChannelError 入力不正時
+fn normalize_channel_create_input(
+    input: CreateChannelInput,
+) -> Result<CreateChannelInput, GuildChannelError> {
+    let normalized_name = normalize_non_empty_name(&input.name, "channel_name_required")?;
+    if normalized_name.chars().count() > CHANNEL_NAME_MAX_CHARS {
+        return Err(GuildChannelError::validation("channel_name_too_long"));
+    }
+    if let Some(parent_id) = input.parent_id {
+        if parent_id <= 0 {
+            return Err(GuildChannelError::validation("parent_id_must_be_positive"));
+        }
+    }
+
+    Ok(CreateChannelInput {
+        name: normalized_name,
+        kind: input.kind,
+        parent_id: input.parent_id,
+    })
 }
 
 /// icon_keyを正規化して検証する。
