@@ -10,6 +10,7 @@
 - 既存 contract を維持し、HTTP live integration を一次証跡にする。
 - `make message-scylla-integration` の既存 filter に乗せるため、新規 HTTP live test 名も `message_scylla_integration_` 接頭辞に揃える。
 - integration helper は `rust/apps/api/src/message/test_support.rs` に集約し、service test と main HTTP test の両方で再利用する。
+- PR review で上がった改善案のうち、issue scope を広げない範囲で `test_support.rs` の可読性改善のみ取り込む。test-only helper の panic / expect を Result 化する設計変更は今回は行わない。
 
 ## How to run / demo
 - `make db-up`
@@ -34,6 +35,7 @@
 - reviewer_simple: `gate: pass`。blocking finding なし。
 - reviewer: 実行したが、このセッション中には結果回収前に interruption になった。
 - reviewer_ui_guard: `run_ui_checks=false`。差分は `rust/apps/api/src/**` と `docs/agent_runs/LIN-823/**` のみで frontend UI 変更なし。
+- Claude review comment: `950_000` の定数化と、Scylla table 名補間前に keyspace を検証している意図が読み取れるよう doc comment を補強。test-only helper の Result 化や SQL 組み立て全体の再設計は、validated identifier 前提かつ issue scope 外のため不採用。
 
 ## Runtime smoke
 - 未実施。sandbox が localhost connect と Docker daemon への接続を拒否するため、`make db-up` / live runtime 起動の証跡はこの環境では取得不可。

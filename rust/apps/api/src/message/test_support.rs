@@ -18,7 +18,9 @@ use tokio_postgres::NoTls;
 
 use super::{MessageService, RuntimeMessageService};
 
-static NEXT_INTEGRATION_ID: AtomicI64 = AtomicI64::new(950_000);
+const INTEGRATION_ID_BASE: i64 = 950_000;
+
+static NEXT_INTEGRATION_ID: AtomicI64 = AtomicI64::new(INTEGRATION_ID_BASE);
 
 /// integration 用の seed message 行を表現する。
 #[derive(Clone, Copy)]
@@ -91,6 +93,7 @@ fn integration_scylla_keyspace() -> String {
 /// integration 用 messages table 名を構築する。
 /// @param keyspace 対象 keyspace 名
 /// @returns fully-qualified messages table 名
+/// Scylla driver では識別子を bind できないため、補間前に keyspace を検証する。
 /// @throws panic keyspace が英数字/アンダースコア規約に違反する場合
 fn qualify_integration_messages_table(keyspace: &str) -> String {
     let mut chars = keyspace.chars();
