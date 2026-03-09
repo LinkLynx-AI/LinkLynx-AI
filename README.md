@@ -103,6 +103,7 @@ make codex-worktree NAME=lin-300 BASE=origin/main
 ```
 
 - 実体スクリプト: `setup/create-worktree-and-codex.sh`
+- 起動する Codex CLI には既定で `--ask-for-approval never` を付与します。
 - `setup/create-worktree-with-env.sh` で `gitignore` 済み開発用ファイルを同期します（既定は `.env` 系）。
 - 追加対象は `WORKTREE_SYNC_IGNORED_PATHS`（カンマ区切りの git pathspec）で上書きできます。
 
