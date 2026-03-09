@@ -20,8 +20,6 @@ const BIO_WARN = 180;
  */
 export function UserProfile() {
   const currentUser = useAuthStore((s) => s.currentUser);
-  const setCurrentUser = useAuthStore((s) => s.setCurrentUser);
-  const setCustomStatus = useAuthStore((s) => s.setCustomStatus);
   const currentUserId = currentUser?.id ?? null;
   const {
     data: myProfile,
@@ -125,14 +123,6 @@ export function UserProfile() {
     setSaveMessage(null);
     try {
       const updatedProfile = await updateMyProfile.mutateAsync(input);
-      if (currentUser !== null) {
-        setCurrentUser({
-          ...currentUser,
-          displayName: updatedProfile.displayName,
-          customStatus: updatedProfile.statusText,
-        });
-      }
-      setCustomStatus(updatedProfile.statusText);
       setDisplayName(updatedProfile.displayName);
       setBio(updatedProfile.statusText ?? "");
       setSaveMessage({

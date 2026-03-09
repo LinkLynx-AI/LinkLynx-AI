@@ -17,8 +17,8 @@ export const useAuthStore = create<AuthState>((set) => ({
   status: "online",
   customStatus: null,
 
-  setCurrentUser: (user) => set({ currentUser: user }),
-  clearCurrentUser: () => set({ currentUser: null }),
+  setCurrentUser: (user) => set({ currentUser: user, customStatus: user.customStatus }),
+  clearCurrentUser: () => set({ currentUser: null, customStatus: null }),
   setStatus: (status) => set({ status }),
   setCustomStatus: (text) => set({ customStatus: text }),
 }));
