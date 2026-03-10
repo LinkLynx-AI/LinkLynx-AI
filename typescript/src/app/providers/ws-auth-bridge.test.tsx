@@ -585,8 +585,303 @@ describe("WsAuthBridge", () => {
         expect.objectContaining({
           id: "5001",
           content: "hello ws",
+          version: "1",
+          isDeleted: false,
         }),
       ]);
+    });
+  });
+
+  test("message.updated を受けると既存 cache の message を更新する", async () => {
+    usePathnameMock.mockReturnValue("/channels/10/20");
+
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    queryClient.setQueryData<InfiniteData<MessagePage, string | null>>(
+      buildMessagesQueryKey("10", "20"),
+      {
+        pageParams: [null],
+        pages: [
+          {
+            items: [
+              {
+                id: "5001",
+                channelId: "20",
+                author: {
+                  id: "9003",
+                  username: "user-9003",
+                  displayName: "User 9003",
+                  avatar: null,
+                  status: "offline",
+                  customStatus: null,
+                  bot: false,
+                },
+                content: "before",
+                timestamp: "2026-03-10T10:00:00Z",
+                version: "1",
+                editedTimestamp: null,
+                isDeleted: false,
+                type: 0,
+                pinned: false,
+                mentionEveryone: false,
+                mentions: [],
+                attachments: [],
+                embeds: [],
+                reactions: [],
+                referencedMessage: null,
+              },
+            ],
+            nextBefore: null,
+            nextAfter: null,
+            hasMore: false,
+          },
+        ],
+      },
+    );
+
+    renderWithQueryClient(<WsAuthBridge />, queryClient);
+
+    await waitFor(() => {
+      expect(FakeWebSocket.instances.length).toBe(1);
+    });
+
+    const socket = FakeWebSocket.instances[0];
+    if (socket === undefined) {
+      throw new Error("socket should exist");
+    }
+
+    act(() => {
+      socket.emitOpen();
+      socket.emitJsonMessage({ type: "auth.ready" });
+      socket.emitJsonMessage({
+        type: "message.updated",
+        d: {
+          guild_id: 10,
+          channel_id: 20,
+          message: {
+            message_id: 5001,
+            guild_id: 10,
+            channel_id: 20,
+            author_id: 9003,
+            content: "after",
+            created_at: "2026-03-10T10:00:00Z",
+            version: 2,
+            edited_at: "2026-03-10T10:05:00Z",
+            is_deleted: false,
+          },
+        },
+      });
+    });
+
+    await waitFor(() => {
+      const cached = queryClient.getQueryData<InfiniteData<MessagePage, string | null>>(
+        buildMessagesQueryKey("10", "20"),
+      );
+      expect(cached?.pages[0]?.items[0]).toEqual(
+        expect.objectContaining({
+          id: "5001",
+          content: "after",
+          version: "2",
+          editedTimestamp: "2026-03-10T10:05:00Z",
+          isDeleted: false,
+        }),
+      );
+    });
+  });
+
+  test("message.deleted を受けると tombstone を cache へ反映する", async () => {
+    usePathnameMock.mockReturnValue("/channels/10/20");
+
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    queryClient.setQueryData<InfiniteData<MessagePage, string | null>>(
+      buildMessagesQueryKey("10", "20"),
+      {
+        pageParams: [null],
+        pages: [
+          {
+            items: [
+              {
+                id: "5001",
+                channelId: "20",
+                author: {
+                  id: "9003",
+                  username: "user-9003",
+                  displayName: "User 9003",
+                  avatar: null,
+                  status: "offline",
+                  customStatus: null,
+                  bot: false,
+                },
+                content: "before",
+                timestamp: "2026-03-10T10:00:00Z",
+                version: "1",
+                editedTimestamp: null,
+                isDeleted: false,
+                type: 0,
+                pinned: false,
+                mentionEveryone: false,
+                mentions: [],
+                attachments: [],
+                embeds: [],
+                reactions: [],
+                referencedMessage: null,
+              },
+            ],
+            nextBefore: null,
+            nextAfter: null,
+            hasMore: false,
+          },
+        ],
+      },
+    );
+
+    renderWithQueryClient(<WsAuthBridge />, queryClient);
+
+    await waitFor(() => {
+      expect(FakeWebSocket.instances.length).toBe(1);
+    });
+
+    const socket = FakeWebSocket.instances[0];
+    if (socket === undefined) {
+      throw new Error("socket should exist");
+    }
+
+    act(() => {
+      socket.emitOpen();
+      socket.emitJsonMessage({ type: "auth.ready" });
+      socket.emitJsonMessage({
+        type: "message.deleted",
+        d: {
+          guild_id: 10,
+          channel_id: 20,
+          message: {
+            message_id: 5001,
+            guild_id: 10,
+            channel_id: 20,
+            author_id: 9003,
+            content: "",
+            created_at: "2026-03-10T10:00:00Z",
+            version: 2,
+            edited_at: "2026-03-10T10:06:00Z",
+            is_deleted: true,
+          },
+        },
+      });
+    });
+
+    await waitFor(() => {
+      const cached = queryClient.getQueryData<InfiniteData<MessagePage, string | null>>(
+        buildMessagesQueryKey("10", "20"),
+      );
+      expect(cached?.pages[0]?.items[0]).toEqual(
+        expect.objectContaining({
+          id: "5001",
+          content: "",
+          version: "2",
+          editedTimestamp: "2026-03-10T10:06:00Z",
+          isDeleted: true,
+        }),
+      );
+    });
+  });
+
+  test("古い version の WS event では cache を巻き戻さない", async () => {
+    usePathnameMock.mockReturnValue("/channels/10/20");
+
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    queryClient.setQueryData<InfiniteData<MessagePage, string | null>>(
+      buildMessagesQueryKey("10", "20"),
+      {
+        pageParams: [null],
+        pages: [
+          {
+            items: [
+              {
+                id: "5001",
+                channelId: "20",
+                author: {
+                  id: "9003",
+                  username: "user-9003",
+                  displayName: "User 9003",
+                  avatar: null,
+                  status: "offline",
+                  customStatus: null,
+                  bot: false,
+                },
+                content: "latest",
+                timestamp: "2026-03-10T10:00:00Z",
+                version: "3",
+                editedTimestamp: "2026-03-10T10:07:00Z",
+                isDeleted: false,
+                type: 0,
+                pinned: false,
+                mentionEveryone: false,
+                mentions: [],
+                attachments: [],
+                embeds: [],
+                reactions: [],
+                referencedMessage: null,
+              },
+            ],
+            nextBefore: null,
+            nextAfter: null,
+            hasMore: false,
+          },
+        ],
+      },
+    );
+
+    renderWithQueryClient(<WsAuthBridge />, queryClient);
+
+    await waitFor(() => {
+      expect(FakeWebSocket.instances.length).toBe(1);
+    });
+
+    const socket = FakeWebSocket.instances[0];
+    if (socket === undefined) {
+      throw new Error("socket should exist");
+    }
+
+    act(() => {
+      socket.emitOpen();
+      socket.emitJsonMessage({ type: "auth.ready" });
+      socket.emitJsonMessage({
+        type: "message.updated",
+        d: {
+          guild_id: 10,
+          channel_id: 20,
+          message: {
+            message_id: 5001,
+            guild_id: 10,
+            channel_id: 20,
+            author_id: 9003,
+            content: "stale",
+            created_at: "2026-03-10T10:00:00Z",
+            version: 2,
+            edited_at: "2026-03-10T10:05:00Z",
+            is_deleted: false,
+          },
+        },
+      });
+    });
+
+    await waitFor(() => {
+      const cached = queryClient.getQueryData<InfiniteData<MessagePage, string | null>>(
+        buildMessagesQueryKey("10", "20"),
+      );
+      expect(cached?.pages[0]?.items[0]).toEqual(
+        expect.objectContaining({
+          id: "5001",
+          content: "latest",
+          version: "3",
+          editedTimestamp: "2026-03-10T10:07:00Z",
+        }),
+      );
     });
   });
 

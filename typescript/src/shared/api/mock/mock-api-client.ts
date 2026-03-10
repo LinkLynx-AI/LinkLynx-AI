@@ -187,9 +187,7 @@ export class MockAPIClient implements APIClient {
   }
 
   // Messages
-  async getMessages(
-    params: MessageQueryParams,
-  ): Promise<MessagePage> {
+  async getMessages(params: MessageQueryParams): Promise<MessagePage> {
     await this.simulateDelay();
     const messages = mockMessages[params.channelId] ?? [];
     const limit = params.limit ?? 50;
@@ -217,7 +215,9 @@ export class MockAPIClient implements APIClient {
       author: mockCurrentUser,
       content: data.content,
       timestamp: new Date().toISOString(),
+      version: "1",
       editedTimestamp: null,
+      isDeleted: false,
       type: data.referencedMessageId ? 19 : 0,
       pinned: false,
       mentionEveryone: false,
@@ -240,7 +240,9 @@ export class MockAPIClient implements APIClient {
     messages[idx] = {
       ...messages[idx],
       content: data.content,
+      version: String(Number(messages[idx].version) + 1),
       editedTimestamp: new Date().toISOString(),
+      isDeleted: false,
     };
     return messages[idx];
   }
@@ -249,7 +251,15 @@ export class MockAPIClient implements APIClient {
     await this.simulateDelay();
     const messages = mockMessages[channelId] ?? [];
     const idx = messages.findIndex((m) => m.id === messageId);
-    if (idx !== -1) messages.splice(idx, 1);
+    if (idx !== -1) {
+      messages[idx] = {
+        ...messages[idx],
+        content: "",
+        version: String(Number(messages[idx].version) + 1),
+        editedTimestamp: new Date().toISOString(),
+        isDeleted: true,
+      };
+    }
   }
 
   async getPinnedMessages(channelId: string): Promise<Message[]> {

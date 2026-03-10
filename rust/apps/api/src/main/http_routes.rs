@@ -603,7 +603,17 @@ async fn edit_channel_message(
         )
         .await
     {
-        Ok(response) => Json(response).into_response(),
+        Ok(response) => {
+            let publish_state = state.clone();
+            let published_message = response.message.clone();
+            tokio::spawn(async move {
+                publish_state
+                    .message_realtime_hub
+                    .publish_message_updated(&publish_state, published_message)
+                    .await;
+            });
+            Json(response).into_response()
+        }
         Err(error) => message_error_response(&error, request_id),
     }
 }
@@ -651,11 +661,20 @@ async fn delete_channel_message(
         )
         .await
     {
-        Ok(response) => Json(response).into_response(),
+        Ok(response) => {
+            let publish_state = state.clone();
+            let published_message = response.message.clone();
+            tokio::spawn(async move {
+                publish_state
+                    .message_realtime_hub
+                    .publish_message_deleted(&publish_state, published_message)
+                    .await;
+            });
+            Json(response).into_response()
+        }
         Err(error) => message_error_response(&error, request_id),
     }
 }
-
 /// create message 用 idempotency key を取り出す。
 /// @param headers HTTP ヘッダー
 /// @returns optional idempotency key

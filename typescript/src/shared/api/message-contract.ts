@@ -51,10 +51,7 @@ export function parseMessagePayload(rawText: string): unknown {
 function buildFallbackAuthor(authorId: string): User {
   const currentUser = useAuthStore.getState().currentUser;
   const currentPrincipalId = useAuthStore.getState().currentPrincipalId;
-  if (
-    currentUser !== null &&
-    (currentPrincipalId === authorId || currentUser.id === authorId)
-  ) {
+  if (currentUser !== null && (currentPrincipalId === authorId || currentUser.id === authorId)) {
     if (currentPrincipalId !== null && currentUser.id !== currentPrincipalId) {
       return {
         ...currentUser,
@@ -86,7 +83,9 @@ export function mapMessageItem(item: MessageItemApi): Message {
     author: buildFallbackAuthor(String(item.author_id)),
     content: item.content,
     timestamp: item.created_at,
+    version: String(item.version),
     editedTimestamp: item.edited_at ?? null,
+    isDeleted: item.is_deleted ?? false,
     type: 0,
     pinned: false,
     mentionEveryone: false,

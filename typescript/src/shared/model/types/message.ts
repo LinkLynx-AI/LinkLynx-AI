@@ -24,7 +24,9 @@ export type Message = {
   author: User;
   content: string;
   timestamp: string;
+  version: string;
   editedTimestamp: string | null;
+  isDeleted: boolean;
   type: MessageType;
   pinned: boolean;
   mentionEveryone: boolean;

@@ -21,14 +21,15 @@ In scope:
 
 - guild text channel message REST command/list contract
 - opaque cursor paging contract
-- WS subscribe/unsubscribe and message.created frame contract
+- WS subscribe/unsubscribe and message.created/message.updated/message.deleted frame contract
 - durable event naming and payload baseline for message create
 
 Out of scope:
 
 - DM transport contract
 - message send over WS
-- WS fanout for edit/delete
+- Scylla persistence wiring
+- edit/delete command contract
 - durable event transport for edit/delete
 
 ## 2. REST contract baseline
@@ -183,12 +184,16 @@ Server frames:
 - `message.subscribed`
 - `message.unsubscribed`
 - `message.created`
+- `message.updated`
+- `message.deleted`
 
 Payload baseline:
 
 1. Subscribe/unsubscribe target is `(guild_id, channel_id)`.
-2. `message.created` carries `guild_id`, `channel_id`, and a full `MessageItemV1` snapshot.
-3. AuthN/AuthZ failure handling is unchanged from ADR-004 driven runtime behavior.
+2. `message.created` / `message.updated` / `message.deleted` each carry `guild_id`, `channel_id`, and a full `MessageItemV1` snapshot.
+3. edit/delete fanout must publish the same snapshot shape returned by REST and list APIs.
+4. clients must treat `message.deleted` as tombstone state and prefer `is_deleted` over `content`.
+5. AuthN/AuthZ failure handling is unchanged from ADR-004 driven runtime behavior.
 
 ## 5. Durable event baseline
 
@@ -213,7 +218,7 @@ Required payload fields:
 Notes:
 
 1. WS frame name `message.created` is not the durable event name.
-2. Future edit/delete events must be additive extensions in later issues.
+2. Durable event transport for edit/delete remains out of scope in v1 baseline until a follow-up issue extends the catalog additively.
 3. REST edit/delete command rollout must not break existing create/list/WS consumers.
 
 ## 6. Validation checklist
@@ -222,4 +227,5 @@ Notes:
 2. Cursor round-trip and invalid-cursor rejection are test-covered.
 3. `message_create` class is aligned with ADR-002.
 4. edit/delete conflict and tombstone behavior are test-covered.
-5. Unknown future fields do not break deserialization.
+5. `message.updated` / `message.deleted` fanout uses the same latest snapshot shape as list/edit/delete responses.
+6. Unknown future fields do not break deserialization.
