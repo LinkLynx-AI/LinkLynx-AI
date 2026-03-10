@@ -27,6 +27,7 @@ type FormattingToolbarProps = {
   setContent: (s: string) => void;
   onTogglePreview?: () => void;
   showPreview?: boolean;
+  disabled?: boolean;
 };
 
 type FormatButton = {
@@ -56,6 +57,7 @@ export function FormattingToolbar({
   setContent,
   onTogglePreview,
   showPreview,
+  disabled = false,
 }: FormattingToolbarProps) {
   const [showHeadingDropdown, setShowHeadingDropdown] = useState(false);
   const [showLinkPopover, setShowLinkPopover] = useState(false);
@@ -139,10 +141,11 @@ export function FormattingToolbar({
             type="button"
             aria-label="見出し"
             onClick={() => setShowHeadingDropdown((prev) => !prev)}
+            disabled={disabled}
             className={cn(
               "rounded p-1 text-discord-interactive-normal",
               "hover:bg-discord-bg-mod-hover hover:text-discord-interactive-hover",
-              "transition-colors",
+              "transition-colors disabled:cursor-not-allowed disabled:opacity-60",
               showHeadingDropdown && "bg-discord-bg-mod-hover text-discord-interactive-hover",
             )}
           >
@@ -168,10 +171,11 @@ export function FormattingToolbar({
               type="button"
               aria-label={btn.label}
               onClick={() => handleFormatClick(btn)}
+              disabled={disabled}
               className={cn(
                 "rounded p-1 text-discord-interactive-normal",
                 "hover:bg-discord-bg-mod-hover hover:text-discord-interactive-hover",
-                "transition-colors",
+                "transition-colors disabled:cursor-not-allowed disabled:opacity-60",
                 btn.label === "リンク" &&
                   showLinkPopover &&
                   "bg-discord-bg-mod-hover text-discord-interactive-hover",
@@ -180,7 +184,7 @@ export function FormattingToolbar({
               <btn.icon className="h-4 w-4" />
             </button>
           </Tooltip>
-          {btn.label === "リンク" && showLinkPopover && (
+          {btn.label === "リンク" && showLinkPopover && !disabled && (
             <LinkPopover onInsert={handleLinkInsert} onClose={() => setShowLinkPopover(false)} />
           )}
         </div>
@@ -196,10 +200,11 @@ export function FormattingToolbar({
             type="button"
             aria-label={showPreview ? "プレビューを閉じる" : "プレビュー"}
             onClick={onTogglePreview}
+            disabled={disabled}
             className={cn(
               "rounded p-1 text-discord-interactive-normal",
               "hover:bg-discord-bg-mod-hover hover:text-discord-interactive-hover",
-              "transition-colors",
+              "transition-colors disabled:cursor-not-allowed disabled:opacity-60",
               showPreview && "bg-discord-bg-mod-hover text-discord-brand",
             )}
           >

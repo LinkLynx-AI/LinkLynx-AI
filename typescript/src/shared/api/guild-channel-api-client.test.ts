@@ -11,8 +11,10 @@ import {
   GuildChannelAPIClient,
   GuildChannelApiError,
   toDeleteActionErrorText,
+  toMessageActionErrorText,
   toUpdateActionErrorText,
 } from "./guild-channel-api-client";
+import { useAuthStore } from "@/shared/model/stores/auth-store";
 
 function setApiBaseUrl(url: string): void {
   process.env.NEXT_PUBLIC_API_URL = url;
@@ -29,6 +31,20 @@ describe("GuildChannelAPIClient", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
     setApiBaseUrl("http://localhost:8080");
+    useAuthStore.setState({
+      currentUser: {
+        id: "9003",
+        username: "alice",
+        displayName: "Alice",
+        avatar: null,
+        status: "online",
+        customStatus: null,
+        bot: false,
+      },
+      currentPrincipalId: "9003",
+      status: "online",
+      customStatus: null,
+    });
   });
 
   afterEach(() => {
@@ -783,6 +799,108 @@ describe("GuildChannelAPIClient", () => {
 
     expect(toDeleteActionErrorText(error, "削除に失敗しました。")).toBe(
       "対象のサーバーが見つかりません。 (request_id: req-delete-404)",
+    );
+  });
+
+  test("getMessages maps paged response and hydrates current author", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        `{
+          "items": [
+            {
+              "message_id": 9223372036854775001,
+              "guild_id": 2001,
+              "channel_id": 3001,
+              "author_id": 9003,
+              "content": "hello realtime",
+              "created_at": "2026-03-10T10:00:00Z",
+              "version": 1,
+              "edited_at": null,
+              "is_deleted": false
+            }
+          ],
+          "next_before": "cursor-1",
+          "next_after": null,
+          "has_more": true
+        }`,
+        { status: 200 },
+      ),
+    );
+
+    const client = new GuildChannelAPIClient();
+    const page = await client.getMessages({
+      guildId: "2001",
+      channelId: "3001",
+      limit: 25,
+    });
+
+    expect(page).toEqual({
+      items: [
+        expect.objectContaining({
+          id: "9223372036854775001",
+          channelId: "3001",
+          content: "hello realtime",
+          author: expect.objectContaining({
+            id: "9003",
+            displayName: "Alice",
+          }),
+        }),
+      ],
+      nextBefore: "cursor-1",
+      nextAfter: null,
+      hasMore: true,
+    });
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("http://localhost:8080/v1/guilds/2001/channels/3001/messages?limit=25");
+    expect(init.method).toBe("GET");
+  });
+
+  test("sendMessage posts to v1 guild message path", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        `{
+          "message": {
+            "message_id": 9223372036854775002,
+            "guild_id": 2001,
+            "channel_id": 3001,
+            "author_id": 9003,
+            "content": "hello contract",
+            "created_at": "2026-03-10T10:01:00Z",
+            "version": 1,
+            "edited_at": null,
+            "is_deleted": false
+          }
+        }`,
+        { status: 201 },
+      ),
+    );
+
+    const client = new GuildChannelAPIClient();
+    const message = await client.sendMessage({
+      guildId: "2001",
+      channelId: "3001",
+      data: { content: "  hello contract  " },
+    });
+
+    expect(message.content).toBe("hello contract");
+    expect(message.id).toBe("9223372036854775002");
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("http://localhost:8080/v1/guilds/2001/channels/3001/messages");
+    expect(init.method).toBe("POST");
+    expect(init.body).toBe(JSON.stringify({ content: "hello contract" }));
+    expect(new Headers(init.headers).get("Idempotency-Key")).toBeTruthy();
+  });
+
+  test("toMessageActionErrorText includes retry-after seconds for rate limit", () => {
+    const error = new GuildChannelApiError("rate limited", {
+      code: "RATE_LIMITED",
+      requestId: "req-rate-limit",
+      retryAfterMs: 2000,
+    });
+
+    expect(toMessageActionErrorText(error, "送信に失敗しました。")).toBe(
+      "送信が多すぎます。少し待ってから再試行してください。（約 2 秒後に再試行してください） (request_id: req-rate-limit)",
     );
   });
 });

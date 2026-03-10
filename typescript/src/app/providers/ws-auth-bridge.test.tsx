@@ -1,9 +1,15 @@
 // @vitest-environment jsdom
+import type { InfiniteData } from "@tanstack/react-query";
 import type {
   AuthSessionContextValue,
   AuthActionResult,
   WsTicketIssueResult,
 } from "@/entities/auth";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { render as baseRender } from "@testing-library/react";
+import { createElement, type ReactElement } from "react";
+import type { MessagePage } from "@/shared/api/api-client";
+import { buildMessagesQueryKey } from "@/shared/api/message-query";
 import { act, fireEvent, render, screen, waitFor } from "@/test/test-utils";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
@@ -93,6 +99,15 @@ class FakeWebSocket {
 async function flushMicrotasks(): Promise<void> {
   await Promise.resolve();
   await Promise.resolve();
+}
+
+function renderWithQueryClient(ui: ReactElement, queryClient: QueryClient) {
+  return baseRender(
+    createElement(QueryClientProvider, {
+      client: queryClient,
+      children: ui,
+    }),
+  );
 }
 
 describe("WsAuthBridge", () => {
@@ -426,6 +441,210 @@ describe("WsAuthBridge", () => {
     });
 
     expect(FakeWebSocket.instances.length).toBe(2);
+  });
+
+  test("auth.ready 後に active guild channel を購読する", async () => {
+    usePathnameMock.mockReturnValue("/channels/10/20");
+
+    render(<WsAuthBridge />);
+
+    await waitFor(() => {
+      expect(FakeWebSocket.instances.length).toBe(1);
+    });
+
+    const socket = FakeWebSocket.instances[0];
+    if (socket === undefined) {
+      throw new Error("socket should exist");
+    }
+
+    act(() => {
+      socket.emitOpen();
+      socket.emitJsonMessage({ type: "auth.ready" });
+    });
+
+    await waitFor(() => {
+      expect(socket.send).toHaveBeenCalledTimes(2);
+    });
+
+    expect(JSON.parse(String(socket.send.mock.calls[1]?.[0]))).toEqual({
+      type: "message.subscribe",
+      d: {
+        guild_id: 10,
+        channel_id: 20,
+      },
+    });
+  });
+
+  test("unsafe numeric-looking route param では購読しない", async () => {
+    usePathnameMock.mockReturnValue("/channels/10e2/20");
+
+    render(<WsAuthBridge />);
+
+    await waitFor(() => {
+      expect(FakeWebSocket.instances.length).toBe(1);
+    });
+
+    const socket = FakeWebSocket.instances[0];
+    if (socket === undefined) {
+      throw new Error("socket should exist");
+    }
+
+    act(() => {
+      socket.emitOpen();
+      socket.emitJsonMessage({ type: "auth.ready" });
+    });
+
+    await waitFor(() => {
+      expect(socket.send).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  test("safe integer を超える id でも購読 payload を丸めない", async () => {
+    usePathnameMock.mockReturnValue("/channels/9007199254740993/9007199254740995");
+
+    render(<WsAuthBridge />);
+
+    await waitFor(() => {
+      expect(FakeWebSocket.instances.length).toBe(1);
+    });
+
+    const socket = FakeWebSocket.instances[0];
+    if (socket === undefined) {
+      throw new Error("socket should exist");
+    }
+
+    act(() => {
+      socket.emitOpen();
+      socket.emitJsonMessage({ type: "auth.ready" });
+    });
+
+    await waitFor(() => {
+      expect(socket.send).toHaveBeenCalledTimes(2);
+    });
+
+    expect(String(socket.send.mock.calls[1]?.[0])).toBe(
+      '{"type":"message.subscribe","d":{"guild_id":9007199254740993,"channel_id":9007199254740995}}',
+    );
+  });
+
+  test("message.created を受けると該当 channel cache を更新する", async () => {
+    usePathnameMock.mockReturnValue("/channels/10/20");
+
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    queryClient.setQueryData<InfiniteData<MessagePage, string | null>>(
+      buildMessagesQueryKey("10", "20"),
+      {
+        pageParams: [null],
+        pages: [
+          {
+            items: [],
+            nextBefore: null,
+            nextAfter: null,
+            hasMore: false,
+          },
+        ],
+      },
+    );
+
+    renderWithQueryClient(<WsAuthBridge />, queryClient);
+
+    await waitFor(() => {
+      expect(FakeWebSocket.instances.length).toBe(1);
+    });
+
+    const socket = FakeWebSocket.instances[0];
+    if (socket === undefined) {
+      throw new Error("socket should exist");
+    }
+
+    act(() => {
+      socket.emitOpen();
+      socket.emitJsonMessage({ type: "auth.ready" });
+      socket.emitJsonMessage({
+        type: "message.created",
+        d: {
+          guild_id: 10,
+          channel_id: 20,
+          message: {
+            message_id: 5001,
+            guild_id: 10,
+            channel_id: 20,
+            author_id: 9003,
+            content: "hello ws",
+            created_at: "2026-03-10T10:00:00Z",
+            version: 1,
+            edited_at: null,
+            is_deleted: false,
+          },
+        },
+      });
+    });
+
+    await waitFor(() => {
+      const cached = queryClient.getQueryData<InfiniteData<MessagePage, string | null>>(
+        buildMessagesQueryKey("10", "20"),
+      );
+      expect(cached?.pages[0]?.items).toEqual([
+        expect.objectContaining({
+          id: "5001",
+          content: "hello ws",
+        }),
+      ]);
+    });
+  });
+
+  test("再接続後の ready で active channel 履歴を再取得する", async () => {
+    vi.useFakeTimers();
+    usePathnameMock.mockReturnValue("/channels/10/20");
+
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const invalidateQueriesSpy = vi.spyOn(queryClient, "invalidateQueries");
+
+    renderWithQueryClient(<WsAuthBridge />, queryClient);
+
+    await waitFor(() => {
+      expect(FakeWebSocket.instances.length).toBe(1);
+    });
+
+    const socket1 = FakeWebSocket.instances[0];
+    if (socket1 === undefined) {
+      throw new Error("socket1 should exist");
+    }
+
+    act(() => {
+      socket1.emitOpen();
+      socket1.emitJsonMessage({ type: "auth.ready" });
+      socket1.emitClose(1011, "AUTH_UNAVAILABLE");
+    });
+
+    await act(async () => {
+      vi.advanceTimersByTime(1_000);
+      await flushMicrotasks();
+    });
+
+    await waitFor(() => {
+      expect(FakeWebSocket.instances.length).toBe(2);
+    });
+
+    const socket2 = FakeWebSocket.instances[1];
+    if (socket2 === undefined) {
+      throw new Error("socket2 should exist");
+    }
+
+    act(() => {
+      socket2.emitOpen();
+      socket2.emitJsonMessage({ type: "auth.ready" });
+    });
+
+    await waitFor(() => {
+      expect(invalidateQueriesSpy).toHaveBeenCalledWith({
+        queryKey: buildMessagesQueryKey("10", "20"),
+      });
+    });
   });
 
   test("保護ルート以外では接続しない", async () => {

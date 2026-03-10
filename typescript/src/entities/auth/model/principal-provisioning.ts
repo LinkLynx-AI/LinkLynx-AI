@@ -17,10 +17,10 @@ export type PrincipalProvisionError = {
 };
 
 export type PrincipalProvisionResult =
-  | {
+    | {
       ok: true;
       data: {
-        principalId: number;
+        principalId: string;
         firebaseUid: string;
         requestId: string;
       };

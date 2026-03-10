@@ -25,6 +25,27 @@ export type SearchResult = {
   totalResults: number;
 };
 
+export type MessageQueryParams = {
+  guildId: string;
+  channelId: string;
+  before?: string;
+  after?: string;
+  limit?: number;
+};
+
+export type SendMessageParams = {
+  guildId: string;
+  channelId: string;
+  data: CreateMessageData;
+};
+
+export type MessagePage = {
+  items: Message[];
+  nextBefore: string | null;
+  nextAfter: string | null;
+  hasMore: boolean;
+};
+
 export type MyProfile = {
   displayName: string;
   statusText: string | null;
@@ -194,12 +215,9 @@ export type APIClient = {
   deleteChannel(channelId: string): Promise<void>;
 
   // Messages
-  getMessages(
-    channelId: string,
-    params?: { before?: string; after?: string; limit?: number },
-  ): Promise<Message[]>;
+  getMessages(params: MessageQueryParams): Promise<MessagePage>;
   getMessage(channelId: string, messageId: string): Promise<Message>;
-  sendMessage(channelId: string, data: CreateMessageData): Promise<Message>;
+  sendMessage(params: SendMessageParams): Promise<Message>;
   editMessage(channelId: string, messageId: string, data: EditMessageData): Promise<Message>;
   deleteMessage(channelId: string, messageId: string): Promise<void>;
   getPinnedMessages(channelId: string): Promise<Message[]>;

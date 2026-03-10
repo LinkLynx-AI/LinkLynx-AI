@@ -2,6 +2,9 @@ import { useAuthStore } from "@/shared/model/stores/auth-store";
 import type {
   APIClient,
   AuditLogEntry,
+  MessagePage,
+  MessageQueryParams,
+  SendMessageParams,
   PermissionSnapshot,
   CreateModerationMuteData,
   CreateModerationReportData,
@@ -130,17 +133,21 @@ export class NoDataAPIClient implements APIClient {
   }
 
   getMessages(
-    _channelId: string,
-    _params?: { before?: string; after?: string; limit?: number },
-  ): Promise<Message[]> {
-    return Promise.resolve([]);
+    _params: MessageQueryParams,
+  ): Promise<MessagePage> {
+    return Promise.resolve({
+      items: [],
+      nextBefore: null,
+      nextAfter: null,
+      hasMore: false,
+    });
   }
 
   getMessage(_channelId: string, _messageId: string): Promise<Message> {
     return unsupportedPromise("getMessage");
   }
 
-  sendMessage(_channelId: string, _data: CreateMessageData): Promise<Message> {
+  sendMessage(_params: SendMessageParams): Promise<Message> {
     return unsupportedPromise("sendMessage");
   }
 
@@ -177,7 +184,11 @@ export class NoDataAPIClient implements APIClient {
 
   getUser(userId: string): Promise<User> {
     const currentUser = resolveCurrentUser();
-    if (currentUser !== null && currentUser.id === userId) {
+    const currentPrincipalId = useAuthStore.getState().currentPrincipalId;
+    if (
+      currentUser !== null &&
+      (currentUser.id === userId || currentPrincipalId === userId)
+    ) {
       return Promise.resolve(currentUser);
     }
     return unsupportedPromise("getUser");
