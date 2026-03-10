@@ -1,9 +1,16 @@
 // @vitest-environment jsdom
+import type { AuthSessionContextValue } from "@/entities/auth";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { render, waitFor } from "@/test/test-utils";
 import { useAuthStore } from "@/shared/model/stores/auth-store";
 
-const useAuthSessionMock = vi.hoisted(() => vi.fn());
+const useAuthSessionMock = vi.hoisted(() =>
+  vi.fn<() => AuthSessionContextValue>(() => ({
+    status: "unauthenticated",
+    user: null,
+    getIdToken: () => Promise.resolve(null),
+  })),
+);
 const useMyProfileMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/entities/auth", () => ({
@@ -21,6 +28,7 @@ describe("AuthBridge", () => {
     vi.clearAllMocks();
     useAuthStore.setState({
       currentUser: null,
+      currentPrincipalId: null,
       status: "online",
       customStatus: null,
     });
@@ -34,6 +42,7 @@ describe("AuthBridge", () => {
         email: "alice@example.com",
         emailVerified: true,
       },
+      getIdToken: () => Promise.resolve("token-1"),
     });
     useMyProfileMock.mockReturnValue({
       data: {
@@ -64,6 +73,7 @@ describe("AuthBridge", () => {
         email: "fallback@example.com",
         emailVerified: true,
       },
+      getIdToken: () => Promise.resolve("token-2"),
     });
     useMyProfileMock.mockReturnValue({
       data: undefined,
@@ -92,12 +102,46 @@ describe("AuthBridge", () => {
         customStatus: "stale-status",
         bot: false,
       },
+      currentPrincipalId: null,
       status: "online",
       customStatus: "stale-status",
     });
     useAuthSessionMock.mockReturnValue({
       status: "unauthenticated",
       user: null,
+      getIdToken: () => Promise.resolve(null),
+    });
+    useMyProfileMock.mockReturnValue({
+      data: undefined,
+    });
+
+    render(<AuthBridge />);
+
+    await waitFor(() => {
+      expect(useAuthStore.getState().currentUser).toBeNull();
+      expect(useAuthStore.getState().customStatus).toBeNull();
+    });
+  });
+
+  test("認証状態でも user が null の場合は auth-store の currentUser をクリアする", async () => {
+    useAuthStore.setState({
+      currentUser: {
+        id: "uid-old",
+        username: "old-user",
+        displayName: "old-user",
+        avatar: null,
+        status: "online",
+        customStatus: null,
+        bot: false,
+      },
+      currentPrincipalId: null,
+      status: "online",
+      customStatus: null,
+    });
+    useAuthSessionMock.mockReturnValue({
+      status: "authenticated",
+      user: null,
+      getIdToken: () => Promise.resolve("token-1"),
     });
     useMyProfileMock.mockReturnValue({
       data: undefined,

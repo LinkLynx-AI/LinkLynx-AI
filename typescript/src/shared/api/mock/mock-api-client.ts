@@ -3,6 +3,9 @@ import type {
   CreateModerationMuteData,
   CreateModerationReportData,
   CreateGuildData,
+  MessagePage,
+  MessageQueryParams,
+  SendMessageParams,
   UpdateGuildData,
   CreateChannelData,
   CreateInviteData,
@@ -184,14 +187,16 @@ export class MockAPIClient implements APIClient {
   }
 
   // Messages
-  async getMessages(
-    channelId: string,
-    params?: { before?: string; after?: string; limit?: number },
-  ): Promise<Message[]> {
+  async getMessages(params: MessageQueryParams): Promise<MessagePage> {
     await this.simulateDelay();
-    const messages = mockMessages[channelId] ?? [];
-    const limit = params?.limit ?? 50;
-    return messages.slice(-limit);
+    const messages = mockMessages[params.channelId] ?? [];
+    const limit = params.limit ?? 50;
+    return {
+      items: messages.slice(-limit),
+      nextBefore: null,
+      nextAfter: null,
+      hasMore: false,
+    };
   }
 
   async getMessage(channelId: string, messageId: string): Promise<Message> {
@@ -202,7 +207,7 @@ export class MockAPIClient implements APIClient {
     return msg;
   }
 
-  async sendMessage(channelId: string, data: CreateMessageData): Promise<Message> {
+  async sendMessage({ channelId, data }: SendMessageParams): Promise<Message> {
     await this.simulateDelay();
     const message: Message = {
       id: this.generateId(),

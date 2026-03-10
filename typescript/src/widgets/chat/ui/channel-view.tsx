@@ -8,7 +8,7 @@ import { VoiceArea } from "@/features/voice";
 import { ForumView } from "@/features/forum";
 import { StageChannelView } from "@/features/voice";
 
-export function ChannelView({ channelId }: { channelId: string }) {
+export function ChannelView({ guildId, channelId }: { guildId: string; channelId: string }) {
   useSyncChannelId(channelId);
   const { data: channel } = useChannel(channelId);
   const voiceConnected = useVoiceStore((s) => s.connected);
@@ -31,6 +31,7 @@ export function ChannelView({ channelId }: { channelId: string }) {
 
   return (
     <ChatArea
+      guildId={guildId}
       channelId={channelId}
       channelName={channel?.name ?? ""}
       topic={channel?.topic ?? undefined}

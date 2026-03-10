@@ -6,7 +6,10 @@ members = [
     "crates/contracts/protocol-events",
     "crates/contracts/protocol-ws",
     "crates/domains",
+    "crates/domains/message",
     "crates/infra",
+    "crates/platform/postgres/message",
+    "crates/platform/scylla/message",
     "crates/shared",
     "crates/worker",
     "apps/api",
@@ -29,7 +32,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.10"
 thiserror = "2"
-time = { version = "0.3", features = ["formatting"] }
+time = { version = "0.3", features = ["formatting", "parsing"] }
 tokio = { version = "1", features = ["full"] }
 tokio-postgres = "0.7"
 tower = { version = "0.5", features = ["util"] }

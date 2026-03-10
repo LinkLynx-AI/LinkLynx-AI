@@ -10,19 +10,22 @@ import type { User } from "@/shared/model/types/user";
 function buildSessionBackedUser(
   currentUser: User | null,
   sessionUser: { uid: string; email: string | null },
+  currentPrincipalId: string | null,
 ): User {
   const username = sessionUser.email?.split("@")[0] ?? "User";
+  const resolvedUserId = currentPrincipalId ?? sessionUser.uid;
 
-  if (currentUser?.id === sessionUser.uid) {
+  if (currentUser?.id === resolvedUserId) {
     return {
       ...currentUser,
+      id: resolvedUserId,
       username,
       bot: false,
     };
   }
 
   return {
-    id: sessionUser.uid,
+    id: resolvedUserId,
     username,
     displayName: username,
     avatar: null,
@@ -51,6 +54,7 @@ function isSameUser(left: User | null, right: User): boolean {
 export function AuthBridge() {
   const session = useAuthSession();
   const currentUser = useAuthStore((s) => s.currentUser);
+  const currentPrincipalId = useAuthStore((s) => s.currentPrincipalId);
   const setCurrentUser = useAuthStore((s) => s.setCurrentUser);
   const clearCurrentUser = useAuthStore((s) => s.clearCurrentUser);
   const currentUserId = session.status === "authenticated" ? (session.user?.uid ?? null) : null;
@@ -62,11 +66,18 @@ export function AuthBridge() {
       return;
     }
 
-    const nextUser = buildSessionBackedUser(currentUser, session.user);
+    const nextUser = buildSessionBackedUser(currentUser, session.user, currentPrincipalId);
     if (!isSameUser(currentUser, nextUser)) {
       setCurrentUser(nextUser);
     }
-  }, [clearCurrentUser, currentUser, session.status, session.user, setCurrentUser]);
+  }, [
+    clearCurrentUser,
+    currentPrincipalId,
+    currentUser,
+    session.status,
+    session.user,
+    setCurrentUser,
+  ]);
 
   useEffect(() => {
     if (session.status !== "authenticated" || session.user === null || myProfile === undefined) {

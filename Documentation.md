@@ -1,22 +1,23 @@
 # Documentation
 
 ## Current status
-- Now: `server/guild` Rust バックエンドのレビュー修正ループを完了。
-- Next: 必要ならコミット/PR 化。
+- Now: `LIN-829` の frontend message timeline/composer 実接続と review fix まで反映済み。
+- Next: 依存導入済み環境で typecheck / Vitest を再実行して最終確認する。
 
 ## Decisions
-- Start mode は `standalone smallest-unit`。
-- 変更は `guild_channel` 実装と関連テストに限定。
-- 既存API契約（`guild_not_found` と `guild_membership_required` の分類、`VALIDATION_ERROR`）を維持。
+- 対象 issue は `LIN-829`。
+- guild text channel のみ対象。DM 実装は今回含めない。
+- backend 契約拡張は行わない。
+- message REST/WS の `i64` ID は frontend 境界で string として保持する。
+- reconnect 後の取りこぼし補償は active channel history の再取得で行う。
+- own-message 判定は `principal_id` ベースで行う。
 
-## Review gate evidence
-- 初回 `reviewer`: `gate: block`
-- 修正後 `reviewer`（差分対象）: `gate: pass`
-- `reviewer_ui_guard`: 両回とも `run_ui_checks: false`
-
-## Validation evidence
-- `cd rust && cargo test -p linklynx_backend guild_channel`
+## Validation plan
 - `make validate`
+- `cd typescript && npm run typecheck`
+- 必要に応じて関連 Vitest を個別実行
 
-## Known issues / follow-ups
-- なし（今回差分に対する blocking 指摘は解消済み）。
+## Notes
+- `typescript/node_modules` が存在しないためローカル typecheck / Vitest は未実行。
+- local 開発では `make dev` が `scylla-bootstrap` を先行実行するように変更した。
+- `scylla-bootstrap` は `.env` を読み込んだうえで `scylla-wait` を通すため、Scylla 起動直後の race で Rust API が不健康な session を掴む確率を下げている。

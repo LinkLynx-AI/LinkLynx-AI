@@ -93,27 +93,64 @@ Expected result:
 - `200` + `status=degraded` and `reason=keyspace_missing|table_missing` when Scylla is reachable but schema is missing
 - `503` + `status=error` and `reason=config_invalid|connect_timeout|query_timeout|connect_failed|query_failed` when config is invalid or Scylla is unavailable
 
-## 5. Troubleshooting
+## 5. Message integration verification
 
-### 5.1 Scylla does not start
+For LIN-938 style message append/list verification, prepare both databases and run the backend integration suite:
+
+```bash
+make db-up
+make db-migrate
+make scylla-bootstrap
+make message-scylla-integration
+```
+
+Expected result:
+- `message_scylla_integration_*` tests execute against local Postgres + Scylla
+- duplicate no-op, bucket boundary paging, Postgres connect failure, and Scylla unavailable fail-close regressions are covered automatically
+
+Manual reproduction assets for contract-level checks:
+
+```bash
+docker compose exec -T scylladb cqlsh -f database/scylla/queries/lin289_idempotent_write_strategy.cql
+docker compose exec -T scylladb cqlsh -f database/scylla/testdata/lin291_history_edge_cases.cql
+```
+
+Use these when you need explicit operator evidence for:
+- read-before-retry / duplicate no-op behavior from LIN-289
+- same-timestamp boundary, gap handling, and `limit + 1` behavior from LIN-291
+
+To reproduce unavailable behavior manually, stop Scylla and re-run the probe:
+
+```bash
+docker compose stop scylladb
+make scylla-health
+docker compose up -d scylladb
+```
+
+Expected result:
+- `make scylla-health` returns `503` with `status=error` while Scylla is unavailable
+
+## 6. Troubleshooting
+
+### 6.1 Scylla does not start
 - Confirm compose status:
   - `docker compose ps scylladb`
 - Confirm logs:
   - `docker compose logs scylladb`
 
-### 5.2 Bootstrap fails
+### 6.2 Bootstrap fails
 - Ensure `cqlsh` can connect inside the container:
   - `docker compose exec -T scylladb cqlsh -e "SELECT release_version FROM system.local;"`
 - Re-run:
   - `make scylla-bootstrap`
 
-### 5.3 API reports `degraded`
+### 6.3 API reports `degraded`
 - Confirm schema application ran successfully.
 - If you override `SCYLLA_KEYSPACE`, run `SCYLLA_KEYSPACE=<keyspace> make scylla-bootstrap`.
 - Verify required table:
   - `docker compose exec -T scylladb cqlsh -e "SELECT table_name FROM system_schema.tables WHERE keyspace_name = '<keyspace>';"`
 
-### 5.4 API reports `error`
+### 6.4 API reports `error`
 - Confirm `SCYLLA_HOSTS` points to the correct endpoint for the current runtime mode.
 - For local binary execution use `localhost:9042`.
 - For Docker Compose API execution use `scylladb:9042`.

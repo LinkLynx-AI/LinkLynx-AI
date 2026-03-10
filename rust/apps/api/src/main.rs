@@ -2,6 +2,7 @@ mod auth;
 mod authz;
 mod guild_channel;
 mod invite;
+mod message;
 mod moderation;
 mod profile;
 mod ratelimit;
@@ -45,14 +46,13 @@ use guild_channel::{
     GuildChannelService,
 };
 use invite::{build_runtime_invite_service, invite_error_response, InviteService};
-use linklynx_message_api::{
-    paginate_messages, validate_create_request, CreateGuildChannelMessageRequestV1,
-    CreateGuildChannelMessageResponseV1, ListGuildChannelMessagesQueryV1, MessageApiError,
-    MessageItemV1,
-};
+use linklynx_message_api::{CreateGuildChannelMessageRequestV1, ListGuildChannelMessagesQueryV1};
 use linklynx_protocol_ws::{
     ClientMessageFrameV1, GuildChannelSubscriptionTargetV1, MessageSubscriptionStateV1,
     ServerMessageFrameV1,
+};
+use message::{
+    build_runtime_message_service, message_error_response, MessageError, MessageService,
 };
 use moderation::{
     build_runtime_moderation_service, moderation_error_response, ModerationError, ModerationService,
@@ -77,6 +77,8 @@ pub(crate) struct AppState {
     authz_metrics: Arc<AuthzMetrics>,
     guild_channel_service: Arc<dyn GuildChannelService>,
     invite_service: Arc<dyn InviteService>,
+    message_service: Arc<dyn MessageService>,
+    message_realtime_hub: Arc<MessageRealtimeHub>,
     moderation_service: Arc<dyn ModerationService>,
     profile_service: Arc<dyn ProfileService>,
     scylla_health_reporter: Arc<dyn ScyllaHealthReporter>,
@@ -136,6 +138,8 @@ async fn build_runtime_state() -> AppState {
     let authz_metrics = Arc::new(AuthzMetrics::default());
     let guild_channel_service = build_runtime_guild_channel_service();
     let invite_service = build_runtime_invite_service();
+    let message_service = build_runtime_message_service().await;
+    let message_realtime_hub = Arc::new(MessageRealtimeHub::default());
     let moderation_service = build_runtime_moderation_service();
     let profile_service = build_runtime_profile_service();
     let scylla_health_reporter = build_runtime_scylla_health_reporter().await;
@@ -159,6 +163,8 @@ async fn build_runtime_state() -> AppState {
         authz_metrics,
         guild_channel_service,
         invite_service,
+        message_service,
+        message_realtime_hub,
         moderation_service,
         profile_service,
         scylla_health_reporter,
@@ -228,5 +234,6 @@ async fn app() -> Router {
 }
 
 include!("main/http_routes.rs");
+include!("main/realtime.rs");
 include!("main/ws_routes.rs");
 include!("main/tests.rs");

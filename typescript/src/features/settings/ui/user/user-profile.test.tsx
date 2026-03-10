@@ -52,6 +52,7 @@ describe("UserProfile", () => {
         customStatus: "old-status",
         bot: false,
       },
+      currentPrincipalId: null,
       status: "online",
       customStatus: "old-status",
     });
@@ -75,6 +76,7 @@ describe("UserProfile", () => {
   afterEach(() => {
     useAuthStore.setState({
       currentUser: null,
+      currentPrincipalId: null,
       status: "online",
       customStatus: null,
     });
@@ -175,7 +177,7 @@ describe("UserProfile", () => {
       statusText: "server-updated-status",
       avatarKey: null,
     };
-    await act(async () => {
+    act(() => {
       rerender(<UserProfile />);
     });
 

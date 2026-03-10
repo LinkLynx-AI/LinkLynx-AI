@@ -31,6 +31,7 @@ describe("UserPanel", () => {
           customStatus: null,
           bot: false,
         },
+        currentPrincipalId: null,
         status: "online",
         customStatus: "in channel",
       });
@@ -51,6 +52,7 @@ describe("UserPanel", () => {
     act(() => {
       useAuthStore.setState({
         currentUser: null,
+        currentPrincipalId: null,
         status: "online",
         customStatus: null,
       });
