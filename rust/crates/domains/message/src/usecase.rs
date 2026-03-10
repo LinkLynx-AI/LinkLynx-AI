@@ -1,15 +1,16 @@
 use std::sync::Arc;
 
+use crate::{
+    CreateGuildChannelMessageCommand, CreateGuildChannelMessageResult,
+    DeleteGuildChannelMessageCommand, EditGuildChannelMessageCommand, GuildChannelContext,
+    MessageBodyStore, MessageCreateIdempotencyRepository, MessageCreateReservationState,
+    MessageCreateReserveResult, MessageIdentity, MessageMetadataRepository,
+    MessageStoreUpdateResult, MessageUsecaseError, UpdateGuildChannelMessageResult,
+};
 use async_trait::async_trait;
 use linklynx_message_api::{
-    normalize_list_query, validate_create_request, ListGuildChannelMessagesQueryV1,
-    ListGuildChannelMessagesResponseV1, MessageItemV1,
-};
-
-use crate::{
-    CreateGuildChannelMessageCommand, CreateGuildChannelMessageResult, GuildChannelContext,
-    MessageBodyStore, MessageCreateIdempotencyRepository, MessageCreateReservationState,
-    MessageCreateReserveResult, MessageIdentity, MessageMetadataRepository, MessageUsecaseError,
+    normalize_list_query, validate_create_request, validate_delete_request, validate_edit_request,
+    ListGuildChannelMessagesQueryV1, ListGuildChannelMessagesResponseV1, MessageItemV1,
 };
 
 /// message append/list usecase 境界を表現する。
@@ -23,6 +24,24 @@ pub trait MessageUsecase: Send + Sync {
         &self,
         command: CreateGuildChannelMessageCommand,
     ) -> Result<CreateGuildChannelMessageResult, MessageUsecaseError>;
+
+    /// guild channel message を edit する。
+    /// @param command edit command
+    /// @returns 更新済み message snapshot
+    /// @throws MessageUsecaseError validation / not found / conflict / authz denied / dependency unavailable 時
+    async fn edit_guild_channel_message(
+        &self,
+        command: EditGuildChannelMessageCommand,
+    ) -> Result<UpdateGuildChannelMessageResult, MessageUsecaseError>;
+
+    /// guild channel message を tombstone delete する。
+    /// @param command delete command
+    /// @returns 更新済み message snapshot
+    /// @throws MessageUsecaseError validation / not found / conflict / authz denied / dependency unavailable 時
+    async fn delete_guild_channel_message(
+        &self,
+        command: DeleteGuildChannelMessageCommand,
+    ) -> Result<UpdateGuildChannelMessageResult, MessageUsecaseError>;
 
     /// guild channel message history を list する。
     /// @param guild_id 対象 guild_id
@@ -111,6 +130,48 @@ impl LiveMessageUsecase {
             .await?;
         Ok(stored_message)
     }
+
+    async fn load_stored_message(
+        &self,
+        context: &GuildChannelContext,
+        message_id: i64,
+    ) -> Result<MessageItemV1, MessageUsecaseError> {
+        self.body_store
+            .get_guild_channel_message(context, message_id)
+            .await?
+            .ok_or_else(|| MessageUsecaseError::message_not_found("message_not_found"))
+    }
+
+    fn ensure_message_actor(
+        &self,
+        stored: &MessageItemV1,
+        principal_id: i64,
+    ) -> Result<(), MessageUsecaseError> {
+        if stored.author_id != principal_id {
+            return Err(MessageUsecaseError::authz_denied(
+                "message_mutation_forbidden",
+            ));
+        }
+        Ok(())
+    }
+
+    fn ensure_expected_version(
+        &self,
+        stored: &MessageItemV1,
+        expected_version: i64,
+    ) -> Result<(), MessageUsecaseError> {
+        if stored.version != expected_version {
+            return Err(MessageUsecaseError::conflict("message_version_conflict"));
+        }
+        Ok(())
+    }
+
+    fn ensure_not_deleted(&self, stored: &MessageItemV1) -> Result<(), MessageUsecaseError> {
+        if stored.is_deleted {
+            return Err(MessageUsecaseError::conflict("message_deleted_conflict"));
+        }
+        Ok(())
+    }
 }
 
 #[async_trait]
@@ -175,6 +236,91 @@ impl MessageUsecase for LiveMessageUsecase {
         }
     }
 
+    /// guild channel message を edit する。
+    /// @param command edit command
+    /// @returns 更新済み message snapshot
+    /// @throws MessageUsecaseError validation / not found / conflict / authz denied / dependency unavailable 時
+    async fn edit_guild_channel_message(
+        &self,
+        command: EditGuildChannelMessageCommand,
+    ) -> Result<UpdateGuildChannelMessageResult, MessageUsecaseError> {
+        validate_edit_request(&command.to_edit_request())?;
+        let context = self
+            .load_channel_context(command.guild_id, command.channel_id)
+            .await?;
+        let stored = self
+            .load_stored_message(&context, command.message_id)
+            .await?;
+        self.ensure_message_actor(&stored, command.principal_id)?;
+        self.ensure_not_deleted(&stored)?;
+        self.ensure_expected_version(&stored, command.expected_version)?;
+
+        let updated_message = MessageItemV1 {
+            content: command.content,
+            version: stored.version + 1,
+            edited_at: Some(command.edited_at),
+            ..stored
+        };
+        let result = self
+            .body_store
+            .update_guild_channel_message(
+                &updated_message,
+                command.expected_version,
+                command.principal_id,
+            )
+            .await?;
+        if result != MessageStoreUpdateResult::Applied {
+            return Err(MessageUsecaseError::conflict("message_version_conflict"));
+        }
+
+        Ok(UpdateGuildChannelMessageResult {
+            message: updated_message,
+        })
+    }
+
+    /// guild channel message を tombstone delete する。
+    /// @param command delete command
+    /// @returns 更新済み message snapshot
+    /// @throws MessageUsecaseError validation / not found / conflict / authz denied / dependency unavailable 時
+    async fn delete_guild_channel_message(
+        &self,
+        command: DeleteGuildChannelMessageCommand,
+    ) -> Result<UpdateGuildChannelMessageResult, MessageUsecaseError> {
+        validate_delete_request(&command.to_delete_request())?;
+        let context = self
+            .load_channel_context(command.guild_id, command.channel_id)
+            .await?;
+        let stored = self
+            .load_stored_message(&context, command.message_id)
+            .await?;
+        self.ensure_message_actor(&stored, command.principal_id)?;
+        self.ensure_not_deleted(&stored)?;
+        self.ensure_expected_version(&stored, command.expected_version)?;
+
+        let deleted_message = MessageItemV1 {
+            content: String::new(),
+            version: stored.version + 1,
+            edited_at: Some(command.deleted_at),
+            is_deleted: true,
+            ..stored
+        };
+        let result = self
+            .body_store
+            .update_guild_channel_message(
+                &deleted_message,
+                command.expected_version,
+                command.principal_id,
+            )
+            .await?;
+        if result != MessageStoreUpdateResult::Applied {
+            return Err(MessageUsecaseError::conflict("message_version_conflict"));
+        }
+
+        Ok(UpdateGuildChannelMessageResult {
+            message: deleted_message,
+        })
+    }
+
     /// guild channel message history を list する。
     /// @param guild_id 対象 guild_id
     /// @param channel_id 対象 channel_id
@@ -230,6 +376,28 @@ impl MessageUsecase for UnavailableMessageUsecase {
         Err(self.unavailable_error())
     }
 
+    /// guild channel message を edit する。
+    /// @param _command edit command
+    /// @returns なし
+    /// @throws MessageUsecaseError 常に unavailable
+    async fn edit_guild_channel_message(
+        &self,
+        _command: EditGuildChannelMessageCommand,
+    ) -> Result<UpdateGuildChannelMessageResult, MessageUsecaseError> {
+        Err(self.unavailable_error())
+    }
+
+    /// guild channel message を tombstone delete する。
+    /// @param _command delete command
+    /// @returns なし
+    /// @throws MessageUsecaseError 常に unavailable
+    async fn delete_guild_channel_message(
+        &self,
+        _command: DeleteGuildChannelMessageCommand,
+    ) -> Result<UpdateGuildChannelMessageResult, MessageUsecaseError> {
+        Err(self.unavailable_error())
+    }
+
     /// guild channel message history を list する。
     /// @param _guild_id 対象 guild_id
     /// @param _channel_id 対象 channel_id
@@ -258,9 +426,11 @@ mod tests {
     use tokio::sync::Mutex;
 
     use crate::{
-        CreateGuildChannelMessageCommand, GuildChannelContext, MessageCreateIdempotency,
+        CreateGuildChannelMessageCommand, DeleteGuildChannelMessageCommand,
+        EditGuildChannelMessageCommand, GuildChannelContext, MessageCreateIdempotency,
         MessageCreateIdempotencyRepository, MessageCreateReservation,
-        MessageCreateReservationState, MessageCreateReserveResult, MessageIdentity, MessageUsecase,
+        MessageCreateReservationState, MessageCreateReserveResult, MessageIdentity,
+        MessageStoreUpdateResult, MessageUsecase,
     };
 
     use super::{
@@ -272,6 +442,8 @@ mod tests {
         appended: Mutex<Vec<MessageItemV1>>,
         listed_queries: Mutex<Vec<ListGuildChannelMessagesQueryV1>>,
         append_result: Mutex<Option<Result<MessageItemV1, MessageUsecaseError>>>,
+        stored_message: Mutex<Option<MessageItemV1>>,
+        update_result: Mutex<Option<Result<MessageStoreUpdateResult, MessageUsecaseError>>>,
         list_result: Mutex<Option<Result<ListGuildChannelMessagesResponseV1, MessageUsecaseError>>>,
     }
 
@@ -282,10 +454,33 @@ mod tests {
             message: &MessageItemV1,
         ) -> Result<MessageItemV1, MessageUsecaseError> {
             self.appended.lock().await.push(message.clone());
+            *self.stored_message.lock().await = Some(message.clone());
             if let Some(result) = self.append_result.lock().await.take() {
                 result
             } else {
                 Ok(message.clone())
+            }
+        }
+
+        async fn get_guild_channel_message(
+            &self,
+            _context: &GuildChannelContext,
+            _message_id: i64,
+        ) -> Result<Option<MessageItemV1>, MessageUsecaseError> {
+            Ok(self.stored_message.lock().await.clone())
+        }
+
+        async fn update_guild_channel_message(
+            &self,
+            message: &MessageItemV1,
+            _expected_version: i64,
+            _actor_id: i64,
+        ) -> Result<MessageStoreUpdateResult, MessageUsecaseError> {
+            *self.stored_message.lock().await = Some(message.clone());
+            if let Some(result) = self.update_result.lock().await.take() {
+                result
+            } else {
+                Ok(MessageStoreUpdateResult::Applied)
             }
         }
 
@@ -409,6 +604,20 @@ mod tests {
         }
     }
 
+    fn stored_message() -> MessageItemV1 {
+        MessageItemV1 {
+            message_id: 120_110,
+            guild_id: 10,
+            channel_id: 20,
+            author_id: 30,
+            content: "before".to_owned(),
+            created_at: "2026-03-07T10:00:00Z".to_owned(),
+            version: 1,
+            edited_at: None,
+            is_deleted: false,
+        }
+    }
+
     #[tokio::test]
     async fn append_rejects_blank_content() {
         let usecase = LiveMessageUsecase::new(
@@ -458,6 +667,103 @@ mod tests {
             &[(20, 120_111, "2026-03-08T10:00:00Z".to_owned())]
         );
         assert!(idempotency.completions.lock().await.is_empty());
+    }
+
+    #[tokio::test]
+    async fn edit_updates_version_and_timestamp() {
+        let body_store = Arc::new(FakeBodyStore::default());
+        *body_store.stored_message.lock().await = Some(stored_message());
+        let usecase = LiveMessageUsecase::new(
+            body_store,
+            Arc::new(FakeMetadataRepository {
+                context: Some(context()),
+                upserts: Mutex::new(vec![]),
+            }),
+            Arc::new(FakeIdempotencyRepository::default()),
+        );
+
+        let updated = usecase
+            .edit_guild_channel_message(EditGuildChannelMessageCommand {
+                guild_id: 10,
+                channel_id: 20,
+                principal_id: 30,
+                message_id: 120_110,
+                content: "after".to_owned(),
+                expected_version: 1,
+                edited_at: "2026-03-08T10:00:00Z".to_owned(),
+            })
+            .await
+            .unwrap();
+
+        assert_eq!(updated.message.content, "after");
+        assert_eq!(updated.message.version, 2);
+        assert_eq!(
+            updated.message.edited_at.as_deref(),
+            Some("2026-03-08T10:00:00Z")
+        );
+        assert!(!updated.message.is_deleted);
+    }
+
+    #[tokio::test]
+    async fn delete_returns_tombstone_snapshot() {
+        let body_store = Arc::new(FakeBodyStore::default());
+        *body_store.stored_message.lock().await = Some(stored_message());
+        let usecase = LiveMessageUsecase::new(
+            body_store,
+            Arc::new(FakeMetadataRepository {
+                context: Some(context()),
+                upserts: Mutex::new(vec![]),
+            }),
+            Arc::new(FakeIdempotencyRepository::default()),
+        );
+
+        let deleted = usecase
+            .delete_guild_channel_message(DeleteGuildChannelMessageCommand {
+                guild_id: 10,
+                channel_id: 20,
+                principal_id: 30,
+                message_id: 120_110,
+                expected_version: 1,
+                deleted_at: "2026-03-08T10:00:00Z".to_owned(),
+            })
+            .await
+            .unwrap();
+
+        assert_eq!(deleted.message.content, "");
+        assert_eq!(deleted.message.version, 2);
+        assert!(deleted.message.is_deleted);
+    }
+
+    #[tokio::test]
+    async fn edit_rejects_version_conflict() {
+        let body_store = Arc::new(FakeBodyStore::default());
+        *body_store.stored_message.lock().await = Some(stored_message());
+        let usecase = LiveMessageUsecase::new(
+            body_store,
+            Arc::new(FakeMetadataRepository {
+                context: Some(context()),
+                upserts: Mutex::new(vec![]),
+            }),
+            Arc::new(FakeIdempotencyRepository::default()),
+        );
+
+        let error = usecase
+            .edit_guild_channel_message(EditGuildChannelMessageCommand {
+                guild_id: 10,
+                channel_id: 20,
+                principal_id: 30,
+                message_id: 120_110,
+                content: "after".to_owned(),
+                expected_version: 99,
+                edited_at: "2026-03-08T10:00:00Z".to_owned(),
+            })
+            .await
+            .unwrap_err();
+
+        assert_eq!(
+            error,
+            MessageUsecaseError::conflict("message_version_conflict")
+        );
     }
 
     #[tokio::test]

@@ -32,6 +32,25 @@ pub struct CreateGuildChannelMessageResponseV1 {
     pub message: MessageItemV1,
 }
 
+/// メッセージ編集リクエストを表現する。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EditGuildChannelMessageRequestV1 {
+    pub content: String,
+    pub expected_version: i64,
+}
+
+/// メッセージ削除リクエストを表現する。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DeleteGuildChannelMessageRequestV1 {
+    pub expected_version: i64,
+}
+
+/// メッセージ更新レスポンスを表現する。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct UpdateGuildChannelMessageResponseV1 {
+    pub message: MessageItemV1,
+}
+
 /// メッセージ一覧クエリを表現する。
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ListGuildChannelMessagesQueryV1 {
@@ -61,6 +80,8 @@ pub struct MessageCursorKeyV1 {
 pub enum MessageApiError {
     #[error("content is required")]
     EmptyContent,
+    #[error("expected version must be positive")]
+    InvalidExpectedVersion,
     #[error("limit must be between 1 and 100")]
     InvalidLimit,
     #[error("before and after cannot be used together")]
@@ -77,6 +98,7 @@ impl MessageApiError {
     pub fn reason_code(&self) -> &'static str {
         match self {
             Self::EmptyContent => "message_content_required",
+            Self::InvalidExpectedVersion => "message_expected_version_invalid",
             Self::InvalidLimit => "message_limit_out_of_range",
             Self::CursorConflict => "message_cursor_conflict",
             Self::InvalidCursor => "message_cursor_invalid",
@@ -145,6 +167,29 @@ pub fn validate_create_request(
         return Err(MessageApiError::EmptyContent);
     }
     Ok(())
+}
+
+/// メッセージ編集入力を検証する。
+/// @param request 編集リクエスト
+/// @returns 検証成功時は `Ok(())`
+/// @throws MessageApiError content または expected_version が不正な場合
+pub fn validate_edit_request(
+    request: &EditGuildChannelMessageRequestV1,
+) -> Result<(), MessageApiError> {
+    if request.content.trim().is_empty() {
+        return Err(MessageApiError::EmptyContent);
+    }
+    validate_expected_version(request.expected_version)
+}
+
+/// メッセージ削除入力を検証する。
+/// @param request 削除リクエスト
+/// @returns 検証成功時は `Ok(())`
+/// @throws MessageApiError expected_version が不正な場合
+pub fn validate_delete_request(
+    request: &DeleteGuildChannelMessageRequestV1,
+) -> Result<(), MessageApiError> {
+    validate_expected_version(request.expected_version)
 }
 
 /// 履歴クエリを正規化する。
@@ -253,6 +298,13 @@ fn compare_message_to_cursor(
         std::cmp::Ordering::Equal => item.message_id.cmp(&cursor.message_id),
         order => order,
     }
+}
+
+fn validate_expected_version(expected_version: i64) -> Result<(), MessageApiError> {
+    if expected_version <= 0 {
+        return Err(MessageApiError::InvalidExpectedVersion);
+    }
+    Ok(())
 }
 
 fn encode_hex_digit(value: u8) -> char {
@@ -463,6 +515,37 @@ mod tests {
         .unwrap_err();
 
         assert_eq!(error, MessageApiError::EmptyContent);
+    }
+
+    #[test]
+    fn validate_edit_request_accepts_content_and_expected_version() {
+        let result = validate_edit_request(&EditGuildChannelMessageRequestV1 {
+            content: "updated".to_owned(),
+            expected_version: 1,
+        });
+
+        assert_eq!(result, Ok(()));
+    }
+
+    #[test]
+    fn validate_edit_request_rejects_invalid_expected_version() {
+        let error = validate_edit_request(&EditGuildChannelMessageRequestV1 {
+            content: "updated".to_owned(),
+            expected_version: 0,
+        })
+        .unwrap_err();
+
+        assert_eq!(error, MessageApiError::InvalidExpectedVersion);
+    }
+
+    #[test]
+    fn validate_delete_request_rejects_invalid_expected_version() {
+        let error = validate_delete_request(&DeleteGuildChannelMessageRequestV1 {
+            expected_version: -1,
+        })
+        .unwrap_err();
+
+        assert_eq!(error, MessageApiError::InvalidExpectedVersion);
     }
 
     #[test]
