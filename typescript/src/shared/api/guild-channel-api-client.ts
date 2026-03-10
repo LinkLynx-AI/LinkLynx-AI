@@ -1097,18 +1097,6 @@ export class GuildChannelAPIClient extends NoDataAPIClient {
       return indexed;
     }
 
-    if (this.dmChannelsCache === null) {
-      try {
-        const channels = await this.fetchDmChannels();
-        const dmChannel = channels.find((channel) => channel.id === normalizedChannelId);
-        if (dmChannel !== undefined) {
-          return dmChannel;
-        }
-      } catch {
-        // Fall through to guild channel lookup and detail fetch.
-      }
-    }
-
     const servers = await this.fetchGuilds({ resetChannelCache: false });
     const serverIds = servers.map((server) => server.id);
     const uncachedServerIds = serverIds.filter(
@@ -1168,6 +1156,18 @@ export class GuildChannelAPIClient extends NoDataAPIClient {
     const refreshed = this.channelIndex.get(normalizedChannelId);
     if (refreshed !== undefined) {
       return refreshed;
+    }
+
+    if (this.dmChannelsCache === null) {
+      try {
+        const channels = await this.fetchDmChannels();
+        const dmChannel = channels.find((channel) => channel.id === normalizedChannelId);
+        if (dmChannel !== undefined) {
+          return dmChannel;
+        }
+      } catch {
+        // Fall through to DM detail lookup.
+      }
     }
 
     try {
