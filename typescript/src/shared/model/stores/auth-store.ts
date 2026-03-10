@@ -21,7 +21,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   customStatus: null,
 
   setCurrentUser: (user) => set({ currentUser: user }),
-  clearCurrentUser: () => set({ currentUser: null, currentPrincipalId: null }),
+  clearCurrentUser: () => set({ currentUser: null, currentPrincipalId: null, customStatus: null }),
   setCurrentPrincipalId: (principalId) => set({ currentPrincipalId: principalId }),
   setStatus: (status) => set({ status }),
   setCustomStatus: (text) => set({ customStatus: text }),

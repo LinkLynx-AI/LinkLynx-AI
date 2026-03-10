@@ -8,6 +8,7 @@ type MyProfile = {
   displayName: string;
   statusText: string | null;
   avatarKey: string | null;
+  bannerKey: string | null;
 };
 
 type MyProfileQueryResult = {
@@ -25,16 +26,64 @@ type UpdateMyProfileMutationResult = {
 
 const mutateAsyncMock = vi.hoisted(() => vi.fn<(input: unknown) => Promise<unknown>>());
 const useMyProfileMock = vi.hoisted(() => vi.fn<(userId: string | null) => MyProfileQueryResult>());
+const useStorageObjectUrlMock = vi.hoisted(() =>
+  vi.fn<(objectKey: string | null) => { data: string | undefined }>(),
+);
 const useUpdateMyProfileMock = vi.hoisted(() =>
   vi.fn<(userId: string | null) => UpdateMyProfileMutationResult>(),
+);
+const uploadProfileMediaFileMock = vi.hoisted(() =>
+  vi.fn<(userId: string, target: "avatar" | "banner", file: File) => Promise<string>>(),
+);
+const cleanupUploadedProfileMediaKeysMock = vi.hoisted(() =>
+  vi.fn<(objectKeys: string[]) => Promise<void>>(),
 );
 
 vi.mock("@/shared/api/mutations", () => ({
   useUpdateMyProfile: useUpdateMyProfileMock,
 }));
 
+const getStorageObjectUrlMock = vi.hoisted(() => vi.fn<(objectKey: string) => Promise<string>>());
+
 vi.mock("@/shared/api/queries", () => ({
   useMyProfile: useMyProfileMock,
+  useStorageObjectUrl: useStorageObjectUrlMock,
+}));
+
+vi.mock("@/shared/lib", async () => {
+  const actual = await vi.importActual<typeof import("@/shared/lib")>("@/shared/lib");
+  return {
+    ...actual,
+    getStorageObjectUrl: getStorageObjectUrlMock,
+  };
+});
+
+vi.mock("@/features/settings/model/profile-media", () => ({
+  uploadProfileMediaFile: uploadProfileMediaFileMock,
+  cleanupUploadedProfileMediaKeys: cleanupUploadedProfileMediaKeysMock,
+}));
+
+vi.mock("@/shared/ui/image-crop-modal", () => ({
+  ImageCropModal: ({
+    imageUrl,
+    sourceFile,
+    onCrop,
+    onClose,
+  }: {
+    imageUrl: string;
+    sourceFile: File;
+    onCrop: (result: { file: File; url: string }) => void;
+    onClose: () => void;
+  }) => (
+    <div>
+      <button type="button" onClick={() => onCrop({ file: sourceFile, url: imageUrl })}>
+        適用
+      </button>
+      <button type="button" onClick={onClose}>
+        キャンセル
+      </button>
+    </div>
+  ),
 }));
 
 import { UserProfile } from "./user-profile";
@@ -42,6 +91,18 @@ import { UserProfile } from "./user-profile";
 describe("UserProfile", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubGlobal(
+      "URL",
+      Object.assign(URL, {
+        createObjectURL: vi.fn((value: Blob | File) => {
+          if (value instanceof File) {
+            return `blob:${value.name}`;
+          }
+          return "blob:cropped-image";
+        }),
+        revokeObjectURL: vi.fn(),
+      }),
+    );
     useAuthStore.setState({
       currentUser: {
         id: "u-1",
@@ -64,16 +125,31 @@ describe("UserProfile", () => {
       data: {
         displayName: "old-name",
         statusText: "old-status",
-        avatarKey: null,
+        avatarKey: "avatars/old-name.png",
+        bannerKey: "banners/old-banner.png",
       },
       isLoading: false,
       isError: false,
       error: null,
       refetch: vi.fn(),
     });
+    useStorageObjectUrlMock.mockImplementation((objectKey: string | null) => {
+      switch (objectKey) {
+        case "avatars/old-name.png":
+          return { data: "https://cdn.example/avatar-old.png" };
+        case "banners/old-banner.png":
+          return { data: "https://cdn.example/banner-old.png" };
+        default:
+          return { data: undefined };
+      }
+    });
+    uploadProfileMediaFileMock.mockResolvedValue("profiles/u-1/avatar/default.png");
+    getStorageObjectUrlMock.mockImplementation(async (objectKey: string) => `https://cdn.example/${objectKey}`);
+    cleanupUploadedProfileMediaKeysMock.mockResolvedValue(undefined);
   });
 
   afterEach(() => {
+    vi.unstubAllGlobals();
     useAuthStore.setState({
       currentUser: null,
       currentPrincipalId: null,
@@ -87,6 +163,7 @@ describe("UserProfile", () => {
       displayName: "new-name",
       statusText: "new-status",
       avatarKey: null,
+      bannerKey: null,
     });
 
     render(<UserProfile />);
@@ -127,6 +204,7 @@ describe("UserProfile", () => {
         displayName: "retry-name",
         statusText: "retry-status",
         avatarKey: null,
+        bannerKey: null,
       });
 
     render(<UserProfile />);
@@ -154,7 +232,8 @@ describe("UserProfile", () => {
       data: {
         displayName: "old-name",
         statusText: "old-status",
-        avatarKey: null,
+        avatarKey: "avatars/old-name.png",
+        bannerKey: "banners/old-banner.png",
       },
       isLoading: false,
       isError: false,
@@ -172,7 +251,8 @@ describe("UserProfile", () => {
     queryResult.data = {
       displayName: "old-name",
       statusText: "server-updated-status",
-      avatarKey: null,
+      avatarKey: "avatars/server-updated.png",
+      bannerKey: "banners/server-updated.png",
     };
     rerender(<UserProfile />);
 
@@ -199,5 +279,63 @@ describe("UserProfile", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "再試行" }));
     expect(refetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  test("uses persisted avatar storage URL when auth-store avatar is empty", async () => {
+    render(<UserProfile />);
+
+    const avatarImage = screen.getByAltText("old-name");
+    expect(avatarImage.getAttribute("src")).toBe("https://cdn.example/avatar-old.png");
+  });
+
+  test("uploads avatar and banner before saving profile", async () => {
+    uploadProfileMediaFileMock
+      .mockResolvedValueOnce("profiles/u-1/avatar/new-avatar.png")
+      .mockResolvedValueOnce("profiles/u-1/banner/new-banner.png");
+    mutateAsyncMock.mockResolvedValueOnce({
+      displayName: "old-name",
+      statusText: "old-status",
+      avatarKey: "profiles/u-1/avatar/new-avatar.png",
+      bannerKey: "profiles/u-1/banner/new-banner.png",
+    });
+
+    render(<UserProfile />);
+
+    await userEvent.upload(
+      screen.getByLabelText("アバター画像ファイル"),
+      new File(["avatar"], "avatar.png", { type: "image/png" }),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "適用" }));
+
+    await userEvent.upload(
+      screen.getByLabelText("バナー画像ファイル"),
+      new File(["banner"], "banner.png", { type: "image/png" }),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "適用" }));
+
+    await userEvent.click(screen.getByRole("button", { name: "変更を保存" }));
+
+    await waitFor(() => {
+      expect(uploadProfileMediaFileMock).toHaveBeenNthCalledWith(
+        1,
+        "u-1",
+        "avatar",
+        expect.objectContaining({ name: "avatar.png" }),
+      );
+      expect(uploadProfileMediaFileMock).toHaveBeenNthCalledWith(
+        2,
+        "u-1",
+        "banner",
+        expect.objectContaining({ name: "banner.png" }),
+      );
+      expect(mutateAsyncMock).toHaveBeenCalledWith({
+        avatarKey: "profiles/u-1/avatar/new-avatar.png",
+        bannerKey: "profiles/u-1/banner/new-banner.png",
+      });
+      expect(useAuthStore.getState().currentUser?.avatar).toBe(
+        "https://cdn.example/profiles/u-1/avatar/new-avatar.png",
+      );
+    });
+    expect(getStorageObjectUrlMock).toHaveBeenCalledWith("profiles/u-1/avatar/new-avatar.png");
   });
 });

@@ -24,6 +24,7 @@ mod tests {
             display_name: None,
             status_text: None,
             avatar_key: None,
+            banner_key: None,
         };
 
         let result = normalize_profile_patch_input(patch);
@@ -42,6 +43,7 @@ mod tests {
             display_name: Some("   ".to_owned()),
             status_text: None,
             avatar_key: None,
+            banner_key: None,
         };
 
         let result = normalize_profile_patch_input(patch);
@@ -60,6 +62,7 @@ mod tests {
             display_name: Some("a".repeat(33)),
             status_text: None,
             avatar_key: None,
+            banner_key: None,
         };
 
         let result = normalize_profile_patch_input(patch);
@@ -78,6 +81,7 @@ mod tests {
             display_name: Some("  Display Name  ".to_owned()),
             status_text: Some(Some("   ".to_owned())),
             avatar_key: Some(Some("  folder/avatar_1.png  ".to_owned())),
+            banner_key: Some(Some("  folder/banner_1.png  ".to_owned())),
         };
 
         let normalized = normalize_profile_patch_input(patch).unwrap();
@@ -87,6 +91,10 @@ mod tests {
             normalized.avatar_key,
             Some(Some("folder/avatar_1.png".to_owned()))
         );
+        assert_eq!(
+            normalized.banner_key,
+            Some(Some("folder/banner_1.png".to_owned()))
+        );
     }
 
     #[test]
@@ -95,6 +103,7 @@ mod tests {
             display_name: None,
             status_text: Some(Some("a".repeat(191))),
             avatar_key: None,
+            banner_key: None,
         };
 
         let result = normalize_profile_patch_input(patch);
@@ -113,6 +122,7 @@ mod tests {
             display_name: None,
             status_text: None,
             avatar_key: Some(Some("avatar key with space".to_owned())),
+            banner_key: None,
         };
 
         let result = normalize_profile_patch_input(patch);
@@ -131,6 +141,7 @@ mod tests {
             display_name: None,
             status_text: None,
             avatar_key: Some(Some("a".repeat(513))),
+            banner_key: None,
         };
 
         let result = normalize_profile_patch_input(patch);
@@ -140,6 +151,25 @@ mod tests {
                 kind: ProfileErrorKind::Validation,
                 reason,
             }) if reason == "avatar_key_too_long"
+        ));
+    }
+
+    #[test]
+    fn normalize_profile_patch_input_rejects_invalid_banner_key_format() {
+        let patch = ProfilePatchInput {
+            display_name: None,
+            status_text: None,
+            avatar_key: None,
+            banner_key: Some(Some("banner key with space".to_owned())),
+        };
+
+        let result = normalize_profile_patch_input(patch);
+        assert!(matches!(
+            result,
+            Err(ProfileError {
+                kind: ProfileErrorKind::Validation,
+                reason,
+            }) if reason == "banner_key_invalid_format"
         ));
     }
 }

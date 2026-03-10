@@ -560,6 +560,7 @@ describe("GuildChannelAPIClient", () => {
             display_name: "alice",
             status_text: "busy coding",
             avatar_key: "avatar/alice.png",
+            banner_key: "banner/alice.png",
           },
         }),
         { status: 200 },
@@ -573,6 +574,7 @@ describe("GuildChannelAPIClient", () => {
       displayName: "alice",
       statusText: "busy coding",
       avatarKey: "avatar/alice.png",
+      bannerKey: "banner/alice.png",
     });
 
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
@@ -589,6 +591,7 @@ describe("GuildChannelAPIClient", () => {
             display_name: "new-name",
             status_text: null,
             avatar_key: null,
+            banner_key: "banner/new.png",
           },
         }),
         { status: 200 },
@@ -605,6 +608,7 @@ describe("GuildChannelAPIClient", () => {
       displayName: "new-name",
       statusText: null,
       avatarKey: null,
+      bannerKey: "banner/new.png",
     });
 
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
@@ -623,6 +627,7 @@ describe("GuildChannelAPIClient", () => {
             display_name: "old-name",
             status_text: "focus mode",
             avatar_key: null,
+            banner_key: null,
           },
         }),
         { status: 200 },
@@ -638,6 +643,7 @@ describe("GuildChannelAPIClient", () => {
       displayName: "old-name",
       statusText: "focus mode",
       avatarKey: null,
+      bannerKey: null,
     });
 
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];

@@ -1224,11 +1224,13 @@ fn parse_profile_patch_payload(
     let display_name = parse_display_name_patch_field(payload)?;
     let status_text = parse_nullable_string_patch_field(payload, "status_text")?;
     let avatar_key = parse_nullable_string_patch_field(payload, "avatar_key")?;
+    let banner_key = parse_nullable_string_patch_field(payload, "banner_key")?;
 
     Ok(ProfilePatchInput {
         display_name,
         status_text,
         avatar_key,
+        banner_key,
     })
 }
 

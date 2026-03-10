@@ -702,6 +702,7 @@ CREATE TABLE public.users (
     email text NOT NULL,
     display_name text NOT NULL,
     avatar_key text,
+    banner_key text,
     status_text text,
     theme text DEFAULT 'dark'::text NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
@@ -1277,7 +1278,6 @@ ALTER TABLE ONLY public.moderation_reports
 
 ALTER TABLE ONLY public.moderation_reports
     ADD CONSTRAINT moderation_reports_resolved_by_fkey FOREIGN KEY (resolved_by) REFERENCES public.users(id) ON DELETE SET NULL;
-
 
 
 

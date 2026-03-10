@@ -4,6 +4,7 @@ pub struct ProfileSettings {
     pub display_name: String,
     pub status_text: Option<String>,
     pub avatar_key: Option<String>,
+    pub banner_key: Option<String>,
 }
 
 /// プロフィール更新入力を表現する。
@@ -12,6 +13,7 @@ pub struct ProfilePatchInput {
     pub display_name: Option<String>,
     pub status_text: Option<Option<String>>,
     pub avatar_key: Option<Option<String>>,
+    pub banner_key: Option<Option<String>>,
 }
 
 impl ProfilePatchInput {
@@ -20,7 +22,10 @@ impl ProfilePatchInput {
     /// @returns 1項目も指定されていない場合はtrue
     /// @throws なし
     pub fn is_empty(&self) -> bool {
-        self.display_name.is_none() && self.status_text.is_none() && self.avatar_key.is_none()
+        self.display_name.is_none()
+            && self.status_text.is_none()
+            && self.avatar_key.is_none()
+            && self.banner_key.is_none()
     }
 }
 
@@ -29,6 +34,7 @@ struct NormalizedProfilePatch {
     display_name: Option<String>,
     status_text: Option<Option<String>>,
     avatar_key: Option<Option<String>>,
+    banner_key: Option<Option<String>>,
 }
 
 /// プロフィールAPIユースケース境界を表現する。
@@ -107,7 +113,7 @@ impl ProfileService for UnavailableProfileService {
 
 const DISPLAY_NAME_MAX_CHARS: usize = 32;
 const STATUS_TEXT_MAX_CHARS: usize = 190;
-const AVATAR_KEY_MAX_CHARS: usize = 512;
+const PROFILE_MEDIA_KEY_MAX_CHARS: usize = 512;
 
 /// 更新入力を正規化して検証する。
 /// @param patch 更新入力
@@ -136,7 +142,23 @@ fn normalize_profile_patch_input(patch: ProfilePatchInput) -> Result<NormalizedP
 
     let avatar_key = match patch.avatar_key {
         Some(raw_avatar_key) => {
-            let normalized = normalize_optional_avatar_key(raw_avatar_key)?;
+            let normalized = normalize_optional_profile_media_key(
+                raw_avatar_key,
+                "avatar_key_too_long",
+                "avatar_key_invalid_format",
+            )?;
+            Some(normalized)
+        }
+        None => None,
+    };
+
+    let banner_key = match patch.banner_key {
+        Some(raw_banner_key) => {
+            let normalized = normalize_optional_profile_media_key(
+                raw_banner_key,
+                "banner_key_too_long",
+                "banner_key_invalid_format",
+            )?;
             Some(normalized)
         }
         None => None,
@@ -146,6 +168,7 @@ fn normalize_profile_patch_input(patch: ProfilePatchInput) -> Result<NormalizedP
         display_name,
         status_text,
         avatar_key,
+        banner_key,
     })
 }
 
@@ -190,26 +213,30 @@ fn normalize_optional_status_text(
     }
 }
 
-/// 任意アバターキーを正規化して検証する。
-/// @param raw_avatar_key 生のアバターキー
-/// @returns 正規化済みアバターキー
+/// 任意プロフィールメディアキーを正規化して検証する。
+/// @param raw_profile_media_key 生のプロフィールメディアキー
+/// @param too_long_reason 長さ超過時の理由コード
+/// @param invalid_format_reason 形式不正時の理由コード
+/// @returns 正規化済みプロフィールメディアキー
 /// @throws ProfileError 入力不正時
-fn normalize_optional_avatar_key(
-    raw_avatar_key: Option<String>,
+fn normalize_optional_profile_media_key(
+    raw_profile_media_key: Option<String>,
+    too_long_reason: &'static str,
+    invalid_format_reason: &'static str,
 ) -> Result<Option<String>, ProfileError> {
-    match raw_avatar_key {
+    match raw_profile_media_key {
         Some(value) => {
             let normalized = value.trim();
             if normalized.is_empty() {
                 return Ok(None);
             }
 
-            if normalized.chars().count() > AVATAR_KEY_MAX_CHARS {
-                return Err(ProfileError::validation("avatar_key_too_long"));
+            if normalized.chars().count() > PROFILE_MEDIA_KEY_MAX_CHARS {
+                return Err(ProfileError::validation(too_long_reason));
             }
 
-            if !is_valid_avatar_key(normalized) {
-                return Err(ProfileError::validation("avatar_key_invalid_format"));
+            if !is_valid_profile_media_key(normalized) {
+                return Err(ProfileError::validation(invalid_format_reason));
             }
 
             Ok(Some(normalized.to_owned()))
@@ -218,11 +245,11 @@ fn normalize_optional_avatar_key(
     }
 }
 
-/// アバターキー形式を検証する。
-/// @param value 検証対象アバターキー
+/// プロフィールメディアキー形式を検証する。
+/// @param value 検証対象プロフィールメディアキー
 /// @returns 許可形式ならtrue
 /// @throws なし
-fn is_valid_avatar_key(value: &str) -> bool {
+fn is_valid_profile_media_key(value: &str) -> bool {
     value
         .bytes()
         .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'/' | b'_' | b'-' | b'.'))

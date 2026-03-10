@@ -38,6 +38,8 @@
 14. `0014_lin637_attachment_metadata_persistence`
 15. `0015_lin803_server_channel_minimal_contract`
 16. `0016_lin822_minimal_moderation`
+17. `0017_lin948_message_create_idempotency`
+18. `0018_lin909_profile_banner_key`
 
 ### 2.1 型（ENUM）
 

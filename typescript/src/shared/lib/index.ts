@@ -1,2 +1,9 @@
 export { cn } from "./cn";
-export { ensureFirebaseAuthPersistence, getFirebaseApp, getFirebaseAuth } from "./firebase";
+export {
+  deleteStorageObjectByKey,
+  ensureFirebaseAuthPersistence,
+  getFirebaseApp,
+  getFirebaseAuth,
+  getStorageObjectUrl,
+  uploadStorageObject,
+} from "./firebase";

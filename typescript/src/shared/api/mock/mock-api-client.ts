@@ -50,6 +50,8 @@ import {
   mockRolesData,
 } from "./data";
 
+const mockMyProfiles = new Map<string, MyProfile>();
+
 export class MockAPIClient implements APIClient {
   private delay = 100;
   private moderationReports: ModerationReport[] = [];
@@ -187,9 +189,7 @@ export class MockAPIClient implements APIClient {
   }
 
   // Messages
-  async getMessages(
-    params: MessageQueryParams,
-  ): Promise<MessagePage> {
+  async getMessages(params: MessageQueryParams): Promise<MessagePage> {
     await this.simulateDelay();
     const messages = mockMessages[params.channelId] ?? [];
     const limit = params.limit ?? 50;
@@ -317,10 +317,12 @@ export class MockAPIClient implements APIClient {
     }
 
     const profile = mockUserProfiles[mockCurrentUser.id];
+    const savedProfile = mockMyProfiles.get(mockCurrentUser.id);
     return {
-      displayName: profile?.displayName ?? mockCurrentUser.displayName,
-      statusText: profile?.bio ?? mockCurrentUser.customStatus,
-      avatarKey: null,
+      displayName: savedProfile?.displayName ?? profile?.displayName ?? mockCurrentUser.displayName,
+      statusText: savedProfile?.statusText ?? profile?.bio ?? mockCurrentUser.customStatus,
+      avatarKey: savedProfile?.avatarKey ?? null,
+      bannerKey: savedProfile?.bannerKey ?? profile?.banner ?? null,
     };
   }
 
@@ -344,6 +346,15 @@ export class MockAPIClient implements APIClient {
     mockCurrentUser.customStatus = statusText;
 
     const existingProfile = mockUserProfiles[mockCurrentUser.id];
+    const existingMyProfile = mockMyProfiles.get(mockCurrentUser.id);
+    const avatarKey =
+      input.avatarKey !== undefined
+        ? (input.avatarKey?.trim() ?? null)
+        : (existingMyProfile?.avatarKey ?? null);
+    const bannerKey =
+      input.bannerKey !== undefined
+        ? (input.bannerKey?.trim() ?? null)
+        : (existingMyProfile?.bannerKey ?? existingProfile?.banner ?? null);
     mockUserProfiles[mockCurrentUser.id] = {
       ...(existingProfile ?? {
         ...mockCurrentUser,
@@ -355,12 +366,20 @@ export class MockAPIClient implements APIClient {
       }),
       displayName,
       bio: statusText,
+      banner: bannerKey,
     };
+    mockMyProfiles.set(mockCurrentUser.id, {
+      displayName,
+      statusText,
+      avatarKey,
+      bannerKey,
+    });
 
     return {
       displayName,
       statusText,
-      avatarKey: null,
+      avatarKey,
+      bannerKey,
     };
   }
 

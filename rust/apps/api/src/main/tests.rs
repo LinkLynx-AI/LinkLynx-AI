@@ -742,6 +742,7 @@ mod tests {
                 display_name: "Alice".to_owned(),
                 status_text: Some("Ready".to_owned()),
                 avatar_key: Some("avatars/alice.png".to_owned()),
+                banner_key: Some("banners/alice.png".to_owned()),
             })
         }
 
@@ -762,6 +763,7 @@ mod tests {
                 display_name: "Alice".to_owned(),
                 status_text: Some("Ready".to_owned()),
                 avatar_key: Some("avatars/alice.png".to_owned()),
+                banner_key: Some("banners/alice.png".to_owned()),
             };
 
             if let Some(display_name) = patch.display_name {
@@ -803,6 +805,28 @@ mod tests {
                 }
 
                 profile.avatar_key = normalized;
+            }
+
+            if let Some(banner_key) = patch.banner_key {
+                let normalized = banner_key.and_then(|value| {
+                    let trimmed = value.trim().to_owned();
+                    if trimmed.is_empty() {
+                        None
+                    } else {
+                        Some(trimmed)
+                    }
+                });
+
+                if let Some(value) = &normalized {
+                    let valid_format = value.bytes().all(|byte| {
+                        byte.is_ascii_alphanumeric() || matches!(byte, b'/' | b'_' | b'-' | b'.')
+                    });
+                    if !valid_format {
+                        return Err(ProfileError::validation("banner_key_invalid_format"));
+                    }
+                }
+
+                profile.banner_key = normalized;
             }
 
             Ok(profile)
@@ -3932,6 +3956,7 @@ mod tests {
         assert_eq!(json["profile"]["display_name"], "Alice");
         assert_eq!(json["profile"]["status_text"], "Ready");
         assert_eq!(json["profile"]["avatar_key"], "avatars/alice.png");
+        assert_eq!(json["profile"]["banner_key"], "banners/alice.png");
     }
 
     #[tokio::test]
@@ -4021,6 +4046,31 @@ mod tests {
                     .header("authorization", format!("Bearer {token}"))
                     .header("content-type", "application/json")
                     .body(Body::from(r#"{"avatar_key":"bad key"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "VALIDATION_ERROR");
+    }
+
+    #[tokio::test]
+    async fn patch_my_profile_rejects_invalid_banner_key_format() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("PATCH")
+                    .uri("/users/me/profile")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"banner_key":"bad key"}"#))
                     .unwrap(),
             )
             .await

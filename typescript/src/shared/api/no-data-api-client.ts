@@ -71,6 +71,7 @@ function buildMyProfile(user: User): MyProfile {
     displayName: user.displayName,
     statusText: user.customStatus,
     avatarKey: null,
+    bannerKey: null,
   };
 }
 
@@ -132,9 +133,7 @@ export class NoDataAPIClient implements APIClient {
     return unsupportedPromise("deleteChannel");
   }
 
-  getMessages(
-    _params: MessageQueryParams,
-  ): Promise<MessagePage> {
+  getMessages(_params: MessageQueryParams): Promise<MessagePage> {
     return Promise.resolve({
       items: [],
       nextBefore: null,
@@ -185,10 +184,7 @@ export class NoDataAPIClient implements APIClient {
   getUser(userId: string): Promise<User> {
     const currentUser = resolveCurrentUser();
     const currentPrincipalId = useAuthStore.getState().currentPrincipalId;
-    if (
-      currentUser !== null &&
-      (currentUser.id === userId || currentPrincipalId === userId)
-    ) {
+    if (currentUser !== null && (currentUser.id === userId || currentPrincipalId === userId)) {
       return Promise.resolve(currentUser);
     }
     return unsupportedPromise("getUser");
@@ -233,6 +229,7 @@ export class NoDataAPIClient implements APIClient {
         displayName,
         statusText,
         avatarKey: null,
+        bannerKey: null,
       });
     } catch (error) {
       return Promise.reject(
