@@ -102,12 +102,7 @@ async function flushMicrotasks(): Promise<void> {
 }
 
 function renderWithQueryClient(ui: ReactElement, queryClient: QueryClient) {
-  return baseRender(
-    createElement(QueryClientProvider, {
-      client: queryClient,
-      children: ui,
-    }),
-  );
+  return baseRender(createElement(QueryClientProvider, { client: queryClient }, ui));
 }
 
 describe("WsAuthBridge", () => {
@@ -606,9 +601,8 @@ describe("WsAuthBridge", () => {
 
     renderWithQueryClient(<WsAuthBridge />, queryClient);
 
-    await waitFor(() => {
-      expect(FakeWebSocket.instances.length).toBe(1);
-    });
+    await flushMicrotasks();
+    expect(FakeWebSocket.instances.length).toBe(1);
 
     const socket1 = FakeWebSocket.instances[0];
     if (socket1 === undefined) {
@@ -622,13 +616,11 @@ describe("WsAuthBridge", () => {
     });
 
     await act(async () => {
-      vi.advanceTimersByTime(1_000);
+      await vi.advanceTimersByTimeAsync(1_000);
       await flushMicrotasks();
     });
 
-    await waitFor(() => {
-      expect(FakeWebSocket.instances.length).toBe(2);
-    });
+    expect(FakeWebSocket.instances.length).toBe(2);
 
     const socket2 = FakeWebSocket.instances[1];
     if (socket2 === undefined) {
@@ -640,10 +632,8 @@ describe("WsAuthBridge", () => {
       socket2.emitJsonMessage({ type: "auth.ready" });
     });
 
-    await waitFor(() => {
-      expect(invalidateQueriesSpy).toHaveBeenCalledWith({
-        queryKey: buildMessagesQueryKey("10", "20"),
-      });
+    expect(invalidateQueriesSpy).toHaveBeenCalledWith({
+      queryKey: buildMessagesQueryKey("10", "20"),
     });
   });
 

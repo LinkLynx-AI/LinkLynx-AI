@@ -40,7 +40,11 @@ export function ProtectedPreviewGate({ guard, children }: ProtectedPreviewGatePr
   const shouldCheckProvision = guard === null && session.status === "authenticated";
   const provisionQuery = useQuery<PrincipalProvisionResult, Error>({
     queryKey: ["auth", "protected-route-guard", session.user?.uid ?? "anonymous"],
-    queryFn: () => ensurePrincipalProvisionedForCurrentUser(),
+    queryFn: async () => {
+      const result = await ensurePrincipalProvisionedForCurrentUser();
+      setCurrentPrincipalId(result.ok ? result.data.principalId : null);
+      return result;
+    },
     enabled: isBrowser && shouldCheckProvision,
     retry: false,
     staleTime: 0,
@@ -135,15 +139,6 @@ export function ProtectedPreviewGate({ guard, children }: ProtectedPreviewGatePr
       }),
     [loginReason],
   );
-
-  useEffect(() => {
-    if (session.status !== "authenticated" || provisionResult === undefined || !provisionResult.ok) {
-      setCurrentPrincipalId(null);
-      return;
-    }
-
-    setCurrentPrincipalId(provisionResult.data.principalId);
-  }, [provisionResult, session.status, setCurrentPrincipalId]);
 
   useEffect(() => {
     if (guard !== null) {
