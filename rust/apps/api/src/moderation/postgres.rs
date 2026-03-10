@@ -378,6 +378,23 @@ impl PostgresModerationService {
         }
     }
 
+    /// モデレーション対象 guild の存在を確認する。
+    /// @param client Postgresクライアント
+    /// @param guild_id 対象guild_id
+    /// @returns なし
+    /// @throws ModerationError 未存在/依存障害時
+    async fn ensure_guild_exists(
+        &self,
+        client: &tokio_postgres::Client,
+        guild_id: i64,
+    ) -> Result<(), ModerationError> {
+        if self.has_guild(client, guild_id).await? {
+            return Ok(());
+        }
+
+        Err(ModerationError::not_found("guild_not_found"))
+    }
+
     /// 書き込み系DBエラーをAPIエラーへ変換する。
     /// @param context エラー文脈
     /// @param error Postgresエラー
@@ -672,6 +689,7 @@ impl ModerationService for PostgresModerationService {
 
         self.ensure_moderator_access(input.guild_id, principal_id)
             .await?;
+        self.ensure_guild_exists(&client, input.guild_id).await?;
 
         let row = match client
             .query_one(
@@ -713,8 +731,8 @@ impl ModerationService for PostgresModerationService {
 
     /// モデレーションキューを返す。
     /// @param principal_id 実行主体
-    /// @param guild_id 対象guild_id
-    /// @returns 通報一覧
+    /// @param input 一覧取得入力
+    /// @returns 通報一覧ページ
     /// @throws ModerationError 権限拒否/依存障害時
     async fn list_reports(
         &self,
@@ -723,6 +741,7 @@ impl ModerationService for PostgresModerationService {
     ) -> Result<ModerationReportListPage, ModerationError> {
         let client = self.select_client().await?;
         self.ensure_moderator_access(input.guild_id, principal_id).await?;
+        self.ensure_guild_exists(&client, input.guild_id).await?;
 
         let fetch_limit = (input.limit as i64).saturating_add(1);
         let status_text = input.status.map(|status| status.as_db_label().to_owned());
@@ -807,6 +826,7 @@ impl ModerationService for PostgresModerationService {
         let normalized_report_id = normalize_positive_id(report_id, "report_id_must_be_positive")?;
         let client = self.select_client().await?;
         self.ensure_moderator_access(guild_id, principal_id).await?;
+        self.ensure_guild_exists(&client, guild_id).await?;
 
         self.fetch_report(&client, guild_id, normalized_report_id).await
     }
@@ -826,6 +846,7 @@ impl ModerationService for PostgresModerationService {
         let normalized_report_id = normalize_positive_id(report_id, "report_id_must_be_positive")?;
         let client = self.select_client().await?;
         self.ensure_moderator_access(guild_id, principal_id).await?;
+        self.ensure_guild_exists(&client, guild_id).await?;
 
         if let Some(updated) = self
             .update_report_to_resolved(&client, guild_id, normalized_report_id, principal_id)
@@ -859,6 +880,7 @@ impl ModerationService for PostgresModerationService {
         let normalized_report_id = normalize_positive_id(report_id, "report_id_must_be_positive")?;
         let client = self.select_client().await?;
         self.ensure_moderator_access(guild_id, principal_id).await?;
+        self.ensure_guild_exists(&client, guild_id).await?;
 
         if let Some(updated) = self
             .update_report_to_open(&client, guild_id, normalized_report_id, principal_id)

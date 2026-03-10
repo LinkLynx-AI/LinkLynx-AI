@@ -1,9 +1,9 @@
 # LIN-894 Prompt
 
 ## Goals
-- `LIN-894` を leaf issue として 1 PR で完了させる。
-- moderation の `report queue/list/detail` と `report / mute / resolve / reopen` の最小運用導線を end-to-end で成立させる。
-- 権限制御と監査ログの整合を維持したまま、既存実装の受け入れ基準ギャップを埋める。
+- `LIN-894` を parent issue として扱い、child issue を順番に完了させる。
+- `LIN-927` / `LIN-928` / `LIN-929` の進捗と証跡を親 run 台帳から追跡できるようにする。
+- moderation の `report queue/list/detail` と `report / mute / resolve / reopen` の最小運用導線を、child issue ごとの責務を崩さず end-to-end で成立させる。
 
 ## Non-goals
 - BAN の導入
@@ -12,17 +12,17 @@
 - 外部連携
 
 ## Deliverables
-- 必要最小限の backend / frontend 差分
-- `/guilds/{guild_id}/moderation/*` の AuthZ resource / action を contract どおりに揃える修正
-- 不足しているテストの追加
-- `Documentation.md` に validation / review / smoke の証跡
+- 親 issue と child issue の対応関係が分かる run 台帳
+- child issue ごとの branch / validation / review / smoke 証跡
+- 親ブランチ `codex/lin-894` に集約される moderation 導線の受け入れ根拠
 
 ## Done when
-- [ ] moderation queue / detail / action flow が動く
+- [ ] child issue の順序と状態が親 run 台帳へ反映されている
+- [ ] moderation queue / detail / action flow が child issue の受け入れ条件に沿って動く
 - [ ] `guild:moderate` fail-close が維持される
 - [ ] `make validate` と issue-specific validation が通る
 - [ ] review gate の blocking finding が解消される
-- [ ] PR 用の要約と根拠が揃う
+- [ ] 子 PR / 親ブランチ向けの要約と根拠が揃う
 
 ## Constraints
 - Perf: 既存 API / query invalidation の範囲に留める
