@@ -30,6 +30,32 @@ pub trait MessageService: Send + Sync {
         idempotency_key: Option<&str>,
         request: CreateGuildChannelMessageRequestV1,
     ) -> Result<CreateGuildChannelMessageExecution, MessageError>;
+
+    /// DM message history を返す。
+    /// @param channel_id 対象 channel_id
+    /// @param query list query
+    /// @returns list response
+    /// @throws MessageError validation / not found / dependency unavailable 時
+    async fn list_dm_channel_messages(
+        &self,
+        channel_id: i64,
+        query: ListGuildChannelMessagesQueryV1,
+    ) -> Result<ListGuildChannelMessagesResponseV1, MessageError>;
+
+    /// DM message を作成する。
+    /// @param principal_id 投稿主体
+    /// @param channel_id 対象 channel_id
+    /// @param idempotency_key caller supplied durable idempotency key
+    /// @param request 作成入力
+    /// @returns 作成レスポンスと publish 判定
+    /// @throws MessageError validation / not found / dependency unavailable 時
+    async fn create_dm_channel_message(
+        &self,
+        principal_id: PrincipalId,
+        channel_id: i64,
+        idempotency_key: Option<&str>,
+        request: CreateGuildChannelMessageRequestV1,
+    ) -> Result<CreateGuildChannelMessageExecution, MessageError>;
 }
 
 /// guild channel message create の service 実行結果を表現する。
@@ -220,6 +246,59 @@ impl MessageService for RuntimeMessageService {
             should_publish: result.should_publish,
         })
     }
+
+    /// DM message history を返す。
+    /// @param channel_id 対象 channel_id
+    /// @param query list query
+    /// @returns list response
+    /// @throws MessageError validation / not found / dependency unavailable 時
+    async fn list_dm_channel_messages(
+        &self,
+        channel_id: i64,
+        query: ListGuildChannelMessagesQueryV1,
+    ) -> Result<ListGuildChannelMessagesResponseV1, MessageError> {
+        self.usecase
+            .list_guild_channel_messages(channel_id, channel_id, query)
+            .await
+            .map_err(MessageError::from)
+    }
+
+    /// DM message を作成する。
+    /// @param principal_id 投稿主体
+    /// @param channel_id 対象 channel_id
+    /// @param idempotency_key caller supplied durable idempotency key
+    /// @param request 作成入力
+    /// @returns 作成レスポンスと publish 判定
+    /// @throws MessageError validation / not found / dependency unavailable 時
+    async fn create_dm_channel_message(
+        &self,
+        principal_id: PrincipalId,
+        channel_id: i64,
+        idempotency_key: Option<&str>,
+        request: CreateGuildChannelMessageRequestV1,
+    ) -> Result<CreateGuildChannelMessageExecution, MessageError> {
+        let identity = self.allocate_message_identity()?;
+        let idempotency = self.build_idempotency(idempotency_key, &request)?;
+        let result = self
+            .usecase
+            .create_guild_channel_message(CreateGuildChannelMessageCommand {
+                guild_id: channel_id,
+                channel_id,
+                author_id: principal_id.0,
+                content: request.content,
+                proposed_identity: identity,
+                idempotency,
+            })
+            .await
+            .map_err(MessageError::from)?;
+
+        Ok(CreateGuildChannelMessageExecution {
+            response: CreateGuildChannelMessageResponseV1 {
+                message: result.message,
+            },
+            should_publish: result.should_publish,
+        })
+    }
 }
 
 /// 依存未構成時に fail-close させる message service を表現する。
@@ -273,6 +352,36 @@ impl MessageService for UnavailableMessageService {
         &self,
         _principal_id: PrincipalId,
         _guild_id: i64,
+        _channel_id: i64,
+        _idempotency_key: Option<&str>,
+        _request: CreateGuildChannelMessageRequestV1,
+    ) -> Result<CreateGuildChannelMessageExecution, MessageError> {
+        Err(self.unavailable_error())
+    }
+
+    /// DM message history を返す。
+    /// @param _channel_id 対象 channel_id
+    /// @param _query list query
+    /// @returns なし
+    /// @throws MessageError 常に unavailable
+    async fn list_dm_channel_messages(
+        &self,
+        _channel_id: i64,
+        _query: ListGuildChannelMessagesQueryV1,
+    ) -> Result<ListGuildChannelMessagesResponseV1, MessageError> {
+        Err(self.unavailable_error())
+    }
+
+    /// DM message を作成する。
+    /// @param _principal_id 投稿主体
+    /// @param _channel_id 対象 channel_id
+    /// @param _idempotency_key caller supplied durable idempotency key
+    /// @param _request 作成入力
+    /// @returns なし
+    /// @throws MessageError 常に unavailable
+    async fn create_dm_channel_message(
+        &self,
+        _principal_id: PrincipalId,
         _channel_id: i64,
         _idempotency_key: Option<&str>,
         _request: CreateGuildChannelMessageRequestV1,

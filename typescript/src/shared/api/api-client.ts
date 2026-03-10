@@ -26,7 +26,7 @@ export type SearchResult = {
 };
 
 export type MessageQueryParams = {
-  guildId: string;
+  guildId?: string | null;
   channelId: string;
   before?: string;
   after?: string;
@@ -34,7 +34,7 @@ export type MessageQueryParams = {
 };
 
 export type SendMessageParams = {
-  guildId: string;
+  guildId?: string | null;
   channelId: string;
   data: CreateMessageData;
 };

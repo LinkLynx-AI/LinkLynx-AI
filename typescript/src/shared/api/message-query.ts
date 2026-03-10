@@ -6,8 +6,8 @@ import type { MessagePage } from "./api-client";
 
 export const DEFAULT_MESSAGE_PAGE_LIMIT = 50;
 
-export function buildMessagesQueryKey(guildId: string, channelId: string) {
-  return ["messages", guildId, channelId] as const;
+export function buildMessagesQueryKey(guildId: string | null | undefined, channelId: string) {
+  return ["messages", guildId ?? "dm", channelId] as const;
 }
 
 type MessagePagesData = InfiniteData<MessagePage, string | null>;

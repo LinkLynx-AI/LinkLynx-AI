@@ -3,18 +3,21 @@
 import { useCallback, useMemo } from "react";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { getAPIClient } from "@/shared/api/api-client";
-import { buildMessagesQueryKey, DEFAULT_MESSAGE_PAGE_LIMIT, flattenMessagePages } from "../message-query";
+import {
+  buildMessagesQueryKey,
+  DEFAULT_MESSAGE_PAGE_LIMIT,
+  flattenMessagePages,
+} from "../message-query";
 
 export function useMessages(guildId: string | null | undefined, channelId: string) {
   const api = getAPIClient();
-  const enabled =
-    typeof guildId === "string" && guildId.trim().length > 0 && channelId.trim().length > 0;
+  const enabled = channelId.trim().length > 0;
 
   const query = useInfiniteQuery({
     queryKey: buildMessagesQueryKey(guildId ?? "disabled", channelId),
     queryFn: ({ pageParam }) =>
       api.getMessages({
-        guildId: guildId ?? "",
+        guildId,
         channelId,
         before: pageParam ?? undefined,
         limit: DEFAULT_MESSAGE_PAGE_LIMIT,
