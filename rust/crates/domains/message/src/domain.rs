@@ -56,6 +56,13 @@ impl CreateGuildChannelMessageCommand {
     }
 }
 
+/// guild channel message create の実行結果を表現する。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CreateGuildChannelMessageResult {
+    pub message: MessageItemV1,
+    pub should_publish: bool,
+}
+
 /// idempotency reservation 状態を表現する。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MessageCreateReservationState {

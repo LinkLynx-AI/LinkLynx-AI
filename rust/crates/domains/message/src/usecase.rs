@@ -7,9 +7,9 @@ use linklynx_message_api::{
 };
 
 use crate::{
-    CreateGuildChannelMessageCommand, GuildChannelContext, MessageBodyStore,
-    MessageCreateIdempotencyRepository, MessageCreateReservationState, MessageCreateReserveResult,
-    MessageIdentity, MessageMetadataRepository, MessageUsecaseError,
+    CreateGuildChannelMessageCommand, CreateGuildChannelMessageResult, GuildChannelContext,
+    MessageBodyStore, MessageCreateIdempotencyRepository, MessageCreateReservationState,
+    MessageCreateReserveResult, MessageIdentity, MessageMetadataRepository, MessageUsecaseError,
 };
 
 /// message append/list usecase 境界を表現する。
@@ -17,12 +17,12 @@ use crate::{
 pub trait MessageUsecase: Send + Sync {
     /// guild channel message を create する。
     /// @param command create command
-    /// @returns 保存済み message snapshot
+    /// @returns 保存済み message snapshot と publish 判定
     /// @throws MessageUsecaseError validation / not found / dependency unavailable 時
     async fn create_guild_channel_message(
         &self,
         command: CreateGuildChannelMessageCommand,
-    ) -> Result<MessageItemV1, MessageUsecaseError>;
+    ) -> Result<CreateGuildChannelMessageResult, MessageUsecaseError>;
 
     /// guild channel message history を list する。
     /// @param guild_id 対象 guild_id
@@ -117,20 +117,24 @@ impl LiveMessageUsecase {
 impl MessageUsecase for LiveMessageUsecase {
     /// guild channel message を create する。
     /// @param command create command
-    /// @returns 保存済み message snapshot
+    /// @returns 保存済み message snapshot と publish 判定
     /// @throws MessageUsecaseError validation / not found / dependency unavailable 時
     async fn create_guild_channel_message(
         &self,
         command: CreateGuildChannelMessageCommand,
-    ) -> Result<MessageItemV1, MessageUsecaseError> {
+    ) -> Result<CreateGuildChannelMessageResult, MessageUsecaseError> {
         validate_create_request(&command.to_create_request())?;
         let context = self
             .load_channel_context(command.guild_id, command.channel_id)
             .await?;
         let Some(idempotency) = command.idempotency.as_ref() else {
-            return self
+            let message = self
                 .append_message(context.channel_id, &command.proposed_identity, &command)
-                .await;
+                .await?;
+            return Ok(CreateGuildChannelMessageResult {
+                message,
+                should_publish: true,
+            });
         };
 
         let reservation = self
@@ -148,9 +152,12 @@ impl MessageUsecase for LiveMessageUsecase {
             )),
             MessageCreateReserveResult::Reserved(reservation) => {
                 if reservation.state == MessageCreateReservationState::Completed {
-                    return Ok(command.to_message_item(&reservation.identity));
+                    return Ok(CreateGuildChannelMessageResult {
+                        message: command.to_message_item(&reservation.identity),
+                        should_publish: false,
+                    });
                 }
-                let stored_message = self
+                let message = self
                     .append_message(context.channel_id, &reservation.identity, &command)
                     .await?;
                 self.idempotency_repository
@@ -160,7 +167,10 @@ impl MessageUsecase for LiveMessageUsecase {
                         &idempotency.key,
                     )
                     .await?;
-                Ok(stored_message)
+                Ok(CreateGuildChannelMessageResult {
+                    message,
+                    should_publish: true,
+                })
             }
         }
     }
@@ -216,7 +226,7 @@ impl MessageUsecase for UnavailableMessageUsecase {
     async fn create_guild_channel_message(
         &self,
         _command: CreateGuildChannelMessageCommand,
-    ) -> Result<MessageItemV1, MessageUsecaseError> {
+    ) -> Result<CreateGuildChannelMessageResult, MessageUsecaseError> {
         Err(self.unavailable_error())
     }
 
@@ -440,7 +450,8 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(stored.message_id, 120_111);
+        assert_eq!(stored.message.message_id, 120_111);
+        assert!(stored.should_publish);
         assert_eq!(body_store.appended.lock().await.len(), 1);
         assert_eq!(
             metadata.upserts.lock().await.as_slice(),
@@ -597,8 +608,9 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(stored.message_id, 120_222);
-        assert_eq!(stored.created_at, "2026-03-08T11:00:00Z");
+        assert_eq!(stored.message.message_id, 120_222);
+        assert_eq!(stored.message.created_at, "2026-03-08T11:00:00Z");
+        assert!(stored.should_publish);
         assert_eq!(
             metadata.upserts.lock().await.as_slice(),
             &[(20, 120_222, "2026-03-08T11:00:00Z".to_owned())]
@@ -645,7 +657,8 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(stored.message_id, 120_333);
+        assert_eq!(stored.message.message_id, 120_333);
+        assert!(!stored.should_publish);
         assert!(body_store.appended.lock().await.is_empty());
         assert!(idempotency.completions.lock().await.is_empty());
     }

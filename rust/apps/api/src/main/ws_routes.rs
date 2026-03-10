@@ -60,6 +60,15 @@ struct WsHandshakeErrorBody {
     request_id: String,
 }
 
+struct ReadyMessageContext<'a> {
+    state: &'a AppState,
+    authenticated: &'a mut AuthenticatedPrincipal,
+    session_id: &'a str,
+    outbound_tx: &'a tokio::sync::mpsc::Sender<ServerMessageFrameV1>,
+    request_id: &'a str,
+    reauth_deadline: &'a mut Option<Instant>,
+}
+
 /// WS接続ハンドシェイクを処理する。
 /// @param state アプリケーション状態
 /// @param headers HTTPヘッダー
@@ -228,6 +237,9 @@ async fn handle_socket(
     request_id: String,
     identify_rate_key: String,
 ) {
+    let session_id = uuid::Uuid::new_v4().to_string();
+    let (outbound_tx, mut outbound_rx) =
+        tokio::sync::mpsc::channel::<ServerMessageFrameV1>(MESSAGE_REALTIME_OUTBOUND_CAPACITY);
     let mut identify_deadline = authenticated
         .is_none()
         .then_some(Instant::now() + state.auth_identify_timeout);
@@ -303,11 +315,15 @@ async fn handle_socket(
                     };
 
                     let should_continue = handle_ready_message(
-                        &state,
                         &mut socket,
-                        authenticated_ref,
-                        &request_id,
-                        &mut reauth_deadline,
+                        ReadyMessageContext {
+                            state: &state,
+                            authenticated: authenticated_ref,
+                            session_id: &session_id,
+                            outbound_tx: &outbound_tx,
+                            request_id: &request_id,
+                            reauth_deadline: &mut reauth_deadline,
+                        },
                         message,
                     ).await;
 
@@ -353,11 +369,15 @@ async fn handle_socket(
                 };
 
                 let should_continue = handle_ready_message(
-                    &state,
                     &mut socket,
-                    authenticated_ref,
-                    &request_id,
-                    &mut reauth_deadline,
+                    ReadyMessageContext {
+                        state: &state,
+                        authenticated: authenticated_ref,
+                        session_id: &session_id,
+                        outbound_tx: &outbound_tx,
+                        request_id: &request_id,
+                        reauth_deadline: &mut reauth_deadline,
+                    },
                     message,
                 ).await;
 
@@ -365,9 +385,22 @@ async fn handle_socket(
                     break;
                 }
             }
+            outbound = outbound_rx.recv() => {
+                let Some(frame) = outbound else {
+                    break;
+                };
+                if send_json_message(&mut socket, &frame).await.is_err() {
+                    break;
+                }
+            }
             _ = tokio::time::sleep(wait_until_expired) => {}
         }
     }
+
+    state
+        .message_realtime_hub
+        .disconnect_session(&session_id)
+        .await;
 }
 
 /// Identify待機中メッセージを処理する。
@@ -486,13 +519,18 @@ async fn handle_identify_message(
 /// @returns 継続可否
 /// @throws なし
 async fn handle_ready_message(
-    state: &AppState,
     socket: &mut WebSocket,
-    authenticated: &mut AuthenticatedPrincipal,
-    request_id: &str,
-    reauth_deadline: &mut Option<Instant>,
+    context: ReadyMessageContext<'_>,
     message: Message,
 ) -> bool {
+    let ReadyMessageContext {
+        state,
+        authenticated,
+        session_id,
+        outbound_tx,
+        request_id,
+        reauth_deadline,
+    } = context;
     match message {
         Message::Text(text) => {
             let text = text.to_string();
@@ -521,9 +559,15 @@ async fn handle_ready_message(
                     {
                         return false;
                     }
-
-                    let response = build_message_server_frame(frame);
-                    return send_json_message(socket, &response).await.is_ok();
+                    return handle_message_frame(
+                        state,
+                        socket,
+                        authenticated.principal_id,
+                        session_id,
+                        outbound_tx,
+                        frame,
+                    )
+                    .await;
                 }
 
                 if !authorize_ws_stream_operation(state, authenticated, request_id, socket).await {
@@ -562,6 +606,14 @@ async fn handle_ready_message(
                     }
 
                     *authenticated = next_principal;
+                    state
+                        .message_realtime_hub
+                        .reconcile_session_subscriptions(
+                            state,
+                            session_id,
+                            authenticated.principal_id,
+                        )
+                        .await;
                     *reauth_deadline = None;
                     state.auth_service.metrics().record_ws_reauth(true);
                     tracing::info!(
@@ -691,6 +743,41 @@ fn build_message_server_frame(frame: ClientMessageFrameV1) -> ServerMessageFrame
     }
 }
 
+/// 認可済み message frame を購読状態へ反映し、ACK を返す。
+/// @param state アプリケーション状態
+/// @param socket WebSocket接続
+/// @param session_id WS セッション識別子
+/// @param outbound_tx セッション outbound sender
+/// @param frame 認可済み message frame
+/// @returns 継続可否
+/// @throws なし
+async fn handle_message_frame(
+    state: &AppState,
+    socket: &mut WebSocket,
+    principal_id: PrincipalId,
+    session_id: &str,
+    outbound_tx: &tokio::sync::mpsc::Sender<ServerMessageFrameV1>,
+    frame: ClientMessageFrameV1,
+) -> bool {
+    match &frame {
+        ClientMessageFrameV1::Subscribe(target) => {
+            state
+                .message_realtime_hub
+                .subscribe(session_id, principal_id, target, outbound_tx.clone())
+                .await;
+        }
+        ClientMessageFrameV1::Unsubscribe(target) => {
+            state
+                .message_realtime_hub
+                .unsubscribe(session_id, target)
+                .await;
+        }
+    }
+
+    let response = build_message_server_frame(frame);
+    send_json_message(socket, &response).await.is_ok()
+}
+
 fn identify_rate_key(origin_header: Option<&str>) -> String {
     let key = origin_header
         .map(str::trim)
@@ -808,7 +895,7 @@ async fn authorize_ws_stream_access(
     authenticated: &AuthenticatedPrincipal,
     request_id: &str,
 ) -> Result<(), authz::AuthzError> {
-    check_ws_stream_access(state, authenticated, request_id).await
+    check_ws_stream_access_for_principal(state, authenticated.principal_id, request_id).await
 }
 
 /// WSストリーム操作の生判定を評価する。
@@ -822,8 +909,22 @@ async fn check_ws_stream_access(
     authenticated: &AuthenticatedPrincipal,
     request_id: &str,
 ) -> Result<(), authz::AuthzError> {
+    check_ws_stream_access_for_principal(state, authenticated.principal_id, request_id).await
+}
+
+/// WSストリーム操作の生判定を主体IDで評価する。
+/// @param state アプリケーション状態
+/// @param principal_id 認可対象主体
+/// @param request_id 接続識別子
+/// @returns 認可成功時は `Ok(())`
+/// @throws authz::AuthzError 認可拒否または依存障害時
+async fn check_ws_stream_access_for_principal(
+    state: &AppState,
+    principal_id: PrincipalId,
+    request_id: &str,
+) -> Result<(), authz::AuthzError> {
     let authz_input = AuthzCheckInput {
-        principal_id: authenticated.principal_id,
+        principal_id,
         resource: AuthzResource::RestPath {
             path: "/ws/stream".to_owned(),
         },
@@ -834,7 +935,7 @@ async fn check_ws_stream_access(
         tracing::warn!(
             decision = %error.decision(),
             request_id = %request_id,
-            principal_id = authenticated.principal_id.0,
+            principal_id = principal_id.0,
             error_class = %error.log_class(),
             reason = %error.reason,
             resource = "/ws/stream",
@@ -879,8 +980,30 @@ async fn check_message_frame_target_access(
     frame: &ClientMessageFrameV1,
 ) -> Result<(), authz::AuthzError> {
     let target = message_frame_target(frame);
+    check_message_target_access_for_principal(
+        state,
+        authenticated.principal_id,
+        request_id,
+        target,
+    )
+    .await
+}
+
+/// guild message target の生判定を主体IDで評価する。
+/// @param state アプリケーション状態
+/// @param principal_id 認可対象主体
+/// @param request_id 接続識別子
+/// @param target message frame target
+/// @returns 認可成功時は `Ok(())`
+/// @throws authz::AuthzError 認可拒否または依存障害時
+async fn check_message_target_access_for_principal(
+    state: &AppState,
+    principal_id: PrincipalId,
+    request_id: &str,
+    target: &GuildChannelSubscriptionTargetV1,
+) -> Result<(), authz::AuthzError> {
     let authz_input = AuthzCheckInput {
-        principal_id: authenticated.principal_id,
+        principal_id,
         resource: AuthzResource::GuildChannel {
             guild_id: target.guild_id,
             channel_id: target.channel_id,
@@ -892,7 +1015,7 @@ async fn check_message_frame_target_access(
         tracing::warn!(
             decision = %error.decision(),
             request_id = %request_id,
-            principal_id = authenticated.principal_id.0,
+            principal_id = principal_id.0,
             guild_id = target.guild_id,
             channel_id = target.channel_id,
             error_class = %error.log_class(),

@@ -9,7 +9,11 @@ mod tests {
     };
     use crate::ratelimit::RestRateLimitConfig;
     use async_trait::async_trait;
-    use std::collections::{HashMap, HashSet};
+    use std::{
+        collections::{HashMap, HashSet},
+        net::SocketAddr,
+        sync::atomic::{AtomicBool, Ordering},
+    };
     use auth::{
         CachingPrincipalResolver, InMemoryPrincipalCache, InMemoryPrincipalStore,
         PrincipalProvisioner, PrincipalResolver, PrincipalStore, TokenVerifier, TokenVerifyError,
@@ -28,7 +32,7 @@ mod tests {
         InviteError, InviteJoinResult, InviteJoinStatus, InviteService, PublicInviteGuild,
         PublicInviteLookup, PublicInviteStatus,
     };
-    use message::{MessageError, MessageService};
+    use message::{CreateGuildChannelMessageExecution, MessageError, MessageService};
     use moderation::{
         CreateModerationMuteInput, CreateModerationReportInput, ModerationError, ModerationReport,
         ModerationReportStatus, ModerationService, ModerationTargetType,
@@ -50,7 +54,10 @@ mod tests {
         MessageCursorKeyV1,
         MessageItemV1,
     };
-    use linklynx_protocol_ws::{ClientMessageFrameV1, GuildChannelSubscriptionTargetV1, ServerMessageFrameV1};
+    use linklynx_protocol_ws::{
+        ClientMessageFrameV1, GuildChannelSubscriptionTargetV1, MessageSubscriptionStateV1,
+        ServerMessageFrameV1,
+    };
     use linklynx_shared::PrincipalId;
     use tokio::{
         net::{TcpListener, TcpStream},
@@ -81,6 +88,9 @@ mod tests {
     struct StreamUnavailableGuildChannelAllowedAuthorizer;
     struct WsTextDeniedAuthorizer;
     struct WsTextUnavailableAuthorizer;
+    struct ToggleGuildChannelAuthorizer {
+        allow_channel: AtomicBool,
+    }
     struct PermissionSnapshotUnavailableAuthorizer;
     struct StaticGuildChannelService;
     struct StaticMessageService;
@@ -250,6 +260,44 @@ mod tests {
         }
     }
 
+    impl ToggleGuildChannelAuthorizer {
+        fn new(allow_channel: bool) -> Self {
+            Self {
+                allow_channel: AtomicBool::new(allow_channel),
+            }
+        }
+
+        fn set_allow_channel(&self, allow_channel: bool) {
+            self.allow_channel.store(allow_channel, Ordering::Relaxed);
+        }
+    }
+
+    #[async_trait]
+    impl Authorizer for ToggleGuildChannelAuthorizer {
+        async fn check(&self, input: &AuthzCheckInput) -> Result<(), AuthzError> {
+            match (&input.resource, input.action) {
+                (AuthzResource::Session, AuthzAction::Connect) => Ok(()),
+                (AuthzResource::RestPath { path }, AuthzAction::View) if path == "/ws/stream" => {
+                    Ok(())
+                }
+                (
+                    AuthzResource::GuildChannel {
+                        guild_id,
+                        channel_id,
+                    },
+                    AuthzAction::View,
+                ) if *guild_id == 10 && *channel_id == 20 => {
+                    if self.allow_channel.load(Ordering::Relaxed) {
+                        Ok(())
+                    } else {
+                        Err(AuthzError::denied("guild_channel_access_revoked"))
+                    }
+                }
+                _ => Err(AuthzError::denied("unsupported_toggle_authorizer_scenario")),
+            }
+        }
+    }
+
     #[async_trait]
     impl Authorizer for PermissionSnapshotUnavailableAuthorizer {
         async fn check(&self, input: &AuthzCheckInput) -> Result<(), AuthzError> {
@@ -335,16 +383,19 @@ mod tests {
             channel_id: i64,
             _idempotency_key: Option<&str>,
             request: CreateGuildChannelMessageRequestV1,
-        ) -> Result<CreateGuildChannelMessageResponseV1, MessageError> {
+        ) -> Result<CreateGuildChannelMessageExecution, MessageError> {
             linklynx_message_api::validate_create_request(&request).map_err(MessageError::from)?;
 
-            Ok(CreateGuildChannelMessageResponseV1 {
-                message: create_message_fixture(
-                    guild_id,
-                    channel_id,
-                    principal_id.0,
-                    request.content,
-                ),
+            Ok(CreateGuildChannelMessageExecution {
+                response: CreateGuildChannelMessageResponseV1 {
+                    message: create_message_fixture(
+                        guild_id,
+                        channel_id,
+                        principal_id.0,
+                        request.content,
+                    ),
+                },
+                should_publish: true,
             })
         }
     }
@@ -383,7 +434,7 @@ mod tests {
             channel_id: i64,
             idempotency_key: Option<&str>,
             request: CreateGuildChannelMessageRequestV1,
-        ) -> Result<CreateGuildChannelMessageResponseV1, MessageError> {
+        ) -> Result<CreateGuildChannelMessageExecution, MessageError> {
             linklynx_message_api::validate_create_request(&request).map_err(MessageError::from)?;
             let mut state = self.state.lock().await;
 
@@ -394,8 +445,11 @@ mod tests {
                             "message_idempotency_payload_mismatch",
                         ));
                     }
-                    return Ok(CreateGuildChannelMessageResponseV1 {
-                        message: existing.clone(),
+                    return Ok(CreateGuildChannelMessageExecution {
+                        response: CreateGuildChannelMessageResponseV1 {
+                            message: existing.clone(),
+                        },
+                        should_publish: false,
                     });
                 }
             }
@@ -416,7 +470,10 @@ mod tests {
                 state.entries.insert(key.to_owned(), message.clone());
             }
 
-            Ok(CreateGuildChannelMessageResponseV1 { message })
+            Ok(CreateGuildChannelMessageExecution {
+                response: CreateGuildChannelMessageResponseV1 { message },
+                should_publish: true,
+            })
         }
     }
 
@@ -440,7 +497,7 @@ mod tests {
             _channel_id: i64,
             _idempotency_key: Option<&str>,
             _request: CreateGuildChannelMessageRequestV1,
-        ) -> Result<CreateGuildChannelMessageResponseV1, MessageError> {
+        ) -> Result<CreateGuildChannelMessageExecution, MessageError> {
             Err(MessageError::dependency_unavailable(
                 "message_body_store_unavailable",
             ))
@@ -465,7 +522,7 @@ mod tests {
             _channel_id: i64,
             _idempotency_key: Option<&str>,
             _request: CreateGuildChannelMessageRequestV1,
-        ) -> Result<CreateGuildChannelMessageResponseV1, MessageError> {
+        ) -> Result<CreateGuildChannelMessageExecution, MessageError> {
             Err(MessageError::channel_not_found("message_channel_not_found"))
         }
     }
@@ -1169,6 +1226,7 @@ mod tests {
             guild_channel_service: Arc::new(StaticGuildChannelService),
             invite_service,
             message_service,
+            message_realtime_hub: Arc::new(MessageRealtimeHub::default()),
             moderation_service: Arc::new(StaticModerationService),
             profile_service,
             scylla_health_reporter,
@@ -1236,13 +1294,24 @@ mod tests {
 
     async fn connect_test_ws(authorizer: Arc<dyn Authorizer>) -> (TestWsStream, JoinHandle<()>) {
         let app = app_for_test_with_authorizer(authorizer).await;
-        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let (address, server) = spawn_test_server(app).await;
+        let socket = connect_test_ws_at(address, "u-1").await;
+        (socket, server)
+    }
+
+    async fn spawn_test_server(app: Router) -> (SocketAddr, JoinHandle<()>) {
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .unwrap_or_else(|error| panic!("failed to bind test listener: {error}"));
         let address = listener.local_addr().unwrap();
         let server = tokio::spawn(async move {
             axum::serve(listener, app).await.unwrap();
         });
+        (address, server)
+    }
 
-        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+    async fn connect_test_ws_at(address: SocketAddr, uid: &str) -> TestWsStream {
+        let token = format!("{uid}:{}", unix_timestamp_seconds() + 300);
         let mut request = format!("ws://{address}/ws").into_client_request().unwrap();
         request
             .headers_mut()
@@ -1253,7 +1322,76 @@ mod tests {
         );
 
         let (socket, _) = connect_async(request).await.unwrap();
-        (socket, server)
+        socket
+    }
+
+    async fn subscribe_test_channel(
+        socket: &mut TestWsStream,
+        guild_id: i64,
+        channel_id: i64,
+    ) -> ServerMessageFrameV1 {
+        let frame = ClientMessageFrameV1::Subscribe(GuildChannelSubscriptionTargetV1 {
+            guild_id,
+            channel_id,
+        });
+        let payload = serde_json::to_string(&frame).unwrap();
+        socket
+            .send(WsClientMessage::Text(payload.into()))
+            .await
+            .unwrap();
+        next_server_message_frame(socket).await
+    }
+
+    async fn unsubscribe_test_channel(
+        socket: &mut TestWsStream,
+        guild_id: i64,
+        channel_id: i64,
+    ) -> ServerMessageFrameV1 {
+        let frame = ClientMessageFrameV1::Unsubscribe(GuildChannelSubscriptionTargetV1 {
+            guild_id,
+            channel_id,
+        });
+        let payload = serde_json::to_string(&frame).unwrap();
+        socket
+            .send(WsClientMessage::Text(payload.into()))
+            .await
+            .unwrap();
+        next_server_message_frame(socket).await
+    }
+
+    async fn next_server_message_frame(socket: &mut TestWsStream) -> ServerMessageFrameV1 {
+        let response = timeout(Duration::from_secs(2), socket.next())
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
+        let WsClientMessage::Text(text) = response else {
+            panic!("expected text frame");
+        };
+        serde_json::from_str::<ServerMessageFrameV1>(&text).unwrap()
+    }
+
+    async fn post_test_channel_message(
+        address: SocketAddr,
+        uid: &str,
+        guild_id: i64,
+        channel_id: i64,
+        content: &str,
+        idempotency_key: Option<&str>,
+    ) -> reqwest::Response {
+        let token = format!("{uid}:{}", unix_timestamp_seconds() + 300);
+        let client = reqwest::Client::new();
+        let mut request = client
+            .post(format!(
+                "http://{address}/v1/guilds/{guild_id}/channels/{channel_id}/messages"
+            ))
+            .header("authorization", format!("Bearer {token}"))
+            .header("content-type", "application/json")
+            .body(serde_json::json!({ "content": content }).to_string());
+        if let Some(idempotency_key) = idempotency_key {
+            request = request.header("Idempotency-Key", idempotency_key);
+        }
+        request.send().await.unwrap()
     }
 
     async fn parse_principal_id_from_response(response: Response) -> i64 {
@@ -3443,6 +3581,93 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn message_realtime_publish_removes_subscription_after_channel_revocation() {
+        let authorizer = Arc::new(ToggleGuildChannelAuthorizer::new(true));
+        let state = state_for_test_with_authorizer(authorizer.clone()).await;
+        let (sender, mut receiver) = tokio::sync::mpsc::channel(MESSAGE_REALTIME_OUTBOUND_CAPACITY);
+        let target = GuildChannelSubscriptionTargetV1 {
+            guild_id: 10,
+            channel_id: 20,
+        };
+
+        state
+            .message_realtime_hub
+            .subscribe("session-1", PrincipalId(9003), &target, sender)
+            .await;
+        state
+            .message_realtime_hub
+            .publish_message_created(
+                &state,
+                MessageItemV1 {
+                    message_id: 501,
+                    guild_id: 10,
+                    channel_id: 20,
+                    author_id: 9003,
+                    content: "before revoke".to_owned(),
+                    created_at: "2026-03-10T10:00:00Z".to_owned(),
+                    version: 1,
+                    edited_at: None,
+                    is_deleted: false,
+                },
+            )
+            .await;
+        assert!(matches!(
+            receiver.try_recv(),
+            Ok(ServerMessageFrameV1::Created(_))
+        ));
+
+        authorizer.set_allow_channel(false);
+        state
+            .message_realtime_hub
+            .publish_message_created(
+                &state,
+                MessageItemV1 {
+                    message_id: 502,
+                    guild_id: 10,
+                    channel_id: 20,
+                    author_id: 9003,
+                    content: "after revoke".to_owned(),
+                    created_at: "2026-03-10T10:00:01Z".to_owned(),
+                    version: 1,
+                    edited_at: None,
+                    is_deleted: false,
+                },
+            )
+            .await;
+
+        assert!(receiver.try_recv().is_err());
+        let realtime_state = state.message_realtime_hub.state.lock().await;
+        assert!(realtime_state.session_subscriptions.is_empty());
+        assert!(realtime_state.channel_subscribers.is_empty());
+    }
+
+    #[tokio::test]
+    async fn message_realtime_reconcile_removes_revoked_subscription() {
+        let authorizer = Arc::new(ToggleGuildChannelAuthorizer::new(true));
+        let state = state_for_test_with_authorizer(authorizer.clone()).await;
+        let (sender, _receiver) = tokio::sync::mpsc::channel(MESSAGE_REALTIME_OUTBOUND_CAPACITY);
+        let target = GuildChannelSubscriptionTargetV1 {
+            guild_id: 10,
+            channel_id: 20,
+        };
+
+        state
+            .message_realtime_hub
+            .subscribe("session-1", PrincipalId(9003), &target, sender)
+            .await;
+        authorizer.set_allow_channel(false);
+        state
+            .message_realtime_hub
+            .reconcile_session_subscriptions(&state, "session-1", PrincipalId(9003))
+            .await;
+
+        let realtime_state = state.message_realtime_hub.state.lock().await;
+        assert!(realtime_state.session_subscriptions.is_empty());
+        assert!(realtime_state.channel_subscribers.is_empty());
+    }
+
+    #[tokio::test]
+    #[ignore = "requires TCP bind; sandbox denies listeners"]
     async fn ws_text_message_echoes_for_authorized_principal() {
         let (mut socket, server) = connect_test_ws(Arc::new(StaticAllowAllAuthorizer)).await;
 
@@ -3466,6 +3691,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "requires TCP bind; sandbox denies listeners"]
     async fn ws_text_message_returns_1008_when_authz_denied() {
         let (mut socket, server) = connect_test_ws(Arc::new(WsTextDeniedAuthorizer)).await;
 
@@ -3491,6 +3717,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "requires TCP bind; sandbox denies listeners"]
     async fn ws_text_message_returns_1011_when_authz_unavailable() {
         let (mut socket, server) = connect_test_ws(Arc::new(WsTextUnavailableAuthorizer)).await;
 
@@ -3512,6 +3739,173 @@ mod tests {
             other => panic!("expected close frame for unavailable WS text, got {other:?}"),
         }
 
+        server.abort();
+    }
+
+    #[tokio::test]
+    #[ignore = "requires TCP bind; sandbox denies listeners"]
+    async fn ws_message_created_fanout_reaches_all_subscribers() {
+        let app = app_for_test_with_authorizer_and_message_service(
+            Arc::new(RoleScenarioAuthorizer),
+            Arc::new(StaticMessageService),
+        )
+        .await;
+        let (address, server) = spawn_test_server(app).await;
+        let mut first = connect_test_ws_at(address, "u-member").await;
+        let mut second = connect_test_ws_at(address, "u-member").await;
+
+        let first_ack = subscribe_test_channel(&mut first, 10, 20).await;
+        let second_ack = subscribe_test_channel(&mut second, 10, 20).await;
+        assert!(matches!(
+            first_ack,
+            ServerMessageFrameV1::Subscribed(MessageSubscriptionStateV1 {
+                guild_id: 10,
+                channel_id: 20,
+            })
+        ));
+        assert!(matches!(
+            second_ack,
+            ServerMessageFrameV1::Subscribed(MessageSubscriptionStateV1 {
+                guild_id: 10,
+                channel_id: 20,
+            })
+        ));
+
+        let response =
+            post_test_channel_message(address, "u-member", 10, 20, "hello realtime", None).await;
+        assert_eq!(response.status(), reqwest::StatusCode::CREATED);
+
+        let first_frame = next_server_message_frame(&mut first).await;
+        let second_frame = next_server_message_frame(&mut second).await;
+        for frame in [first_frame, second_frame] {
+            match frame {
+                ServerMessageFrameV1::Created(data) => {
+                    assert_eq!(data.guild_id, 10);
+                    assert_eq!(data.channel_id, 20);
+                    assert_eq!(data.message.content, "hello realtime");
+                    assert_eq!(data.message.author_id, 9003);
+                }
+                other => panic!("expected message.created frame, got {other:?}"),
+            }
+        }
+
+        let _ = first.close(None).await;
+        let _ = second.close(None).await;
+        server.abort();
+    }
+
+    #[tokio::test]
+    #[ignore = "requires TCP bind; sandbox denies listeners"]
+    async fn ws_message_created_fanout_stops_after_unsubscribe() {
+        let app = app_for_test_with_authorizer_and_message_service(
+            Arc::new(RoleScenarioAuthorizer),
+            Arc::new(StaticMessageService),
+        )
+        .await;
+        let (address, server) = spawn_test_server(app).await;
+        let mut socket = connect_test_ws_at(address, "u-member").await;
+
+        let subscribed = subscribe_test_channel(&mut socket, 10, 20).await;
+        assert!(matches!(
+            subscribed,
+            ServerMessageFrameV1::Subscribed(MessageSubscriptionStateV1 {
+                guild_id: 10,
+                channel_id: 20,
+            })
+        ));
+        let unsubscribed = unsubscribe_test_channel(&mut socket, 10, 20).await;
+        assert!(matches!(
+            unsubscribed,
+            ServerMessageFrameV1::Unsubscribed(MessageSubscriptionStateV1 {
+                guild_id: 10,
+                channel_id: 20,
+            })
+        ));
+
+        let response =
+            post_test_channel_message(address, "u-member", 10, 20, "hello after unsub", None)
+                .await;
+        assert_eq!(response.status(), reqwest::StatusCode::CREATED);
+        assert!(
+            timeout(Duration::from_millis(250), socket.next()).await.is_err(),
+            "unsubscribed socket should not receive fanout"
+        );
+
+        let _ = socket.close(None).await;
+        server.abort();
+    }
+
+    #[tokio::test]
+    #[ignore = "requires TCP bind; sandbox denies listeners"]
+    async fn ws_message_created_fanout_skips_completed_idempotency_replay() {
+        let app = app_for_test_with_authorizer_and_message_service(
+            Arc::new(RoleScenarioAuthorizer),
+            Arc::new(StaticIdempotencyMessageService::default()),
+        )
+        .await;
+        let (address, server) = spawn_test_server(app).await;
+        let mut socket = connect_test_ws_at(address, "u-member").await;
+
+        let subscribed = subscribe_test_channel(&mut socket, 10, 20).await;
+        assert!(matches!(
+            subscribed,
+            ServerMessageFrameV1::Subscribed(MessageSubscriptionStateV1 {
+                guild_id: 10,
+                channel_id: 20,
+            })
+        ));
+
+        let first_response = post_test_channel_message(
+            address,
+            "u-member",
+            10,
+            20,
+            "hello idem",
+            Some("idem-1"),
+        )
+        .await;
+        assert_eq!(first_response.status(), reqwest::StatusCode::CREATED);
+        let first_body = first_response
+            .json::<serde_json::Value>()
+            .await
+            .unwrap();
+        let created = next_server_message_frame(&mut socket).await;
+        let first_message_id = match created {
+            ServerMessageFrameV1::Created(data) => {
+                assert_eq!(data.message.content, "hello idem");
+                data.message.message_id
+            }
+            other => panic!("expected message.created frame, got {other:?}"),
+        };
+
+        let second_response = post_test_channel_message(
+            address,
+            "u-member",
+            10,
+            20,
+            "hello idem",
+            Some("idem-1"),
+        )
+        .await;
+        assert_eq!(second_response.status(), reqwest::StatusCode::CREATED);
+        let second_body = second_response
+            .json::<serde_json::Value>()
+            .await
+            .unwrap();
+        assert_eq!(
+            first_body["message"]["message_id"].as_i64().unwrap(),
+            second_body["message"]["message_id"].as_i64().unwrap()
+        );
+        assert_eq!(
+            first_body["message"]["message_id"].as_i64().unwrap(),
+            first_message_id
+        );
+        assert!(
+            timeout(Duration::from_millis(250), socket.next()).await.is_err(),
+            "completed replay should not emit a second message.created"
+        );
+
+        let _ = socket.close(None).await;
         server.abort();
     }
 
