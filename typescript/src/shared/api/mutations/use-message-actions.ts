@@ -3,6 +3,20 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { getAPIClient } from "@/shared/api/api-client";
 
+function invalidateChannelMessages(queryClient: ReturnType<typeof useQueryClient>, channelId: string) {
+  return queryClient.invalidateQueries({
+    predicate: (query) => {
+      const queryKey = query.queryKey;
+      return (
+        Array.isArray(queryKey) &&
+        queryKey[0] === "messages" &&
+        typeof queryKey[2] === "string" &&
+        queryKey[2] === channelId
+      );
+    },
+  });
+}
+
 export function usePinMessage() {
   const queryClient = useQueryClient();
   const api = getAPIClient();
@@ -14,7 +28,7 @@ export function usePinMessage() {
       queryClient.invalidateQueries({
         queryKey: ["pinned-messages", channelId],
       });
-      queryClient.invalidateQueries({ queryKey: ["messages", channelId] });
+      void invalidateChannelMessages(queryClient, channelId);
     },
   });
 }
@@ -30,7 +44,7 @@ export function useUnpinMessage() {
       queryClient.invalidateQueries({
         queryKey: ["pinned-messages", channelId],
       });
-      queryClient.invalidateQueries({ queryKey: ["messages", channelId] });
+      void invalidateChannelMessages(queryClient, channelId);
     },
   });
 }
@@ -43,7 +57,7 @@ export function useDeleteMessage() {
     mutationFn: ({ channelId, messageId }: { channelId: string; messageId: string }) =>
       api.deleteMessage(channelId, messageId),
     onSuccess: (_, { channelId }) => {
-      queryClient.invalidateQueries({ queryKey: ["messages", channelId] });
+      void invalidateChannelMessages(queryClient, channelId);
     },
   });
 }
@@ -63,7 +77,7 @@ export function useAddReaction() {
       emoji: string;
     }) => api.addReaction(channelId, messageId, emoji),
     onSuccess: (_, { channelId }) => {
-      queryClient.invalidateQueries({ queryKey: ["messages", channelId] });
+      void invalidateChannelMessages(queryClient, channelId);
     },
   });
 }
@@ -83,7 +97,7 @@ export function useRemoveReaction() {
       emoji: string;
     }) => api.removeReaction(channelId, messageId, emoji),
     onSuccess: (_, { channelId }) => {
-      queryClient.invalidateQueries({ queryKey: ["messages", channelId] });
+      void invalidateChannelMessages(queryClient, channelId);
     },
   });
 }

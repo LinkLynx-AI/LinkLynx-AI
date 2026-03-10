@@ -1,5 +1,7 @@
 "use client";
 
+import type { InfiniteData } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { usePathname } from "next/navigation";
 import { z } from "zod";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -7,6 +9,7 @@ import {
   buildLoginRoute,
   classifyAppRoute,
   normalizeReturnToPath,
+  parseGuildChannelRoute,
   type RouteAccessKind,
 } from "@/shared/config";
 import {
@@ -18,6 +21,10 @@ import {
   type WsConnectionState,
   type WsTicketIssueError,
 } from "@/entities/auth";
+import { isStrictDecimalString } from "@/shared/lib/exact-json";
+import type { MessagePage } from "@/shared/api/api-client";
+import { MESSAGE_ITEM_SCHEMA, mapMessageItem, parseMessagePayload } from "@/shared/api/message-contract";
+import { appendMessageToPages, buildMessagesQueryKey } from "@/shared/api/message-query";
 
 const BASE_RECONNECT_DELAY_MS = 1_000;
 const MAX_RECONNECT_DELAY_MS = 30_000;
@@ -30,6 +37,19 @@ const WS_READY_EVENT_SCHEMA = z.object({
 const WS_REAUTH_EVENT_SCHEMA = z.object({
   type: z.literal("auth.reauthenticate"),
 });
+const WS_MESSAGE_CREATED_EVENT_SCHEMA = z.object({
+  type: z.literal("message.created"),
+  d: z.object({
+    guild_id: z.string().trim().min(1),
+    channel_id: z.string().trim().min(1),
+    message: MESSAGE_ITEM_SCHEMA,
+  }),
+});
+
+type ActiveSubscriptionTarget = {
+  guildId: string;
+  channelId: string;
+};
 
 function resolveCurrentReturnToPath(): string | null {
   if (typeof window === "undefined") {
@@ -101,14 +121,57 @@ function createIdentifyMessage(ticket: string): string {
   });
 }
 
+function createSubscribeMessage(target: ActiveSubscriptionTarget): string {
+  return `{"type":"message.subscribe","d":{"guild_id":${target.guildId},"channel_id":${target.channelId}}}`;
+}
+
+function createUnsubscribeMessage(target: ActiveSubscriptionTarget): string {
+  return `{"type":"message.unsubscribe","d":{"guild_id":${target.guildId},"channel_id":${target.channelId}}}`;
+}
+
+function resolveActiveSubscriptionTarget(
+  guildId: string | null,
+  channelId: string | null,
+): ActiveSubscriptionTarget | null {
+  if (guildId === null || channelId === null) {
+    return null;
+  }
+
+  const normalizedGuildId = guildId.trim();
+  const normalizedChannelId = channelId.trim();
+  if (normalizedGuildId.length === 0 || normalizedChannelId.length === 0) {
+    return null;
+  }
+
+  if (
+    !isStrictDecimalString(normalizedGuildId) ||
+    !isStrictDecimalString(normalizedChannelId) ||
+    normalizedGuildId === "0" ||
+    normalizedChannelId === "0"
+  ) {
+    return null;
+  }
+
+  return {
+    guildId: normalizedGuildId,
+    channelId: normalizedChannelId,
+  };
+}
+
 /**
  * 認証済み保護ルートでWS identify接続を維持する。
  */
 export function WsAuthBridge() {
+  const queryClient = useQueryClient();
   const session = useAuthSession();
   const pathname = usePathname();
 
   const routeAccessKind = useMemo<RouteAccessKind>(() => classifyAppRoute(pathname), [pathname]);
+  const guildChannelRoute = useMemo(() => parseGuildChannelRoute(pathname), [pathname]);
+  const activeSubscriptionTarget = useMemo(
+    () => resolveActiveSubscriptionTarget(guildChannelRoute?.guildId ?? null, guildChannelRoute?.channelId ?? null),
+    [guildChannelRoute],
+  );
 
   const shouldConnect = session.status === "authenticated" && routeAccessKind === "protected";
 
@@ -126,6 +189,8 @@ export function WsAuthBridge() {
   const connectGenerationRef = useRef(0);
   const shouldConnectRef = useRef(shouldConnect);
   const intentionallyClosingSocketRef = useRef<WebSocket | null>(null);
+  const subscribedTargetRef = useRef<ActiveSubscriptionTarget | null>(null);
+  const hadReadyConnectionRef = useRef(false);
   const redirectingRef = useRef(false);
   const connectRef = useRef<() => void>(() => {});
 
@@ -150,6 +215,7 @@ export function WsAuthBridge() {
 
     intentionallyClosingSocketRef.current = currentSocket;
     socketRef.current = null;
+    subscribedTargetRef.current = null;
     currentSocket.close();
   }, []);
 
@@ -288,6 +354,8 @@ export function WsAuthBridge() {
   );
 
   const handleSocketReady = useCallback(() => {
+    const shouldRecoverHistory = hadReadyConnectionRef.current;
+    hadReadyConnectionRef.current = true;
     reconnectAttemptRef.current = 0;
     setIsServiceUnavailable(false);
     setConnectionState({
@@ -298,7 +366,18 @@ export function WsAuthBridge() {
       reconnectAttempt: 0,
       nextRetryInMs: null,
     });
-  }, []);
+
+    if (!shouldRecoverHistory || activeSubscriptionTarget === null) {
+      return;
+    }
+
+    void queryClient.invalidateQueries({
+      queryKey: buildMessagesQueryKey(
+        activeSubscriptionTarget.guildId,
+        activeSubscriptionTarget.channelId,
+      ),
+    });
+  }, [activeSubscriptionTarget, queryClient]);
 
   const handleSocketReauthenticate = useCallback(
     async (socket: WebSocket) => {
@@ -343,6 +422,7 @@ export function WsAuthBridge() {
       if (socketRef.current === socket) {
         socketRef.current = null;
       }
+      subscribedTargetRef.current = null;
 
       finishConnectAttempt(connectGeneration);
       const closeKind = resolveWsCloseKind(event.code, event.wasClean);
@@ -404,7 +484,7 @@ export function WsAuthBridge() {
 
         let payload: unknown;
         try {
-          payload = JSON.parse(event.data);
+          payload = parseMessagePayload(event.data);
         } catch {
           return;
         }
@@ -415,6 +495,16 @@ export function WsAuthBridge() {
         }
 
         if (!WS_REAUTH_EVENT_SCHEMA.safeParse(payload).success) {
+          const messageCreated = WS_MESSAGE_CREATED_EVENT_SCHEMA.safeParse(payload);
+          if (messageCreated.success) {
+            const guildId = String(messageCreated.data.d.guild_id);
+            const channelId = String(messageCreated.data.d.channel_id);
+            const message = mapMessageItem(messageCreated.data.d.message);
+            queryClient.setQueryData<InfiniteData<MessagePage, string | null> | undefined>(
+              buildMessagesQueryKey(guildId, channelId),
+              (current) => appendMessageToPages(current, message),
+            );
+          }
           return;
         }
 
@@ -442,7 +532,7 @@ export function WsAuthBridge() {
         }));
       };
     },
-    [finishConnectAttempt, handleSocketClose, handleSocketReady, handleSocketReauthenticate],
+    [finishConnectAttempt, handleSocketClose, handleSocketReady, handleSocketReauthenticate, queryClient],
   );
 
   const connect = useCallback(async () => {
@@ -527,6 +617,44 @@ export function WsAuthBridge() {
   }, [shouldConnect]);
 
   useEffect(() => {
+    if (connectionState.phase !== "ready") {
+      subscribedTargetRef.current = null;
+      return;
+    }
+
+    const socket = socketRef.current;
+    if (socket === null || socket.readyState !== WebSocket.OPEN) {
+      return;
+    }
+
+    const previousTarget = subscribedTargetRef.current;
+    if (
+      previousTarget !== null &&
+      (activeSubscriptionTarget === null ||
+        previousTarget.guildId !== activeSubscriptionTarget.guildId ||
+        previousTarget.channelId !== activeSubscriptionTarget.channelId)
+    ) {
+      socket.send(createUnsubscribeMessage(previousTarget));
+      subscribedTargetRef.current = null;
+    }
+
+    if (activeSubscriptionTarget === null) {
+      return;
+    }
+
+    if (
+      previousTarget !== null &&
+      previousTarget.guildId === activeSubscriptionTarget.guildId &&
+      previousTarget.channelId === activeSubscriptionTarget.channelId
+    ) {
+      return;
+    }
+
+    socket.send(createSubscribeMessage(activeSubscriptionTarget));
+    subscribedTargetRef.current = activeSubscriptionTarget;
+  }, [activeSubscriptionTarget, connectionState.phase]);
+
+  useEffect(() => {
     if (retryDeadlineAtMs === null) {
       setRetrySecondsRemaining(null);
       return;
@@ -550,7 +678,9 @@ export function WsAuthBridge() {
       clearReconnectTimer();
       closeCurrentSocket();
       reconnectAttemptRef.current = 0;
+      subscribedTargetRef.current = null;
       redirectingRef.current = false;
+      hadReadyConnectionRef.current = false;
       setIsServiceUnavailable(false);
       setRetryDeadlineAtMs(null);
       setRetrySecondsRemaining(null);

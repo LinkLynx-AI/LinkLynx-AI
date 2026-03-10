@@ -15,7 +15,7 @@ const ensurePrincipalProvisionedForCurrentUserMock = vi.hoisted(() =>
     Promise.resolve({
       ok: true as const,
       data: {
-        principalId: 1,
+        principalId: "1",
         firebaseUid: "uid-1",
         requestId: "req-1",
       },

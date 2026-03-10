@@ -1,43 +1,44 @@
 # Implement
 
-## 2026-03-04 server/guild Rust backend review run
-- 必須参照を確認:
-  - `references/core-policy.md`
-  - `references/delivery-flow.md`
-  - `references/review-gates.md`
-  - `docs/RUST.md`
-  - `docs/DATABASE.md`
-  - `docs/adr/ADR-004-authz-fail-close-and-cache-strategy.md`
-  - `docs/adr/ADR-005-dragonfly-ratelimit-failure-policy.md`
-- Start mode: `standalone smallest-unit`（現在ブランチを使用）
-- 対象スコープ: `rust/apps/api/src/guild_channel/*` + `rust/apps/api/src/main/http_routes.rs` 周辺
+## 2026-03-10 LIN-829 frontend message timeline/composer real-data run
 
-## レビュー/修正ループ
-1. 初回レビュー
-- `reviewer`: `gate: block`
-- 主指摘:
-  - `list_guild_channels` の認可判定と一覧取得が分離（TOCTOU）
-  - `FOREIGN_KEY_VIOLATION` の一律 `guild_not_found` 変換
-  - 入力境界テスト不足
-- `reviewer_ui_guard`: `run_ui_checks: false`
+### 必須参照
+- `docs/TYPESCRIPT.md`
+- `docs/runbooks/realtime-nats-core-subject-subscription-runbook.md`
+- `docs/runbooks/message-v1-api-ws-contract-runbook.md`
+- `.agents/skills/linear-implementation-leaf/references/core-policy.md`
+- `.agents/skills/linear-implementation-leaf/references/delivery-flow.md`
+- `.agents/skills/linear-implementation-leaf/references/review-gates.md`
 
-2. 修正
-- `rust/apps/api/src/guild_channel/postgres.rs`
-  - `LIST_GUILD_CHANNELS_SQL` を追加し、membership 条件込みの単一SQLで一覧取得
-  - 一覧0件時は `has_guild` で `403/404` を分岐し契約を維持
-  - `guild_exists` -> `has_guild` にリネーム
-  - `map_write_error` を制約名判定へ変更し、`channels_guild_id_fkey` のみ `guild_not_found`
-- `rust/apps/api/src/guild_channel/tests.rs`
-  - `LIST_GUILD_CHANNELS_SQL` の membership lookup 必須テストを追加
-- `rust/apps/api/src/main/tests.rs`
-  - `/guilds/abc/channels` の 400 検証
-  - `/guilds/0/channels` の 400 検証
-  - malformed JSON での channel 作成 400 検証
+### Start mode
+- `standalone smallest-unit`
+- current branch: `codex/lin-829`
 
-3. 検証
-- `cd rust && cargo test -p linklynx_backend guild_channel` ✅
-- `make validate` ✅
+### Scope decisions
+- guild text channel のみを対象にする
+- DM route は non-goal として read/write を有効化しない
+- author 表示は frontend 最小補完
+- paging UI は timeline 上部ボタン方式
 
-4. 再レビュー
-- `reviewer`（差分ファイル限定）: `gate: pass` ✅
-- `reviewer_ui_guard`: `run_ui_checks: false` ✅
+### Progress log
+- [x] memory files 更新
+- [x] message API / query / cache helper
+- [x] chat UI / composer / paging
+- [x] WS subscribe / realtime cache apply
+- [x] review 指摘の blocking 修正
+- [ ] tests / validation
+
+### Review-driven fixes
+- message REST/WS の `i64` ID は exact decimal として保持するように parser を追加
+- reconnect 後は active channel の timeline query を invalidate して履歴補償する
+- auth-store に `currentPrincipalId` を保持し、own-message 判定を Firebase UID 依存から分離した
+
+## 2026-03-10 local dev startup fix
+
+### Goal
+- `make dev` で Scylla 起動直後でも message runtime が安定して立ち上がるようにする
+
+### Changes
+- `Makefile` に `scylla-wait` を追加し、CQL 応答待ちを共通化
+- `scylla-bootstrap` で `.env` を読み込み、`SCYLLA_KEYSPACE` を local runtime と一致させる
+- `dev` 起動時に `scylla-bootstrap` を必ず実行してから Rust API を起動する

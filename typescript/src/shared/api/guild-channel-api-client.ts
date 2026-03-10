@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { getFirebaseAuth } from "@/shared/lib";
-import type { Channel, Guild } from "@/shared/model/types";
+import type { Channel, Guild, Message } from "@/shared/model/types";
+import { useAuthStore } from "@/shared/model/stores/auth-store";
 import type {
   ChannelPermissionSnapshot,
   CreateChannelData,
@@ -8,13 +9,23 @@ import type {
   CreateModerationMuteData,
   CreateModerationReportData,
   GuildPermissionSnapshot,
+  MessagePage,
+  MessageQueryParams,
   MyProfile,
   ModerationMute,
   ModerationReport,
   PermissionSnapshot,
+  SendMessageParams,
   UpdateGuildData,
   UpdateMyProfileInput,
 } from "./api-client";
+import {
+  MESSAGE_CREATE_RESPONSE_SCHEMA,
+  MESSAGE_LIST_RESPONSE_SCHEMA,
+  mapMessageItem,
+  mapMessagePage,
+  parseMessagePayload,
+} from "./message-contract";
 import { hasMyProfileUpdateFields } from "./my-profile-validation";
 import { NoDataAPIClient } from "./no-data-api-client";
 
@@ -157,6 +168,22 @@ const DELETE_ERROR_MESSAGES = {
   authzDenied: "この操作を行う権限がありません。",
   authzUnavailable: "認可サービスが一時的に利用できません。しばらくしてから再試行してください。",
   guildNotFound: "対象のサーバーが見つかりません。",
+  channelNotFound: "対象のチャンネルが見つかりません。",
+  authRequired: "ログイン状態を確認してから再試行してください。",
+  network: "ネットワーク接続を確認してから再試行してください。",
+} as const;
+const MESSAGE_ERROR_MESSAGES = {
+  validation: "メッセージ内容を確認してください。",
+  authzDenied: "このチャンネルへメッセージを送信する権限がありません。",
+  authzUnavailable: "認可サービスが一時的に利用できません。しばらくしてから再試行してください。",
+  channelNotFound: "対象のチャンネルが見つかりません。",
+  rateLimited: "送信が多すぎます。少し待ってから再試行してください。",
+  authRequired: "ログイン状態を確認してから再試行してください。",
+  network: "ネットワーク接続を確認してから再試行してください。",
+} as const;
+const MESSAGE_TIMELINE_ERROR_MESSAGES = {
+  authzDenied: "このチャンネルを表示する権限がありません。",
+  authzUnavailable: "認可サービスが一時的に利用できません。しばらくしてから再試行してください。",
   channelNotFound: "対象のチャンネルが見つかりません。",
   authRequired: "ログイン状態を確認してから再試行してください。",
   network: "ネットワーク接続を確認してから再試行してください。",
@@ -330,6 +357,70 @@ export function toDeleteActionErrorText(error: unknown, fallbackMessage: string)
   return attachRequestId(fallbackMessage, error.requestId);
 }
 
+/**
+ * message create/list API失敗を composer 向け文言へ変換する。
+ */
+export function toMessageActionErrorText(error: unknown, fallbackMessage: string): string {
+  if (!(error instanceof GuildChannelApiError)) {
+    return toApiErrorText(error, fallbackMessage);
+  }
+
+  if (error.code === "VALIDATION_ERROR") {
+    return attachRequestId(MESSAGE_ERROR_MESSAGES.validation, error.requestId);
+  }
+  if (error.code === "AUTHZ_DENIED") {
+    return attachRequestId(MESSAGE_ERROR_MESSAGES.authzDenied, error.requestId);
+  }
+  if (error.code === "AUTHZ_UNAVAILABLE") {
+    return attachRequestId(MESSAGE_ERROR_MESSAGES.authzUnavailable, error.requestId);
+  }
+  if (error.code === "CHANNEL_NOT_FOUND") {
+    return attachRequestId(MESSAGE_ERROR_MESSAGES.channelNotFound, error.requestId);
+  }
+  if (error.code === "RATE_LIMITED" || error.status === 429) {
+    const retryAfterSeconds =
+      error.retryAfterMs === null ? null : Math.max(1, Math.ceil(error.retryAfterMs / 1_000));
+    const retryAfterSuffix =
+      retryAfterSeconds === null ? "" : `（約 ${retryAfterSeconds} 秒後に再試行してください）`;
+    return attachRequestId(`${MESSAGE_ERROR_MESSAGES.rateLimited}${retryAfterSuffix}`, error.requestId);
+  }
+  if (error.code === "unauthenticated" || error.code === "token-unavailable") {
+    return attachRequestId(MESSAGE_ERROR_MESSAGES.authRequired, error.requestId);
+  }
+  if (error.code === "network-request-failed") {
+    return attachRequestId(MESSAGE_ERROR_MESSAGES.network, error.requestId);
+  }
+
+  return attachRequestId(fallbackMessage, error.requestId);
+}
+
+/**
+ * message timeline fetch 失敗をユーザー向けメッセージへ変換する。
+ */
+export function toMessageTimelineErrorText(error: unknown, fallbackMessage: string): string {
+  if (!(error instanceof GuildChannelApiError)) {
+    return toApiErrorText(error, fallbackMessage);
+  }
+
+  if (error.code === "AUTHZ_DENIED") {
+    return attachRequestId(MESSAGE_TIMELINE_ERROR_MESSAGES.authzDenied, error.requestId);
+  }
+  if (error.code === "AUTHZ_UNAVAILABLE") {
+    return attachRequestId(MESSAGE_TIMELINE_ERROR_MESSAGES.authzUnavailable, error.requestId);
+  }
+  if (error.code === "CHANNEL_NOT_FOUND") {
+    return attachRequestId(MESSAGE_TIMELINE_ERROR_MESSAGES.channelNotFound, error.requestId);
+  }
+  if (error.code === "unauthenticated" || error.code === "token-unavailable") {
+    return attachRequestId(MESSAGE_TIMELINE_ERROR_MESSAGES.authRequired, error.requestId);
+  }
+  if (error.code === "network-request-failed") {
+    return attachRequestId(MESSAGE_TIMELINE_ERROR_MESSAGES.network, error.requestId);
+  }
+
+  return attachRequestId(fallbackMessage, error.requestId);
+}
+
 function resolveApiBaseUrl(): string {
   const rawUrl = process.env.NEXT_PUBLIC_API_URL;
   if (typeof rawUrl !== "string" || rawUrl.trim().length === 0) {
@@ -361,6 +452,14 @@ function parseRetryAfterMs(response: Response): number | null {
   }
 
   return Math.round(retryAfterSeconds * 1000);
+}
+
+function createIdempotencyKey(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+
+  return `message-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
 async function authenticatedRequest(
@@ -574,8 +673,15 @@ export class GuildChannelAPIClient extends NoDataAPIClient {
     schema: z.ZodType<T>;
     expectedStatus: number;
     body?: Record<string, unknown>;
+    extraHeaders?: HeadersInit;
+    parseResponseText?: (rawText: string) => unknown;
   }): Promise<T> {
     const headers = new Headers();
+    if (params.extraHeaders !== undefined) {
+      new Headers(params.extraHeaders).forEach((value, key) => {
+        headers.set(key, value);
+      });
+    }
     let body: string | undefined;
     if (params.body !== undefined) {
       headers.set("Content-Type", "application/json");
@@ -604,9 +710,22 @@ export class GuildChannelAPIClient extends NoDataAPIClient {
       });
     }
 
+    let rawText: string;
+    try {
+      rawText = await response.text();
+    } catch {
+      throw new GuildChannelApiError("API response is not valid JSON.", {
+        status: response.status,
+        code: "UNEXPECTED_RESPONSE",
+      });
+    }
+
     let payload: unknown = null;
     try {
-      payload = await response.json();
+      payload =
+        params.parseResponseText === undefined
+          ? JSON.parse(rawText)
+          : params.parseResponseText(rawText);
     } catch {
       throw new GuildChannelApiError("API response is not valid JSON.", {
         status: response.status,
@@ -625,12 +744,17 @@ export class GuildChannelAPIClient extends NoDataAPIClient {
     return parsed.data;
   }
 
-  private async getJson<T>(path: string, schema: z.ZodType<T>): Promise<T> {
+  private async getJson<T>(
+    path: string,
+    schema: z.ZodType<T>,
+    options?: { parseResponseText?: (rawText: string) => unknown },
+  ): Promise<T> {
     return this.requestJson({
       path,
       method: "GET",
       schema,
       expectedStatus: 200,
+      parseResponseText: options?.parseResponseText,
     });
   }
 
@@ -638,6 +762,10 @@ export class GuildChannelAPIClient extends NoDataAPIClient {
     path: string,
     body: Record<string, unknown>,
     schema: z.ZodType<T>,
+    options?: {
+      extraHeaders?: HeadersInit;
+      parseResponseText?: (rawText: string) => unknown;
+    },
   ): Promise<T> {
     return this.requestJson({
       path,
@@ -645,6 +773,8 @@ export class GuildChannelAPIClient extends NoDataAPIClient {
       body,
       schema,
       expectedStatus: 201,
+      extraHeaders: options?.extraHeaders,
+      parseResponseText: options?.parseResponseText,
     });
   }
 
@@ -943,6 +1073,90 @@ export class GuildChannelAPIClient extends NoDataAPIClient {
       status: 404,
       code: "CHANNEL_NOT_FOUND",
     });
+  }
+
+  async getMessages(params: MessageQueryParams): Promise<MessagePage> {
+    const normalizedGuildId = params.guildId.trim();
+    const normalizedChannelId = params.channelId.trim();
+    if (normalizedGuildId.length === 0 || normalizedChannelId.length === 0) {
+      throw new GuildChannelApiError(MESSAGE_ERROR_MESSAGES.channelNotFound, {
+        status: 404,
+        code: "CHANNEL_NOT_FOUND",
+      });
+    }
+
+    const searchParams = new URLSearchParams();
+    if (params.before !== undefined && params.before.trim().length > 0) {
+      searchParams.set("before", params.before.trim());
+    }
+    if (params.after !== undefined && params.after.trim().length > 0) {
+      searchParams.set("after", params.after.trim());
+    }
+    if (params.limit !== undefined) {
+      searchParams.set("limit", String(params.limit));
+    }
+
+    const suffix = searchParams.size === 0 ? "" : `?${searchParams.toString()}`;
+    const response = await this.getJson(
+      `/v1/guilds/${encodeURIComponent(normalizedGuildId)}/channels/${encodeURIComponent(
+        normalizedChannelId,
+      )}/messages${suffix}`,
+      MESSAGE_LIST_RESPONSE_SCHEMA,
+      {
+        parseResponseText: parseMessagePayload,
+      },
+    );
+
+    return mapMessagePage(response);
+  }
+
+  async sendMessage(params: SendMessageParams): Promise<Message> {
+    const normalizedGuildId = params.guildId.trim();
+    const normalizedChannelId = params.channelId.trim();
+    const normalizedContent = params.data.content.trim();
+    if (
+      normalizedGuildId.length === 0 ||
+      normalizedChannelId.length === 0 ||
+      normalizedContent.length === 0
+    ) {
+      throw new GuildChannelApiError(MESSAGE_ERROR_MESSAGES.validation, {
+        status: 400,
+        code: "VALIDATION_ERROR",
+      });
+    }
+
+    const response = await this.postJson(
+      `/v1/guilds/${encodeURIComponent(normalizedGuildId)}/channels/${encodeURIComponent(
+        normalizedChannelId,
+      )}/messages`,
+      { content: normalizedContent },
+      MESSAGE_CREATE_RESPONSE_SCHEMA,
+      {
+        extraHeaders: {
+          "Idempotency-Key": createIdempotencyKey(),
+        },
+        parseResponseText: parseMessagePayload,
+      },
+    );
+
+    const createdMessage = mapMessageItem(response.message);
+    const currentUser = useAuthStore.getState().currentUser;
+    if (currentUser === null) {
+      return createdMessage;
+    }
+
+    const currentPrincipalId = useAuthStore.getState().currentPrincipalId;
+
+    return {
+      ...createdMessage,
+      author:
+        currentPrincipalId !== null && currentUser.id !== currentPrincipalId
+          ? {
+              ...currentUser,
+              id: currentPrincipalId,
+            }
+          : currentUser,
+    };
   }
 
   async getMyProfile(): Promise<MyProfile> {

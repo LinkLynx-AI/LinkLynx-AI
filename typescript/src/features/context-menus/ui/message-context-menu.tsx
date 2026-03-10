@@ -7,9 +7,10 @@ import type { Message } from "@/shared/model/types/message";
 
 export function MessageContextMenu({ data }: { data: { message: Message } }) {
   const hideContextMenu = useUIStore((s) => s.hideContextMenu);
+  const currentPrincipalId = useAuthStore((s) => s.currentPrincipalId);
   const currentUser = useAuthStore((s) => s.currentUser);
 
-  const isOwnMessage = currentUser?.id === data.message.author.id;
+  const isOwnMessage = (currentPrincipalId ?? currentUser?.id ?? null) === data.message.author.id;
 
   const handleCopyText = () => {
     navigator.clipboard.writeText(data.message.content);

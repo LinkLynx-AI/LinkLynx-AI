@@ -2,7 +2,7 @@
 .PHONY: ts-dev ts-build ts-format ts-lint ts-test ts-validate ts-fsd-check rust-dev rust-build rust-test rust-fmt rust-clippy rust-lint rust-ci rust-validate py-dev py-install py-format py-lint py-test py-validate elixir-dev elixir-build
 .PHONY: db-up db-down db-reset db-migrate db-migrate-revert db-migrate-info db-schema db-schema-check db-seed db-table-regex db-doc worktree-sync-env codex-worktree
 .PHONY: authz-spicedb-up authz-spicedb-down authz-spicedb-health
-.PHONY: scylla-bootstrap scylla-health
+.PHONY: scylla-wait scylla-bootstrap scylla-health
 .PHONY: message-scylla-integration
 
 # 色設定
@@ -174,8 +174,24 @@ authz-spicedb-health: ## SpiceDB gRPC/HTTP ポートのヘルス確認（localho
 	docker compose logs spicedb; \
 	exit 1
 
+scylla-wait: ## Scylla の CQL 応答待ち
+	@for i in $$(seq 1 60); do \
+		if docker compose exec -T scylladb cqlsh -e "SELECT release_version FROM system.local;" >/dev/null 2>&1; then \
+			echo "$(GREEN)Scylla CQL endpoint is ready$(NC)"; \
+			exit 0; \
+		fi; \
+		sleep 1; \
+	done; \
+	echo "$(RED)Scylla CQL endpoint did not become ready in time$(NC)"; \
+	docker compose logs scylladb; \
+	exit 1
+
 scylla-bootstrap: ## Scylla schema をローカル compose に適用
 	@set -eu; \
+	set -a; \
+	[ -f .env ] && . ./.env; \
+	set +a; \
+	$(MAKE) scylla-wait; \
 	keyspace="$${SCYLLA_KEYSPACE:-chat}"; \
 	case "$$keyspace" in \
 		(*[!A-Za-z0-9_]*|'') \
@@ -431,6 +447,7 @@ dev: db-up ## 開発環境を起動（DB + Frontend + Rust）
 		echo "$(RED)cargo が見つかりません。先に make setup か setup/setup.sh を実行してください$(NC)"; \
 		exit 1; \
 	fi
+	@$(MAKE) scylla-bootstrap
 	@echo "$(GREEN)データベースを起動しました。Frontend と Rust API を起動します:$(NC)"
 	@echo "  Next.js: http://localhost:3000"
 	@echo "  Rust API: http://localhost:8080"

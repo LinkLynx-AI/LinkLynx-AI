@@ -2,8 +2,9 @@
 
 import { useState, useCallback, useRef, type KeyboardEvent, type ClipboardEvent } from "react";
 import { CirclePlus, Smile, Sticker, Gift } from "lucide-react";
+import { useSendMessage } from "@/shared/api/mutations";
 import { cn } from "@/shared/lib/cn";
-import { useSendMessage } from "@/shared/api/mutations/use-send-message";
+import { toMessageActionErrorText } from "@/shared/api";
 import { EmojiPicker } from "@/features/pickers";
 import { FormattingToolbar } from "./formatting-toolbar";
 import { MarkdownPreview } from "./markdown-preview";
@@ -31,13 +32,18 @@ function createFileItem(file: File): FileItem {
 }
 
 export function MessageInput({
+  guildId,
   channelId,
   channelName,
+  onMessageSent,
 }: {
+  guildId?: string;
   channelId: string;
   channelName: string;
+  onMessageSent?: () => void;
 }) {
   const [content, setContent] = useState("");
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showSlashCommands, setShowSlashCommands] = useState(false);
   const [slashFilter, setSlashFilter] = useState("");
@@ -46,23 +52,40 @@ export function MessageInput({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const emojiButtonRef = useRef<HTMLButtonElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { mutate: sendMessage } = useSendMessage();
+  const { mutateAsync: sendMessage, isPending } = useSendMessage();
+  const isComposerDisabled = guildId === undefined || isPending;
 
   const handleSubmit = useCallback(() => {
     const trimmed = content.trim();
     if (!trimmed && pendingFiles.length === 0) return;
+    if (pendingFiles.length > 0) {
+      setSubmitError("添付ファイル送信はまだ接続されていません。");
+      return;
+    }
+    if (guildId === undefined) {
+      setSubmitError("DM のメッセージ送信はまだ接続されていません。");
+      return;
+    }
 
-    sendMessage({
+    void sendMessage({
+      guildId,
       channelId,
       data: { content: trimmed },
-    });
-    setContent("");
-    setPendingFiles([]);
+    })
+      .then(() => {
+        setSubmitError(null);
+        setContent("");
+        setPendingFiles([]);
+        onMessageSent?.();
 
-    if (textareaRef.current) {
-      textareaRef.current.style.height = "auto";
-    }
-  }, [content, pendingFiles.length, channelId, sendMessage]);
+        if (textareaRef.current) {
+          textareaRef.current.style.height = "auto";
+        }
+      })
+      .catch((error: unknown) => {
+        setSubmitError(toMessageActionErrorText(error, "メッセージの送信に失敗しました。"));
+      });
+  }, [channelId, content, guildId, onMessageSent, pendingFiles.length, sendMessage]);
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -89,6 +112,9 @@ export function MessageInput({
 
   const handleContentChange = useCallback((newContent: string) => {
     setContent(newContent);
+    if (submitError !== null) {
+      setSubmitError(null);
+    }
     if (newContent.startsWith("/")) {
       setShowSlashCommands(true);
       setSlashFilter(newContent.slice(1));
@@ -96,7 +122,7 @@ export function MessageInput({
       setShowSlashCommands(false);
       setSlashFilter("");
     }
-  }, []);
+  }, [submitError]);
 
   const handleSlashSelect = useCallback((command: SlashCommand) => {
     setContent(`/${command.name} `);
@@ -183,6 +209,7 @@ export function MessageInput({
           setContent={setContent}
           onTogglePreview={handleTogglePreview}
           showPreview={showPreview}
+          disabled={isComposerDisabled}
         />
 
         {/* Markdown preview */}
@@ -202,11 +229,12 @@ export function MessageInput({
             className={cn(
               "shrink-0 p-2.5",
               "text-discord-interactive-normal hover:text-discord-interactive-hover",
-              "transition-colors",
+              "transition-colors disabled:cursor-not-allowed disabled:opacity-60",
             )}
             onClick={() => fileInputRef.current?.click()}
             type="button"
             aria-label="ファイルをアップロード"
+            disabled={isComposerDisabled}
           >
             <CirclePlus className="h-5 w-5" />
           </button>
@@ -220,13 +248,14 @@ export function MessageInput({
             }}
             onKeyDown={handleKeyDown}
             onPaste={handlePaste}
+            disabled={isComposerDisabled}
             placeholder={`#${channelName} にメッセージを送信`}
             rows={1}
             className={cn(
               "max-h-[300px] min-h-[24px] flex-1 resize-none",
               "bg-transparent py-2.5 text-base text-discord-text-normal",
               "placeholder:text-discord-text-muted",
-              "outline-none",
+              "outline-none disabled:cursor-not-allowed disabled:opacity-60",
             )}
           />
 
@@ -234,9 +263,11 @@ export function MessageInput({
             className={cn(
               "shrink-0 p-2.5",
               "text-discord-interactive-normal hover:text-discord-interactive-hover",
-              "transition-colors",
+              "transition-colors disabled:cursor-not-allowed disabled:opacity-60",
             )}
             title="GIF"
+            type="button"
+            disabled={isComposerDisabled}
           >
             <Gift className="h-5 w-5" />
           </button>
@@ -245,9 +276,11 @@ export function MessageInput({
             className={cn(
               "shrink-0 p-2.5",
               "text-discord-interactive-normal hover:text-discord-interactive-hover",
-              "transition-colors",
+              "transition-colors disabled:cursor-not-allowed disabled:opacity-60",
             )}
             title="スタンプ"
+            type="button"
+            disabled={isComposerDisabled}
           >
             <Sticker className="h-5 w-5" />
           </button>
@@ -259,13 +292,15 @@ export function MessageInput({
               className={cn(
                 "shrink-0 p-2.5",
                 "text-discord-interactive-normal hover:text-discord-interactive-hover",
-                "transition-colors",
+                "transition-colors disabled:cursor-not-allowed disabled:opacity-60",
               )}
               title="絵文字"
+              type="button"
+              disabled={isComposerDisabled}
             >
               <Smile className="h-5 w-5" />
             </button>
-            {showEmojiPicker && (
+            {showEmojiPicker && !isComposerDisabled && (
               <EmojiPicker
                 mode="input"
                 onSelect={handleEmojiSelect}
@@ -275,6 +310,14 @@ export function MessageInput({
           </div>
         </div>
       </div>
+      {submitError !== null && (
+        <p className="mt-2 text-xs text-discord-brand-red">{submitError}</p>
+      )}
+      {guildId === undefined && submitError === null && (
+        <p className="mt-2 text-xs text-discord-text-muted">
+          DM の送受信はこの issue の対象外です。
+        </p>
+      )}
     </div>
   );
 }

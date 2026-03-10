@@ -1,35 +1,28 @@
 # Plan
 
 ## Rules
-- Stop-and-fix: レビューまたは検証が失敗した場合は次工程へ進まず修正する。
-- Scope lock: `server/guild` 関連以外は変更しない。
+- Stop-and-fix: 検証またはレビューで失敗したら次工程へ進まず修正する。
+- Scope lock: guild text channel の frontend 接続に限定し、DM や backend 契約拡張は行わない。
 
 ## Milestones
-### M1: 対象特定と前提確認
+### M1: 実装前提の更新
 - Acceptance criteria:
-  - [x] `guild_channel` 周辺の実装と既存契約を把握
-  - [x] 調査対象ファイルを確定
-- Validation:
-  - `rg --files rust/apps/api/src/guild_channel`
+  - [ ] `Prompt.md` / `Plan.md` / `Implement.md` / `Documentation.md` を `LIN-829` 用に更新
+  - [ ] 既存 message/chat/WS 導線の変更点を確定
 
-### M2: 初回レビューゲート実行
+### M2: message API/query 基盤
 - Acceptance criteria:
-  - [x] `reviewer` を実行して指摘一覧を取得
-  - [x] UI影響有無を判断（必要時のみ UI review）
-- Validation:
-  - `reviewer` agent result
+  - [ ] message list/create 用型と query key を整理
+  - [ ] `GuildChannelAPIClient` で guild message list/create が動く
+  - [ ] cache merge helper を追加
 
-### M3: 指摘修正 + コード検証
+### M3: chat UI / realtime 接続
 - Acceptance criteria:
-  - [x] blocking 指摘を修正
-  - [x] Rust 検証コマンドが成功
-- Validation:
-  - `make validate`
-  - 必要に応じて `cd rust && cargo test -p api guild_channel`
+  - [ ] `ChatArea` / `MessageList` / `MessageInput` に guildId と paging/error 表示を配線
+  - [ ] `WsAuthBridge` で active channel 購読と `message.created` cache 反映が動く
 
-### M4: 再レビューで収束
+### M4: テストと収束
 - Acceptance criteria:
-  - [x] `reviewer` 再実行で blocking 指摘 0
-  - [x] 実施ログを `Documentation.md` に記録
-- Validation:
-  - `reviewer` agent result (pass)
+  - [ ] API client / hook / WS/chat の回帰テストを更新
+  - [ ] `make validate` と `cd typescript && npm run typecheck` を実行
+  - [ ] 実装内容と意図を日本語で説明できる状態にする

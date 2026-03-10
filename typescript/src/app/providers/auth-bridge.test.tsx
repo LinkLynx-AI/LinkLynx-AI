@@ -22,6 +22,7 @@ describe("AuthBridge", () => {
   afterEach(() => {
     useAuthStore.setState({
       currentUser: null,
+      currentPrincipalId: null,
       status: "online",
       customStatus: null,
     });
@@ -59,6 +60,7 @@ describe("AuthBridge", () => {
         customStatus: null,
         bot: false,
       },
+      currentPrincipalId: null,
       status: "online",
       customStatus: null,
     });
@@ -86,6 +88,7 @@ describe("AuthBridge", () => {
         customStatus: null,
         bot: false,
       },
+      currentPrincipalId: null,
       status: "online",
       customStatus: null,
     });

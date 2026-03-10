@@ -11,6 +11,7 @@ import type { User } from "@/shared/model/types/user";
  */
 export function AuthBridge() {
   const session = useAuthSession();
+  const currentPrincipalId = useAuthStore((s) => s.currentPrincipalId);
   const setCurrentUser = useAuthStore((s) => s.setCurrentUser);
   const clearCurrentUser = useAuthStore((s) => s.clearCurrentUser);
 
@@ -24,7 +25,7 @@ export function AuthBridge() {
     const username = user.email?.split("@")[0] ?? "User";
 
     const mocUser: User = {
-      id: user.uid,
+      id: currentPrincipalId ?? user.uid,
       username,
       displayName: username,
       avatar: null,
@@ -34,7 +35,7 @@ export function AuthBridge() {
     };
 
     setCurrentUser(mocUser);
-  }, [clearCurrentUser, session, setCurrentUser]);
+  }, [clearCurrentUser, currentPrincipalId, session, setCurrentUser]);
 
   return null;
 }
