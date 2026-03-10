@@ -25,7 +25,7 @@
 ## Known issues / follow-ups
 - WS fanout は `LIN-828` で実装する。
 - FE mutation 接続とエラー回復は `LIN-831` で実装する。
-- repo ルート `make message-scylla-integration` はローカルの Postgres/Scylla 起動が前提。未起動環境では接続拒否で失敗する。
+- repo ルート `make message-scylla-integration` はローカルの Postgres/Scylla 起動と schema 適用が前提。
 
 ## Validation evidence
 - `cd rust && cargo test -p linklynx_message_api`: pass
@@ -36,9 +36,9 @@
 - `cd rust && cargo test -p linklynx_backend channel_message -- --nocapture`: pass
 - `cd rust && cargo test -p linklynx_backend message_scylla_integration_http_edit_channel_message_updates_live_storage -- --nocapture`: pass
 - `cd rust && cargo test -p linklynx_backend message_scylla_integration_http_delete_channel_message_keeps_tombstone -- --nocapture`: pass
-- `make message-scylla-integration`: fail
-  - 修正箇所の 2 test 自体は pass
-  - 現在の環境では `localhost:5432` Postgres と `127.0.0.1:9042` Scylla が未起動で、suite 全体は接続拒否で停止
+- `make db-migrate`: pass
+- `make scylla-bootstrap`: pass
+- `make message-scylla-integration`: pass
 - `make rust-lint`: pass
 - `cd typescript && npm run typecheck`: pass
 - `make validate`: fail
