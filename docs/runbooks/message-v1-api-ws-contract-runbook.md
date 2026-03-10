@@ -1,7 +1,7 @@
 # Message v1 API/WS Contract Runbook
 
 - Status: Draft
-- Last updated: 2026-03-07
+- Last updated: 2026-03-10
 - Owner scope: v1 message contract baseline
 - References:
   - `docs/adr/ADR-001-event-schema-compatibility.md`
@@ -19,7 +19,7 @@ This runbook fixes the v1 baseline for text message REST/WS contracts before sto
 
 In scope:
 
-- guild text channel message REST contract
+- guild text channel message REST command/list contract
 - opaque cursor paging contract
 - WS subscribe/unsubscribe and message.created frame contract
 - durable event naming and payload baseline for message create
@@ -28,8 +28,8 @@ Out of scope:
 
 - DM transport contract
 - message send over WS
-- Scylla persistence wiring
-- edit/delete command contract
+- WS fanout for edit/delete
+- durable event transport for edit/delete
 
 ## 2. REST contract baseline
 
@@ -107,6 +107,49 @@ Troubleshooting baseline:
 - If create starts returning dependency unavailable during replay, inspect API logs for `message create idempotency reservation failed` or `message create idempotency completion failed` and confirm Postgres connectivity before retrying.
 - If replay remains stuck behind partial failure, prefer resending the same payload with the same `Idempotency-Key`; the reservation is designed to reuse the fixed identity once Postgres recovers.
 
+### 2.3 Edit endpoint
+
+- Method: `PATCH`
+- Path: `/v1/guilds/{guild_id}/channels/{channel_id}/messages/{message_id}`
+
+Request payload:
+
+- `content`
+- `expected_version`
+
+Success payload:
+
+- `message`
+
+Rules:
+
+1. `content` blank-only is rejected.
+2. `expected_version` is required and must be positive.
+3. caller must be the original `author_id`; otherwise return `AUTHZ_DENIED`.
+4. if stored `version != expected_version`, return `409` with conflict transport.
+5. deleted messages are not editable and return conflict transport.
+
+### 2.4 Delete endpoint
+
+- Method: `DELETE`
+- Path: `/v1/guilds/{guild_id}/channels/{channel_id}/messages/{message_id}`
+
+Request payload:
+
+- `expected_version`
+
+Success payload:
+
+- `message`
+
+Rules:
+
+1. physical delete is prohibited; update the row as tombstone.
+2. success response keeps the same `message_id` / `created_at` and flips `is_deleted=true`.
+3. tombstone response clears `content` and increments `version`.
+4. caller must be the original `author_id`; otherwise return `AUTHZ_DENIED`.
+5. if stored `version != expected_version`, return `409` with conflict transport.
+
 ## 3. Shared message snapshot
 
 `MessageItemV1` fields:
@@ -126,6 +169,7 @@ Compatibility rules:
 1. New fields must be additive only.
 2. Consumers must ignore unknown fields safely.
 3. `edited_at` defaults to `null`, `is_deleted` defaults to `false` when omitted by older payloads.
+4. tombstone snapshots remain list-compatible; clients must prefer `is_deleted` over `content` visibility.
 
 ## 4. WS contract baseline
 
@@ -170,10 +214,12 @@ Notes:
 
 1. WS frame name `message.created` is not the durable event name.
 2. Future edit/delete events must be additive extensions in later issues.
+3. REST edit/delete command rollout must not break existing create/list/WS consumers.
 
 ## 6. Validation checklist
 
-1. REST list/create, WS frames, and durable event share the same `MessageItemV1`.
+1. REST list/create/edit/delete, WS frames, and durable event share the same `MessageItemV1`.
 2. Cursor round-trip and invalid-cursor rejection are test-covered.
 3. `message_create` class is aligned with ADR-002.
-4. Unknown future fields do not break deserialization.
+4. edit/delete conflict and tombstone behavior are test-covered.
+5. Unknown future fields do not break deserialization.

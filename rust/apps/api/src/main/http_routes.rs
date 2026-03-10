@@ -70,6 +70,11 @@ fn app_with_state(state: AppState) -> Router {
             axum::routing::post(create_channel_message),
         )
         .route(
+            "/v1/guilds/{guild_id}/channels/{channel_id}/messages/{message_id}",
+            axum::routing::patch(edit_channel_message)
+                .delete(delete_channel_message),
+        )
+        .route(
             "/guilds/{guild_id}/permission-snapshot",
             get(get_permission_snapshot),
         )
@@ -554,6 +559,103 @@ async fn create_channel_message(
     }
 }
 
+/// チャンネルメッセージ編集の最小契約応答を返す。
+/// @param auth_context 認証文脈
+/// @param params パスパラメータ
+/// @param payload 編集入力
+/// @returns メッセージ更新レスポンス
+/// @throws なし
+async fn edit_channel_message(
+    State(state): State<AppState>,
+    Extension(auth_context): Extension<AuthContext>,
+    Path(params): Path<GuildChannelMessagePathParams>,
+    payload: Result<Json<EditMessageRequest>, JsonRejection>,
+) -> Response {
+    let request_id = auth_context.request_id.clone();
+    let guild_id = match parse_guild_id(&params.guild_id) {
+        Ok(value) => value,
+        Err(error) => return guild_channel_error_response(&error, request_id),
+    };
+    let channel_id = match parse_channel_id(&params.channel_id) {
+        Ok(value) => value,
+        Err(error) => return guild_channel_error_response(&error, request_id),
+    };
+    let message_id = match parse_message_id(&params.message_id) {
+        Ok(value) => value,
+        Err(error) => return message_error_response(&error, request_id),
+    };
+    let payload = match parse_json_payload(payload) {
+        Ok(value) => value,
+        Err(error) => return guild_channel_error_response(&error, request_id),
+    };
+
+    match state
+        .message_service
+        .edit_guild_channel_message(
+            auth_context.principal_id,
+            guild_id,
+            channel_id,
+            message_id,
+            EditGuildChannelMessageRequestV1 {
+                content: payload.content,
+                expected_version: payload.expected_version,
+            },
+        )
+        .await
+    {
+        Ok(response) => Json(response).into_response(),
+        Err(error) => message_error_response(&error, request_id),
+    }
+}
+
+/// チャンネルメッセージ削除の最小契約応答を返す。
+/// @param auth_context 認証文脈
+/// @param params パスパラメータ
+/// @param payload 削除入力
+/// @returns メッセージ更新レスポンス
+/// @throws なし
+async fn delete_channel_message(
+    State(state): State<AppState>,
+    Extension(auth_context): Extension<AuthContext>,
+    Path(params): Path<GuildChannelMessagePathParams>,
+    payload: Result<Json<DeleteMessageRequest>, JsonRejection>,
+) -> Response {
+    let request_id = auth_context.request_id.clone();
+    let guild_id = match parse_guild_id(&params.guild_id) {
+        Ok(value) => value,
+        Err(error) => return guild_channel_error_response(&error, request_id),
+    };
+    let channel_id = match parse_channel_id(&params.channel_id) {
+        Ok(value) => value,
+        Err(error) => return guild_channel_error_response(&error, request_id),
+    };
+    let message_id = match parse_message_id(&params.message_id) {
+        Ok(value) => value,
+        Err(error) => return message_error_response(&error, request_id),
+    };
+    let payload = match parse_json_payload(payload) {
+        Ok(value) => value,
+        Err(error) => return guild_channel_error_response(&error, request_id),
+    };
+
+    match state
+        .message_service
+        .delete_guild_channel_message(
+            auth_context.principal_id,
+            guild_id,
+            channel_id,
+            message_id,
+            DeleteGuildChannelMessageRequestV1 {
+                expected_version: payload.expected_version,
+            },
+        )
+        .await
+    {
+        Ok(response) => Json(response).into_response(),
+        Err(error) => message_error_response(&error, request_id),
+    }
+}
+
 /// create message 用 idempotency key を取り出す。
 /// @param headers HTTP ヘッダー
 /// @returns optional idempotency key
@@ -937,6 +1039,26 @@ struct GuildChannelPathParams {
 }
 
 #[derive(Debug, Deserialize)]
+struct GuildChannelMessagePathParams {
+    guild_id: String,
+    channel_id: String,
+    message_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct EditMessageRequest {
+    content: String,
+    expected_version: i64,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct DeleteMessageRequest {
+    expected_version: i64,
+}
+
+#[derive(Debug, Deserialize)]
 struct InviteVerifyPathParams {
     invite_code: String,
 }
@@ -1077,6 +1199,21 @@ fn parse_channel_id(raw_channel_id: &str) -> Result<i64, GuildChannelError> {
         .map_err(|_| GuildChannelError::validation("channel_id_invalid"))?;
     if parsed <= 0 {
         return Err(GuildChannelError::validation("channel_id_must_be_positive"));
+    }
+
+    Ok(parsed)
+}
+
+/// message_idパスパラメータを検証する。
+/// @param raw_message_id 生のmessage_id文字列
+/// @returns 検証済みmessage_id
+/// @throws MessageError パラメータ不正時
+fn parse_message_id(raw_message_id: &str) -> Result<i64, MessageError> {
+    let parsed = raw_message_id
+        .parse::<i64>()
+        .map_err(|_| MessageError::validation("message_id_invalid"))?;
+    if parsed <= 0 {
+        return Err(MessageError::validation("message_id_must_be_positive"));
     }
 
     Ok(parsed)
@@ -2215,6 +2352,11 @@ fn rest_authz_action_for_request(method: &axum::http::Method, path: &str) -> Aut
     if path == "/internal/authz/cache/invalidate" {
         return AuthzAction::View;
     }
+    if is_message_command_path(path)
+        && (*method == axum::http::Method::PATCH || *method == axum::http::Method::DELETE)
+    {
+        return AuthzAction::Post;
+    }
     rest_authz_action_from_method(method)
 }
 
@@ -2256,6 +2398,12 @@ fn rest_authz_resource_from_path(path: &str) -> AuthzResource {
     AuthzResource::RestPath {
         path: path.to_owned(),
     }
+}
+
+fn is_message_command_path(path: &str) -> bool {
+    path.starts_with("/v1/guilds/")
+        && path.contains("/channels/")
+        && path.contains("/messages/")
 }
 
 /// ギルドパスから guild_id を抽出する。
