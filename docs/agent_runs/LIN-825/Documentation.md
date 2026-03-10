@@ -11,6 +11,7 @@
 - `expectedVersion` は edit/delete request body の必須フィールドとする。
 - `PATCH/DELETE /messages/{message_id}` の REST AuthZ action は `Manage` ではなく `Post` として扱い、author 制約は usecase 側で判定する。
 - delete 成功時の public snapshot は tombstone として `content=""`、`is_deleted=true`、`version+1` を返す。
+- Scylla の LWT update 応答は追加列を返しうるため、`(bool,)` ではなく dynamic row から先頭の `[applied]` 列だけを読む。
 
 ## How to run / demo
 - `cd rust && cargo test -p linklynx_message_api`
@@ -24,6 +25,7 @@
 ## Known issues / follow-ups
 - WS fanout は `LIN-828` で実装する。
 - FE mutation 接続とエラー回復は `LIN-831` で実装する。
+- repo ルート `make message-scylla-integration` はローカルの Postgres/Scylla 起動が前提。未起動環境では接続拒否で失敗する。
 
 ## Validation evidence
 - `cd rust && cargo test -p linklynx_message_api`: pass
@@ -34,6 +36,9 @@
 - `cd rust && cargo test -p linklynx_backend channel_message -- --nocapture`: pass
 - `cd rust && cargo test -p linklynx_backend message_scylla_integration_http_edit_channel_message_updates_live_storage -- --nocapture`: pass
 - `cd rust && cargo test -p linklynx_backend message_scylla_integration_http_delete_channel_message_keeps_tombstone -- --nocapture`: pass
+- `make message-scylla-integration`: fail
+  - 修正箇所の 2 test 自体は pass
+  - 現在の環境では `localhost:5432` Postgres と `127.0.0.1:9042` Scylla が未起動で、suite 全体は接続拒否で停止
 - `make rust-lint`: pass
 - `cd typescript && npm run typecheck`: pass
 - `make validate`: fail

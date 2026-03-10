@@ -8,7 +8,10 @@ use linklynx_message_api::{
 use linklynx_message_domain::{
     GuildChannelContext, MessageBodyStore, MessageStoreUpdateResult, MessageUsecaseError,
 };
-use scylla::{client::session::Session, value::CqlTimestamp};
+use scylla::{
+    client::session::Session,
+    value::{CqlTimestamp, CqlValue, Row},
+};
 use time::{format_description::well_known::Rfc3339, Date, Month, OffsetDateTime};
 
 const INSERT_MESSAGE_SQL_TEMPLATE: &str = "
@@ -242,6 +245,25 @@ impl ScyllaMessageStore {
             .transpose()
     }
 
+    /// LWT update の `[applied]` 列を抽出する。
+    /// @param row Scylla が返した生 row
+    /// @returns 更新適用時は `true`
+    /// @throws MessageUsecaseError `[applied]` 列が欠落または bool 以外の場合
+    fn lwt_applied_from_row(row: Row) -> Result<bool, MessageUsecaseError> {
+        match row.columns.into_iter().next() {
+            Some(Some(CqlValue::Boolean(applied))) => Ok(applied),
+            Some(Some(other)) => Err(MessageUsecaseError::dependency_unavailable(format!(
+                "message_update_decode_failed:unexpected_applied_column:{other:?}"
+            ))),
+            Some(None) => Err(MessageUsecaseError::dependency_unavailable(
+                "message_update_decode_failed:null_applied_column".to_string(),
+            )),
+            None => Err(MessageUsecaseError::dependency_unavailable(
+                "message_update_decode_failed:missing_applied_column".to_string(),
+            )),
+        }
+    }
+
     async fn query_messages<V>(
         &self,
         guild_id: i64,
@@ -447,15 +469,17 @@ impl ScyllaMessageStore {
                 "message_update_rows_unavailable:{error}"
             ))
         })?;
-        let row = rows_result.maybe_first_row::<(bool,)>().map_err(|error| {
+        let row = rows_result.maybe_first_row::<Row>().map_err(|error| {
             MessageUsecaseError::dependency_unavailable(format!(
                 "message_update_decode_failed:{error}"
             ))
         })?;
 
         Ok(match row {
-            Some((true,)) => MessageStoreUpdateResult::Applied,
-            Some((false,)) => MessageStoreUpdateResult::Conflict,
+            Some(row) => match Self::lwt_applied_from_row(row)? {
+                true => MessageStoreUpdateResult::Applied,
+                false => MessageStoreUpdateResult::Conflict,
+            },
             None => MessageStoreUpdateResult::Conflict,
         })
     }
