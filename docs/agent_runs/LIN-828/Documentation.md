@@ -26,6 +26,7 @@
 - ignored の TCP bind WS test は harness 側の AuthZ close を返しており、別 issue でテスト基盤を分離した方がよい。
 
 ## Validation evidence
+- `make validate`: fail（`python && make format` が PEP 668 `externally-managed-environment` で停止。Rust/TypeScript 側の対象差分は個別 gate で確認）
 - `cd rust && cargo test -p linklynx_protocol_ws`: pass
 - `cd rust && cargo test -p linklynx_backend message_realtime_publish_ -- --nocapture`: pass
 - `cd rust && cargo test -p linklynx_backend channel_message_returns_ -- --nocapture`: pass
@@ -45,5 +46,5 @@
 
 ## Review gate
 - `reviewer_ui_guard`: pass（UI review required）
-- `reviewer_ui`: spawn failed（agent thread limit）
-- `reviewer`: spawn requested / result pending
+- `reviewer_ui`: unavailable（agent interrupt / thread limit で結果未回収）
+- `reviewer`: unavailable（agent interrupt / thread limit で結果未回収）
