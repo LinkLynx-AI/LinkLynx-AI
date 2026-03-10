@@ -1,20 +1,15 @@
 // @vitest-environment jsdom
 import { renderHook, waitFor } from "@/test/test-utils";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { usePinMessage, useDeleteMessage } from "./use-message-actions";
 import { createElement } from "react";
 import type { Message } from "@/shared/model/types";
+import { useEditMessage } from "./use-edit-message";
 
-const mockPinMessage = vi.fn().mockResolvedValue(undefined);
-const mockDeleteMessage = vi.fn();
+const mockEditMessage = vi.fn().mockResolvedValue(undefined);
 
 vi.mock("@/shared/api/api-client", () => ({
   getAPIClient: () => ({
-    pinMessage: mockPinMessage,
-    unpinMessage: vi.fn().mockResolvedValue(undefined),
-    deleteMessage: mockDeleteMessage,
-    addReaction: vi.fn().mockResolvedValue(undefined),
-    removeReaction: vi.fn().mockResolvedValue(undefined),
+    editMessage: mockEditMessage,
   }),
 }));
 
@@ -26,7 +21,7 @@ function createWrapper() {
     createElement(QueryClientProvider, { client: queryClient }, children);
 }
 
-describe("useMessageActions", () => {
+describe("useEditMessage", () => {
   const message: Message = {
     id: "msg-1",
     channelId: "ch-1",
@@ -39,9 +34,9 @@ describe("useMessageActions", () => {
       customStatus: null,
       bot: false,
     },
-    content: "hello",
+    content: "before",
     timestamp: "2026-03-10T10:00:00Z",
-    version: "3",
+    version: "2",
     editedTimestamp: null,
     isDeleted: false,
     type: 0,
@@ -56,34 +51,30 @@ describe("useMessageActions", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockDeleteMessage.mockResolvedValue(message);
+    mockEditMessage.mockResolvedValue(message);
   });
 
-  it("usePinMessage calls API", async () => {
+  it("passes expectedVersion to API", async () => {
     const wrapper = createWrapper();
-    const { result } = renderHook(() => usePinMessage(), { wrapper });
+    const { result } = renderHook(() => useEditMessage(), { wrapper });
 
-    result.current.mutate({ channelId: "ch-1", messageId: "msg-1" });
+    result.current.mutate({
+      channelId: "ch-1",
+      messageId: "msg-1",
+      message,
+      data: {
+        content: "after",
+        expectedVersion: "2",
+      },
+    });
 
     await waitFor(() => {
       expect(result.current.isSuccess).toBe(true);
     });
 
-    expect(mockPinMessage).toHaveBeenCalledWith("ch-1", "msg-1");
-  });
-
-  it("useDeleteMessage calls API and invalidates queries", async () => {
-    const wrapper = createWrapper();
-    const { result } = renderHook(() => useDeleteMessage(), { wrapper });
-
-    result.current.mutate({ channelId: "ch-1", messageId: "msg-1", message });
-
-    await waitFor(() => {
-      expect(result.current.isSuccess).toBe(true);
-    });
-
-    expect(mockDeleteMessage).toHaveBeenCalledWith("ch-1", "msg-1", {
-      expectedVersion: "3",
+    expect(mockEditMessage).toHaveBeenCalledWith("ch-1", "msg-1", {
+      content: "after",
+      expectedVersion: "2",
     });
   });
 });

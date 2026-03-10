@@ -7,6 +7,7 @@ import type {
   Message,
   CreateMessageData,
   EditMessageData,
+  DeleteMessageData,
 } from "@/shared/model/types";
 
 export type SearchParams = {
@@ -219,7 +220,7 @@ export type APIClient = {
   getMessage(channelId: string, messageId: string): Promise<Message>;
   sendMessage(params: SendMessageParams): Promise<Message>;
   editMessage(channelId: string, messageId: string, data: EditMessageData): Promise<Message>;
-  deleteMessage(channelId: string, messageId: string): Promise<void>;
+  deleteMessage(channelId: string, messageId: string, data: DeleteMessageData): Promise<Message>;
   getPinnedMessages(channelId: string): Promise<Message[]>;
 
   // Reactions

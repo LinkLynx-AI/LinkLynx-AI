@@ -12,6 +12,7 @@ export type {
   ReactionEmoji,
   CreateMessageData,
   EditMessageData,
+  DeleteMessageData,
 } from "./message";
 export type {
   ActionRow,

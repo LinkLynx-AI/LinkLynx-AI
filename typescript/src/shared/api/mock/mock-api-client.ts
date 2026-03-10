@@ -247,7 +247,7 @@ export class MockAPIClient implements APIClient {
     return messages[idx];
   }
 
-  async deleteMessage(channelId: string, messageId: string): Promise<void> {
+  async deleteMessage(channelId: string, messageId: string): Promise<Message> {
     await this.simulateDelay();
     const messages = mockMessages[channelId] ?? [];
     const idx = messages.findIndex((m) => m.id === messageId);
@@ -259,7 +259,9 @@ export class MockAPIClient implements APIClient {
         editedTimestamp: new Date().toISOString(),
         isDeleted: true,
       };
+      return messages[idx];
     }
+    throw new Error("message not found");
   }
 
   async getPinnedMessages(channelId: string): Promise<Message[]> {

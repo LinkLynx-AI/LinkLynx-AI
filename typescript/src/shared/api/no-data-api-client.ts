@@ -33,6 +33,7 @@ import type {
   UserProfile,
   CreateMessageData,
   EditMessageData,
+  DeleteMessageData,
 } from "@/shared/model/types";
 
 function unsupported(action: string): Error {
@@ -132,9 +133,7 @@ export class NoDataAPIClient implements APIClient {
     return unsupportedPromise("deleteChannel");
   }
 
-  getMessages(
-    _params: MessageQueryParams,
-  ): Promise<MessagePage> {
+  getMessages(_params: MessageQueryParams): Promise<MessagePage> {
     return Promise.resolve({
       items: [],
       nextBefore: null,
@@ -155,7 +154,11 @@ export class NoDataAPIClient implements APIClient {
     return unsupportedPromise("editMessage");
   }
 
-  deleteMessage(_channelId: string, _messageId: string): Promise<void> {
+  deleteMessage(
+    _channelId: string,
+    _messageId: string,
+    _data: DeleteMessageData,
+  ): Promise<Message> {
     return unsupportedPromise("deleteMessage");
   }
 
@@ -185,10 +188,7 @@ export class NoDataAPIClient implements APIClient {
   getUser(userId: string): Promise<User> {
     const currentUser = resolveCurrentUser();
     const currentPrincipalId = useAuthStore.getState().currentPrincipalId;
-    if (
-      currentUser !== null &&
-      (currentUser.id === userId || currentPrincipalId === userId)
-    ) {
+    if (currentUser !== null && (currentUser.id === userId || currentPrincipalId === userId)) {
       return Promise.resolve(currentUser);
     }
     return unsupportedPromise("getUser");
