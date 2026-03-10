@@ -560,6 +560,7 @@ describe("GuildChannelAPIClient", () => {
             display_name: "alice",
             status_text: "busy coding",
             avatar_key: "avatar/alice.png",
+            theme: "dark",
           },
         }),
         { status: 200 },
@@ -573,6 +574,7 @@ describe("GuildChannelAPIClient", () => {
       displayName: "alice",
       statusText: "busy coding",
       avatarKey: "avatar/alice.png",
+      theme: "dark",
     });
 
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
@@ -589,6 +591,7 @@ describe("GuildChannelAPIClient", () => {
             display_name: "new-name",
             status_text: null,
             avatar_key: null,
+            theme: "light",
           },
         }),
         { status: 200 },
@@ -599,12 +602,14 @@ describe("GuildChannelAPIClient", () => {
     const profile = await client.updateMyProfile({
       displayName: "new-name",
       statusText: null,
+      theme: "light",
     });
 
     expect(profile).toEqual({
       displayName: "new-name",
       statusText: null,
       avatarKey: null,
+      theme: "light",
     });
 
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
@@ -612,7 +617,9 @@ describe("GuildChannelAPIClient", () => {
     expect(init.method).toBe("PATCH");
     expect(new Headers(init.headers).get("Authorization")).toBe("Bearer token-1");
     expect(new Headers(init.headers).get("Content-Type")).toBe("application/json");
-    expect(init.body).toBe(JSON.stringify({ display_name: "new-name", status_text: null }));
+    expect(init.body).toBe(
+      JSON.stringify({ display_name: "new-name", status_text: null, theme: "light" }),
+    );
   });
 
   test("updateMyProfile sends status-only patch body", async () => {
@@ -623,6 +630,7 @@ describe("GuildChannelAPIClient", () => {
             display_name: "old-name",
             status_text: "focus mode",
             avatar_key: null,
+            theme: "dark",
           },
         }),
         { status: 200 },
@@ -638,6 +646,7 @@ describe("GuildChannelAPIClient", () => {
       displayName: "old-name",
       statusText: "focus mode",
       avatarKey: null,
+      theme: "dark",
     });
 
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
@@ -646,6 +655,39 @@ describe("GuildChannelAPIClient", () => {
     expect(new Headers(init.headers).get("Authorization")).toBe("Bearer token-1");
     expect(new Headers(init.headers).get("Content-Type")).toBe("application/json");
     expect(init.body).toBe(JSON.stringify({ status_text: "focus mode" }));
+  });
+
+  test("updateMyProfile sends theme-only patch body", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          profile: {
+            display_name: "old-name",
+            status_text: "focus mode",
+            avatar_key: null,
+            theme: "light",
+          },
+        }),
+        { status: 200 },
+      ),
+    );
+
+    const client = new GuildChannelAPIClient();
+    const profile = await client.updateMyProfile({
+      theme: "light",
+    });
+
+    expect(profile).toEqual({
+      displayName: "old-name",
+      statusText: "focus mode",
+      avatarKey: null,
+      theme: "light",
+    });
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("http://localhost:8080/users/me/profile");
+    expect(init.method).toBe("PATCH");
+    expect(init.body).toBe(JSON.stringify({ theme: "light" }));
   });
 
   test("updateMyProfile rejects empty payload", async () => {

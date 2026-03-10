@@ -98,6 +98,7 @@ const MY_PROFILE_SCHEMA = z.object({
   display_name: z.string(),
   status_text: z.string().nullable(),
   avatar_key: z.string().nullable(),
+  theme: z.enum(["dark", "light"]),
 });
 const MY_PROFILE_RESPONSE_SCHEMA = z.object({
   profile: MY_PROFILE_SCHEMA,
@@ -382,7 +383,10 @@ export function toMessageActionErrorText(error: unknown, fallbackMessage: string
       error.retryAfterMs === null ? null : Math.max(1, Math.ceil(error.retryAfterMs / 1_000));
     const retryAfterSuffix =
       retryAfterSeconds === null ? "" : `（約 ${retryAfterSeconds} 秒後に再試行してください）`;
-    return attachRequestId(`${MESSAGE_ERROR_MESSAGES.rateLimited}${retryAfterSuffix}`, error.requestId);
+    return attachRequestId(
+      `${MESSAGE_ERROR_MESSAGES.rateLimited}${retryAfterSuffix}`,
+      error.requestId,
+    );
   }
   if (error.code === "unauthenticated" || error.code === "token-unavailable") {
     return attachRequestId(MESSAGE_ERROR_MESSAGES.authRequired, error.requestId);
@@ -548,6 +552,7 @@ function mapMyProfile(response: MyProfileResponse): MyProfile {
     displayName: response.profile.display_name,
     statusText: response.profile.status_text,
     avatarKey: response.profile.avatar_key,
+    theme: response.profile.theme,
   };
 }
 
@@ -1181,6 +1186,9 @@ export class GuildChannelAPIClient extends NoDataAPIClient {
     }
     if (input.avatarKey !== undefined) {
       body.avatar_key = input.avatarKey;
+    }
+    if (input.theme !== undefined) {
+      body.theme = input.theme;
     }
 
     const response = await this.patchJson("/users/me/profile", body, MY_PROFILE_RESPONSE_SCHEMA);
