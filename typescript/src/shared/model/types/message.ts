@@ -103,4 +103,9 @@ export type CreateMessageData = {
 
 export type EditMessageData = {
   content: string;
+  expectedVersion: string;
+};
+
+export type DeleteMessageData = {
+  expectedVersion: string;
 };
