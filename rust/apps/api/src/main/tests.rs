@@ -1530,15 +1530,20 @@ mod tests {
     }
 
     async fn next_server_message_frame(socket: &mut TestWsStream) -> ServerMessageFrameV1 {
-        let response = timeout(Duration::from_secs(2), socket.next())
-            .await
-            .unwrap()
-            .unwrap()
-            .unwrap();
-        let WsClientMessage::Text(text) = response else {
-            panic!("expected text frame");
-        };
-        serde_json::from_str::<ServerMessageFrameV1>(&text).unwrap()
+        loop {
+            let response = timeout(Duration::from_secs(2), socket.next())
+                .await
+                .unwrap()
+                .unwrap()
+                .unwrap();
+            match response {
+                WsClientMessage::Text(text) => {
+                    return serde_json::from_str::<ServerMessageFrameV1>(&text).unwrap();
+                }
+                WsClientMessage::Ping(_) | WsClientMessage::Pong(_) => continue,
+                other => panic!("expected text frame, got {other:?}"),
+            }
+        }
     }
 
     async fn post_test_channel_message(
@@ -1562,6 +1567,60 @@ mod tests {
             request = request.header("Idempotency-Key", idempotency_key);
         }
         request.send().await.unwrap()
+    }
+
+    async fn patch_test_channel_message(
+        address: SocketAddr,
+        uid: &str,
+        guild_id: i64,
+        channel_id: i64,
+        message_id: i64,
+        content: &str,
+        expected_version: i64,
+    ) -> reqwest::Response {
+        let token = format!("{uid}:{}", unix_timestamp_seconds() + 300);
+        reqwest::Client::new()
+            .patch(format!(
+                "http://{address}/v1/guilds/{guild_id}/channels/{channel_id}/messages/{message_id}"
+            ))
+            .header("authorization", format!("Bearer {token}"))
+            .header("content-type", "application/json")
+            .body(
+                serde_json::json!({
+                    "content": content,
+                    "expected_version": expected_version
+                })
+                .to_string(),
+            )
+            .send()
+            .await
+            .unwrap()
+    }
+
+    async fn delete_test_channel_message(
+        address: SocketAddr,
+        uid: &str,
+        guild_id: i64,
+        channel_id: i64,
+        message_id: i64,
+        expected_version: i64,
+    ) -> reqwest::Response {
+        let token = format!("{uid}:{}", unix_timestamp_seconds() + 300);
+        reqwest::Client::new()
+            .delete(format!(
+                "http://{address}/v1/guilds/{guild_id}/channels/{channel_id}/messages/{message_id}"
+            ))
+            .header("authorization", format!("Bearer {token}"))
+            .header("content-type", "application/json")
+            .body(
+                serde_json::json!({
+                    "expected_version": expected_version
+                })
+                .to_string(),
+            )
+            .send()
+            .await
+            .unwrap()
     }
 
     async fn parse_principal_id_from_response(response: Response) -> i64 {
@@ -3837,6 +3896,96 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn message_realtime_publish_updated_delivers_latest_snapshot() {
+        let state =
+            state_for_test_with_authorizer(Arc::new(ToggleGuildChannelAuthorizer::new(true)))
+                .await;
+        let (sender, mut receiver) = tokio::sync::mpsc::channel(MESSAGE_REALTIME_OUTBOUND_CAPACITY);
+        let target = GuildChannelSubscriptionTargetV1 {
+            guild_id: 10,
+            channel_id: 20,
+        };
+
+        state
+            .message_realtime_hub
+            .subscribe("session-1", PrincipalId(9003), &target, sender)
+            .await;
+        state
+            .message_realtime_hub
+            .publish_message_updated(
+                &state,
+                MessageItemV1 {
+                    message_id: 601,
+                    guild_id: 10,
+                    channel_id: 20,
+                    author_id: 9003,
+                    content: "edited realtime".to_owned(),
+                    created_at: "2026-03-10T10:00:00Z".to_owned(),
+                    version: 2,
+                    edited_at: Some("2026-03-10T10:05:00Z".to_owned()),
+                    is_deleted: false,
+                },
+            )
+            .await;
+
+        match receiver.try_recv() {
+            Ok(ServerMessageFrameV1::Updated(data)) => {
+                assert_eq!(data.message.message_id, 601);
+                assert_eq!(data.message.content, "edited realtime");
+                assert_eq!(data.message.version, 2);
+                assert_eq!(data.message.edited_at.as_deref(), Some("2026-03-10T10:05:00Z"));
+                assert!(!data.message.is_deleted);
+            }
+            other => panic!("expected updated frame, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn message_realtime_publish_deleted_delivers_tombstone_snapshot() {
+        let state =
+            state_for_test_with_authorizer(Arc::new(ToggleGuildChannelAuthorizer::new(true)))
+                .await;
+        let (sender, mut receiver) = tokio::sync::mpsc::channel(MESSAGE_REALTIME_OUTBOUND_CAPACITY);
+        let target = GuildChannelSubscriptionTargetV1 {
+            guild_id: 10,
+            channel_id: 20,
+        };
+
+        state
+            .message_realtime_hub
+            .subscribe("session-1", PrincipalId(9003), &target, sender)
+            .await;
+        state
+            .message_realtime_hub
+            .publish_message_deleted(
+                &state,
+                MessageItemV1 {
+                    message_id: 602,
+                    guild_id: 10,
+                    channel_id: 20,
+                    author_id: 9003,
+                    content: String::new(),
+                    created_at: "2026-03-10T10:00:00Z".to_owned(),
+                    version: 2,
+                    edited_at: Some("2026-03-10T10:06:00Z".to_owned()),
+                    is_deleted: true,
+                },
+            )
+            .await;
+
+        match receiver.try_recv() {
+            Ok(ServerMessageFrameV1::Deleted(data)) => {
+                assert_eq!(data.message.message_id, 602);
+                assert_eq!(data.message.content, "");
+                assert_eq!(data.message.version, 2);
+                assert_eq!(data.message.edited_at.as_deref(), Some("2026-03-10T10:06:00Z"));
+                assert!(data.message.is_deleted);
+            }
+            other => panic!("expected deleted frame, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
     #[ignore = "requires TCP bind; sandbox denies listeners"]
     async fn ws_text_message_echoes_for_authorized_principal() {
         let (mut socket, server) = connect_test_ws(Arc::new(StaticAllowAllAuthorizer)).await;
@@ -4074,6 +4223,86 @@ mod tests {
             timeout(Duration::from_millis(250), socket.next()).await.is_err(),
             "completed replay should not emit a second message.created"
         );
+
+        let _ = socket.close(None).await;
+        server.abort();
+    }
+
+    #[tokio::test]
+    #[ignore = "requires TCP bind; sandbox denies listeners"]
+    async fn ws_message_updated_fanout_reaches_subscribers() {
+        let app = app_for_test_with_authorizer_and_message_service(
+            Arc::new(RoleScenarioAuthorizer),
+            Arc::new(StaticMessageService),
+        )
+        .await;
+        let (address, server) = spawn_test_server(app).await;
+        let mut socket = connect_test_ws_at(address, "u-member").await;
+
+        let subscribed = subscribe_test_channel(&mut socket, 10, 20).await;
+        assert!(matches!(
+            subscribed,
+            ServerMessageFrameV1::Subscribed(MessageSubscriptionStateV1 {
+                guild_id: 10,
+                channel_id: 20,
+            })
+        ));
+
+        let response = patch_test_channel_message(address, "u-member", 10, 20, 120110, "edited realtime", 1).await;
+        assert_eq!(response.status(), reqwest::StatusCode::OK);
+
+        match next_server_message_frame(&mut socket).await {
+            ServerMessageFrameV1::Updated(data) => {
+                assert_eq!(data.guild_id, 10);
+                assert_eq!(data.channel_id, 20);
+                assert_eq!(data.message.message_id, 120110);
+                assert_eq!(data.message.content, "edited realtime");
+                assert_eq!(data.message.version, 2);
+                assert!(!data.message.is_deleted);
+                assert!(data.message.edited_at.is_some());
+            }
+            other => panic!("expected message.updated frame, got {other:?}"),
+        }
+
+        let _ = socket.close(None).await;
+        server.abort();
+    }
+
+    #[tokio::test]
+    #[ignore = "requires TCP bind; sandbox denies listeners"]
+    async fn ws_message_deleted_fanout_reaches_subscribers() {
+        let app = app_for_test_with_authorizer_and_message_service(
+            Arc::new(RoleScenarioAuthorizer),
+            Arc::new(StaticMessageService),
+        )
+        .await;
+        let (address, server) = spawn_test_server(app).await;
+        let mut socket = connect_test_ws_at(address, "u-member").await;
+
+        let subscribed = subscribe_test_channel(&mut socket, 10, 20).await;
+        assert!(matches!(
+            subscribed,
+            ServerMessageFrameV1::Subscribed(MessageSubscriptionStateV1 {
+                guild_id: 10,
+                channel_id: 20,
+            })
+        ));
+
+        let response = delete_test_channel_message(address, "u-member", 10, 20, 120110, 1).await;
+        assert_eq!(response.status(), reqwest::StatusCode::OK);
+
+        match next_server_message_frame(&mut socket).await {
+            ServerMessageFrameV1::Deleted(data) => {
+                assert_eq!(data.guild_id, 10);
+                assert_eq!(data.channel_id, 20);
+                assert_eq!(data.message.message_id, 120110);
+                assert_eq!(data.message.content, "");
+                assert_eq!(data.message.version, 2);
+                assert!(data.message.is_deleted);
+                assert!(data.message.edited_at.is_some());
+            }
+            other => panic!("expected message.deleted frame, got {other:?}"),
+        }
 
         let _ = socket.close(None).await;
         server.abort();
@@ -5588,7 +5817,7 @@ mod tests {
             edited_at: None,
             is_deleted: false,
         };
-        let frame = ServerMessageFrameV1::Created(linklynx_protocol_ws::MessageCreatedFrameDataV1 {
+        let frame = ServerMessageFrameV1::Created(linklynx_protocol_ws::MessageEventFrameDataV1 {
             guild_id: 10,
             channel_id: 20,
             message,
