@@ -8,10 +8,16 @@ import type { Channel } from "@/shared/model/types/channel";
 export function ChannelContextMenu({ data }: { data: { channel: Channel; serverId: string } }) {
   const openModal = useUIStore((s) => s.openModal);
   const hideContextMenu = useUIStore((s) => s.hideContextMenu);
+  const isCategory = data.channel.type === 4;
   const manageChannelGuard = useActionGuard({
     serverId: data.serverId,
     channelId: data.channel.id,
     requirement: "channel:manage",
+  });
+  const createChannelGuard = useActionGuard({
+    serverId: data.serverId,
+    requirement: "guild:create-channel",
+    enabled: isCategory,
   });
 
   const handleCopyLink = () => {
@@ -30,13 +36,14 @@ export function ChannelContextMenu({ data }: { data: { channel: Channel; serverI
           openModal("channel-edit", {
             channelId: data.channel.id,
             channelName: data.channel.name,
+            channelType: data.channel.type,
           });
           hideContextMenu();
         }}
       >
-        チャンネルを編集
+        {isCategory ? "カテゴリーを編集" : "チャンネルを編集"}
       </MenuItem>
-      <MenuItem onClick={handleCopyLink}>チャンネルリンクをコピー</MenuItem>
+      {!isCategory && <MenuItem onClick={handleCopyLink}>チャンネルリンクをコピー</MenuItem>}
       {useUIStore.getState().developerMode && (
         <MenuItem
           onClick={() => {
@@ -48,7 +55,22 @@ export function ChannelContextMenu({ data }: { data: { channel: Channel; serverI
         </MenuItem>
       )}
       <MenuSeparator />
-      <MenuItem disabled>招待を作成</MenuItem>
+      {isCategory ? (
+        <MenuItem
+          disabled={!createChannelGuard.isAllowed}
+          onClick={() => {
+            openModal("create-channel", {
+              serverId: data.serverId,
+              parentId: data.channel.id,
+            });
+            hideContextMenu();
+          }}
+        >
+          チャンネルを作成
+        </MenuItem>
+      ) : (
+        <MenuItem disabled>招待を作成</MenuItem>
+      )}
       <MenuItem
         danger
         disabled={!manageChannelGuard.isAllowed}
@@ -56,12 +78,13 @@ export function ChannelContextMenu({ data }: { data: { channel: Channel; serverI
           openModal("channel-delete", {
             channelId: data.channel.id,
             channelName: data.channel.name,
+            channelType: data.channel.type,
             serverId: data.serverId,
           });
           hideContextMenu();
         }}
       >
-        チャンネルを削除
+        {isCategory ? "カテゴリーを削除" : "チャンネルを削除"}
       </MenuItem>
     </ContextMenu>
   );

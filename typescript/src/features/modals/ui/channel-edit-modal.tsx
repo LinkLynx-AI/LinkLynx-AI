@@ -19,16 +19,24 @@ export function ChannelEditModal({
   onClose,
   channelId,
   channelName,
+  channelType,
 }: {
   onClose: () => void;
   channelId?: string;
   channelName?: string;
+  channelType?: number;
 }) {
   const [activeTab, setActiveTab] = useState("overview");
+  const title =
+    channelName === undefined
+      ? "チャンネルを編集"
+      : channelType === 4
+        ? `${channelName} の編集`
+        : `#${channelName} の編集`;
 
   return (
     <Modal open onClose={onClose} className="max-w-[660px]">
-      <ModalHeader>{channelName ? `#${channelName} の編集` : "チャンネルを編集"}</ModalHeader>
+      <ModalHeader>{title}</ModalHeader>
       <div className="px-4">
         <Tabs tabs={tabs} activeTab={activeTab} onChange={setActiveTab} />
       </div>

@@ -82,6 +82,7 @@ export function ChannelEditOverview({
     manageChannelGuard.isAllowed &&
     !updateChannel.isPending;
   const guardMessage = channel?.guildId === undefined ? null : manageChannelGuard.message;
+  const isCategory = channel?.type === 4;
 
   return (
     <div className="space-y-6">
@@ -89,7 +90,7 @@ export function ChannelEditOverview({
         <p className="text-sm text-discord-text-muted">チャンネル情報を読み込み中...</p>
       )}
       <Input
-        label="チャンネル名"
+        label={isCategory ? "カテゴリー名" : "チャンネル名"}
         value={name}
         onChange={(event) => {
           setName(event.target.value);
@@ -119,9 +120,13 @@ export function ChannelEditOverview({
       <section className="rounded-md border border-discord-btn-danger/30 bg-discord-btn-danger/10 p-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h3 className="text-sm font-medium text-discord-text-normal">チャンネルを削除</h3>
+            <h3 className="text-sm font-medium text-discord-text-normal">
+              {isCategory ? "カテゴリーを削除" : "チャンネルを削除"}
+            </h3>
             <p className="mt-1 text-xs text-discord-text-muted">
-              削除すると一覧から消え、元に戻せません。
+              {isCategory
+                ? "削除すると配下のチャンネルも一覧から消え、元に戻せません。"
+                : "削除すると一覧から消え、元に戻せません。"}
             </p>
           </div>
           <Button
@@ -133,7 +138,7 @@ export function ChannelEditOverview({
             }
             onClick={() => setDeleteModalOpen(true)}
           >
-            チャンネルを削除
+            {isCategory ? "カテゴリーを削除" : "チャンネルを削除"}
           </Button>
         </div>
       </section>
@@ -141,6 +146,7 @@ export function ChannelEditOverview({
         <ChannelDeleteModal
           channelId={channelId}
           channelName={channel?.name ?? name}
+          channelType={channel?.type}
           onClose={() => setDeleteModalOpen(false)}
           onDeleted={onSaved}
           serverId={channel?.guildId}
