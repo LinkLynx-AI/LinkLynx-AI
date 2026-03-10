@@ -537,7 +537,19 @@ async fn create_channel_message(
         )
         .await
     {
-        Ok(response) => (StatusCode::CREATED, Json(response)).into_response(),
+        Ok(execution) => {
+            if execution.should_publish {
+                let publish_state = state.clone();
+                let published_message = execution.response.message.clone();
+                tokio::spawn(async move {
+                    publish_state
+                        .message_realtime_hub
+                        .publish_message_created(&publish_state, published_message)
+                        .await;
+                });
+            }
+            (StatusCode::CREATED, Json(execution.response)).into_response()
+        }
         Err(error) => message_error_response(&error, request_id),
     }
 }

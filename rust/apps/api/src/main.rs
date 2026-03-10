@@ -78,6 +78,7 @@ pub(crate) struct AppState {
     guild_channel_service: Arc<dyn GuildChannelService>,
     invite_service: Arc<dyn InviteService>,
     message_service: Arc<dyn MessageService>,
+    message_realtime_hub: Arc<MessageRealtimeHub>,
     moderation_service: Arc<dyn ModerationService>,
     profile_service: Arc<dyn ProfileService>,
     scylla_health_reporter: Arc<dyn ScyllaHealthReporter>,
@@ -138,6 +139,7 @@ async fn build_runtime_state() -> AppState {
     let guild_channel_service = build_runtime_guild_channel_service();
     let invite_service = build_runtime_invite_service();
     let message_service = build_runtime_message_service().await;
+    let message_realtime_hub = Arc::new(MessageRealtimeHub::default());
     let moderation_service = build_runtime_moderation_service();
     let profile_service = build_runtime_profile_service();
     let scylla_health_reporter = build_runtime_scylla_health_reporter().await;
@@ -162,6 +164,7 @@ async fn build_runtime_state() -> AppState {
         guild_channel_service,
         invite_service,
         message_service,
+        message_realtime_hub,
         moderation_service,
         profile_service,
         scylla_health_reporter,
@@ -231,5 +234,6 @@ async fn app() -> Router {
 }
 
 include!("main/http_routes.rs");
+include!("main/realtime.rs");
 include!("main/ws_routes.rs");
 include!("main/tests.rs");

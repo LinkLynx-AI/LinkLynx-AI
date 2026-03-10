@@ -20,7 +20,7 @@ pub trait MessageService: Send + Sync {
     /// @param channel_id 対象 channel_id
     /// @param idempotency_key caller supplied durable idempotency key
     /// @param request 作成入力
-    /// @returns 作成レスポンス
+    /// @returns 作成レスポンスと publish 判定
     /// @throws MessageError validation / not found / dependency unavailable 時
     async fn create_guild_channel_message(
         &self,
@@ -29,7 +29,14 @@ pub trait MessageService: Send + Sync {
         channel_id: i64,
         idempotency_key: Option<&str>,
         request: CreateGuildChannelMessageRequestV1,
-    ) -> Result<CreateGuildChannelMessageResponseV1, MessageError>;
+    ) -> Result<CreateGuildChannelMessageExecution, MessageError>;
+}
+
+/// guild channel message create の service 実行結果を表現する。
+#[derive(Debug, Clone)]
+pub struct CreateGuildChannelMessageExecution {
+    pub response: CreateGuildChannelMessageResponseV1,
+    pub should_publish: bool,
 }
 
 /// 実行時 message service を表現する。
@@ -181,7 +188,7 @@ impl MessageService for RuntimeMessageService {
     /// @param channel_id 対象 channel_id
     /// @param idempotency_key caller supplied durable idempotency key
     /// @param request 作成入力
-    /// @returns 作成レスポンス
+    /// @returns 作成レスポンスと publish 判定
     /// @throws MessageError validation / not found / dependency unavailable 時
     async fn create_guild_channel_message(
         &self,
@@ -190,10 +197,10 @@ impl MessageService for RuntimeMessageService {
         channel_id: i64,
         idempotency_key: Option<&str>,
         request: CreateGuildChannelMessageRequestV1,
-    ) -> Result<CreateGuildChannelMessageResponseV1, MessageError> {
+    ) -> Result<CreateGuildChannelMessageExecution, MessageError> {
         let identity = self.allocate_message_identity()?;
         let idempotency = self.build_idempotency(idempotency_key, &request)?;
-        let message = self
+        let result = self
             .usecase
             .create_guild_channel_message(CreateGuildChannelMessageCommand {
                 guild_id,
@@ -206,7 +213,12 @@ impl MessageService for RuntimeMessageService {
             .await
             .map_err(MessageError::from)?;
 
-        Ok(CreateGuildChannelMessageResponseV1 { message })
+        Ok(CreateGuildChannelMessageExecution {
+            response: CreateGuildChannelMessageResponseV1 {
+                message: result.message,
+            },
+            should_publish: result.should_publish,
+        })
     }
 }
 
@@ -264,7 +276,7 @@ impl MessageService for UnavailableMessageService {
         _channel_id: i64,
         _idempotency_key: Option<&str>,
         _request: CreateGuildChannelMessageRequestV1,
-    ) -> Result<CreateGuildChannelMessageResponseV1, MessageError> {
+    ) -> Result<CreateGuildChannelMessageExecution, MessageError> {
         Err(self.unavailable_error())
     }
 }
@@ -295,9 +307,12 @@ mod tests {
         async fn create_guild_channel_message(
             &self,
             command: CreateGuildChannelMessageCommand,
-        ) -> Result<linklynx_message_api::MessageItemV1, MessageUsecaseError> {
+        ) -> Result<linklynx_message_domain::CreateGuildChannelMessageResult, MessageUsecaseError> {
             self.created.lock().await.push(command.clone());
-            Ok(command.to_message_item(&command.proposed_identity))
+            Ok(linklynx_message_domain::CreateGuildChannelMessageResult {
+                message: command.to_message_item(&command.proposed_identity),
+                should_publish: true,
+            })
         }
 
         async fn list_guild_channel_messages(
@@ -325,9 +340,12 @@ mod tests {
         async fn create_guild_channel_message(
             &self,
             command: CreateGuildChannelMessageCommand,
-        ) -> Result<linklynx_message_api::MessageItemV1, MessageUsecaseError> {
+        ) -> Result<linklynx_message_domain::CreateGuildChannelMessageResult, MessageUsecaseError> {
             let Some(idempotency) = command.idempotency.as_ref() else {
-                return Ok(command.to_message_item(&command.proposed_identity));
+                return Ok(linklynx_message_domain::CreateGuildChannelMessageResult {
+                    message: command.to_message_item(&command.proposed_identity),
+                    should_publish: true,
+                });
             };
 
             let mut entries = self.entries.lock().await;
@@ -337,12 +355,18 @@ mod tests {
                         "message_idempotency_payload_mismatch",
                     ));
                 }
-                return Ok(existing.clone());
+                return Ok(linklynx_message_domain::CreateGuildChannelMessageResult {
+                    message: existing.clone(),
+                    should_publish: false,
+                });
             }
 
             let message = command.to_message_item(&command.proposed_identity);
             entries.insert(idempotency.key.clone(), message.clone());
-            Ok(message)
+            Ok(linklynx_message_domain::CreateGuildChannelMessageResult {
+                message,
+                should_publish: true,
+            })
         }
 
         async fn list_guild_channel_messages(
@@ -468,8 +492,10 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(first.message.message_id, second.message.message_id);
-        assert_eq!(first.message.created_at, second.message.created_at);
+        assert_eq!(first.response.message.message_id, second.response.message.message_id);
+        assert_eq!(first.response.message.created_at, second.response.message.created_at);
+        assert!(first.should_publish);
+        assert!(!second.should_publish);
     }
 
     #[tokio::test]
@@ -558,9 +584,10 @@ mod tests {
             .expect("live create should succeed");
 
         let (last_message_id, last_message_at) = query_last_message(&client, channel_id).await;
-        assert_eq!(stored.message_id, base_id + 4);
-        assert_eq!(last_message_id, stored.message_id);
+        assert_eq!(stored.message.message_id, base_id + 4);
+        assert_eq!(last_message_id, stored.message.message_id);
         assert_eq!(last_message_at, "2026-03-08T12:34:56Z");
+        assert!(stored.should_publish);
     }
 
     #[tokio::test]
