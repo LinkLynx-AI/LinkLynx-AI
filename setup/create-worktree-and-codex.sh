@@ -66,6 +66,7 @@ task_name=""
 base_ref=""
 open_codex=1
 codex_args=()
+codex_default_args=(--ask-for-approval never)
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -172,7 +173,11 @@ echo "Branch: $branch_name"
 echo "Base ref: $base_ref"
 
 if [[ "$open_codex" -eq 0 ]]; then
-    printf 'Run: codex --cd %q' "$worktree_path"
+    printf 'Run: codex'
+    for arg in "${codex_default_args[@]}"; do
+        printf ' %q' "$arg"
+    done
+    printf ' --cd %q' "$worktree_path"
     if [[ ${#codex_args[@]} -gt 0 ]]; then
         for arg in "${codex_args[@]}"; do
             printf ' %q' "$arg"
@@ -183,7 +188,7 @@ if [[ "$open_codex" -eq 0 ]]; then
 fi
 
 if [[ ${#codex_args[@]} -gt 0 ]]; then
-    exec codex --cd "$worktree_path" "${codex_args[@]}"
+    exec codex "${codex_default_args[@]}" --cd "$worktree_path" "${codex_args[@]}"
 else
-    exec codex --cd "$worktree_path"
+    exec codex "${codex_default_args[@]}" --cd "$worktree_path"
 fi

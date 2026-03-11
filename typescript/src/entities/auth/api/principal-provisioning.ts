@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isStrictDecimalString, parseJsonWithExactDecimalFields } from "@/shared/lib/exact-json";
 import type { PrincipalProvisionErrorCode, PrincipalProvisionResult } from "../model";
 import { createPrincipalProvisionError } from "../model";
 import { authenticatedFetch } from "./authenticated-fetch";
@@ -7,7 +8,9 @@ const API_BASE_URL_SCHEMA = z.string().url();
 const PROTECTED_PING_SUCCESS_SCHEMA = z.object({
   ok: z.literal(true),
   request_id: z.string().trim().min(1),
-  principal_id: z.number().int().positive(),
+  principal_id: z.string().refine((value) => {
+    return isStrictDecimalString(value) && value !== "0";
+  }, "expected positive decimal string"),
   firebase_uid: z.string().trim().min(1),
 });
 const AUTH_ERROR_RESPONSE_SCHEMA = z.object({
@@ -15,6 +18,7 @@ const AUTH_ERROR_RESPONSE_SCHEMA = z.object({
   message: z.string().trim().min(1),
   request_id: z.string().trim().min(1),
 });
+const PROTECTED_PING_EXACT_DECIMAL_FIELDS = ["principal_id"] as const;
 
 function mapBackendAuthErrorCode(code: string): PrincipalProvisionErrorCode {
   switch (code) {
@@ -122,9 +126,23 @@ export async function ensurePrincipalProvisionedForCurrentUser(params?: {
   }
   const response = fetchResult.response;
 
+  let rawText: string;
+  try {
+    rawText = await response.text();
+  } catch {
+    return {
+      ok: false,
+      error: createPrincipalProvisionError({
+        code: "unexpected-response",
+        message: "認証APIから不正なレスポンスを受信しました。",
+        status: response.status,
+      }),
+    };
+  }
+
   let payload: unknown;
   try {
-    payload = await response.json();
+    payload = parseJsonWithExactDecimalFields(rawText, PROTECTED_PING_EXACT_DECIMAL_FIELDS);
   } catch {
     return {
       ok: false,

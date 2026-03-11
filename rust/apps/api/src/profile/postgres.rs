@@ -168,6 +168,7 @@ impl ProfileService for PostgresProfileService {
         let row = match client
             .query_opt(
                 "SELECT display_name, status_text, avatar_key
+                        , theme
                  FROM users
                  WHERE id = $1
                  LIMIT 1",
@@ -194,6 +195,8 @@ impl ProfileService for PostgresProfileService {
             display_name: row.get::<&str, String>("display_name"),
             status_text: row.get::<&str, Option<String>>("status_text"),
             avatar_key: row.get::<&str, Option<String>>("avatar_key"),
+            theme: ProfileTheme::parse(row.get::<&str, String>("theme").as_str())
+                .map_err(|_| ProfileError::dependency_unavailable("profile_theme_invalid"))?,
         })
     }
 
@@ -224,6 +227,8 @@ impl ProfileService for PostgresProfileService {
             .avatar_key
             .as_ref()
             .and_then(|value| value.as_deref());
+        let set_theme = normalized_patch.theme.is_some();
+        let theme_value = normalized_patch.theme.as_ref().map(ProfileTheme::as_str);
 
         let row = match client
             .query_opt(
@@ -231,9 +236,10 @@ impl ProfileService for PostgresProfileService {
                  SET
                    display_name = CASE WHEN $2::boolean THEN $3::text ELSE display_name END,
                    status_text = CASE WHEN $4::boolean THEN $5::text ELSE status_text END,
-                   avatar_key = CASE WHEN $6::boolean THEN $7::text ELSE avatar_key END
+                   avatar_key = CASE WHEN $6::boolean THEN $7::text ELSE avatar_key END,
+                   theme = CASE WHEN $8::boolean THEN $9::text ELSE theme END
                  WHERE id = $1
-                 RETURNING display_name, status_text, avatar_key",
+                 RETURNING display_name, status_text, avatar_key, theme",
                 &[
                     &principal_id.0,
                     &set_display_name,
@@ -242,6 +248,8 @@ impl ProfileService for PostgresProfileService {
                     &status_text_value,
                     &set_avatar_key,
                     &avatar_key_value,
+                    &set_theme,
+                    &theme_value,
                 ],
             )
             .await
@@ -265,6 +273,8 @@ impl ProfileService for PostgresProfileService {
             display_name: row.get::<&str, String>("display_name"),
             status_text: row.get::<&str, Option<String>>("status_text"),
             avatar_key: row.get::<&str, Option<String>>("avatar_key"),
+            theme: ProfileTheme::parse(row.get::<&str, String>("theme").as_str())
+                .map_err(|_| ProfileError::dependency_unavailable("profile_theme_invalid"))?,
         })
     }
 }

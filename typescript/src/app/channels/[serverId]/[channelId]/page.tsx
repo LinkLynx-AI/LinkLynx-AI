@@ -7,5 +7,5 @@ export default async function ChannelPage({
 }) {
   const { serverId, channelId } = await params;
 
-  return <ChannelView channelId={channelId} serverId={serverId} />;
+  return <ChannelView guildId={serverId} channelId={channelId} />;
 }

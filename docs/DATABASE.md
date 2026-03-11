@@ -93,6 +93,7 @@
 - `channel_pins_v2` は LIN-635 で導入されたピン留め状態メタデータで、`pinned_at/pinned_by` と `unpinned_at/unpinned_by` により監査可能な状態遷移を保持する
 - `message_reactions_v2` は LIN-636 で導入されたリアクションメタデータで、`(message_id, emoji, user_id)` 主キーにより重複リアクションを防止する
 - `message_attachments_v2` は LIN-637 で導入された添付メタデータで、GCS object key と保持/削除監査列（`deleted_at`, `retention_until`）を保持する
+- `message_create_idempotency_keys` は LIN-948 で導入された durable dedupe table で、`(principal_id, channel_id, idempotency_key)` 単位に reservation / completion state と固定 `message_id` を保持する
 - `moderation_reports` は LIN-822 で導入された最小通報キューで、`status=open/resolved` と `resolved_by/resolved_at` 整合制約を保持する
 - `moderation_mutes` は LIN-822 で導入された最小ミュート管理で、`(guild_id, target_user_id)` 一意制約により同時多重ミュートを防止する
 - `channel_reads` は `(channel_id, user_id)` を主キーとして既読位置管理
@@ -225,6 +226,12 @@ The source of truth for attachment metadata persistence, logical deletion/retent
 
 - `database/contracts/lin637_attachment_metadata_persistence_contract.md`
 
+### 2.18 Message Create Durable Idempotency Contract (LIN-948)
+
+The source of truth for guild message create durable reservation state, payload mismatch rejection, and fixed `message_id` / `message_created_at` replay policy is:
+
+- `database/contracts/lin948_message_create_idempotency_contract.md`
+
 ### 2.19 Minimal Moderation Contract (LIN-822)
 
 The source of truth for minimal moderation persistence (`moderation_reports`, `moderation_mutes`), `audit_action` enum extension, and report state transitions is:
@@ -264,7 +271,8 @@ The source of truth for Postgres `*_v2` permission data to canonical SpiceDB tup
 ### 3.3 運用契約（関連クエリ）
 
 - 履歴カーソル: `database/scylla/queries/lin288_history_cursor_paging.cql`
-  - `(created_at, message_id)` で forward/backward 走査
+  - 外部カーソルは `(created_at, message_id)` を保持
+  - bucket 解決後の in-bucket 境界判定は Scylla の clustering key 制約に合わせて `message_id` で forward/backward 走査
 - 冪等保存: `database/scylla/queries/lin289_idempotent_write_strategy.cql`
   - `INSERT ... IF NOT EXISTS` による重複防止
   - 再送時の read-before-retry を規定
@@ -321,5 +329,7 @@ The source of truth for Scylla operations (SoR boundary, partition review criter
   - `database/contracts/lin636_message_reaction_persistence_contract.md`
 - LIN-637 attachment metadata persistence contract:
   - `database/contracts/lin637_attachment_metadata_persistence_contract.md`
+- LIN-948 message create durable idempotency contract:
+  - `database/contracts/lin948_message_create_idempotency_contract.md`
 - LIN-862 SpiceDB namespace/relation/permission model contract:
   - `database/contracts/lin862_spicedb_namespace_relation_permission_contract.md`

@@ -1,6 +1,12 @@
 "use client";
 
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { MessageSquare } from "lucide-react";
+import { toApiErrorText } from "@/shared/api";
+import { getAPIClient } from "@/shared/api/api-client";
 import { useFriends } from "@/shared/api/queries/use-friends";
+import { cn } from "@/shared/lib/cn";
 import { FriendItem } from "./friend-item";
 import type { RelationshipType } from "@/shared/api/api-client";
 
@@ -11,7 +17,10 @@ const tabToType: Record<string, RelationshipType | "online"> = {
 };
 
 export function FriendList({ activeTab }: { activeTab: string }) {
+  const router = useRouter();
   const { data: relationships = [] } = useFriends();
+  const [pendingUserId, setPendingUserId] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const filter = tabToType[activeTab];
 
@@ -43,10 +52,43 @@ export function FriendList({ activeTab }: { activeTab: string }) {
       ) : (
         <div className="flex flex-col">
           {filtered.map((rel) => (
-            <FriendItem key={rel.id} user={rel.user} />
+            <FriendItem
+              key={rel.id}
+              user={rel.user}
+              actions={
+                <button
+                  className={cn(
+                    "flex h-9 w-9 items-center justify-center rounded-full",
+                    "bg-discord-bg-secondary text-discord-interactive-normal",
+                    "hover:text-discord-interactive-hover disabled:opacity-60",
+                  )}
+                  aria-label="メッセージ"
+                  type="button"
+                  disabled={pendingUserId === rel.user.id}
+                  onClick={() => {
+                    setPendingUserId(rel.user.id);
+                    setSubmitError(null);
+                    void getAPIClient()
+                      .createDM(rel.user.id)
+                      .then((channel) => {
+                        router.push(`/channels/me/${channel.id}`);
+                      })
+                      .catch((error: unknown) => {
+                        setSubmitError(toApiErrorText(error, "DM の開始に失敗しました。"));
+                      })
+                      .finally(() => {
+                        setPendingUserId((current) => (current === rel.user.id ? null : current));
+                      });
+                  }}
+                >
+                  <MessageSquare className="h-5 w-5" />
+                </button>
+              }
+            />
           ))}
         </div>
       )}
+      {submitError !== null && <p className="mt-3 text-xs text-discord-brand-red">{submitError}</p>}
     </div>
   );
 }

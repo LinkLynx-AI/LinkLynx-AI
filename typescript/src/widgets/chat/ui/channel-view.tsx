@@ -13,27 +13,27 @@ import { VoiceArea } from "@/features/voice";
 import { ForumView } from "@/features/forum";
 import { StageChannelView } from "@/features/voice";
 
-export function ChannelView({ channelId, serverId }: { channelId: string; serverId?: string }) {
+export function ChannelView({ guildId, channelId }: { guildId: string; channelId: string }) {
   useSyncChannelId(channelId);
   const router = useRouter();
   const { data: channel } = useChannel(channelId);
-  const { data: guildChannels, isSuccess: isGuildChannelsSuccess } = useChannels(serverId ?? "");
+  const { data: guildChannels, isSuccess: isGuildChannelsSuccess } = useChannels(guildId);
   const voiceConnected = useVoiceStore((s) => s.connected);
   const voiceChannelId = useVoiceStore((s) => s.channelId);
-  const isCategoryRoute = serverId !== undefined && channel?.type === 4;
+  const isCategoryRoute = channel?.type === 4;
 
   useEffect(() => {
-    if (!isCategoryRoute || serverId === undefined || !isGuildChannelsSuccess) {
+    if (!isCategoryRoute || !isGuildChannelsSuccess) {
       return;
     }
 
     const nextChannel = findFirstTextChannel(guildChannels ?? []);
     const nextRoute =
       nextChannel === null
-        ? buildGuildRoute(serverId)
-        : buildChannelRoute(serverId, nextChannel.id);
+        ? buildGuildRoute(guildId)
+        : buildChannelRoute(guildId, nextChannel.id);
     router.replace(nextRoute);
-  }, [guildChannels, isCategoryRoute, isGuildChannelsSuccess, router, serverId]);
+  }, [guildChannels, guildId, isCategoryRoute, isGuildChannelsSuccess, router]);
 
   // Forum channel (type 15)
   if (channel?.type === 15) {
@@ -64,6 +64,7 @@ export function ChannelView({ channelId, serverId }: { channelId: string; server
 
   return (
     <ChatArea
+      guildId={guildId}
       channelId={channelId}
       channelName={channel?.name ?? ""}
       topic={channel?.topic ?? undefined}

@@ -87,7 +87,7 @@ describe("ChannelView", () => {
   });
 
   test("redirects category route to the first text channel in the guild", async () => {
-    render(<ChannelView channelId="3100" serverId="2001" />);
+    render(<ChannelView channelId="3100" guildId="2001" />);
 
     await waitFor(() => {
       expect(replaceMock).toHaveBeenCalledWith("/channels/2001/3200");
@@ -113,7 +113,7 @@ describe("ChannelView", () => {
       isSuccess: true,
     });
 
-    render(<ChannelView channelId="3100" serverId="2001" />);
+    render(<ChannelView channelId="3100" guildId="2001" />);
 
     await waitFor(() => {
       expect(replaceMock).toHaveBeenCalledWith("/channels/2001");
@@ -153,12 +153,12 @@ describe("ChannelView", () => {
       isSuccess: isLoaded,
     }));
 
-    const view = render(<ChannelView channelId="3100" serverId="2001" />);
+    const view = render(<ChannelView channelId="3100" guildId="2001" />);
 
     expect(replaceMock).not.toHaveBeenCalled();
 
     isLoaded = true;
-    view.rerender(<ChannelView channelId="3100" serverId="2001" />);
+    view.rerender(<ChannelView channelId="3100" guildId="2001" />);
 
     await waitFor(() => {
       expect(replaceMock).toHaveBeenCalledWith("/channels/2001/3200");

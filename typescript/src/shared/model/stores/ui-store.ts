@@ -48,6 +48,11 @@ type ProfilePopoutState = {
   position: { x: number; y: number };
 };
 
+type ActiveMessageEditState = {
+  channelId: string;
+  messageId: string;
+};
+
 type UIState = {
   // Sidebar visibility
   memberListVisible: boolean;
@@ -70,6 +75,9 @@ type UIState = {
   // Profile popout
   profilePopout: ProfilePopoutState | null;
 
+  // Inline message edit
+  activeMessageEdit: ActiveMessageEditState | null;
+
   // Toast notifications
   toasts: Toast[];
 
@@ -83,6 +91,8 @@ type UIState = {
   hideContextMenu: () => void;
   showProfilePopout: (userId: string, position: { x: number; y: number }) => void;
   hideProfilePopout: () => void;
+  startMessageEdit: (channelId: string, messageId: string) => void;
+  stopMessageEdit: () => void;
   addToast: (toast: Omit<Toast, "id">) => void;
   removeToast: (id: string) => void;
   toggleDeveloperMode: () => void;
@@ -99,6 +109,7 @@ export const useUIStore = create<UIState>((set) => ({
   modalProps: {},
   contextMenu: null,
   profilePopout: null,
+  activeMessageEdit: null,
   toasts: [],
 
   toggleMemberList: () => set((state) => ({ memberListVisible: !state.memberListVisible })),
@@ -121,6 +132,10 @@ export const useUIStore = create<UIState>((set) => ({
   showProfilePopout: (userId, position) => set({ profilePopout: { userId, position } }),
 
   hideProfilePopout: () => set({ profilePopout: null }),
+
+  startMessageEdit: (channelId, messageId) => set({ activeMessageEdit: { channelId, messageId } }),
+
+  stopMessageEdit: () => set({ activeMessageEdit: null }),
 
   addToast: (toast) =>
     set((state) => ({

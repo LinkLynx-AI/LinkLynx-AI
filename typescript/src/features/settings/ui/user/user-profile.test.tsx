@@ -8,6 +8,7 @@ type MyProfile = {
   displayName: string;
   statusText: string | null;
   avatarKey: string | null;
+  theme: "dark" | "light";
 };
 
 type MyProfileQueryResult = {
@@ -52,6 +53,7 @@ describe("UserProfile", () => {
         customStatus: "old-status",
         bot: false,
       },
+      currentPrincipalId: null,
       status: "online",
       customStatus: "old-status",
     });
@@ -64,6 +66,7 @@ describe("UserProfile", () => {
         displayName: "old-name",
         statusText: "old-status",
         avatarKey: null,
+        theme: "dark",
       },
       isLoading: false,
       isError: false,
@@ -75,6 +78,7 @@ describe("UserProfile", () => {
   afterEach(() => {
     useAuthStore.setState({
       currentUser: null,
+      currentPrincipalId: null,
       status: "online",
       customStatus: null,
     });
@@ -85,6 +89,7 @@ describe("UserProfile", () => {
       displayName: "new-name",
       statusText: "new-status",
       avatarKey: null,
+      theme: "dark",
     });
 
     render(<UserProfile />);
@@ -125,6 +130,7 @@ describe("UserProfile", () => {
         displayName: "retry-name",
         statusText: "retry-status",
         avatarKey: null,
+        theme: "dark",
       });
 
     render(<UserProfile />);
@@ -153,6 +159,7 @@ describe("UserProfile", () => {
         displayName: "old-name",
         statusText: "old-status",
         avatarKey: null,
+        theme: "dark",
       },
       isLoading: false,
       isError: false,
@@ -171,6 +178,7 @@ describe("UserProfile", () => {
       displayName: "old-name",
       statusText: "server-updated-status",
       avatarKey: null,
+      theme: "light",
     };
     rerender(<UserProfile />);
 

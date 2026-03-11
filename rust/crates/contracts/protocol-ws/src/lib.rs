@@ -25,9 +25,9 @@ pub struct MessageSubscriptionStateV1 {
     pub channel_id: i64,
 }
 
-/// server -> client の message.created payload を表現する。
+/// server -> client の message event payload を表現する。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct MessageCreatedFrameDataV1 {
+pub struct MessageEventFrameDataV1 {
     pub guild_id: i64,
     pub channel_id: i64,
     pub message: MessageItemV1,
@@ -42,7 +42,11 @@ pub enum ServerMessageFrameV1 {
     #[serde(rename = "message.unsubscribed")]
     Unsubscribed(MessageSubscriptionStateV1),
     #[serde(rename = "message.created")]
-    Created(MessageCreatedFrameDataV1),
+    Created(MessageEventFrameDataV1),
+    #[serde(rename = "message.updated")]
+    Updated(MessageEventFrameDataV1),
+    #[serde(rename = "message.deleted")]
+    Deleted(MessageEventFrameDataV1),
 }
 
 impl From<GuildChannelSubscriptionTargetV1> for MessageSubscriptionStateV1 {
@@ -129,7 +133,7 @@ mod tests {
 
     #[test]
     fn created_frame_keeps_message_snapshot() {
-        let frame = ServerMessageFrameV1::Created(MessageCreatedFrameDataV1 {
+        let frame = ServerMessageFrameV1::Created(MessageEventFrameDataV1 {
             guild_id: 10,
             channel_id: 20,
             message: sample_message(),
@@ -138,5 +142,37 @@ mod tests {
         let value = serde_json::to_value(&frame).unwrap();
         assert_eq!(value["d"]["message"]["message_id"], 100);
         assert_eq!(value["d"]["message"]["content"], "hello");
+    }
+
+    #[test]
+    fn updated_frame_keeps_message_snapshot() {
+        let frame = ServerMessageFrameV1::Updated(MessageEventFrameDataV1 {
+            guild_id: 10,
+            channel_id: 20,
+            message: sample_message(),
+        });
+
+        let value = serde_json::to_value(&frame).unwrap();
+        assert_eq!(value["type"], "message.updated");
+        assert_eq!(value["d"]["message"]["message_id"], 100);
+    }
+
+    #[test]
+    fn deleted_frame_keeps_message_snapshot() {
+        let mut message = sample_message();
+        message.content.clear();
+        message.version = 2;
+        message.edited_at = Some("2026-03-07T10:05:00Z".to_owned());
+        message.is_deleted = true;
+        let frame = ServerMessageFrameV1::Deleted(MessageEventFrameDataV1 {
+            guild_id: 10,
+            channel_id: 20,
+            message,
+        });
+
+        let value = serde_json::to_value(&frame).unwrap();
+        assert_eq!(value["type"], "message.deleted");
+        assert_eq!(value["d"]["message"]["is_deleted"], true);
+        assert_eq!(value["d"]["message"]["content"], "");
     }
 }

@@ -590,6 +590,24 @@ CREATE TABLE public.message_attachments_v2 (
 
 
 
+CREATE TABLE public.message_create_idempotency_keys (
+    principal_id bigint NOT NULL,
+    channel_id bigint NOT NULL,
+    idempotency_key text NOT NULL,
+    payload_fingerprint text NOT NULL,
+    state text NOT NULL,
+    message_id bigint NOT NULL,
+    message_created_at timestamp with time zone NOT NULL,
+    completed_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chk_msg_create_idempotency_key_non_empty CHECK ((length(btrim(idempotency_key)) > 0)),
+    CONSTRAINT chk_msg_create_idempotency_payload_non_empty CHECK ((length(btrim(payload_fingerprint)) > 0)),
+    CONSTRAINT chk_msg_create_idempotency_state CHECK ((state = ANY (ARRAY['reserved'::text, 'completed'::text])))
+);
+
+
+
 CREATE TABLE public.message_reactions_v2 (
     message_id bigint NOT NULL,
     channel_id bigint NOT NULL,
@@ -832,6 +850,11 @@ ALTER TABLE ONLY public.invites
 
 ALTER TABLE ONLY public.message_attachments_v2
     ADD CONSTRAINT message_attachments_v2_pkey PRIMARY KEY (message_id, object_key);
+
+
+
+ALTER TABLE ONLY public.message_create_idempotency_keys
+    ADD CONSTRAINT message_create_idempotency_keys_pkey PRIMARY KEY (principal_id, channel_id, idempotency_key);
 
 
 
@@ -1209,6 +1232,16 @@ ALTER TABLE ONLY public.message_attachments_v2
 
 ALTER TABLE ONLY public.message_attachments_v2
     ADD CONSTRAINT message_attachments_v2_uploaded_by_fkey FOREIGN KEY (uploaded_by) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+
+ALTER TABLE ONLY public.message_create_idempotency_keys
+    ADD CONSTRAINT message_create_idempotency_keys_channel_id_fkey FOREIGN KEY (channel_id) REFERENCES public.channels(id) ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY public.message_create_idempotency_keys
+    ADD CONSTRAINT message_create_idempotency_keys_principal_id_fkey FOREIGN KEY (principal_id) REFERENCES public.users(id) ON DELETE CASCADE;
 
 
 
