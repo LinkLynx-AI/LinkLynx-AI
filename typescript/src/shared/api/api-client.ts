@@ -7,6 +7,7 @@ import type {
   Message,
   CreateMessageData,
   EditMessageData,
+  DeleteMessageData,
 } from "@/shared/model/types";
 
 export type SearchParams = {
@@ -26,7 +27,7 @@ export type SearchResult = {
 };
 
 export type MessageQueryParams = {
-  guildId: string;
+  guildId?: string | null;
   channelId: string;
   before?: string;
   after?: string;
@@ -34,7 +35,7 @@ export type MessageQueryParams = {
 };
 
 export type SendMessageParams = {
-  guildId: string;
+  guildId?: string | null;
   channelId: string;
   data: CreateMessageData;
 };
@@ -50,12 +51,14 @@ export type MyProfile = {
   displayName: string;
   statusText: string | null;
   avatarKey: string | null;
+  theme: "dark" | "light";
 };
 
 export type UpdateMyProfileInput = {
   displayName?: string;
   statusText?: string | null;
   avatarKey?: string | null;
+  theme?: "dark" | "light";
 };
 
 export type CreateGuildData = {
@@ -219,7 +222,7 @@ export type APIClient = {
   getMessage(channelId: string, messageId: string): Promise<Message>;
   sendMessage(params: SendMessageParams): Promise<Message>;
   editMessage(channelId: string, messageId: string, data: EditMessageData): Promise<Message>;
-  deleteMessage(channelId: string, messageId: string): Promise<void>;
+  deleteMessage(channelId: string, messageId: string, data: DeleteMessageData): Promise<Message>;
   getPinnedMessages(channelId: string): Promise<Message[]>;
 
   // Reactions

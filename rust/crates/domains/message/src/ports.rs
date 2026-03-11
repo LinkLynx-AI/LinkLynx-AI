@@ -5,7 +5,7 @@ use linklynx_message_api::{
 
 use crate::{
     GuildChannelContext, MessageCreateIdempotency, MessageCreateReserveResult, MessageIdentity,
-    MessageUsecaseError,
+    MessageStoreUpdateResult, MessageUsecaseError,
 };
 
 /// message body SoR port を表現する。
@@ -19,6 +19,30 @@ pub trait MessageBodyStore: Send + Sync {
         &self,
         message: &MessageItemV1,
     ) -> Result<MessageItemV1, MessageUsecaseError>;
+
+    /// guild channel message を単一件取得する。
+    /// @param context channel context
+    /// @param message_id 対象 message_id
+    /// @returns message snapshot。未存在時は `None`
+    /// @throws MessageUsecaseError 依存障害時
+    async fn get_guild_channel_message(
+        &self,
+        context: &GuildChannelContext,
+        message_id: i64,
+    ) -> Result<Option<MessageItemV1>, MessageUsecaseError>;
+
+    /// guild channel message を条件付き更新する。
+    /// @param message 更新後 message snapshot
+    /// @param expected_version 競合検知に使う直前 version
+    /// @param actor_id 更新主体
+    /// @returns 更新結果
+    /// @throws MessageUsecaseError 依存障害時
+    async fn update_guild_channel_message(
+        &self,
+        message: &MessageItemV1,
+        expected_version: i64,
+        actor_id: i64,
+    ) -> Result<MessageStoreUpdateResult, MessageUsecaseError>;
 
     /// guild channel message history を list する。
     /// @param context channel context

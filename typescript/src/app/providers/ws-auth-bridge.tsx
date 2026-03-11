@@ -49,6 +49,22 @@ const WS_MESSAGE_CREATED_EVENT_SCHEMA = z.object({
     message: MESSAGE_ITEM_SCHEMA,
   }),
 });
+const WS_MESSAGE_UPDATED_EVENT_SCHEMA = z.object({
+  type: z.literal("message.updated"),
+  d: z.object({
+    guild_id: z.string().trim().min(1),
+    channel_id: z.string().trim().min(1),
+    message: MESSAGE_ITEM_SCHEMA,
+  }),
+});
+const WS_MESSAGE_DELETED_EVENT_SCHEMA = z.object({
+  type: z.literal("message.deleted"),
+  d: z.object({
+    guild_id: z.string().trim().min(1),
+    channel_id: z.string().trim().min(1),
+    message: MESSAGE_ITEM_SCHEMA,
+  }),
+});
 
 type ActiveSubscriptionTarget = {
   guildId: string;
@@ -131,6 +147,19 @@ function createSubscribeMessage(target: ActiveSubscriptionTarget): string {
 
 function createUnsubscribeMessage(target: ActiveSubscriptionTarget): string {
   return `{"type":"message.unsubscribe","d":{"guild_id":${target.guildId},"channel_id":${target.channelId}}}`;
+}
+
+function applyRealtimeMessageToCache(
+  queryClient: ReturnType<typeof useQueryClient>,
+  guildId: string,
+  channelId: string,
+  rawMessage: z.infer<typeof MESSAGE_ITEM_SCHEMA>,
+) {
+  const message = mapMessageItem(rawMessage);
+  queryClient.setQueryData<InfiniteData<MessagePage, string | null> | undefined>(
+    buildMessagesQueryKey(guildId, channelId),
+    (current) => appendMessageToPages(current, message),
+  );
 }
 
 function resolveActiveSubscriptionTarget(
@@ -505,12 +534,33 @@ export function WsAuthBridge() {
         if (!WS_REAUTH_EVENT_SCHEMA.safeParse(payload).success) {
           const messageCreated = WS_MESSAGE_CREATED_EVENT_SCHEMA.safeParse(payload);
           if (messageCreated.success) {
-            const guildId = String(messageCreated.data.d.guild_id);
-            const channelId = String(messageCreated.data.d.channel_id);
-            const message = mapMessageItem(messageCreated.data.d.message);
-            queryClient.setQueryData<InfiniteData<MessagePage, string | null> | undefined>(
-              buildMessagesQueryKey(guildId, channelId),
-              (current) => appendMessageToPages(current, message),
+            applyRealtimeMessageToCache(
+              queryClient,
+              String(messageCreated.data.d.guild_id),
+              String(messageCreated.data.d.channel_id),
+              messageCreated.data.d.message,
+            );
+            return;
+          }
+
+          const messageUpdated = WS_MESSAGE_UPDATED_EVENT_SCHEMA.safeParse(payload);
+          if (messageUpdated.success) {
+            applyRealtimeMessageToCache(
+              queryClient,
+              String(messageUpdated.data.d.guild_id),
+              String(messageUpdated.data.d.channel_id),
+              messageUpdated.data.d.message,
+            );
+            return;
+          }
+
+          const messageDeleted = WS_MESSAGE_DELETED_EVENT_SCHEMA.safeParse(payload);
+          if (messageDeleted.success) {
+            applyRealtimeMessageToCache(
+              queryClient,
+              String(messageDeleted.data.d.guild_id),
+              String(messageDeleted.data.d.channel_id),
+              messageDeleted.data.d.message,
             );
           }
           return;

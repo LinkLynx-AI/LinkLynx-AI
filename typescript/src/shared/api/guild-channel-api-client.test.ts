@@ -99,8 +99,20 @@ describe("GuildChannelAPIClient", () => {
             {
               channel_id: 3001,
               guild_id: 2001,
+              type: "guild_text",
               name: "general",
+              parent_id: null,
+              position: 7,
               created_at: "2026-03-03T00:00:00Z",
+            },
+            {
+              channel_id: 3002,
+              guild_id: 2001,
+              type: "guild_category",
+              name: "times",
+              parent_id: null,
+              position: 3,
+              created_at: "2026-03-03T00:00:10Z",
             },
           ],
         }),
@@ -118,7 +130,19 @@ describe("GuildChannelAPIClient", () => {
         guildId: "2001",
         name: "general",
         topic: null,
-        position: 0,
+        position: 7,
+        parentId: null,
+        nsfw: false,
+        rateLimitPerUser: 0,
+        lastMessageId: null,
+      },
+      {
+        id: "3002",
+        type: 4,
+        guildId: "2001",
+        name: "times",
+        topic: null,
+        position: 3,
         parentId: null,
         nsfw: false,
         rateLimitPerUser: 0,
@@ -419,7 +443,10 @@ describe("GuildChannelAPIClient", () => {
           channel: {
             channel_id: 3010,
             guild_id: 2001,
+            type: "guild_text",
             name: "release",
+            parent_id: null,
+            position: 2,
             created_at: "2026-03-03T00:00:00Z",
           },
         }),
@@ -434,6 +461,7 @@ describe("GuildChannelAPIClient", () => {
     expect(created.id).toBe("3010");
     expect(created.guildId).toBe("2001");
     expect(created.name).toBe("release");
+    expect(created.position).toBe(2);
     expect(resolved.id).toBe("3010");
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
@@ -443,6 +471,78 @@ describe("GuildChannelAPIClient", () => {
     expect(new Headers(init.headers).get("Authorization")).toBe("Bearer token-1");
     expect(new Headers(init.headers).get("Content-Type")).toBe("application/json");
     expect(init.body).toBe(JSON.stringify({ name: "release" }));
+  });
+
+  test("createChannel sends category payload and maps category response", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          channel: {
+            channel_id: 3011,
+            guild_id: 2001,
+            type: "guild_category",
+            name: "times",
+            parent_id: null,
+            position: 5,
+            created_at: "2026-03-03T00:00:00Z",
+          },
+        }),
+        { status: 201 },
+      ),
+    );
+
+    const client = new GuildChannelAPIClient();
+    const created = await client.createChannel("2001", { name: "times", type: 4 });
+
+    expect(created).toMatchObject({
+      id: "3011",
+      type: 4,
+      guildId: "2001",
+      name: "times",
+      parentId: null,
+      position: 5,
+    });
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(init.body).toBe(JSON.stringify({ name: "times", type: "guild_category" }));
+  });
+
+  test("createChannel sends parent_id for child text channels", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          channel: {
+            channel_id: 3012,
+            guild_id: 2001,
+            type: "guild_text",
+            name: "times-abe",
+            parent_id: 3011,
+            position: 6,
+            created_at: "2026-03-03T00:00:00Z",
+          },
+        }),
+        { status: 201 },
+      ),
+    );
+
+    const client = new GuildChannelAPIClient();
+    const created = await client.createChannel("2001", {
+      name: "times-abe",
+      type: 0,
+      parentId: "3011",
+    });
+
+    expect(created).toMatchObject({
+      id: "3012",
+      type: 0,
+      parentId: "3011",
+      position: 6,
+    });
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(init.body).toBe(
+      JSON.stringify({ name: "times-abe", type: "guild_text", parent_id: 3011 }),
+    );
   });
 
   test("createChannel rejects unsupported channel types in v1", async () => {
@@ -521,15 +621,30 @@ describe("GuildChannelAPIClient", () => {
           JSON.stringify({
             channels: [
               {
+                channel_id: 3000,
+                guild_id: 2001,
+                type: "guild_category",
+                name: "times",
+                parent_id: null,
+                position: 0,
+                created_at: "2026-03-03T00:00:00Z",
+              },
+              {
                 channel_id: 3001,
                 guild_id: 2001,
-                name: "general",
+                type: "guild_text",
+                name: "times-abe",
+                parent_id: 3000,
+                position: 1,
                 created_at: "2026-03-03T00:00:00Z",
               },
               {
                 channel_id: 3002,
                 guild_id: 2001,
+                type: "guild_text",
                 name: "random",
+                parent_id: null,
+                position: 2,
                 created_at: "2026-03-03T00:00:30Z",
               },
             ],
@@ -541,13 +656,13 @@ describe("GuildChannelAPIClient", () => {
 
     const client = new GuildChannelAPIClient();
     await client.getChannels("2001");
-    await client.deleteChannel("3001");
+    await client.deleteChannel("3000");
     const channels = await client.getChannels("2001");
 
     expect(channels.map((channel) => channel.id)).toEqual(["3002"]);
     expect(fetchMock).toHaveBeenCalledTimes(2);
     const [url, init] = fetchMock.mock.calls[1] as [string, RequestInit];
-    expect(url).toBe("http://localhost:8080/channels/3001");
+    expect(url).toBe("http://localhost:8080/channels/3000");
     expect(init.method).toBe("DELETE");
     expect(new Headers(init.headers).get("Authorization")).toBe("Bearer token-1");
   });
@@ -560,6 +675,7 @@ describe("GuildChannelAPIClient", () => {
             display_name: "alice",
             status_text: "busy coding",
             avatar_key: "avatar/alice.png",
+            theme: "dark",
           },
         }),
         { status: 200 },
@@ -573,6 +689,7 @@ describe("GuildChannelAPIClient", () => {
       displayName: "alice",
       statusText: "busy coding",
       avatarKey: "avatar/alice.png",
+      theme: "dark",
     });
 
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
@@ -589,6 +706,7 @@ describe("GuildChannelAPIClient", () => {
             display_name: "new-name",
             status_text: null,
             avatar_key: null,
+            theme: "light",
           },
         }),
         { status: 200 },
@@ -599,12 +717,14 @@ describe("GuildChannelAPIClient", () => {
     const profile = await client.updateMyProfile({
       displayName: "new-name",
       statusText: null,
+      theme: "light",
     });
 
     expect(profile).toEqual({
       displayName: "new-name",
       statusText: null,
       avatarKey: null,
+      theme: "light",
     });
 
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
@@ -612,7 +732,9 @@ describe("GuildChannelAPIClient", () => {
     expect(init.method).toBe("PATCH");
     expect(new Headers(init.headers).get("Authorization")).toBe("Bearer token-1");
     expect(new Headers(init.headers).get("Content-Type")).toBe("application/json");
-    expect(init.body).toBe(JSON.stringify({ display_name: "new-name", status_text: null }));
+    expect(init.body).toBe(
+      JSON.stringify({ display_name: "new-name", status_text: null, theme: "light" }),
+    );
   });
 
   test("updateMyProfile sends status-only patch body", async () => {
@@ -623,6 +745,7 @@ describe("GuildChannelAPIClient", () => {
             display_name: "old-name",
             status_text: "focus mode",
             avatar_key: null,
+            theme: "dark",
           },
         }),
         { status: 200 },
@@ -638,6 +761,7 @@ describe("GuildChannelAPIClient", () => {
       displayName: "old-name",
       statusText: "focus mode",
       avatarKey: null,
+      theme: "dark",
     });
 
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
@@ -646,6 +770,39 @@ describe("GuildChannelAPIClient", () => {
     expect(new Headers(init.headers).get("Authorization")).toBe("Bearer token-1");
     expect(new Headers(init.headers).get("Content-Type")).toBe("application/json");
     expect(init.body).toBe(JSON.stringify({ status_text: "focus mode" }));
+  });
+
+  test("updateMyProfile sends theme-only patch body", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          profile: {
+            display_name: "old-name",
+            status_text: "focus mode",
+            avatar_key: null,
+            theme: "light",
+          },
+        }),
+        { status: 200 },
+      ),
+    );
+
+    const client = new GuildChannelAPIClient();
+    const profile = await client.updateMyProfile({
+      theme: "light",
+    });
+
+    expect(profile).toEqual({
+      displayName: "old-name",
+      statusText: "focus mode",
+      avatarKey: null,
+      theme: "light",
+    });
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("http://localhost:8080/users/me/profile");
+    expect(init.method).toBe("PATCH");
+    expect(init.body).toBe(JSON.stringify({ theme: "light" }));
   });
 
   test("updateMyProfile rejects empty payload", async () => {
@@ -890,6 +1047,105 @@ describe("GuildChannelAPIClient", () => {
     expect(init.method).toBe("POST");
     expect(init.body).toBe(JSON.stringify({ content: "hello contract" }));
     expect(new Headers(init.headers).get("Idempotency-Key")).toBeTruthy();
+  });
+
+  test("editMessage calls PATCH message endpoint with expectedVersion", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        `{
+          "message": {
+            "message_id": 9223372036854775002,
+            "guild_id": 2001,
+            "channel_id": 3001,
+            "author_id": 9003,
+            "content": "edited",
+            "created_at": "2026-03-10T10:01:00Z",
+            "version": 2,
+            "edited_at": "2026-03-10T10:02:00Z",
+            "is_deleted": false
+          }
+        }`,
+        { status: 200 },
+      ),
+    );
+
+    const client = new GuildChannelAPIClient();
+    (
+      client as unknown as {
+        channelIndex: Map<string, { guildId: string }>;
+      }
+    ).channelIndex.set("3001", { guildId: "2001" });
+
+    const message = await client.editMessage("3001", "5001", {
+      content: "edited",
+      expectedVersion: "1",
+    });
+
+    expect(message.content).toBe("edited");
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("http://localhost:8080/v1/guilds/2001/channels/3001/messages/5001");
+    expect(init.method).toBe("PATCH");
+    expect(init.body).toBe(JSON.stringify({ content: "edited", expected_version: 1 }));
+  });
+
+  test("deleteMessage calls DELETE message endpoint and returns tombstone snapshot", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        `{
+          "message": {
+            "message_id": 9223372036854775002,
+            "guild_id": 2001,
+            "channel_id": 3001,
+            "author_id": 9003,
+            "content": "",
+            "created_at": "2026-03-10T10:01:00Z",
+            "version": 3,
+            "edited_at": "2026-03-10T10:03:00Z",
+            "is_deleted": true
+          }
+        }`,
+        { status: 200 },
+      ),
+    );
+
+    const client = new GuildChannelAPIClient();
+    (
+      client as unknown as {
+        channelIndex: Map<string, { guildId: string }>;
+      }
+    ).channelIndex.set("3001", { guildId: "2001" });
+
+    const message = await client.deleteMessage("3001", "5001", {
+      expectedVersion: "2",
+    });
+
+    expect(message.isDeleted).toBe(true);
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("http://localhost:8080/v1/guilds/2001/channels/3001/messages/5001");
+    expect(init.method).toBe("DELETE");
+    expect(init.body).toBe(JSON.stringify({ expected_version: 2 }));
+  });
+
+  test("toUpdateActionErrorText maps message conflict", () => {
+    const error = new GuildChannelApiError("conflict", {
+      code: "MESSAGE_CONFLICT",
+      requestId: "req-edit-409",
+    });
+
+    expect(toUpdateActionErrorText(error, "更新に失敗しました。")).toBe(
+      "メッセージが更新されています。最新状態を読み直しました。 (request_id: req-edit-409)",
+    );
+  });
+
+  test("toDeleteActionErrorText maps message conflict", () => {
+    const error = new GuildChannelApiError("conflict", {
+      code: "MESSAGE_CONFLICT",
+      requestId: "req-delete-409",
+    });
+
+    expect(toDeleteActionErrorText(error, "削除に失敗しました。")).toBe(
+      "メッセージの状態が変わっています。最新状態を読み直しました。 (request_id: req-delete-409)",
+    );
   });
 
   test("toMessageActionErrorText includes retry-after seconds for rate limit", () => {

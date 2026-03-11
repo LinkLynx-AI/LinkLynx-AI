@@ -13,17 +13,40 @@ import type { Channel } from "@/shared/model/types";
 import { Button } from "@/shared/ui/button";
 import { Modal, ModalBody, ModalFooter, ModalHeader } from "@/shared/ui/modal";
 
+function collectDeletedChannelIds(channels: Channel[], channelId: string): Set<string> {
+  const deletedIds = new Set<string>([channelId]);
+
+  let foundChild = true;
+  while (foundChild) {
+    foundChild = false;
+    for (const channel of channels) {
+      if (
+        channel.parentId !== null &&
+        deletedIds.has(channel.parentId) &&
+        !deletedIds.has(channel.id)
+      ) {
+        deletedIds.add(channel.id);
+        foundChild = true;
+      }
+    }
+  }
+
+  return deletedIds;
+}
+
 export function ChannelDeleteModal({
   onClose,
   onDeleted,
   channelId,
   channelName,
+  channelType,
   serverId,
 }: {
   onClose: () => void;
   onDeleted?: () => void;
   channelId?: string;
   channelName?: string;
+  channelType?: number;
   serverId?: string;
 }) {
   const router = useRouter();
@@ -42,10 +65,16 @@ export function ChannelDeleteModal({
     serverId === undefined || channelId === undefined ? null : manageChannelGuard.message;
 
   const routeSelection = parseGuildChannelRoute(pathname ?? "");
+  const deletedIds =
+    channelId === undefined
+      ? new Set<string>()
+      : collectDeletedChannelIds(channels ?? [], channelId);
   const isDeletingSelectedChannel =
     routeSelection !== null &&
     routeSelection.guildId === serverId &&
-    routeSelection.channelId === channelId;
+    routeSelection.channelId !== null &&
+    deletedIds.has(routeSelection.channelId);
+  const isCategory = channelType === 4;
 
   const handleDelete = async () => {
     if (serverId === undefined || channelId === undefined) {
@@ -63,7 +92,7 @@ export function ChannelDeleteModal({
       if (isDeletingSelectedChannel) {
         const cachedChannels =
           queryClient.getQueryData<Channel[]>(["channels", serverId]) ??
-          channels?.filter((channel) => channel.id !== channelId) ??
+          channels?.filter((channel) => !deletedIds.has(channel.id)) ??
           [];
         const nextChannel = findFirstTextChannel(cachedChannels);
         const fallbackRoute =
@@ -82,13 +111,21 @@ export function ChannelDeleteModal({
 
   return (
     <Modal open onClose={onClose} className="max-w-[440px]">
-      <ModalHeader>チャンネルを削除</ModalHeader>
+      <ModalHeader>{isCategory ? "カテゴリーを削除" : "チャンネルを削除"}</ModalHeader>
       <ModalBody>
         <p className="text-sm text-discord-text-normal">
-          {channelName ? `#${channelName} を削除します。` : "このチャンネルを削除します。"}
+          {isCategory
+            ? channelName
+              ? `${channelName} カテゴリを削除します。`
+              : "このカテゴリを削除します。"
+            : channelName
+              ? `#${channelName} を削除します。`
+              : "このチャンネルを削除します。"}
         </p>
         <p className="mt-2 text-sm text-discord-text-muted">
-          この操作は取り消せません。削除するとチャンネル一覧から除外されます。
+          {isCategory
+            ? "この操作は取り消せません。削除すると配下のチャンネルも一覧から除外されます。"
+            : "この操作は取り消せません。削除するとチャンネル一覧から除外されます。"}
         </p>
         {submitError === null && guardMessage !== null && (
           <p
@@ -119,7 +156,11 @@ export function ChannelDeleteModal({
           }
           onClick={() => void handleDelete()}
         >
-          {deleteChannel.isPending ? "削除中..." : "チャンネルを削除"}
+          {deleteChannel.isPending
+            ? "削除中..."
+            : isCategory
+              ? "カテゴリーを削除"
+              : "チャンネルを削除"}
         </Button>
       </ModalFooter>
     </Modal>

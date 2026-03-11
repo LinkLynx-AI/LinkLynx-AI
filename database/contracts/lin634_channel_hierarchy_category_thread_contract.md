@@ -11,8 +11,9 @@
 In scope:
 - `channel_hierarchy_kind`
 - `channel_hierarchies_v2`
+- `channel_type` の additive 拡張（`guild_category`）
 - カテゴリ配下 / スレッド識別の制約
-- 同一guild・guild_text限定の整合性契約
+- 同一guild・guild scoped channel 限定の整合性契約
 
 Out of scope:
 - スレッド参加者管理
@@ -46,16 +47,18 @@ Out of scope:
 
 Trigger `enforce_channel_hierarchies_v2_scope` must guarantee:
 
-1. `child_channel_id` は `channels.type='guild_text'` かつ `guild_id IS NOT NULL`
-2. `parent_channel_id` は `channels.type='guild_text'` かつ `guild_id IS NOT NULL`
-3. `child_channel.guild_id == parent_channel.guild_id == channel_hierarchies_v2.guild_id`
+1. `child_channel_id` は常に `channels.type='guild_text'` かつ `guild_id IS NOT NULL`
+2. `hierarchy_kind='category_child'` の `parent_channel_id` は `channels.type='guild_category'` かつ `guild_id IS NOT NULL`
+3. `hierarchy_kind='thread'` の `parent_channel_id` は `channels.type='guild_text'` かつ `guild_id IS NOT NULL`
+4. `child_channel.guild_id == parent_channel.guild_id == channel_hierarchies_v2.guild_id`
 
 This keeps DM channel data out of hierarchy and prevents cross-guild references.
 
 ## 3. Compatibility policy
 
-- 既存 `channels` の `channel_type`（`guild_text`/`dm`）は変更しない。
+- `channels.channel_type` は additive に `guild_category` を追加する。
 - 既存 guild_text / dm データは無変更で継続利用できる。
+- `guild_category` は guild scoped container であり、message target にはしない。
 - 階層情報は `channel_hierarchies_v2` の additive 導入で表現する。
 
 ## 4. Message reference note
@@ -76,7 +79,7 @@ make validate
 Optional SQL example:
 
 ```sql
--- category child
+-- category child (`parent_channel_id` is guild_category)
 INSERT INTO channel_hierarchies_v2(
   child_channel_id, guild_id, parent_channel_id, hierarchy_kind, position
 ) VALUES (101, 10, 100, 'category_child', 1);

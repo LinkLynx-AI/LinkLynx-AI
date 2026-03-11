@@ -1,4 +1,7 @@
-use linklynx_message_api::{CreateGuildChannelMessageRequestV1, MessageApiError, MessageItemV1};
+use linklynx_message_api::{
+    CreateGuildChannelMessageRequestV1, DeleteGuildChannelMessageRequestV1,
+    EditGuildChannelMessageRequestV1, MessageApiError, MessageItemV1,
+};
 use thiserror::Error;
 
 /// message identity を表現する。
@@ -63,6 +66,60 @@ pub struct CreateGuildChannelMessageResult {
     pub should_publish: bool,
 }
 
+/// guild channel message edit command を表現する。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EditGuildChannelMessageCommand {
+    pub guild_id: i64,
+    pub channel_id: i64,
+    pub principal_id: i64,
+    pub message_id: i64,
+    pub content: String,
+    pub expected_version: i64,
+    pub edited_at: String,
+}
+
+impl EditGuildChannelMessageCommand {
+    /// validation 用 request shape へ変換する。
+    /// @param なし
+    /// @returns edit request
+    /// @throws なし
+    pub fn to_edit_request(&self) -> EditGuildChannelMessageRequestV1 {
+        EditGuildChannelMessageRequestV1 {
+            content: self.content.clone(),
+            expected_version: self.expected_version,
+        }
+    }
+}
+
+/// guild channel message delete command を表現する。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DeleteGuildChannelMessageCommand {
+    pub guild_id: i64,
+    pub channel_id: i64,
+    pub principal_id: i64,
+    pub message_id: i64,
+    pub expected_version: i64,
+    pub deleted_at: String,
+}
+
+impl DeleteGuildChannelMessageCommand {
+    /// validation 用 request shape へ変換する。
+    /// @param なし
+    /// @returns delete request
+    /// @throws なし
+    pub fn to_delete_request(&self) -> DeleteGuildChannelMessageRequestV1 {
+        DeleteGuildChannelMessageRequestV1 {
+            expected_version: self.expected_version,
+        }
+    }
+}
+
+/// guild channel message update の結果を表現する。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UpdateGuildChannelMessageResult {
+    pub message: MessageItemV1,
+}
+
 /// idempotency reservation 状態を表現する。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MessageCreateReservationState {
@@ -94,6 +151,13 @@ pub struct GuildChannelContext {
     pub last_message_at: Option<String>,
 }
 
+/// conditional write の結果を表現する。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MessageStoreUpdateResult {
+    Applied,
+    Conflict,
+}
+
 /// message usecase の失敗を表現する。
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum MessageUsecaseError {
@@ -101,6 +165,12 @@ pub enum MessageUsecaseError {
     Validation(String),
     #[error("channel not found: {0}")]
     ChannelNotFound(String),
+    #[error("message not found: {0}")]
+    MessageNotFound(String),
+    #[error("authz denied: {0}")]
+    AuthzDenied(String),
+    #[error("conflict: {0}")]
+    Conflict(String),
     #[error("dependency unavailable: {0}")]
     DependencyUnavailable(String),
 }
@@ -122,6 +192,30 @@ impl MessageUsecaseError {
         Self::ChannelNotFound(reason.into())
     }
 
+    /// message not found エラーを生成する。
+    /// @param reason 失敗理由
+    /// @returns not found error
+    /// @throws なし
+    pub fn message_not_found(reason: impl Into<String>) -> Self {
+        Self::MessageNotFound(reason.into())
+    }
+
+    /// authz denied エラーを生成する。
+    /// @param reason 失敗理由
+    /// @returns authz denied error
+    /// @throws なし
+    pub fn authz_denied(reason: impl Into<String>) -> Self {
+        Self::AuthzDenied(reason.into())
+    }
+
+    /// conflict エラーを生成する。
+    /// @param reason 失敗理由
+    /// @returns conflict error
+    /// @throws なし
+    pub fn conflict(reason: impl Into<String>) -> Self {
+        Self::Conflict(reason.into())
+    }
+
     /// dependency unavailable エラーを生成する。
     /// @param reason 失敗理由
     /// @returns dependency unavailable error
@@ -138,6 +232,9 @@ impl MessageUsecaseError {
         match self {
             Self::Validation(reason)
             | Self::ChannelNotFound(reason)
+            | Self::MessageNotFound(reason)
+            | Self::AuthzDenied(reason)
+            | Self::Conflict(reason)
             | Self::DependencyUnavailable(reason) => reason.as_str(),
         }
     }

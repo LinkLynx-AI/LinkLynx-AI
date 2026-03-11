@@ -5,8 +5,13 @@ use linklynx_message_api::{
     ListGuildChannelMessagesQueryV1, ListGuildChannelMessagesResponseV1, MessageCursorKeyV1,
     MessageItemV1,
 };
-use linklynx_message_domain::{GuildChannelContext, MessageBodyStore, MessageUsecaseError};
-use scylla::{client::session::Session, value::CqlTimestamp};
+use linklynx_message_domain::{
+    GuildChannelContext, MessageBodyStore, MessageStoreUpdateResult, MessageUsecaseError,
+};
+use scylla::{
+    client::session::Session,
+    value::{CqlTimestamp, CqlValue, Row},
+};
 use time::{format_description::well_known::Rfc3339, Date, Month, OffsetDateTime};
 
 const INSERT_MESSAGE_SQL_TEMPLATE: &str = "
@@ -41,6 +46,19 @@ const SELECT_MESSAGE_SQL_TEMPLATE: &str = "
     WHERE channel_id = ?
       AND bucket = ?
       AND message_id = ?";
+const UPDATE_MESSAGE_SQL_TEMPLATE: &str = "
+    UPDATE chat.messages_by_channel
+    SET
+      content = ?,
+      version = ?,
+      edited_at = ?,
+      is_deleted = ?,
+      deleted_at = ?,
+      deleted_by = ?
+    WHERE channel_id = ?
+      AND bucket = ?
+      AND message_id = ?
+    IF version = ?";
 const LIST_BUCKET_DESC_SQL_TEMPLATE: &str = "
     SELECT
       channel_id,
@@ -144,6 +162,7 @@ pub struct ScyllaMessageStore {
     session: Arc<Session>,
     insert_message_sql: String,
     select_message_sql: String,
+    update_message_sql: String,
     list_bucket_desc_sql: String,
     list_bucket_asc_sql: String,
     list_bucket_before_sql: String,
@@ -166,6 +185,10 @@ impl ScyllaMessageStore {
             ),
             select_message_sql: qualify_messages_by_channel_sql(
                 SELECT_MESSAGE_SQL_TEMPLATE,
+                &keyspace,
+            ),
+            update_message_sql: qualify_messages_by_channel_sql(
+                UPDATE_MESSAGE_SQL_TEMPLATE,
                 &keyspace,
             ),
             list_bucket_desc_sql: qualify_messages_by_channel_sql(
@@ -222,6 +245,25 @@ impl ScyllaMessageStore {
             .transpose()
     }
 
+    /// LWT update の `[applied]` 列を抽出する。
+    /// @param row Scylla が返した生 row
+    /// @returns 更新適用時は `true`
+    /// @throws MessageUsecaseError `[applied]` 列が欠落または bool 以外の場合
+    fn lwt_applied_from_row(row: Row) -> Result<bool, MessageUsecaseError> {
+        match row.columns.into_iter().next() {
+            Some(Some(CqlValue::Boolean(applied))) => Ok(applied),
+            Some(Some(other)) => Err(MessageUsecaseError::dependency_unavailable(format!(
+                "message_update_decode_failed:unexpected_applied_column:{other:?}"
+            ))),
+            Some(None) => Err(MessageUsecaseError::dependency_unavailable(
+                "message_update_decode_failed:null_applied_column".to_string(),
+            )),
+            None => Err(MessageUsecaseError::dependency_unavailable(
+                "message_update_decode_failed:missing_applied_column".to_string(),
+            )),
+        }
+    }
+
     async fn query_messages<V>(
         &self,
         guild_id: i64,
@@ -262,6 +304,30 @@ impl ScyllaMessageStore {
             })
             .map(|row| row.and_then(|value| map_row_to_message(guild_id, value)))
             .collect()
+    }
+
+    async fn select_message_across_buckets(
+        &self,
+        context: &GuildChannelContext,
+        message_id: i64,
+    ) -> Result<Option<(i32, MessageItemV1)>, MessageUsecaseError> {
+        let lower_bucket = bucket_from_timestamp(&context.created_at)?;
+        let upper_bucket = resolve_upper_bucket(context, OffsetDateTime::now_utc())?;
+        let mut bucket = upper_bucket;
+        loop {
+            if let Some(message) = self
+                .select_message(context.guild_id, context.channel_id, bucket, message_id)
+                .await?
+            {
+                return Ok(Some((bucket, message)));
+            }
+            if bucket == lower_bucket {
+                break;
+            }
+            bucket = previous_bucket(bucket)?;
+        }
+
+        Ok(None)
     }
 
     async fn query_bucket_desc(
@@ -331,6 +397,9 @@ impl ScyllaMessageStore {
         message: &MessageItemV1,
         bucket: i32,
         created_at: OffsetDateTime,
+        edited_at: Option<OffsetDateTime>,
+        deleted_at: Option<OffsetDateTime>,
+        deleted_by: Option<i64>,
     ) -> Result<(), MessageUsecaseError> {
         self.session
             .query_unpaged(
@@ -342,10 +411,10 @@ impl ScyllaMessageStore {
                     message.author_id,
                     &message.content,
                     message.version,
-                    Option::<CqlTimestamp>::None,
+                    edited_at.map(timestamp_to_cql),
                     message.is_deleted,
-                    Option::<CqlTimestamp>::None,
-                    Option::<i64>::None,
+                    deleted_at.map(timestamp_to_cql),
+                    deleted_by,
                     timestamp_to_cql(created_at),
                 ),
             )
@@ -356,6 +425,63 @@ impl ScyllaMessageStore {
                     "message_append_insert_failed:{error}"
                 ))
             })
+    }
+
+    async fn conditional_update_message(
+        &self,
+        message: &MessageItemV1,
+        bucket: i32,
+        expected_version: i64,
+        actor_id: i64,
+    ) -> Result<MessageStoreUpdateResult, MessageUsecaseError> {
+        let edited_at = message
+            .edited_at
+            .as_deref()
+            .map(parse_rfc3339_timestamp)
+            .transpose()?;
+        let deleted_at = if message.is_deleted { edited_at } else { None };
+        let deleted_by = message.is_deleted.then_some(actor_id);
+        let query_result = self
+            .session
+            .query_unpaged(
+                self.update_message_sql.as_str(),
+                (
+                    &message.content,
+                    message.version,
+                    edited_at.map(timestamp_to_cql),
+                    message.is_deleted,
+                    deleted_at.map(timestamp_to_cql),
+                    deleted_by,
+                    message.channel_id,
+                    bucket,
+                    message.message_id,
+                    expected_version,
+                ),
+            )
+            .await
+            .map_err(|error| {
+                MessageUsecaseError::dependency_unavailable(format!(
+                    "message_update_failed:{error}"
+                ))
+            })?;
+        let rows_result = query_result.into_rows_result().map_err(|error| {
+            MessageUsecaseError::dependency_unavailable(format!(
+                "message_update_rows_unavailable:{error}"
+            ))
+        })?;
+        let row = rows_result.maybe_first_row::<Row>().map_err(|error| {
+            MessageUsecaseError::dependency_unavailable(format!(
+                "message_update_decode_failed:{error}"
+            ))
+        })?;
+
+        Ok(match row {
+            Some(row) => match Self::lwt_applied_from_row(row)? {
+                true => MessageStoreUpdateResult::Applied,
+                false => MessageStoreUpdateResult::Conflict,
+            },
+            None => MessageStoreUpdateResult::Conflict,
+        })
     }
 }
 
@@ -371,7 +497,15 @@ impl MessageBodyStore for ScyllaMessageStore {
     ) -> Result<MessageItemV1, MessageUsecaseError> {
         let bucket = bucket_from_timestamp(&message.created_at)?;
         let created_at = parse_rfc3339_timestamp(&message.created_at)?;
-        if let Err(error) = self.insert_message(message, bucket, created_at).await {
+        let edited_at = message
+            .edited_at
+            .as_deref()
+            .map(parse_rfc3339_timestamp)
+            .transpose()?;
+        if let Err(error) = self
+            .insert_message(message, bucket, created_at, edited_at, None, None)
+            .await
+        {
             if let Some(existing) = self
                 .select_message(
                     message.guild_id,
@@ -384,7 +518,7 @@ impl MessageBodyStore for ScyllaMessageStore {
                 return Ok(existing);
             }
 
-            self.insert_message(message, bucket, created_at)
+            self.insert_message(message, bucket, created_at, edited_at, None, None)
                 .await
                 .map_err(|retry_error| {
                     MessageUsecaseError::dependency_unavailable(format!(
@@ -401,6 +535,50 @@ impl MessageBodyStore for ScyllaMessageStore {
         )
         .await?
         .ok_or_else(|| MessageUsecaseError::dependency_unavailable("message_append_select_missing"))
+    }
+
+    /// guild channel message を単一件取得する。
+    /// @param context channel context
+    /// @param message_id 対象 message_id
+    /// @returns message snapshot。未存在時は `None`
+    /// @throws MessageUsecaseError 依存障害時
+    async fn get_guild_channel_message(
+        &self,
+        context: &GuildChannelContext,
+        message_id: i64,
+    ) -> Result<Option<MessageItemV1>, MessageUsecaseError> {
+        self.select_message_across_buckets(context, message_id)
+            .await
+            .map(|value| value.map(|(_, message)| message))
+    }
+
+    /// guild channel message を条件付き更新する。
+    /// @param message 更新後 message snapshot
+    /// @param expected_version 競合検知に使う直前 version
+    /// @param actor_id 更新主体
+    /// @returns 更新結果
+    /// @throws MessageUsecaseError 依存障害時
+    async fn update_guild_channel_message(
+        &self,
+        message: &MessageItemV1,
+        expected_version: i64,
+        actor_id: i64,
+    ) -> Result<MessageStoreUpdateResult, MessageUsecaseError> {
+        let context = GuildChannelContext {
+            channel_id: message.channel_id,
+            guild_id: message.guild_id,
+            created_at: message.created_at.clone(),
+            last_message_id: Some(message.message_id),
+            last_message_at: Some(message.created_at.clone()),
+        };
+        let Some((bucket, _)) = self
+            .select_message_across_buckets(&context, message.message_id)
+            .await?
+        else {
+            return Ok(MessageStoreUpdateResult::Conflict);
+        };
+        self.conditional_update_message(message, bucket, expected_version, actor_id)
+            .await
     }
 
     /// guild channel message history を list する。

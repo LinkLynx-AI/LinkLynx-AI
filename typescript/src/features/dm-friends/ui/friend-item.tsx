@@ -37,6 +37,7 @@ export function FriendItem({ user, actions }: { user: User; actions?: React.Reac
                 "hover:text-discord-interactive-hover",
               )}
               aria-label="メッセージ"
+              type="button"
             >
               <MessageSquare className="h-5 w-5" />
             </button>
@@ -47,6 +48,7 @@ export function FriendItem({ user, actions }: { user: User; actions?: React.Reac
                 "hover:text-discord-interactive-hover",
               )}
               aria-label="通話"
+              type="button"
             >
               <Phone className="h-5 w-5" />
             </button>
