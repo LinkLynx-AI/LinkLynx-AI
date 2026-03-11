@@ -38,6 +38,7 @@ mod tests {
         ModerationReportStatus, ModerationService, ModerationTargetType,
     };
     use profile::{ProfileError, ProfilePatchInput, ProfileService, ProfileSettings};
+    use profile::ProfileTheme;
     use scylla_health::{ScyllaHealthReport, ScyllaHealthReporter};
     use axum::{
         body::to_bytes,
@@ -912,6 +913,7 @@ mod tests {
                 display_name: "Alice".to_owned(),
                 status_text: Some("Ready".to_owned()),
                 avatar_key: Some("avatars/alice.png".to_owned()),
+                theme: ProfileTheme::Dark,
             })
         }
 
@@ -932,6 +934,7 @@ mod tests {
                 display_name: "Alice".to_owned(),
                 status_text: Some("Ready".to_owned()),
                 avatar_key: Some("avatars/alice.png".to_owned()),
+                theme: ProfileTheme::Dark,
             };
 
             if let Some(display_name) = patch.display_name {
@@ -973,6 +976,14 @@ mod tests {
                 }
 
                 profile.avatar_key = normalized;
+            }
+
+            if let Some(theme) = patch.theme {
+                profile.theme = match theme.trim() {
+                    "dark" => ProfileTheme::Dark,
+                    "light" => ProfileTheme::Light,
+                    _ => return Err(ProfileError::validation("theme_invalid_value")),
+                };
             }
 
             Ok(profile)
@@ -4331,6 +4342,7 @@ mod tests {
         assert_eq!(json["profile"]["display_name"], "Alice");
         assert_eq!(json["profile"]["status_text"], "Ready");
         assert_eq!(json["profile"]["avatar_key"], "avatars/alice.png");
+        assert_eq!(json["profile"]["theme"], "dark");
     }
 
     #[tokio::test]
@@ -4356,6 +4368,33 @@ mod tests {
             .unwrap();
         let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
         assert_eq!(json["profile"]["display_name"], "New Name");
+        assert_eq!(json["profile"]["theme"], "dark");
+    }
+
+    #[tokio::test]
+    async fn patch_my_profile_updates_theme() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("PATCH")
+                    .uri("/users/me/profile")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"theme":"light"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["profile"]["theme"], "light");
+        assert_eq!(json["profile"]["display_name"], "Alice");
     }
 
     #[tokio::test]
@@ -4395,6 +4434,31 @@ mod tests {
                     .header("authorization", format!("Bearer {token}"))
                     .header("content-type", "application/json")
                     .body(Body::from(r#"{}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "VALIDATION_ERROR");
+    }
+
+    #[tokio::test]
+    async fn patch_my_profile_rejects_invalid_theme() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("PATCH")
+                    .uri("/users/me/profile")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"theme":"onyx"}"#))
                     .unwrap(),
             )
             .await

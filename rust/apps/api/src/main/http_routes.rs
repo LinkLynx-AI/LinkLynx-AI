@@ -1380,11 +1380,13 @@ fn parse_profile_patch_payload(
     let display_name = parse_display_name_patch_field(payload)?;
     let status_text = parse_nullable_string_patch_field(payload, "status_text")?;
     let avatar_key = parse_nullable_string_patch_field(payload, "avatar_key")?;
+    let theme = parse_string_patch_field(payload, "theme")?;
 
     Ok(ProfilePatchInput {
         display_name,
         status_text,
         avatar_key,
+        theme,
     })
 }
 
@@ -1455,6 +1457,25 @@ fn parse_nullable_string_patch_field(
     match payload.get(field_name) {
         Some(serde_json::Value::String(value)) => Ok(Some(Some(value.clone()))),
         Some(serde_json::Value::Null) => Ok(Some(None)),
+        Some(_) => Err(ProfileError::validation(format!("{field_name}_invalid_type"))),
+        None => Ok(None),
+    }
+}
+
+/// 必須null不可の文字列更新フィールドを解釈する。
+/// @param payload リクエストJSONオブジェクト
+/// @param field_name 対象フィールド名
+/// @returns 更新値
+/// @throws ProfileError 型不正またはnull入力時
+fn parse_string_patch_field(
+    payload: &serde_json::Map<String, serde_json::Value>,
+    field_name: &str,
+) -> Result<Option<String>, ProfileError> {
+    match payload.get(field_name) {
+        Some(serde_json::Value::String(value)) => Ok(Some(value.clone())),
+        Some(serde_json::Value::Null) => {
+            Err(ProfileError::validation(format!("{field_name}_null_not_allowed")))
+        }
         Some(_) => Err(ProfileError::validation(format!("{field_name}_invalid_type"))),
         None => Ok(None),
     }

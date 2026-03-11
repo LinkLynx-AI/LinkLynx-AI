@@ -51,12 +51,14 @@ export type MyProfile = {
   displayName: string;
   statusText: string | null;
   avatarKey: string | null;
+  theme: "dark" | "light";
 };
 
 export type UpdateMyProfileInput = {
   displayName?: string;
   statusText?: string | null;
   avatarKey?: string | null;
+  theme?: "dark" | "light";
 };
 
 export type CreateGuildData = {

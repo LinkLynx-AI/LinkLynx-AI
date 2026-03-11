@@ -54,6 +54,7 @@ export class MockAPIClient implements APIClient {
   private delay = 100;
   private moderationReports: ModerationReport[] = [];
   private moderationMutes: ModerationMute[] = [];
+  private myProfileTheme: MyProfile["theme"] = "dark";
 
   private async simulateDelay(): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, this.delay));
@@ -333,6 +334,7 @@ export class MockAPIClient implements APIClient {
       displayName: profile?.displayName ?? mockCurrentUser.displayName,
       statusText: profile?.bio ?? mockCurrentUser.customStatus,
       avatarKey: null,
+      theme: this.myProfileTheme,
     };
   }
 
@@ -352,8 +354,10 @@ export class MockAPIClient implements APIClient {
       input.statusText !== undefined
         ? (input.statusText?.trim() ?? null)
         : mockCurrentUser.customStatus;
+    const theme = input.theme ?? this.myProfileTheme;
     mockCurrentUser.displayName = displayName;
     mockCurrentUser.customStatus = statusText;
+    this.myProfileTheme = theme;
 
     const existingProfile = mockUserProfiles[mockCurrentUser.id];
     mockUserProfiles[mockCurrentUser.id] = {
@@ -373,6 +377,7 @@ export class MockAPIClient implements APIClient {
       displayName,
       statusText,
       avatarKey: null,
+      theme,
     };
   }
 

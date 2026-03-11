@@ -1,9 +1,43 @@
+/// プロフィールテーマを表現する。
+#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ProfileTheme {
+    Dark,
+    Light,
+}
+
+impl ProfileTheme {
+    /// 文字列をプロフィールテーマへ変換する。
+    /// @param value 変換対象の文字列
+    /// @returns 変換済みテーマ
+    /// @throws ProfileError 不正値時
+    fn parse(value: &str) -> Result<Self, ProfileError> {
+        match value {
+            "dark" => Ok(Self::Dark),
+            "light" => Ok(Self::Light),
+            _ => Err(ProfileError::validation("theme_invalid_value")),
+        }
+    }
+
+    /// DB格納用の固定文字列を返す。
+    /// @param なし
+    /// @returns DB格納文字列
+    /// @throws なし
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Dark => "dark",
+            Self::Light => "light",
+        }
+    }
+}
+
 /// プロフィール値を表現する。
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 pub struct ProfileSettings {
     pub display_name: String,
     pub status_text: Option<String>,
     pub avatar_key: Option<String>,
+    pub theme: ProfileTheme,
 }
 
 /// プロフィール更新入力を表現する。
@@ -12,6 +46,7 @@ pub struct ProfilePatchInput {
     pub display_name: Option<String>,
     pub status_text: Option<Option<String>>,
     pub avatar_key: Option<Option<String>>,
+    pub theme: Option<String>,
 }
 
 impl ProfilePatchInput {
@@ -20,7 +55,10 @@ impl ProfilePatchInput {
     /// @returns 1項目も指定されていない場合はtrue
     /// @throws なし
     pub fn is_empty(&self) -> bool {
-        self.display_name.is_none() && self.status_text.is_none() && self.avatar_key.is_none()
+        self.display_name.is_none()
+            && self.status_text.is_none()
+            && self.avatar_key.is_none()
+            && self.theme.is_none()
     }
 }
 
@@ -29,6 +67,7 @@ struct NormalizedProfilePatch {
     display_name: Option<String>,
     status_text: Option<Option<String>>,
     avatar_key: Option<Option<String>>,
+    theme: Option<ProfileTheme>,
 }
 
 /// プロフィールAPIユースケース境界を表現する。
@@ -142,10 +181,19 @@ fn normalize_profile_patch_input(patch: ProfilePatchInput) -> Result<NormalizedP
         None => None,
     };
 
+    let theme = match patch.theme {
+        Some(raw_theme) => {
+            let normalized = normalize_theme(&raw_theme)?;
+            Some(normalized)
+        }
+        None => None,
+    };
+
     Ok(NormalizedProfilePatch {
         display_name,
         status_text,
         avatar_key,
+        theme,
     })
 }
 
@@ -226,4 +274,17 @@ fn is_valid_avatar_key(value: &str) -> bool {
     value
         .bytes()
         .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'/' | b'_' | b'-' | b'.'))
+}
+
+/// テーマを正規化して検証する。
+/// @param raw_theme 生のテーマ文字列
+/// @returns 正規化済みテーマ
+/// @throws ProfileError 入力不正時
+fn normalize_theme(raw_theme: &str) -> Result<ProfileTheme, ProfileError> {
+    let normalized = raw_theme.trim();
+    if normalized.is_empty() {
+        return Err(ProfileError::validation("theme_required"));
+    }
+
+    ProfileTheme::parse(normalized)
 }
