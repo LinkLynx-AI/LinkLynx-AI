@@ -56,6 +56,40 @@ pub trait MessageService: Send + Sync {
         idempotency_key: Option<&str>,
         request: CreateGuildChannelMessageRequestV1,
     ) -> Result<CreateGuildChannelMessageExecution, MessageError>;
+
+    /// guild channel message を edit する。
+    /// @param principal_id 更新主体
+    /// @param guild_id 対象 guild_id
+    /// @param channel_id 対象 channel_id
+    /// @param message_id 対象 message_id
+    /// @param request 編集入力
+    /// @returns 更新レスポンス
+    /// @throws MessageError validation / not found / conflict / authz denied / dependency unavailable 時
+    async fn edit_guild_channel_message(
+        &self,
+        principal_id: PrincipalId,
+        guild_id: i64,
+        channel_id: i64,
+        message_id: i64,
+        request: EditGuildChannelMessageRequestV1,
+    ) -> Result<UpdateGuildChannelMessageResponseV1, MessageError>;
+
+    /// guild channel message を tombstone delete する。
+    /// @param principal_id 更新主体
+    /// @param guild_id 対象 guild_id
+    /// @param channel_id 対象 channel_id
+    /// @param message_id 対象 message_id
+    /// @param request 削除入力
+    /// @returns 更新レスポンス
+    /// @throws MessageError validation / not found / conflict / authz denied / dependency unavailable 時
+    async fn delete_guild_channel_message(
+        &self,
+        principal_id: PrincipalId,
+        guild_id: i64,
+        channel_id: i64,
+        message_id: i64,
+        request: DeleteGuildChannelMessageRequestV1,
+    ) -> Result<UpdateGuildChannelMessageResponseV1, MessageError>;
 }
 
 /// guild channel message create の service 実行結果を表現する。
@@ -166,6 +200,21 @@ impl RuntimeMessageService {
             key: key.to_owned(),
             payload_fingerprint: format!("{:x}", hasher.finalize()),
         }))
+    }
+
+    fn current_timestamp(&self) -> Result<String, MessageError> {
+        let now = OffsetDateTime::now_utc()
+            .replace_nanosecond(0)
+            .map_err(|error| {
+                MessageError::dependency_unavailable(format!(
+                    "message_timestamp_generation_failed:{error}"
+                ))
+            })?;
+        now.format(&Rfc3339).map_err(|error| {
+            MessageError::dependency_unavailable(format!(
+                "message_timestamp_format_failed:{error}"
+            ))
+        })
     }
 
     fn allocate_message_id(&self, now: OffsetDateTime) -> Result<i64, MessageError> {
@@ -299,6 +348,77 @@ impl MessageService for RuntimeMessageService {
             should_publish: result.should_publish,
         })
     }
+
+    /// guild channel message を edit する。
+    /// @param principal_id 更新主体
+    /// @param guild_id 対象 guild_id
+    /// @param channel_id 対象 channel_id
+    /// @param message_id 対象 message_id
+    /// @param request 編集入力
+    /// @returns 更新レスポンス
+    /// @throws MessageError validation / not found / conflict / authz denied / dependency unavailable 時
+    async fn edit_guild_channel_message(
+        &self,
+        principal_id: PrincipalId,
+        guild_id: i64,
+        channel_id: i64,
+        message_id: i64,
+        request: EditGuildChannelMessageRequestV1,
+    ) -> Result<UpdateGuildChannelMessageResponseV1, MessageError> {
+        let edited_at = self.current_timestamp()?;
+        let result = self
+            .usecase
+            .edit_guild_channel_message(EditGuildChannelMessageCommand {
+                guild_id,
+                channel_id,
+                principal_id: principal_id.0,
+                message_id,
+                content: request.content,
+                expected_version: request.expected_version,
+                edited_at,
+            })
+            .await
+            .map_err(MessageError::from)?;
+
+        Ok(UpdateGuildChannelMessageResponseV1 {
+            message: result.message,
+        })
+    }
+
+    /// guild channel message を tombstone delete する。
+    /// @param principal_id 更新主体
+    /// @param guild_id 対象 guild_id
+    /// @param channel_id 対象 channel_id
+    /// @param message_id 対象 message_id
+    /// @param request 削除入力
+    /// @returns 更新レスポンス
+    /// @throws MessageError validation / not found / conflict / authz denied / dependency unavailable 時
+    async fn delete_guild_channel_message(
+        &self,
+        principal_id: PrincipalId,
+        guild_id: i64,
+        channel_id: i64,
+        message_id: i64,
+        request: DeleteGuildChannelMessageRequestV1,
+    ) -> Result<UpdateGuildChannelMessageResponseV1, MessageError> {
+        let deleted_at = self.current_timestamp()?;
+        let result = self
+            .usecase
+            .delete_guild_channel_message(DeleteGuildChannelMessageCommand {
+                guild_id,
+                channel_id,
+                principal_id: principal_id.0,
+                message_id,
+                expected_version: request.expected_version,
+                deleted_at,
+            })
+            .await
+            .map_err(MessageError::from)?;
+
+        Ok(UpdateGuildChannelMessageResponseV1 {
+            message: result.message,
+        })
+    }
 }
 
 /// 依存未構成時に fail-close させる message service を表現する。
@@ -388,6 +508,44 @@ impl MessageService for UnavailableMessageService {
     ) -> Result<CreateGuildChannelMessageExecution, MessageError> {
         Err(self.unavailable_error())
     }
+
+    /// guild channel message を edit する。
+    /// @param _principal_id 更新主体
+    /// @param _guild_id 対象 guild_id
+    /// @param _channel_id 対象 channel_id
+    /// @param _message_id 対象 message_id
+    /// @param _request 編集入力
+    /// @returns なし
+    /// @throws MessageError 常に unavailable
+    async fn edit_guild_channel_message(
+        &self,
+        _principal_id: PrincipalId,
+        _guild_id: i64,
+        _channel_id: i64,
+        _message_id: i64,
+        _request: EditGuildChannelMessageRequestV1,
+    ) -> Result<UpdateGuildChannelMessageResponseV1, MessageError> {
+        Err(self.unavailable_error())
+    }
+
+    /// guild channel message を tombstone delete する。
+    /// @param _principal_id 更新主体
+    /// @param _guild_id 対象 guild_id
+    /// @param _channel_id 対象 channel_id
+    /// @param _message_id 対象 message_id
+    /// @param _request 削除入力
+    /// @returns なし
+    /// @throws MessageError 常に unavailable
+    async fn delete_guild_channel_message(
+        &self,
+        _principal_id: PrincipalId,
+        _guild_id: i64,
+        _channel_id: i64,
+        _message_id: i64,
+        _request: DeleteGuildChannelMessageRequestV1,
+    ) -> Result<UpdateGuildChannelMessageResponseV1, MessageError> {
+        Err(self.unavailable_error())
+    }
 }
 
 #[cfg(test)]
@@ -401,7 +559,7 @@ mod tests {
         upsert_channel_last_message, SeedMessageRow,
     };
     use linklynx_message_api::MessageCursorKeyV1;
-    use linklynx_message_domain::MessageBodyStore;
+    use linklynx_message_domain::{MessageBodyStore, UpdateGuildChannelMessageResult};
     use std::collections::{HashMap, HashSet};
     use time::{format_description::well_known::Rfc3339, OffsetDateTime};
     use tokio::sync::Mutex;
@@ -436,6 +594,24 @@ mod tests {
                 next_after: None,
                 has_more: false,
             })
+        }
+
+        async fn edit_guild_channel_message(
+            &self,
+            _command: EditGuildChannelMessageCommand,
+        ) -> Result<UpdateGuildChannelMessageResult, MessageUsecaseError> {
+            Err(MessageUsecaseError::dependency_unavailable(
+                "edit_not_supported_in_recording_test",
+            ))
+        }
+
+        async fn delete_guild_channel_message(
+            &self,
+            _command: DeleteGuildChannelMessageCommand,
+        ) -> Result<UpdateGuildChannelMessageResult, MessageUsecaseError> {
+            Err(MessageUsecaseError::dependency_unavailable(
+                "delete_not_supported_in_recording_test",
+            ))
         }
     }
 
@@ -490,6 +666,24 @@ mod tests {
                 next_after: None,
                 has_more: false,
             })
+        }
+
+        async fn edit_guild_channel_message(
+            &self,
+            _command: EditGuildChannelMessageCommand,
+        ) -> Result<UpdateGuildChannelMessageResult, MessageUsecaseError> {
+            Err(MessageUsecaseError::dependency_unavailable(
+                "edit_not_supported_in_idempotency_test",
+            ))
+        }
+
+        async fn delete_guild_channel_message(
+            &self,
+            _command: DeleteGuildChannelMessageCommand,
+        ) -> Result<UpdateGuildChannelMessageResult, MessageUsecaseError> {
+            Err(MessageUsecaseError::dependency_unavailable(
+                "delete_not_supported_in_idempotency_test",
+            ))
         }
     }
 

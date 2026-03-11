@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { SmilePlus, Reply, Pencil, MessageSquare, MoreHorizontal } from "lucide-react";
+import { SmilePlus, Reply, Pencil, MessageSquare, MoreHorizontal, Trash2 } from "lucide-react";
 import { cn } from "@/shared/lib/cn";
 import { useUIStore } from "@/shared/model/stores/ui-store";
 import { EmojiPicker } from "@/features/pickers";
@@ -12,11 +12,13 @@ export function MessageActions({
   message,
   channelId,
   onEdit,
+  onDelete,
   isAnnouncement,
 }: {
   message?: Message;
   channelId?: string;
   onEdit?: () => void;
+  onDelete?: () => void;
   isAnnouncement?: boolean;
 }) {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -82,6 +84,20 @@ export function MessageActions({
           )}
         >
           <Pencil className="h-4 w-4" />
+        </button>
+      )}
+
+      {onDelete && (
+        <button
+          title="削除"
+          onClick={onDelete}
+          className={cn(
+            "p-1.5 text-discord-interactive-normal",
+            "hover:bg-discord-bg-mod-hover hover:text-discord-interactive-hover",
+            "rounded transition-colors",
+          )}
+        >
+          <Trash2 className="h-4 w-4" />
         </button>
       )}
 

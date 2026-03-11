@@ -327,7 +327,12 @@ impl DmService for PostgresDmService {
             .await
             .map_err(|error| match error.kind {
                 crate::message::MessageErrorKind::Validation => DmError::validation(error.reason),
-                crate::message::MessageErrorKind::ChannelNotFound => DmError::not_found(error.reason),
+                crate::message::MessageErrorKind::ChannelNotFound
+                | crate::message::MessageErrorKind::MessageNotFound => {
+                    DmError::not_found(error.reason)
+                }
+                crate::message::MessageErrorKind::AuthzDenied => DmError::forbidden(error.reason),
+                crate::message::MessageErrorKind::Conflict => DmError::validation(error.reason),
                 crate::message::MessageErrorKind::DependencyUnavailable => {
                     DmError::dependency_unavailable(error.reason)
                 }
@@ -348,7 +353,12 @@ impl DmService for PostgresDmService {
             .await
             .map_err(|error| match error.kind {
                 crate::message::MessageErrorKind::Validation => DmError::validation(error.reason),
-                crate::message::MessageErrorKind::ChannelNotFound => DmError::not_found(error.reason),
+                crate::message::MessageErrorKind::ChannelNotFound
+                | crate::message::MessageErrorKind::MessageNotFound => {
+                    DmError::not_found(error.reason)
+                }
+                crate::message::MessageErrorKind::AuthzDenied => DmError::forbidden(error.reason),
+                crate::message::MessageErrorKind::Conflict => DmError::validation(error.reason),
                 crate::message::MessageErrorKind::DependencyUnavailable => {
                     DmError::dependency_unavailable(error.reason)
                 }

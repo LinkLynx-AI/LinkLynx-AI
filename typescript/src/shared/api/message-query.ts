@@ -22,6 +22,12 @@ function isFallbackAuthor(message: Message): boolean {
 }
 
 function mergeMessages(current: Message, incoming: Message): Message {
+  const currentVersion = BigInt(current.version);
+  const incomingVersion = BigInt(incoming.version);
+  if (incomingVersion < currentVersion) {
+    return current;
+  }
+
   const nextAuthor =
     isFallbackAuthor(current) && !isFallbackAuthor(incoming) ? incoming.author : current.author;
 

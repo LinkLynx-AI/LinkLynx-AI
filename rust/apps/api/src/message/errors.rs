@@ -3,6 +3,9 @@
 pub enum MessageErrorKind {
     Validation,
     ChannelNotFound,
+    MessageNotFound,
+    AuthzDenied,
+    Conflict,
     DependencyUnavailable,
 }
 
@@ -36,6 +39,39 @@ impl MessageError {
         }
     }
 
+    /// message未存在エラーを生成する。
+    /// @param reason 失敗理由
+    /// @returns 未存在エラー
+    /// @throws なし
+    pub fn message_not_found(reason: impl Into<String>) -> Self {
+        Self {
+            kind: MessageErrorKind::MessageNotFound,
+            reason: reason.into(),
+        }
+    }
+
+    /// authz denied エラーを生成する。
+    /// @param reason 失敗理由
+    /// @returns authz denied エラー
+    /// @throws なし
+    pub fn authz_denied(reason: impl Into<String>) -> Self {
+        Self {
+            kind: MessageErrorKind::AuthzDenied,
+            reason: reason.into(),
+        }
+    }
+
+    /// conflict エラーを生成する。
+    /// @param reason 失敗理由
+    /// @returns conflict エラー
+    /// @throws なし
+    pub fn conflict(reason: impl Into<String>) -> Self {
+        Self {
+            kind: MessageErrorKind::Conflict,
+            reason: reason.into(),
+        }
+    }
+
     /// 依存障害エラーを生成する。
     /// @param reason 失敗理由
     /// @returns 依存障害エラー
@@ -55,6 +91,9 @@ impl MessageError {
         match self.kind {
             MessageErrorKind::Validation => StatusCode::BAD_REQUEST,
             MessageErrorKind::ChannelNotFound => StatusCode::NOT_FOUND,
+            MessageErrorKind::MessageNotFound => StatusCode::NOT_FOUND,
+            MessageErrorKind::AuthzDenied => StatusCode::FORBIDDEN,
+            MessageErrorKind::Conflict => StatusCode::CONFLICT,
             MessageErrorKind::DependencyUnavailable => StatusCode::SERVICE_UNAVAILABLE,
         }
     }
@@ -67,6 +106,9 @@ impl MessageError {
         match self.kind {
             MessageErrorKind::Validation => "VALIDATION_ERROR",
             MessageErrorKind::ChannelNotFound => "CHANNEL_NOT_FOUND",
+            MessageErrorKind::MessageNotFound => "MESSAGE_NOT_FOUND",
+            MessageErrorKind::AuthzDenied => "AUTHZ_DENIED",
+            MessageErrorKind::Conflict => "MESSAGE_CONFLICT",
             MessageErrorKind::DependencyUnavailable => "AUTHZ_UNAVAILABLE",
         }
     }
@@ -79,6 +121,9 @@ impl MessageError {
         match self.kind {
             MessageErrorKind::Validation => "request payload is invalid",
             MessageErrorKind::ChannelNotFound => "channel resource was not found",
+            MessageErrorKind::MessageNotFound => "message resource was not found",
+            MessageErrorKind::AuthzDenied => "message update is not allowed",
+            MessageErrorKind::Conflict => "message version conflict",
             MessageErrorKind::DependencyUnavailable => {
                 "authorization dependency is unavailable"
             }
@@ -97,6 +142,9 @@ impl From<MessageUsecaseError> for MessageError {
         match value {
             MessageUsecaseError::Validation(reason) => Self::validation(reason),
             MessageUsecaseError::ChannelNotFound(reason) => Self::channel_not_found(reason),
+            MessageUsecaseError::MessageNotFound(reason) => Self::message_not_found(reason),
+            MessageUsecaseError::AuthzDenied(reason) => Self::authz_denied(reason),
+            MessageUsecaseError::Conflict(reason) => Self::conflict(reason),
             MessageUsecaseError::DependencyUnavailable(reason) => {
                 Self::dependency_unavailable(reason)
             }

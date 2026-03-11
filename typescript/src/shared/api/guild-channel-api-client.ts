@@ -1,6 +1,12 @@
 import { z } from "zod";
 import { getFirebaseAuth } from "@/shared/lib";
-import type { Channel, Guild, Message } from "@/shared/model/types";
+import type {
+  Channel,
+  DeleteMessageData,
+  EditMessageData,
+  Guild,
+  Message,
+} from "@/shared/model/types";
 import { useAuthStore } from "@/shared/model/stores/auth-store";
 import type {
   ChannelPermissionSnapshot,
@@ -183,6 +189,7 @@ const UPDATE_ERROR_MESSAGES = {
   network: "ネットワーク接続を確認してから再試行してください。",
 } as const;
 const DELETE_ERROR_MESSAGES = {
+  validation: "入力内容を確認してください。",
   authzDenied: "この操作を行う権限がありません。",
   authzUnavailable: "認可サービスが一時的に利用できません。しばらくしてから再試行してください。",
   guildNotFound: "対象のサーバーが見つかりません。",
@@ -206,6 +213,14 @@ const MESSAGE_TIMELINE_ERROR_MESSAGES = {
   authRequired: "ログイン状態を確認してから再試行してください。",
   network: "ネットワーク接続を確認してから再試行してください。",
 } as const;
+const MESSAGE_UPDATE_ERROR_MESSAGES = {
+  conflict: "メッセージが更新されています。最新状態を読み直しました。",
+} as const;
+const MESSAGE_DELETE_ERROR_MESSAGES = {
+  conflict: "メッセージの状態が変わっています。最新状態を読み直しました。",
+} as const;
+const MESSAGE_UPDATE_RESPONSE_SCHEMA = MESSAGE_CREATE_RESPONSE_SCHEMA;
+const MESSAGE_DELETE_RESPONSE_SCHEMA = MESSAGE_CREATE_RESPONSE_SCHEMA;
 
 type GuildListResponse = z.infer<typeof GUILD_LIST_RESPONSE_SCHEMA>;
 type GuildCreateResponse = z.infer<typeof GUILD_CREATE_RESPONSE_SCHEMA>;
@@ -336,6 +351,9 @@ export function toUpdateActionErrorText(error: unknown, fallbackMessage: string)
   if (error.code === "AUTHZ_UNAVAILABLE") {
     return attachRequestId(UPDATE_ERROR_MESSAGES.authzUnavailable, error.requestId);
   }
+  if (error.code === "MESSAGE_CONFLICT" || error.status === 409) {
+    return attachRequestId(MESSAGE_UPDATE_ERROR_MESSAGES.conflict, error.requestId);
+  }
   if (error.code === "CHANNEL_NOT_FOUND") {
     return attachRequestId(UPDATE_ERROR_MESSAGES.channelNotFound, error.requestId);
   }
@@ -360,8 +378,14 @@ export function toDeleteActionErrorText(error: unknown, fallbackMessage: string)
   if (error.code === "AUTHZ_DENIED") {
     return attachRequestId(DELETE_ERROR_MESSAGES.authzDenied, error.requestId);
   }
+  if (error.code === "VALIDATION_ERROR") {
+    return attachRequestId(DELETE_ERROR_MESSAGES.validation, error.requestId);
+  }
   if (error.code === "AUTHZ_UNAVAILABLE") {
     return attachRequestId(DELETE_ERROR_MESSAGES.authzUnavailable, error.requestId);
+  }
+  if (error.code === "MESSAGE_CONFLICT" || error.status === 409) {
+    return attachRequestId(MESSAGE_DELETE_ERROR_MESSAGES.conflict, error.requestId);
   }
   if (error.code === "GUILD_NOT_FOUND") {
     return attachRequestId(DELETE_ERROR_MESSAGES.guildNotFound, error.requestId);
@@ -727,7 +751,7 @@ export class GuildChannelAPIClient extends NoDataAPIClient {
 
   private async requestJson<T>(params: {
     path: string;
-    method: "GET" | "POST" | "PATCH";
+    method: "GET" | "POST" | "PATCH" | "DELETE";
     schema: z.ZodType<T>;
     expectedStatus: number;
     body?: Record<string, unknown>;
@@ -840,6 +864,7 @@ export class GuildChannelAPIClient extends NoDataAPIClient {
     path: string,
     body: Record<string, unknown>,
     schema: z.ZodType<T>,
+    options?: { parseResponseText?: (rawText: string) => unknown },
   ): Promise<T> {
     return this.requestJson({
       path,
@@ -847,6 +872,23 @@ export class GuildChannelAPIClient extends NoDataAPIClient {
       body,
       schema,
       expectedStatus: 200,
+      parseResponseText: options?.parseResponseText,
+    });
+  }
+
+  private async deleteJson<T>(
+    path: string,
+    body: Record<string, unknown>,
+    schema: z.ZodType<T>,
+    options?: { parseResponseText?: (rawText: string) => unknown },
+  ): Promise<T> {
+    return this.requestJson({
+      path,
+      method: "DELETE",
+      body,
+      schema,
+      expectedStatus: 200,
+      parseResponseText: options?.parseResponseText,
     });
   }
 
@@ -1279,6 +1321,75 @@ export class GuildChannelAPIClient extends NoDataAPIClient {
             }
           : currentUser,
     };
+  }
+
+  async editMessage(channelId: string, messageId: string, data: EditMessageData): Promise<Message> {
+    const normalizedChannelId = channelId.trim();
+    const normalizedMessageId = messageId.trim();
+    const normalizedContent = data.content.trim();
+    const expectedVersion = data.expectedVersion.trim();
+    if (
+      normalizedChannelId.length === 0 ||
+      normalizedMessageId.length === 0 ||
+      normalizedContent.length === 0 ||
+      expectedVersion.length === 0
+    ) {
+      throw new GuildChannelApiError(UPDATE_ERROR_MESSAGES.validation, {
+        status: 400,
+        code: "VALIDATION_ERROR",
+      });
+    }
+
+    const channel = await this.getChannel(normalizedChannelId);
+    const response = await this.patchJson(
+      `/v1/guilds/${encodeURIComponent(channel.guildId ?? "")}/channels/${encodeURIComponent(
+        normalizedChannelId,
+      )}/messages/${encodeURIComponent(normalizedMessageId)}`,
+      {
+        content: normalizedContent,
+        expected_version: Number(expectedVersion),
+      },
+      MESSAGE_UPDATE_RESPONSE_SCHEMA,
+      {
+        parseResponseText: parseMessagePayload,
+      },
+    );
+
+    return mapMessageItem(response.message);
+  }
+
+  async deleteMessage(
+    channelId: string,
+    messageId: string,
+    data: DeleteMessageData,
+  ): Promise<Message> {
+    const normalizedChannelId = channelId.trim();
+    const normalizedMessageId = messageId.trim();
+    const expectedVersion = data.expectedVersion.trim();
+    if (
+      normalizedChannelId.length === 0 ||
+      normalizedMessageId.length === 0 ||
+      expectedVersion.length === 0
+    ) {
+      throw new GuildChannelApiError(DELETE_ERROR_MESSAGES.validation, {
+        status: 400,
+        code: "VALIDATION_ERROR",
+      });
+    }
+
+    const channel = await this.getChannel(normalizedChannelId);
+    const response = await this.deleteJson(
+      `/v1/guilds/${encodeURIComponent(channel.guildId ?? "")}/channels/${encodeURIComponent(
+        normalizedChannelId,
+      )}/messages/${encodeURIComponent(normalizedMessageId)}`,
+      {
+        expected_version: Number(expectedVersion),
+      },
+      MESSAGE_DELETE_RESPONSE_SCHEMA,
+      { parseResponseText: parseMessagePayload },
+    );
+
+    return mapMessageItem(response.message);
   }
 
   async getMyProfile(): Promise<MyProfile> {

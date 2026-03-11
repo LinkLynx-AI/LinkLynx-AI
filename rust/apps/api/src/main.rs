@@ -48,7 +48,10 @@ use guild_channel::{
     GuildChannelService,
 };
 use invite::{build_runtime_invite_service, invite_error_response, InviteService};
-use linklynx_message_api::{CreateGuildChannelMessageRequestV1, ListGuildChannelMessagesQueryV1};
+use linklynx_message_api::{
+    CreateGuildChannelMessageRequestV1, DeleteGuildChannelMessageRequestV1,
+    EditGuildChannelMessageRequestV1, ListGuildChannelMessagesQueryV1,
+};
 use linklynx_protocol_ws::{
     ClientMessageFrameV1, GuildChannelSubscriptionTargetV1, MessageSubscriptionStateV1,
     ServerMessageFrameV1,

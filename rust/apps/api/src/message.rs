@@ -14,11 +14,14 @@ use axum::{
 };
 use linklynx_message_api::{
     CreateGuildChannelMessageRequestV1, CreateGuildChannelMessageResponseV1,
+    DeleteGuildChannelMessageRequestV1, EditGuildChannelMessageRequestV1,
     ListGuildChannelMessagesQueryV1, ListGuildChannelMessagesResponseV1, MessageApiError,
+    UpdateGuildChannelMessageResponseV1,
 };
 use linklynx_message_domain::{
-    CreateGuildChannelMessageCommand, LiveMessageUsecase, MessageCreateIdempotency,
-    MessageIdentity, MessageUsecase, MessageUsecaseError,
+    CreateGuildChannelMessageCommand, DeleteGuildChannelMessageCommand,
+    EditGuildChannelMessageCommand, LiveMessageUsecase, MessageCreateIdempotency, MessageIdentity,
+    MessageUsecase, MessageUsecaseError,
 };
 use linklynx_platform_postgres_message::PostgresMessageMetadataRepository;
 use linklynx_platform_scylla_message::ScyllaMessageStore;

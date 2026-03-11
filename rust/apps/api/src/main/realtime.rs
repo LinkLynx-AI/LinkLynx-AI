@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use linklynx_message_api::MessageItemV1;
+use linklynx_protocol_ws::MessageEventFrameDataV1;
 use linklynx_shared::PrincipalId;
 use tokio::sync::{mpsc, Mutex};
 
@@ -137,12 +138,18 @@ impl MessageRealtimeHub {
         }
     }
 
-    /// guild channel 購読中セッションへ message.created を best-effort 送信する。
+    /// guild channel 購読中セッションへ realtime frame を best-effort 送信する。
     /// @param app_state アプリケーション状態
     /// @param message fanout 対象 message snapshot
+    /// @param frame realtime frame
     /// @returns なし
     /// @throws なし
-    async fn publish_message_created(&self, app_state: &AppState, message: MessageItemV1) {
+    async fn publish_message_frame(
+        &self,
+        app_state: &AppState,
+        message: MessageItemV1,
+        frame: ServerMessageFrameV1,
+    ) {
         let key = MessageSubscriptionKey::from(&message);
         let subscribers = {
             let state = self.state.lock().await;
@@ -166,13 +173,6 @@ impl MessageRealtimeHub {
         if subscribers.is_empty() {
             return;
         }
-
-        let frame =
-            ServerMessageFrameV1::Created(linklynx_protocol_ws::MessageCreatedFrameDataV1 {
-                guild_id: message.guild_id,
-                channel_id: message.channel_id,
-                message,
-            });
         let mut invalid_sessions = Vec::new();
         for (session_id, principal_id, sender) in subscribers {
             if !subscription_access_allowed(app_state, principal_id, &session_id, key).await {
@@ -204,6 +204,48 @@ impl MessageRealtimeHub {
         for session_id in invalid_sessions {
             remove_subscription(&mut state, &session_id, key);
         }
+    }
+
+    /// guild channel 購読中セッションへ message.created を best-effort 送信する。
+    /// @param app_state アプリケーション状態
+    /// @param message fanout 対象 message snapshot
+    /// @returns なし
+    /// @throws なし
+    async fn publish_message_created(&self, app_state: &AppState, message: MessageItemV1) {
+        let frame = ServerMessageFrameV1::Created(MessageEventFrameDataV1 {
+            guild_id: message.guild_id,
+            channel_id: message.channel_id,
+            message: message.clone(),
+        });
+        self.publish_message_frame(app_state, message, frame).await;
+    }
+
+    /// guild channel 購読中セッションへ message.updated を best-effort 送信する。
+    /// @param app_state アプリケーション状態
+    /// @param message fanout 対象 message snapshot
+    /// @returns なし
+    /// @throws なし
+    async fn publish_message_updated(&self, app_state: &AppState, message: MessageItemV1) {
+        let frame = ServerMessageFrameV1::Updated(MessageEventFrameDataV1 {
+            guild_id: message.guild_id,
+            channel_id: message.channel_id,
+            message: message.clone(),
+        });
+        self.publish_message_frame(app_state, message, frame).await;
+    }
+
+    /// guild channel 購読中セッションへ message.deleted を best-effort 送信する。
+    /// @param app_state アプリケーション状態
+    /// @param message fanout 対象 message snapshot
+    /// @returns なし
+    /// @throws なし
+    async fn publish_message_deleted(&self, app_state: &AppState, message: MessageItemV1) {
+        let frame = ServerMessageFrameV1::Deleted(MessageEventFrameDataV1 {
+            guild_id: message.guild_id,
+            channel_id: message.channel_id,
+            message: message.clone(),
+        });
+        self.publish_message_frame(app_state, message, frame).await;
     }
 }
 
@@ -350,7 +392,7 @@ mod realtime_tests {
             channel_id: 20,
         };
         let frame =
-            ServerMessageFrameV1::Created(linklynx_protocol_ws::MessageCreatedFrameDataV1 {
+            ServerMessageFrameV1::Created(MessageEventFrameDataV1 {
                 guild_id: 10,
                 channel_id: 20,
                 message: sample_message(),

@@ -892,6 +892,105 @@ describe("GuildChannelAPIClient", () => {
     expect(new Headers(init.headers).get("Idempotency-Key")).toBeTruthy();
   });
 
+  test("editMessage calls PATCH message endpoint with expectedVersion", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        `{
+          "message": {
+            "message_id": 9223372036854775002,
+            "guild_id": 2001,
+            "channel_id": 3001,
+            "author_id": 9003,
+            "content": "edited",
+            "created_at": "2026-03-10T10:01:00Z",
+            "version": 2,
+            "edited_at": "2026-03-10T10:02:00Z",
+            "is_deleted": false
+          }
+        }`,
+        { status: 200 },
+      ),
+    );
+
+    const client = new GuildChannelAPIClient();
+    (
+      client as unknown as {
+        channelIndex: Map<string, { guildId: string }>;
+      }
+    ).channelIndex.set("3001", { guildId: "2001" });
+
+    const message = await client.editMessage("3001", "5001", {
+      content: "edited",
+      expectedVersion: "1",
+    });
+
+    expect(message.content).toBe("edited");
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("http://localhost:8080/v1/guilds/2001/channels/3001/messages/5001");
+    expect(init.method).toBe("PATCH");
+    expect(init.body).toBe(JSON.stringify({ content: "edited", expected_version: 1 }));
+  });
+
+  test("deleteMessage calls DELETE message endpoint and returns tombstone snapshot", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        `{
+          "message": {
+            "message_id": 9223372036854775002,
+            "guild_id": 2001,
+            "channel_id": 3001,
+            "author_id": 9003,
+            "content": "",
+            "created_at": "2026-03-10T10:01:00Z",
+            "version": 3,
+            "edited_at": "2026-03-10T10:03:00Z",
+            "is_deleted": true
+          }
+        }`,
+        { status: 200 },
+      ),
+    );
+
+    const client = new GuildChannelAPIClient();
+    (
+      client as unknown as {
+        channelIndex: Map<string, { guildId: string }>;
+      }
+    ).channelIndex.set("3001", { guildId: "2001" });
+
+    const message = await client.deleteMessage("3001", "5001", {
+      expectedVersion: "2",
+    });
+
+    expect(message.isDeleted).toBe(true);
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("http://localhost:8080/v1/guilds/2001/channels/3001/messages/5001");
+    expect(init.method).toBe("DELETE");
+    expect(init.body).toBe(JSON.stringify({ expected_version: 2 }));
+  });
+
+  test("toUpdateActionErrorText maps message conflict", () => {
+    const error = new GuildChannelApiError("conflict", {
+      code: "MESSAGE_CONFLICT",
+      requestId: "req-edit-409",
+    });
+
+    expect(toUpdateActionErrorText(error, "更新に失敗しました。")).toBe(
+      "メッセージが更新されています。最新状態を読み直しました。 (request_id: req-edit-409)",
+    );
+  });
+
+  test("toDeleteActionErrorText maps message conflict", () => {
+    const error = new GuildChannelApiError("conflict", {
+      code: "MESSAGE_CONFLICT",
+      requestId: "req-delete-409",
+    });
+
+    expect(toDeleteActionErrorText(error, "削除に失敗しました。")).toBe(
+      "メッセージの状態が変わっています。最新状態を読み直しました。 (request_id: req-delete-409)",
+    );
+  });
+
   test("toMessageActionErrorText includes retry-after seconds for rate limit", () => {
     const error = new GuildChannelApiError("rate limited", {
       code: "RATE_LIMITED",
