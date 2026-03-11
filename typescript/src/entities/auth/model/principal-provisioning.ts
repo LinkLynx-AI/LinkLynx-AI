@@ -17,7 +17,7 @@ export type PrincipalProvisionError = {
 };
 
 export type PrincipalProvisionResult =
-    | {
+  | {
       ok: true;
       data: {
         principalId: string;

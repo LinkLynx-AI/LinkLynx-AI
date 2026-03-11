@@ -20,37 +20,46 @@ export function FileDropZone({
   const openModal = useUIStore((s) => s.openModal);
   const dragCounterRef = { current: 0 };
 
-  const handleDragEnter = useCallback((e: DragEvent) => {
-    if (disabled) {
-      return;
-    }
-    e.preventDefault();
-    e.stopPropagation();
-    dragCounterRef.current++;
-    if (e.dataTransfer.types.includes("Files")) {
-      setDragging(true);
-    }
-  }, [disabled]);
+  const handleDragEnter = useCallback(
+    (e: DragEvent) => {
+      if (disabled) {
+        return;
+      }
+      e.preventDefault();
+      e.stopPropagation();
+      dragCounterRef.current++;
+      if (e.dataTransfer.types.includes("Files")) {
+        setDragging(true);
+      }
+    },
+    [disabled],
+  );
 
-  const handleDragLeave = useCallback((e: DragEvent) => {
-    if (disabled) {
-      return;
-    }
-    e.preventDefault();
-    e.stopPropagation();
-    dragCounterRef.current--;
-    if (dragCounterRef.current === 0) {
-      setDragging(false);
-    }
-  }, [disabled]);
+  const handleDragLeave = useCallback(
+    (e: DragEvent) => {
+      if (disabled) {
+        return;
+      }
+      e.preventDefault();
+      e.stopPropagation();
+      dragCounterRef.current--;
+      if (dragCounterRef.current === 0) {
+        setDragging(false);
+      }
+    },
+    [disabled],
+  );
 
-  const handleDragOver = useCallback((e: DragEvent) => {
-    if (disabled) {
-      return;
-    }
-    e.preventDefault();
-    e.stopPropagation();
-  }, [disabled]);
+  const handleDragOver = useCallback(
+    (e: DragEvent) => {
+      if (disabled) {
+        return;
+      }
+      e.preventDefault();
+      e.stopPropagation();
+    },
+    [disabled],
+  );
 
   const handleDrop = useCallback(
     (e: DragEvent) => {

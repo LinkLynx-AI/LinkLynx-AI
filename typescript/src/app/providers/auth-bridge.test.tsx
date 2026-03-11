@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import type { AuthSessionContextValue } from "@/entities/auth";
+import { beforeEach, describe, expect, test, vi } from "vitest";
 import { render, waitFor } from "@/test/test-utils";
-import { afterEach, describe, expect, test, vi } from "vitest";
 import { useAuthStore } from "@/shared/model/stores/auth-store";
 
 const useAuthSessionMock = vi.hoisted(() =>
@@ -11,69 +11,115 @@ const useAuthSessionMock = vi.hoisted(() =>
     getIdToken: () => Promise.resolve(null),
   })),
 );
+const useMyProfileMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/entities/auth", () => ({
   useAuthSession: useAuthSessionMock,
 }));
 
+vi.mock("@/shared/api/queries", () => ({
+  useMyProfile: useMyProfileMock,
+}));
+
 import { AuthBridge } from "./auth-bridge";
 
 describe("AuthBridge", () => {
-  afterEach(() => {
+  beforeEach(() => {
+    vi.clearAllMocks();
     useAuthStore.setState({
       currentUser: null,
       currentPrincipalId: null,
       status: "online",
       customStatus: null,
     });
-    vi.clearAllMocks();
   });
 
-  test("認証済みセッションを auth-store へ同期する", async () => {
+  test("hydrates auth-store with my profile after authentication", async () => {
     useAuthSessionMock.mockReturnValue({
       status: "authenticated",
       user: {
-        uid: "uid-1",
+        uid: "u-1",
         email: "alice@example.com",
         emailVerified: true,
       },
       getIdToken: () => Promise.resolve("token-1"),
     });
+    useMyProfileMock.mockReturnValue({
+      data: {
+        displayName: "Alice Cooper",
+        statusText: "Ready to ship",
+        avatarKey: null,
+      },
+    });
 
     render(<AuthBridge />);
 
     await waitFor(() => {
-      const currentUser = useAuthStore.getState().currentUser;
-      expect(currentUser?.id).toBe("uid-1");
-      expect(currentUser?.username).toBe("alice");
+      expect(useAuthStore.getState().currentUser).toMatchObject({
+        id: "u-1",
+        username: "alice",
+        displayName: "Alice Cooper",
+        customStatus: "Ready to ship",
+      });
+      expect(useAuthStore.getState().customStatus).toBe("Ready to ship");
     });
   });
 
-  test("未認証セッションへ遷移したら auth-store の currentUser をクリアする", async () => {
+  test("keeps session-derived fallback when profile fetch is unavailable", async () => {
+    useAuthSessionMock.mockReturnValue({
+      status: "authenticated",
+      user: {
+        uid: "u-2",
+        email: "fallback@example.com",
+        emailVerified: true,
+      },
+      getIdToken: () => Promise.resolve("token-2"),
+    });
+    useMyProfileMock.mockReturnValue({
+      data: undefined,
+    });
+
+    render(<AuthBridge />);
+
+    await waitFor(() => {
+      expect(useAuthStore.getState().currentUser).toMatchObject({
+        id: "u-2",
+        username: "fallback",
+        displayName: "fallback",
+        customStatus: null,
+      });
+    });
+  });
+
+  test("clears stale auth-store state when session becomes unauthenticated", async () => {
     useAuthStore.setState({
       currentUser: {
-        id: "uid-old",
-        username: "old-user",
-        displayName: "old-user",
+        id: "u-stale",
+        username: "stale",
+        displayName: "Stale",
         avatar: null,
         status: "online",
-        customStatus: null,
+        customStatus: "stale-status",
         bot: false,
       },
       currentPrincipalId: null,
       status: "online",
-      customStatus: null,
+      customStatus: "stale-status",
     });
     useAuthSessionMock.mockReturnValue({
       status: "unauthenticated",
       user: null,
       getIdToken: () => Promise.resolve(null),
     });
+    useMyProfileMock.mockReturnValue({
+      data: undefined,
+    });
 
     render(<AuthBridge />);
 
     await waitFor(() => {
       expect(useAuthStore.getState().currentUser).toBeNull();
+      expect(useAuthStore.getState().customStatus).toBeNull();
     });
   });
 
@@ -97,11 +143,15 @@ describe("AuthBridge", () => {
       user: null,
       getIdToken: () => Promise.resolve("token-1"),
     });
+    useMyProfileMock.mockReturnValue({
+      data: undefined,
+    });
 
     render(<AuthBridge />);
 
     await waitFor(() => {
       expect(useAuthStore.getState().currentUser).toBeNull();
+      expect(useAuthStore.getState().customStatus).toBeNull();
     });
   });
 });
