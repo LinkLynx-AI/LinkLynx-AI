@@ -104,7 +104,9 @@ v0 での認可関連 SoR:
 
 この節は実装方針ではなく、LIN-602以降で守る契約値を固定する。
 
-- ルール0: `resource = GuildChannel` の場合、まず `channels.id == channel_id` かつ `channels.guild_id == guild_id` かつ `channels.type == guild_text` を検証する。
+- ルール0: `resource = GuildChannel` の場合、まず `channels.id == channel_id` かつ `channels.guild_id == guild_id` を検証する。
+  - `View` / `Post` では `channels.type == guild_text` を必須とし、`guild_category` は deterministic deny とする。
+  - `Manage` では `channels.type in ('guild_text', 'guild_category')` を許容する。
   - 同一性検証に失敗した場合は、action/roleに関係なく `Deny`。
 - ルール1: `guilds.owner_id == principal_id` の場合、`View/Post/Manage` は `Allow`。
   - owner には `channel_permission_overrides` を適用しない（常時allow）。
@@ -119,6 +121,8 @@ v0 での認可関連 SoR:
 - ルール6: `Manage` の `resource` は以下で固定する。
   - ギルド全体管理操作: `Guild { guild_id }`
   - 特定チャンネル管理操作: `GuildChannel { guild_id, channel_id }`
+- ルール6.1: category container の create / rename / delete / child channel create は `Manage` 必須とする。
+- ルール6.2: category container は message target ではない。`GuildChannel + View/Post` の対象に含めない。
 - ルール7: 判定依存が失敗した場合は `Unavailable`。
 
 ## 4. Decision and transport mapping

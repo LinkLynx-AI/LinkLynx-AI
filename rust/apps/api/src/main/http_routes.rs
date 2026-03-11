@@ -443,16 +443,59 @@ async fn join_public_invite(
 /// @returns チャンネル最小応答
 /// @throws なし
 async fn get_guild_channel(
-    axum::extract::Path((guild_id, channel_id)): axum::extract::Path<(i64, i64)>,
+    State(state): State<AppState>,
+    Path(params): Path<GuildChannelPathParams>,
     Extension(auth_context): Extension<AuthContext>,
-) -> Json<GuildChannelResponse> {
-    Json(GuildChannelResponse {
-        ok: true,
-        request_id: auth_context.request_id,
-        principal_id: auth_context.principal_id.0,
-        guild_id,
-        channel_id,
-    })
+) -> Response {
+    let request_id = auth_context.request_id.clone();
+    let guild_id = match parse_guild_id(&params.guild_id) {
+        Ok(value) => value,
+        Err(error) => return guild_channel_error_response(&error, request_id),
+    };
+    let channel_id = match parse_channel_id(&params.channel_id) {
+        Ok(value) => value,
+        Err(error) => return guild_channel_error_response(&error, request_id),
+    };
+
+    match state
+        .guild_channel_service
+        .get_guild_channel_summary(auth_context.principal_id, guild_id, channel_id)
+        .await
+    {
+        Ok(_) => Json(GuildChannelResponse {
+            ok: true,
+            request_id: auth_context.request_id,
+            principal_id: auth_context.principal_id.0,
+            guild_id,
+            channel_id,
+        })
+        .into_response(),
+        Err(error) => guild_channel_error_response(&error, request_id),
+    }
+}
+
+/// message target に利用できる guild channel を検証する。
+/// @param state アプリケーション状態
+/// @param auth_context 認証文脈
+/// @param guild_id 対象guild_id
+/// @param channel_id 対象channel_id
+/// @returns messageable channel要約
+/// @throws GuildChannelError 非messageableまたは取得失敗時
+async fn require_messageable_guild_channel(
+    state: &AppState,
+    auth_context: &AuthContext,
+    guild_id: i64,
+    channel_id: i64,
+) -> Result<guild_channel::ChannelSummary, GuildChannelError> {
+    let channel = state
+        .guild_channel_service
+        .get_guild_channel_summary(auth_context.principal_id, guild_id, channel_id)
+        .await?;
+    if !channel.kind.is_messageable() {
+        return Err(GuildChannelError::forbidden("channel_not_messageable"));
+    }
+
+    Ok(channel)
 }
 
 /// チャンネルメッセージ一覧の最小応答を返す。
@@ -479,6 +522,11 @@ async fn list_channel_messages(
         Ok(value) => value,
         Err(error) => return guild_channel_error_response(&error, request_id),
     };
+    if let Err(error) =
+        require_messageable_guild_channel(&state, &auth_context, guild_id, channel_id).await
+    {
+        return guild_channel_error_response(&error, request_id);
+    }
 
     match state
         .message_service
@@ -512,6 +560,11 @@ async fn create_channel_message(
         Ok(value) => value,
         Err(error) => return guild_channel_error_response(&error, request_id),
     };
+    if let Err(error) =
+        require_messageable_guild_channel(&state, &auth_context, guild_id, channel_id).await
+    {
+        return guild_channel_error_response(&error, request_id);
+    }
     let payload = match parse_json_payload(payload) {
         Ok(value) => value,
         Err(error) => return guild_channel_error_response(&error, request_id),
@@ -1260,8 +1313,13 @@ struct ChannelListResponse {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct CreateChannelRequest {
     name: String,
+    #[serde(default)]
+    r#type: Option<guild_channel::ChannelKind>,
+    #[serde(default)]
+    parent_id: Option<i64>,
 }
 
 #[derive(Debug, Serialize)]
@@ -2062,7 +2120,15 @@ async fn create_guild_channel(
 
     match state
         .guild_channel_service
-        .create_guild_channel(auth_context.principal_id, guild_id, payload.name)
+        .create_guild_channel(
+            auth_context.principal_id,
+            guild_id,
+            guild_channel::CreateChannelInput {
+                name: payload.name,
+                kind: payload.r#type.unwrap_or(guild_channel::ChannelKind::GuildText),
+                parent_id: payload.parent_id,
+            },
+        )
         .await
     {
         Ok(channel) => (StatusCode::CREATED, Json(ChannelCreateResponse { channel })).into_response(),
