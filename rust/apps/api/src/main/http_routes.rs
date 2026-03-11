@@ -847,7 +847,7 @@ async fn create_dm_message(
                 tokio::spawn(async move {
                     publish_state
                         .message_realtime_hub
-                        .publish_message_created(&publish_state, published_message)
+                        .publish_dm_message_created(&publish_state, published_message)
                         .await;
                 });
             }

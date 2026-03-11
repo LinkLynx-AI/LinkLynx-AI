@@ -41,8 +41,8 @@ mod tests {
         MessageItemV1, UpdateGuildChannelMessageResponseV1,
     };
     use linklynx_protocol_ws::{
-        ClientMessageFrameV1, GuildChannelSubscriptionTargetV1, MessageSubscriptionStateV1,
-        ServerMessageFrameV1,
+        ClientMessageFrameV1, DmChannelSubscriptionTargetV1, DmMessageSubscriptionStateV1,
+        GuildChannelSubscriptionTargetV1, MessageSubscriptionStateV1, ServerMessageFrameV1,
     };
     use linklynx_shared::PrincipalId;
     use message::{CreateGuildChannelMessageExecution, MessageError, MessageService};
@@ -2054,6 +2054,18 @@ mod tests {
         next_server_message_frame(socket).await
     }
 
+    async fn subscribe_test_dm(socket: &mut TestWsStream, channel_id: i64) -> ServerMessageFrameV1 {
+        let frame = ClientMessageFrameV1::DmSubscribe(DmChannelSubscriptionTargetV1 {
+            channel_id,
+        });
+        let payload = serde_json::to_string(&frame).unwrap();
+        socket
+            .send(WsClientMessage::Text(payload.into()))
+            .await
+            .unwrap();
+        next_server_message_frame(socket).await
+    }
+
     async fn next_server_message_frame(socket: &mut TestWsStream) -> ServerMessageFrameV1 {
         loop {
             let response = timeout(Duration::from_secs(2), socket.next())
@@ -2085,6 +2097,26 @@ mod tests {
             .post(format!(
                 "http://{address}/v1/guilds/{guild_id}/channels/{channel_id}/messages"
             ))
+            .header("authorization", format!("Bearer {token}"))
+            .header("content-type", "application/json")
+            .body(serde_json::json!({ "content": content }).to_string());
+        if let Some(idempotency_key) = idempotency_key {
+            request = request.header("Idempotency-Key", idempotency_key);
+        }
+        request.send().await.unwrap()
+    }
+
+    async fn post_test_dm_message(
+        address: SocketAddr,
+        uid: &str,
+        channel_id: i64,
+        content: &str,
+        idempotency_key: Option<&str>,
+    ) -> reqwest::Response {
+        let token = format!("{uid}:{}", unix_timestamp_seconds() + 300);
+        let client = reqwest::Client::new();
+        let mut request = client
+            .post(format!("http://{address}/v1/dms/{channel_id}/messages"))
             .header("authorization", format!("Bearer {token}"))
             .header("content-type", "application/json")
             .body(serde_json::json!({ "content": content }).to_string());
@@ -3049,6 +3081,25 @@ mod tests {
         assert_eq!(value["allow_total"], 2);
         assert_eq!(value["deny_total"], 0);
         assert_eq!(value["unavailable_total"], 0);
+    }
+
+    #[tokio::test]
+    async fn dm_message_frame_access_allows_when_target_channel_is_allowed() {
+        let state = state_for_test_with_authorizer(Arc::new(StaticAllowAllAuthorizer)).await;
+        let authenticated = AuthenticatedPrincipal {
+            principal_id: PrincipalId(9003),
+            firebase_uid: "u-member".to_owned(),
+            expires_at_epoch: unix_timestamp_seconds() + 300,
+        };
+        let frame = ClientMessageFrameV1::DmSubscribe(DmChannelSubscriptionTargetV1 {
+            channel_id: 55,
+        });
+
+        assert!(
+            authorize_message_frame_access(&state, &authenticated, "ws-test", &frame)
+                .await
+                .is_ok()
+        );
     }
 
     #[tokio::test]
@@ -4757,7 +4808,7 @@ mod tests {
     #[ignore = "requires TCP bind; sandbox denies listeners"]
     async fn ws_message_created_fanout_reaches_all_subscribers() {
         let app = app_for_test_with_authorizer_and_message_service(
-            Arc::new(RoleScenarioAuthorizer),
+            Arc::new(StaticAllowAllAuthorizer),
             Arc::new(StaticMessageService),
         )
         .await;
@@ -4809,7 +4860,7 @@ mod tests {
     #[ignore = "requires TCP bind; sandbox denies listeners"]
     async fn ws_message_created_fanout_stops_after_unsubscribe() {
         let app = app_for_test_with_authorizer_and_message_service(
-            Arc::new(RoleScenarioAuthorizer),
+            Arc::new(StaticAllowAllAuthorizer),
             Arc::new(StaticMessageService),
         )
         .await;
@@ -4851,7 +4902,7 @@ mod tests {
     #[ignore = "requires TCP bind; sandbox denies listeners"]
     async fn ws_message_created_fanout_skips_completed_idempotency_replay() {
         let app = app_for_test_with_authorizer_and_message_service(
-            Arc::new(RoleScenarioAuthorizer),
+            Arc::new(StaticAllowAllAuthorizer),
             Arc::new(StaticIdempotencyMessageService::default()),
         )
         .await;
@@ -4907,9 +4958,43 @@ mod tests {
 
     #[tokio::test]
     #[ignore = "requires TCP bind; sandbox denies listeners"]
+    async fn ws_dm_message_created_fanout_reaches_subscribers() {
+        let app = app_for_test_with_authorizer_and_message_service(
+            Arc::new(StaticAllowAllAuthorizer),
+            Arc::new(StaticMessageService),
+        )
+        .await;
+        let (address, server) = spawn_test_server(app).await;
+        let mut socket = connect_test_ws_at(address, "u-member").await;
+
+        let subscribed = subscribe_test_dm(&mut socket, 55).await;
+        assert!(matches!(
+            subscribed,
+            ServerMessageFrameV1::DmSubscribed(DmMessageSubscriptionStateV1 { channel_id: 55 })
+        ));
+
+        let response = post_test_dm_message(address, "u-member", 55, "hello dm realtime", None).await;
+        assert_eq!(response.status(), reqwest::StatusCode::CREATED);
+
+        match next_server_message_frame(&mut socket).await {
+            ServerMessageFrameV1::DmCreated(data) => {
+                assert_eq!(data.channel_id, 55);
+                assert_eq!(data.message.channel_id, 55);
+                assert_eq!(data.message.content, "hello dm realtime");
+                assert_eq!(data.message.author_id, 9003);
+            }
+            other => panic!("expected dm.message.created frame, got {other:?}"),
+        }
+
+        let _ = socket.close(None).await;
+        server.abort();
+    }
+
+    #[tokio::test]
+    #[ignore = "requires TCP bind; sandbox denies listeners"]
     async fn ws_message_updated_fanout_reaches_subscribers() {
         let app = app_for_test_with_authorizer_and_message_service(
-            Arc::new(RoleScenarioAuthorizer),
+            Arc::new(StaticAllowAllAuthorizer),
             Arc::new(StaticMessageService),
         )
         .await;
@@ -4951,7 +5036,7 @@ mod tests {
     #[ignore = "requires TCP bind; sandbox denies listeners"]
     async fn ws_message_deleted_fanout_reaches_subscribers() {
         let app = app_for_test_with_authorizer_and_message_service(
-            Arc::new(RoleScenarioAuthorizer),
+            Arc::new(StaticAllowAllAuthorizer),
             Arc::new(StaticMessageService),
         )
         .await;
@@ -6866,6 +6951,17 @@ mod tests {
     }
 
     #[test]
+    fn parse_message_client_frame_extracts_dm_subscription_target() {
+        let text = r#"{"type":"dm.subscribe","d":{"channel_id":55}}"#;
+        let frame = parse_message_client_frame(text).unwrap();
+
+        assert_eq!(
+            frame,
+            ClientMessageFrameV1::DmSubscribe(DmChannelSubscriptionTargetV1 { channel_id: 55 })
+        );
+    }
+
+    #[test]
     fn build_message_server_frame_returns_subscribed_ack() {
         let frame = build_message_server_frame(ClientMessageFrameV1::Subscribe(
             GuildChannelSubscriptionTargetV1 {
@@ -6878,6 +6974,17 @@ mod tests {
         assert_eq!(value["type"], "message.subscribed");
         assert_eq!(value["d"]["guild_id"], 10);
         assert_eq!(value["d"]["channel_id"], 20);
+    }
+
+    #[test]
+    fn build_message_server_frame_returns_dm_subscribed_ack() {
+        let frame = build_message_server_frame(ClientMessageFrameV1::DmSubscribe(
+            DmChannelSubscriptionTargetV1 { channel_id: 55 },
+        ));
+
+        let value = serde_json::to_value(frame).unwrap();
+        assert_eq!(value["type"], "dm.subscribed");
+        assert_eq!(value["d"]["channel_id"], 55);
     }
 
     #[test]
