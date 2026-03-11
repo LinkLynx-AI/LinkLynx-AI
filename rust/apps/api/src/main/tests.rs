@@ -26,7 +26,7 @@ mod tests {
     use futures_util::{SinkExt, StreamExt};
     use guild_channel::{
         ChannelPatchInput, ChannelSummary, CreatedChannel, CreatedGuild, GuildChannelError,
-        GuildPatchInput, GuildSummary,
+        GuildPatchInput, GuildSummary, PostgresGuildChannelService,
         GuildChannelService,
     };
     use invite::{
@@ -1675,6 +1675,25 @@ mod tests {
         scylla_health_reporter: Arc<dyn ScyllaHealthReporter>,
         message_service: Arc<dyn MessageService>,
     ) -> AppState {
+        state_for_test_with_authorizer_profile_invite_scylla_message_and_guild_channel(
+            authorizer,
+            profile_service,
+            invite_service,
+            scylla_health_reporter,
+            message_service,
+            Arc::new(StaticGuildChannelService),
+        )
+        .await
+    }
+
+    async fn state_for_test_with_authorizer_profile_invite_scylla_message_and_guild_channel(
+        authorizer: Arc<dyn Authorizer>,
+        profile_service: Arc<dyn ProfileService>,
+        invite_service: Arc<dyn InviteService>,
+        scylla_health_reporter: Arc<dyn ScyllaHealthReporter>,
+        message_service: Arc<dyn MessageService>,
+        guild_channel_service: Arc<dyn GuildChannelService>,
+    ) -> AppState {
         let metrics = Arc::new(AuthMetrics::default());
         let verifier: Arc<dyn TokenVerifier> = Arc::new(StaticTokenVerifier);
 
@@ -1701,7 +1720,7 @@ mod tests {
             auth_service,
             authorizer,
             authz_metrics: Arc::new(AuthzMetrics::default()),
-            guild_channel_service: Arc::new(StaticGuildChannelService),
+            guild_channel_service,
             dm_service: Arc::new(StaticDmService),
             invite_service,
             message_service,
@@ -1756,6 +1775,25 @@ mod tests {
                 report: ScyllaHealthReport::ready(),
             }),
             message_service,
+        )
+        .await;
+        app_with_state(state)
+    }
+
+    async fn app_for_test_with_authorizer_and_message_and_guild_channel_service(
+        authorizer: Arc<dyn Authorizer>,
+        message_service: Arc<dyn MessageService>,
+        guild_channel_service: Arc<dyn GuildChannelService>,
+    ) -> Router {
+        let state = state_for_test_with_authorizer_profile_invite_scylla_message_and_guild_channel(
+            authorizer,
+            Arc::new(StaticProfileService),
+            Arc::new(StaticInviteService),
+            Arc::new(StaticScyllaHealthReporter {
+                report: ScyllaHealthReport::ready(),
+            }),
+            message_service,
+            guild_channel_service,
         )
         .await;
         app_with_state(state)
@@ -5265,9 +5303,10 @@ mod tests {
         )
         .await;
 
-        let app = app_for_test_with_authorizer_and_message_service(
+        let app = app_for_test_with_authorizer_and_message_and_guild_channel_service(
             Arc::new(RoleScenarioAuthorizer),
-            build_live_message_service(database_url, service_session, keyspace.clone()),
+            build_live_message_service(database_url.clone(), service_session, keyspace.clone()),
+            Arc::new(PostgresGuildChannelService::new(database_url, true)),
         )
         .await;
         let token = format!("u-member:{}", unix_timestamp_seconds() + 300);
@@ -5419,9 +5458,10 @@ mod tests {
             .await;
         }
 
-        let app = app_for_test_with_authorizer_and_message_service(
+        let app = app_for_test_with_authorizer_and_message_and_guild_channel_service(
             Arc::new(RoleScenarioAuthorizer),
-            build_live_message_service(database_url, service_session, keyspace),
+            build_live_message_service(database_url.clone(), service_session, keyspace),
+            Arc::new(PostgresGuildChannelService::new(database_url, true)),
         )
         .await;
         let token = format!("u-member:{}", unix_timestamp_seconds() + 300);
@@ -5560,9 +5600,10 @@ mod tests {
         )
         .await;
 
-        let app = app_for_test_with_authorizer_and_message_service(
+        let app = app_for_test_with_authorizer_and_message_and_guild_channel_service(
             Arc::new(RoleScenarioAuthorizer),
-            build_live_message_service(database_url, service_session, keyspace),
+            build_live_message_service(database_url.clone(), service_session, keyspace),
+            Arc::new(PostgresGuildChannelService::new(database_url, true)),
         )
         .await;
         let token = format!("u-member:{}", unix_timestamp_seconds() + 300);
@@ -5659,9 +5700,10 @@ mod tests {
         )
         .await;
 
-        let app = app_for_test_with_authorizer_and_message_service(
+        let app = app_for_test_with_authorizer_and_message_and_guild_channel_service(
             Arc::new(RoleScenarioAuthorizer),
-            build_live_message_service(database_url, service_session, keyspace),
+            build_live_message_service(database_url.clone(), service_session, keyspace),
+            Arc::new(PostgresGuildChannelService::new(database_url, true)),
         )
         .await;
         let token = format!("u-member:{}", unix_timestamp_seconds() + 300);
