@@ -4,8 +4,8 @@ mod tests {
     use crate::message::test_support::{
         bucket_from_created_at, build_live_message_service, connect_integration_database,
         connect_integration_scylla, count_scylla_messages, insert_scylla_message,
-        next_integration_id_block, query_last_message, seed_guild_text_channel, seed_user,
-        upsert_channel_last_message, SeedMessageRow,
+        next_integration_id_block, query_last_message, seed_guild_member,
+        seed_guild_text_channel, seed_user, upsert_channel_last_message, SeedMessageRow,
     };
     use crate::ratelimit::RestRateLimitConfig;
     use async_trait::async_trait;
@@ -5302,6 +5302,7 @@ mod tests {
             "2026-03-07T00:00:00Z",
         )
         .await;
+        seed_guild_member(&client, guild_id, author_id, "2026-03-07T00:00:00Z").await;
 
         let app = app_for_test_with_authorizer_and_message_and_guild_channel_service(
             Arc::new(RoleScenarioAuthorizer),
@@ -5393,8 +5394,10 @@ mod tests {
         let guild_id = base_id;
         let channel_id = base_id + 1;
         let owner_id = 9001;
+        let member_id = 9003;
 
         seed_user(&client, owner_id, "http-paging-owner").await;
+        seed_user(&client, member_id, "http-paging-member").await;
         seed_guild_text_channel(
             &client,
             guild_id,
@@ -5403,6 +5406,7 @@ mod tests {
             "2026-03-07T00:00:00Z",
         )
         .await;
+        seed_guild_member(&client, guild_id, member_id, "2026-03-07T00:00:00Z").await;
         upsert_channel_last_message(&client, channel_id, 130_205, "2026-03-08T10:00:06Z").await;
 
         for row in [
@@ -5586,6 +5590,7 @@ mod tests {
         seed_user(&client, author_id, "http-edit-member").await;
         seed_guild_text_channel(&client, guild_id, owner_id, channel_id, "2026-03-07T00:00:00Z")
             .await;
+        seed_guild_member(&client, guild_id, author_id, "2026-03-07T00:00:00Z").await;
         upsert_channel_last_message(&client, channel_id, message_id, created_at).await;
         insert_scylla_message(
             &seed_session,
@@ -5686,6 +5691,7 @@ mod tests {
             "2026-03-07T00:00:00Z",
         )
         .await;
+        seed_guild_member(&client, guild_id, author_id, "2026-03-07T00:00:00Z").await;
         upsert_channel_last_message(&client, channel_id, message_id, created_at).await;
         insert_scylla_message(
             &seed_session,
