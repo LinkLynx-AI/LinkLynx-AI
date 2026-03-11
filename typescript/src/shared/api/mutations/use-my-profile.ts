@@ -17,13 +17,27 @@ export function useUpdateMyProfile(userId: string | null) {
 
   return useMutation({
     mutationFn: (input: UpdateMyProfileInput) => api.updateMyProfile(input),
-    onSuccess: (updatedProfile) => {
+    onSuccess: async (updatedProfile, input) => {
+      let avatarUrlOverride: string | null | undefined;
+      if (input.avatarKey !== undefined) {
+        try {
+          if (updatedProfile.avatarKey === null) {
+            avatarUrlOverride = null;
+          } else {
+            const media = await api.getMyProfileMediaDownloadUrl("avatar");
+            avatarUrlOverride = media.downloadUrl;
+          }
+        } catch {
+          avatarUrlOverride = undefined;
+        }
+      }
+
       if (userId !== null) {
-        syncMyProfileToSessionCaches(queryClient, userId, updatedProfile);
+        syncMyProfileToSessionCaches(queryClient, userId, updatedProfile, avatarUrlOverride);
         return;
       }
 
-      syncMyProfileToAuthStore(updatedProfile);
+      syncMyProfileToAuthStore(updatedProfile, avatarUrlOverride);
     },
   });
 }

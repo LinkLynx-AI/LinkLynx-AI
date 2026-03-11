@@ -336,8 +336,8 @@ export class MockAPIClient implements APIClient {
     return {
       displayName: profile?.displayName ?? mockCurrentUser.displayName,
       statusText: profile?.bio ?? mockCurrentUser.customStatus,
-      avatarKey: null,
-      bannerKey: null,
+      avatarKey: profile?.avatar ?? null,
+      bannerKey: profile?.banner ?? null,
       theme: this.myProfileTheme,
     };
   }
@@ -359,11 +359,16 @@ export class MockAPIClient implements APIClient {
         ? (input.statusText?.trim() ?? null)
         : mockCurrentUser.customStatus;
     const theme = input.theme ?? this.myProfileTheme;
+    const existingProfile = mockUserProfiles[mockCurrentUser.id];
+    const avatarKey =
+      input.avatarKey !== undefined ? input.avatarKey : (existingProfile?.avatar ?? null);
+    const bannerKey =
+      input.bannerKey !== undefined ? input.bannerKey : (existingProfile?.banner ?? null);
     mockCurrentUser.displayName = displayName;
     mockCurrentUser.customStatus = statusText;
+    mockCurrentUser.avatar = avatarKey;
     this.myProfileTheme = theme;
 
-    const existingProfile = mockUserProfiles[mockCurrentUser.id];
     mockUserProfiles[mockCurrentUser.id] = {
       ...(existingProfile ?? {
         ...mockCurrentUser,
@@ -374,14 +379,16 @@ export class MockAPIClient implements APIClient {
         createdAt: "2022-01-01T00:00:00.000Z",
       }),
       displayName,
+      avatar: avatarKey,
+      banner: bannerKey,
       bio: statusText,
     };
 
     return {
       displayName,
       statusText,
-      avatarKey: null,
-      bannerKey: null,
+      avatarKey,
+      bannerKey,
       theme,
     };
   }
@@ -404,10 +411,15 @@ export class MockAPIClient implements APIClient {
 
   async getMyProfileMediaDownloadUrl(target: "avatar" | "banner"): Promise<MyProfileMediaDownload> {
     await this.simulateDelay();
+    const profile = mockUserProfiles[mockCurrentUser.id];
+    const objectKey = target === "avatar" ? (profile?.avatar ?? null) : (profile?.banner ?? null);
+    if (objectKey === null) {
+      throw new Error("Profile media not found");
+    }
     return {
       target,
-      objectKey: `v0/tenant/default/user/${mockCurrentUser.id}/profile/${target}/asset/mock/file.png`,
-      downloadUrl: `https://storage.googleapis.com/profile-media/${target}-download`,
+      objectKey,
+      downloadUrl: `https://storage.googleapis.com/profile-media/${target}-download/${encodeURIComponent(objectKey)}`,
       expiresAt: this.nowIsoString(),
     };
   }

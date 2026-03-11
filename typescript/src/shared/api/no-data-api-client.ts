@@ -241,8 +241,8 @@ export class NoDataAPIClient implements APIClient {
       return Promise.resolve({
         displayName,
         statusText,
-        avatarKey: null,
-        bannerKey: null,
+        avatarKey: input.avatarKey ?? null,
+        bannerKey: input.bannerKey ?? null,
         theme,
       });
     } catch (error) {

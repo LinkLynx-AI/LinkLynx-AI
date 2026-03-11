@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { createElement } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { beforeEach, describe, expect, test, vi } from "vitest";
 import { renderHook, waitFor } from "@/test/test-utils";
 import type { Relationship } from "@/shared/api/api-client";
 import type { GuildMember } from "@/shared/model/types/server";
@@ -8,10 +9,12 @@ import { useAuthStore } from "@/shared/model/stores/auth-store";
 import { useUpdateMyProfile } from "./use-my-profile";
 
 const mockUpdateMyProfile = vi.fn();
+const mockGetMyProfileMediaDownloadUrl = vi.fn();
 
 vi.mock("@/shared/api/api-client", () => ({
   getAPIClient: () => ({
     updateMyProfile: mockUpdateMyProfile,
+    getMyProfileMediaDownloadUrl: mockGetMyProfileMediaDownloadUrl,
   }),
 }));
 
@@ -33,6 +36,7 @@ describe("useUpdateMyProfile", () => {
         customStatus: "old-status",
         bot: false,
       },
+      currentPrincipalId: null,
       status: "online",
       customStatus: "old-status",
     });
@@ -77,11 +81,18 @@ describe("useUpdateMyProfile", () => {
     ];
     queryClient.setQueryData(["friends"], friends);
     queryClient.setQueryData(["members", "guild-1"], members);
-
     mockUpdateMyProfile.mockResolvedValue({
       displayName: "New Name",
       statusText: "new-status",
-      avatarKey: null,
+      avatarKey: "avatars/new-name.png",
+      bannerKey: "banners/new-name.png",
+      theme: "dark",
+    });
+    mockGetMyProfileMediaDownloadUrl.mockResolvedValue({
+      target: "avatar",
+      objectKey: "avatars/new-name.png",
+      downloadUrl: "https://cdn.example/avatar-new.png",
+      expiresAt: "2026-03-11T00:00:00Z",
     });
 
     const { result } = renderHook(() => useUpdateMyProfile("u-1"), { wrapper });
@@ -89,6 +100,7 @@ describe("useUpdateMyProfile", () => {
     result.current.mutate({
       displayName: "New Name",
       statusText: "new-status",
+      avatarKey: "avatars/new-name.png",
     });
 
     await waitFor(() => {
@@ -98,11 +110,15 @@ describe("useUpdateMyProfile", () => {
     expect(mockUpdateMyProfile).toHaveBeenCalledWith({
       displayName: "New Name",
       statusText: "new-status",
+      avatarKey: "avatars/new-name.png",
     });
+    expect(mockGetMyProfileMediaDownloadUrl).toHaveBeenCalledWith("avatar");
     expect(queryClient.getQueryData(["myProfile", "u-1"])).toEqual({
       displayName: "New Name",
       statusText: "new-status",
-      avatarKey: null,
+      avatarKey: "avatars/new-name.png",
+      bannerKey: "banners/new-name.png",
+      theme: "dark",
     });
     expect(queryClient.getQueryData(["friends"])).toEqual([
       {
@@ -112,7 +128,7 @@ describe("useUpdateMyProfile", () => {
           id: "u-1",
           username: "alice",
           displayName: "New Name",
-          avatar: null,
+          avatar: "https://cdn.example/avatar-new.png",
           status: "online",
           customStatus: "new-status",
           bot: false,
@@ -125,7 +141,7 @@ describe("useUpdateMyProfile", () => {
           id: "u-1",
           username: "alice",
           displayName: "New Name",
-          avatar: null,
+          avatar: "https://cdn.example/avatar-new.png",
           status: "online",
           customStatus: "new-status",
           bot: false,
@@ -133,12 +149,13 @@ describe("useUpdateMyProfile", () => {
         nick: null,
         roles: [],
         joinedAt: "2026-03-08T00:00:00Z",
-        avatar: null,
+        avatar: "https://cdn.example/avatar-new.png",
       },
     ]);
     expect(useAuthStore.getState().currentUser).toMatchObject({
       displayName: "New Name",
       customStatus: "new-status",
+      avatar: "https://cdn.example/avatar-new.png",
     });
     expect(useAuthStore.getState().customStatus).toBe("new-status");
   });

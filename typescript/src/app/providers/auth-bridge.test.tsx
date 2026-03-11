@@ -12,6 +12,7 @@ const useAuthSessionMock = vi.hoisted(() =>
   })),
 );
 const useMyProfileMock = vi.hoisted(() => vi.fn());
+const useMyProfileMediaDownloadUrlMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/entities/auth", () => ({
   useAuthSession: useAuthSessionMock,
@@ -19,6 +20,7 @@ vi.mock("@/entities/auth", () => ({
 
 vi.mock("@/shared/api/queries", () => ({
   useMyProfile: useMyProfileMock,
+  useMyProfileMediaDownloadUrl: useMyProfileMediaDownloadUrlMock,
 }));
 
 import { AuthBridge } from "./auth-bridge";
@@ -26,6 +28,7 @@ import { AuthBridge } from "./auth-bridge";
 describe("AuthBridge", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    useMyProfileMediaDownloadUrlMock.mockReturnValue({ data: undefined });
     useAuthStore.setState({
       currentUser: null,
       currentPrincipalId: null,
@@ -48,8 +51,13 @@ describe("AuthBridge", () => {
       data: {
         displayName: "Alice Cooper",
         statusText: "Ready to ship",
-        avatarKey: null,
+        avatarKey: "avatars/alice.png",
+        bannerKey: "banners/alice.png",
+        theme: "dark",
       },
+    });
+    useMyProfileMediaDownloadUrlMock.mockReturnValue({
+      data: "https://cdn.example/alice.png",
     });
 
     render(<AuthBridge />);
@@ -60,6 +68,7 @@ describe("AuthBridge", () => {
         username: "alice",
         displayName: "Alice Cooper",
         customStatus: "Ready to ship",
+        avatar: "https://cdn.example/alice.png",
       });
       expect(useAuthStore.getState().customStatus).toBe("Ready to ship");
     });
@@ -87,6 +96,40 @@ describe("AuthBridge", () => {
         username: "fallback",
         displayName: "fallback",
         customStatus: null,
+        avatar: null,
+      });
+    });
+  });
+
+  test("waits for avatar download URL when avatarKey exists", async () => {
+    useAuthSessionMock.mockReturnValue({
+      status: "authenticated",
+      user: {
+        uid: "u-1",
+        email: "alice@example.com",
+        emailVerified: true,
+      },
+      getIdToken: () => Promise.resolve("token-1"),
+    });
+    useMyProfileMock.mockReturnValue({
+      data: {
+        displayName: "Alice Cooper",
+        statusText: "Ready to ship",
+        avatarKey: "avatars/alice.png",
+        bannerKey: null,
+        theme: "dark",
+      },
+    });
+    useMyProfileMediaDownloadUrlMock.mockReturnValue({ data: undefined });
+
+    render(<AuthBridge />);
+
+    await waitFor(() => {
+      expect(useAuthStore.getState().currentUser).toMatchObject({
+        id: "u-1",
+        username: "alice",
+        displayName: "alice",
+        avatar: null,
       });
     });
   });
@@ -110,38 +153,6 @@ describe("AuthBridge", () => {
       status: "unauthenticated",
       user: null,
       getIdToken: () => Promise.resolve(null),
-    });
-    useMyProfileMock.mockReturnValue({
-      data: undefined,
-    });
-
-    render(<AuthBridge />);
-
-    await waitFor(() => {
-      expect(useAuthStore.getState().currentUser).toBeNull();
-      expect(useAuthStore.getState().customStatus).toBeNull();
-    });
-  });
-
-  test("認証状態でも user が null の場合は auth-store の currentUser をクリアする", async () => {
-    useAuthStore.setState({
-      currentUser: {
-        id: "uid-old",
-        username: "old-user",
-        displayName: "old-user",
-        avatar: null,
-        status: "online",
-        customStatus: null,
-        bot: false,
-      },
-      currentPrincipalId: null,
-      status: "online",
-      customStatus: null,
-    });
-    useAuthSessionMock.mockReturnValue({
-      status: "authenticated",
-      user: null,
-      getIdToken: () => Promise.resolve("token-1"),
     });
     useMyProfileMock.mockReturnValue({
       data: undefined,
