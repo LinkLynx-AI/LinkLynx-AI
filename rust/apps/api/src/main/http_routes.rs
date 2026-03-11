@@ -96,6 +96,7 @@ fn app_with_state(state: AppState) -> Router {
     Router::new()
         .route("/", get(root))
         .route("/health", get(health_check))
+        .route("/users/me/dms", get(list_dm_channels).post(open_or_create_dm))
         .route("/v1/invites/{invite_code}", get(get_public_invite))
         .route("/v1/invites/{invite_code}/join", post(join_public_invite))
         .route("/internal/scylla/health", get(scylla_health_check))
@@ -180,28 +181,17 @@ struct InviteJoinResponse {
 
 #[derive(Debug, Serialize)]
 struct DmChannelResponse {
-    ok: bool,
-    request_id: String,
-    principal_id: i64,
-    channel_id: i64,
+    channel: dm::DmChannelSummary,
 }
 
 #[derive(Debug, Serialize)]
-struct DmMessagesResponse {
-    ok: bool,
-    request_id: String,
-    principal_id: i64,
-    channel_id: i64,
-    messages: Vec<String>,
+struct DmChannelListResponse {
+    channels: Vec<dm::DmChannelSummary>,
 }
 
-#[derive(Debug, Serialize)]
-struct DmMessageCreateResponse {
-    ok: bool,
-    request_id: String,
-    principal_id: i64,
-    channel_id: i64,
-    message_id: String,
+#[derive(Debug, Deserialize)]
+struct OpenOrCreateDmRequest {
+    recipient_id: i64,
 }
 
 #[derive(Debug, Serialize)]
@@ -701,15 +691,19 @@ fn parse_idempotency_key(headers: &HeaderMap) -> Result<Option<String>, MessageE
 /// @returns DMチャンネル最小応答
 /// @throws なし
 async fn get_dm_channel(
+    State(state): State<AppState>,
     axum::extract::Path(channel_id): axum::extract::Path<i64>,
     Extension(auth_context): Extension<AuthContext>,
-) -> Json<DmChannelResponse> {
-    Json(DmChannelResponse {
-        ok: true,
-        request_id: auth_context.request_id,
-        principal_id: auth_context.principal_id.0,
-        channel_id,
-    })
+) -> Response {
+    let request_id = auth_context.request_id.clone();
+    match state
+        .dm_service
+        .get_dm_channel(auth_context.principal_id, channel_id)
+        .await
+    {
+        Ok(channel) => Json(DmChannelResponse { channel }).into_response(),
+        Err(error) => dm_error_response(&error, request_id),
+    }
 }
 
 /// DMメッセージ一覧の最小応答を返す。
@@ -718,16 +712,29 @@ async fn get_dm_channel(
 /// @returns DMメッセージ一覧最小応答
 /// @throws なし
 async fn list_dm_messages(
+    State(state): State<AppState>,
     axum::extract::Path(channel_id): axum::extract::Path<i64>,
+    query: Result<Query<ListGuildChannelMessagesQueryV1>, QueryRejection>,
     Extension(auth_context): Extension<AuthContext>,
-) -> Json<DmMessagesResponse> {
-    Json(DmMessagesResponse {
-        ok: true,
-        request_id: auth_context.request_id,
-        principal_id: auth_context.principal_id.0,
-        channel_id,
-        messages: Vec::new(),
-    })
+) -> Response {
+    let request_id = auth_context.request_id.clone();
+    let query = match query {
+        Ok(Query(value)) => value,
+        Err(_) => {
+            return message_error_response(
+                &MessageError::validation("message_query_invalid"),
+                request_id,
+            )
+        }
+    };
+    match state
+        .dm_service
+        .list_dm_messages(auth_context.principal_id, channel_id, query)
+        .await
+    {
+        Ok(messages) => Json(messages).into_response(),
+        Err(error) => dm_error_response(&error, request_id),
+    }
 }
 
 /// DMメッセージ作成の最小応答を返す。
@@ -736,16 +743,146 @@ async fn list_dm_messages(
 /// @returns DMメッセージ作成最小応答
 /// @throws なし
 async fn create_dm_message(
+    State(state): State<AppState>,
     axum::extract::Path(channel_id): axum::extract::Path<i64>,
     Extension(auth_context): Extension<AuthContext>,
-) -> Json<DmMessageCreateResponse> {
-    Json(DmMessageCreateResponse {
-        ok: true,
-        request_id: auth_context.request_id,
-        principal_id: auth_context.principal_id.0,
-        channel_id,
-        message_id: format!("dm-msg-{channel_id}"),
-    })
+    headers: HeaderMap,
+    payload: Result<Json<CreateGuildChannelMessageRequestV1>, JsonRejection>,
+) -> Response {
+    let request_id = auth_context.request_id.clone();
+    let payload = match payload {
+        Ok(Json(value)) => value,
+        Err(_) => {
+            return message_error_response(
+                &MessageError::validation("request_body_invalid"),
+                request_id,
+            )
+        }
+    };
+    let idempotency_key = match parse_idempotency_key(&headers) {
+        Ok(value) => value,
+        Err(error) => return message_error_response(&error, request_id),
+    };
+    match state
+        .dm_service
+        .create_dm_message(
+            auth_context.principal_id,
+            channel_id,
+            idempotency_key.as_deref(),
+            payload,
+        )
+        .await
+    {
+        Ok(execution) => {
+            if execution.should_publish {
+                let publish_state = state.clone();
+                let published_message = execution.response.message.clone();
+                tokio::spawn(async move {
+                    publish_state
+                        .message_realtime_hub
+                        .publish_message_created(&publish_state, published_message)
+                        .await;
+                });
+            }
+            (StatusCode::CREATED, Json(execution.response)).into_response()
+        }
+        Err(error) => dm_error_response(&error, request_id),
+    }
+}
+
+/// 認証済み主体が参加する DM 一覧を返す。
+/// @param state アプリケーション状態
+/// @param auth_context 認証文脈
+/// @returns DM 一覧
+/// @throws なし
+async fn list_dm_channels(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Response {
+    let request_id = request_id_from_headers(&headers);
+    let token = match bearer_token_from_headers(&headers) {
+        Ok(token) => token,
+        Err(error) => {
+            tracing::warn!(
+                decision = %error.decision(),
+                request_id = %request_id,
+                error_class = %error.log_class(),
+                reason = %error.reason,
+                "dm list rejected at header parsing"
+            );
+            return auth_error_response(&error, request_id);
+        }
+    };
+    let authenticated = match state.auth_service.authenticate_token(&token).await {
+        Ok(authenticated) => authenticated,
+        Err(error) => {
+            tracing::warn!(
+                decision = %error.decision(),
+                request_id = %request_id,
+                error_class = %error.log_class(),
+                reason = %error.reason,
+                "dm list rejected at authentication"
+            );
+            return auth_error_response(&error, request_id);
+        }
+    };
+
+    match state.dm_service.list_dm_channels(authenticated.principal_id).await {
+        Ok(channels) => Json(DmChannelListResponse { channels }).into_response(),
+        Err(error) => dm_error_response(&error, request_id),
+    }
+}
+
+/// 相手ユーザーとの DM を open-or-create する。
+/// @param state アプリケーション状態
+/// @param auth_context 認証文脈
+/// @param payload 作成入力
+/// @returns DM 詳細
+/// @throws なし
+async fn open_or_create_dm(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    payload: Result<Json<OpenOrCreateDmRequest>, JsonRejection>,
+) -> Response {
+    let request_id = request_id_from_headers(&headers);
+    let token = match bearer_token_from_headers(&headers) {
+        Ok(token) => token,
+        Err(error) => {
+            tracing::warn!(
+                decision = %error.decision(),
+                request_id = %request_id,
+                error_class = %error.log_class(),
+                reason = %error.reason,
+                "dm open-or-create rejected at header parsing"
+            );
+            return auth_error_response(&error, request_id);
+        }
+    };
+    let authenticated = match state.auth_service.authenticate_token(&token).await {
+        Ok(authenticated) => authenticated,
+        Err(error) => {
+            tracing::warn!(
+                decision = %error.decision(),
+                request_id = %request_id,
+                error_class = %error.log_class(),
+                reason = %error.reason,
+                "dm open-or-create rejected at authentication"
+            );
+            return auth_error_response(&error, request_id);
+        }
+    };
+    let payload = match payload {
+        Ok(Json(value)) => value,
+        Err(_) => return dm_error_response(&dm::DmError::validation("request_body_invalid"), request_id),
+    };
+    match state
+        .dm_service
+        .open_or_create_dm(authenticated.principal_id, payload.recipient_id)
+        .await
+    {
+        Ok(channel) => (StatusCode::CREATED, Json(DmChannelResponse { channel })).into_response(),
+        Err(error) => dm_error_response(&error, request_id),
+    }
 }
 
 /// モデレーション操作の最小応答を返す。

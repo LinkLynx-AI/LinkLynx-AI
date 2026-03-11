@@ -53,7 +53,7 @@ export function MessageInput({
   const emojiButtonRef = useRef<HTMLButtonElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { mutateAsync: sendMessage, isPending } = useSendMessage();
-  const isComposerDisabled = guildId === undefined || isPending;
+  const isComposerDisabled = isPending;
 
   const handleSubmit = useCallback(() => {
     const trimmed = content.trim();
@@ -62,11 +62,6 @@ export function MessageInput({
       setSubmitError("添付ファイル送信はまだ接続されていません。");
       return;
     }
-    if (guildId === undefined) {
-      setSubmitError("DM のメッセージ送信はまだ接続されていません。");
-      return;
-    }
-
     void sendMessage({
       guildId,
       channelId,
@@ -110,19 +105,22 @@ export function MessageInput({
     textareaRef.current?.focus();
   }, []);
 
-  const handleContentChange = useCallback((newContent: string) => {
-    setContent(newContent);
-    if (submitError !== null) {
-      setSubmitError(null);
-    }
-    if (newContent.startsWith("/")) {
-      setShowSlashCommands(true);
-      setSlashFilter(newContent.slice(1));
-    } else {
-      setShowSlashCommands(false);
-      setSlashFilter("");
-    }
-  }, [submitError]);
+  const handleContentChange = useCallback(
+    (newContent: string) => {
+      setContent(newContent);
+      if (submitError !== null) {
+        setSubmitError(null);
+      }
+      if (newContent.startsWith("/")) {
+        setShowSlashCommands(true);
+        setSlashFilter(newContent.slice(1));
+      } else {
+        setShowSlashCommands(false);
+        setSlashFilter("");
+      }
+    },
+    [submitError],
+  );
 
   const handleSlashSelect = useCallback((command: SlashCommand) => {
     setContent(`/${command.name} `);
@@ -310,14 +308,7 @@ export function MessageInput({
           </div>
         </div>
       </div>
-      {submitError !== null && (
-        <p className="mt-2 text-xs text-discord-brand-red">{submitError}</p>
-      )}
-      {guildId === undefined && submitError === null && (
-        <p className="mt-2 text-xs text-discord-text-muted">
-          DM の送受信はこの issue の対象外です。
-        </p>
-      )}
+      {submitError !== null && <p className="mt-2 text-xs text-discord-brand-red">{submitError}</p>}
     </div>
   );
 }

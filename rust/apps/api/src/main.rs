@@ -1,5 +1,6 @@
 mod auth;
 mod authz;
+mod dm;
 mod guild_channel;
 mod invite;
 mod message;
@@ -41,6 +42,7 @@ use axum::{
     routing::{get, patch, post},
     Json, Router,
 };
+use dm::{build_runtime_dm_service, dm_error_response, DmService};
 use guild_channel::{
     build_runtime_guild_channel_service, guild_channel_error_response, GuildChannelError,
     GuildChannelService,
@@ -79,6 +81,7 @@ pub(crate) struct AppState {
     authorizer: Arc<dyn Authorizer>,
     authz_metrics: Arc<AuthzMetrics>,
     guild_channel_service: Arc<dyn GuildChannelService>,
+    dm_service: Arc<dyn DmService>,
     invite_service: Arc<dyn InviteService>,
     message_service: Arc<dyn MessageService>,
     message_realtime_hub: Arc<MessageRealtimeHub>,
@@ -140,8 +143,9 @@ async fn build_runtime_state() -> AppState {
     let authorizer = build_runtime_authorizer();
     let authz_metrics = Arc::new(AuthzMetrics::default());
     let guild_channel_service = build_runtime_guild_channel_service();
-    let invite_service = build_runtime_invite_service();
     let message_service = build_runtime_message_service().await;
+    let dm_service = build_runtime_dm_service(Arc::clone(&message_service));
+    let invite_service = build_runtime_invite_service();
     let message_realtime_hub = Arc::new(MessageRealtimeHub::default());
     let moderation_service = build_runtime_moderation_service();
     let profile_service = build_runtime_profile_service();
@@ -165,6 +169,7 @@ async fn build_runtime_state() -> AppState {
         authorizer,
         authz_metrics,
         guild_channel_service,
+        dm_service,
         invite_service,
         message_service,
         message_realtime_hub,

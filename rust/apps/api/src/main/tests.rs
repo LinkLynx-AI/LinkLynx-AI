@@ -22,6 +22,7 @@ mod tests {
     use authz::{
         Authorizer, AuthzAction, AuthzCheckInput, AuthzError, AuthzErrorKind, AuthzResource,
     };
+    use dm::{DmChannelSummary, DmError, DmRecipientSummary, DmService};
     use futures_util::{SinkExt, StreamExt};
     use guild_channel::{
         ChannelPatchInput, ChannelSummary, CreatedChannel, CreatedGuild, GuildChannelError,
@@ -92,6 +93,7 @@ mod tests {
     }
     struct PermissionSnapshotUnavailableAuthorizer;
     struct StaticGuildChannelService;
+    struct StaticDmService;
     struct StaticMessageService;
     struct StaticNotFoundMessageService;
     struct StaticUnavailableMessageService;
@@ -398,6 +400,37 @@ mod tests {
             })
         }
 
+        async fn list_dm_channel_messages(
+            &self,
+            channel_id: i64,
+            query: ListGuildChannelMessagesQueryV1,
+        ) -> Result<ListGuildChannelMessagesResponseV1, MessageError> {
+            linklynx_message_api::paginate_messages(&message_fixture(channel_id, channel_id), &query)
+                .map_err(MessageError::from)
+        }
+
+        async fn create_dm_channel_message(
+            &self,
+            principal_id: PrincipalId,
+            channel_id: i64,
+            _idempotency_key: Option<&str>,
+            request: CreateGuildChannelMessageRequestV1,
+        ) -> Result<CreateGuildChannelMessageExecution, MessageError> {
+            linklynx_message_api::validate_create_request(&request).map_err(MessageError::from)?;
+
+            Ok(CreateGuildChannelMessageExecution {
+                response: CreateGuildChannelMessageResponseV1 {
+                    message: create_message_fixture(
+                        channel_id,
+                        channel_id,
+                        principal_id.0,
+                        request.content,
+                    ),
+                },
+                should_publish: true,
+            })
+        }
+
         async fn edit_guild_channel_message(
             &self,
             principal_id: PrincipalId,
@@ -528,6 +561,36 @@ mod tests {
             })
         }
 
+        async fn list_dm_channel_messages(
+            &self,
+            _channel_id: i64,
+            _query: ListGuildChannelMessagesQueryV1,
+        ) -> Result<ListGuildChannelMessagesResponseV1, MessageError> {
+            Ok(ListGuildChannelMessagesResponseV1 {
+                items: vec![],
+                next_before: None,
+                next_after: None,
+                has_more: false,
+            })
+        }
+
+        async fn create_dm_channel_message(
+            &self,
+            principal_id: PrincipalId,
+            channel_id: i64,
+            idempotency_key: Option<&str>,
+            request: CreateGuildChannelMessageRequestV1,
+        ) -> Result<CreateGuildChannelMessageExecution, MessageError> {
+            self.create_guild_channel_message(
+                principal_id,
+                channel_id,
+                channel_id,
+                idempotency_key,
+                request,
+            )
+            .await
+        }
+
         async fn edit_guild_channel_message(
             &self,
             principal_id: PrincipalId,
@@ -626,6 +689,28 @@ mod tests {
             ))
         }
 
+        async fn list_dm_channel_messages(
+            &self,
+            _channel_id: i64,
+            _query: ListGuildChannelMessagesQueryV1,
+        ) -> Result<ListGuildChannelMessagesResponseV1, MessageError> {
+            Err(MessageError::dependency_unavailable(
+                "message_body_store_unavailable",
+            ))
+        }
+
+        async fn create_dm_channel_message(
+            &self,
+            _principal_id: PrincipalId,
+            _channel_id: i64,
+            _idempotency_key: Option<&str>,
+            _request: CreateGuildChannelMessageRequestV1,
+        ) -> Result<CreateGuildChannelMessageExecution, MessageError> {
+            Err(MessageError::dependency_unavailable(
+                "message_body_store_unavailable",
+            ))
+        }
+
         async fn edit_guild_channel_message(
             &self,
             _principal_id: PrincipalId,
@@ -675,6 +760,24 @@ mod tests {
             Err(MessageError::channel_not_found("message_channel_not_found"))
         }
 
+        async fn list_dm_channel_messages(
+            &self,
+            _channel_id: i64,
+            _query: ListGuildChannelMessagesQueryV1,
+        ) -> Result<ListGuildChannelMessagesResponseV1, MessageError> {
+            Err(MessageError::channel_not_found("message_channel_not_found"))
+        }
+
+        async fn create_dm_channel_message(
+            &self,
+            _principal_id: PrincipalId,
+            _channel_id: i64,
+            _idempotency_key: Option<&str>,
+            _request: CreateGuildChannelMessageRequestV1,
+        ) -> Result<CreateGuildChannelMessageExecution, MessageError> {
+            Err(MessageError::channel_not_found("message_channel_not_found"))
+        }
+
         async fn edit_guild_channel_message(
             &self,
             _principal_id: PrincipalId,
@@ -695,6 +798,101 @@ mod tests {
             _request: DeleteGuildChannelMessageRequestV1,
         ) -> Result<UpdateGuildChannelMessageResponseV1, MessageError> {
             Err(MessageError::message_not_found("message_not_found"))
+        }
+    }
+
+    #[async_trait]
+    impl DmService for StaticDmService {
+        async fn list_dm_channels(
+            &self,
+            principal_id: PrincipalId,
+        ) -> Result<Vec<DmChannelSummary>, DmError> {
+            if principal_id.0 != 1001 {
+                return Ok(vec![]);
+            }
+            Ok(vec![DmChannelSummary {
+                channel_id: 55,
+                created_at: "2026-03-07T10:00:00Z".to_owned(),
+                last_message_id: Some(5001),
+                recipient: DmRecipientSummary {
+                    user_id: 1002,
+                    display_name: "Bob".to_owned(),
+                    avatar_key: Some("avatars/bob.png".to_owned()),
+                },
+            }])
+        }
+
+        async fn get_dm_channel(
+            &self,
+            principal_id: PrincipalId,
+            channel_id: i64,
+        ) -> Result<DmChannelSummary, DmError> {
+            if principal_id.0 != 1001 {
+                return Err(DmError::forbidden("dm_participant_required"));
+            }
+            if channel_id != 55 {
+                return Err(DmError::not_found("dm_channel_not_found"));
+            }
+            Ok(DmChannelSummary {
+                channel_id,
+                created_at: "2026-03-07T10:00:00Z".to_owned(),
+                last_message_id: Some(5001),
+                recipient: DmRecipientSummary {
+                    user_id: 1002,
+                    display_name: "Bob".to_owned(),
+                    avatar_key: Some("avatars/bob.png".to_owned()),
+                },
+            })
+        }
+
+        async fn open_or_create_dm(
+            &self,
+            principal_id: PrincipalId,
+            recipient_id: i64,
+        ) -> Result<DmChannelSummary, DmError> {
+            if principal_id.0 == recipient_id {
+                return Err(DmError::validation("dm_self_target_not_allowed"));
+            }
+            Ok(DmChannelSummary {
+                channel_id: 55,
+                created_at: "2026-03-07T10:00:00Z".to_owned(),
+                last_message_id: Some(5001),
+                recipient: DmRecipientSummary {
+                    user_id: recipient_id,
+                    display_name: "Bob".to_owned(),
+                    avatar_key: Some("avatars/bob.png".to_owned()),
+                },
+            })
+        }
+
+        async fn list_dm_messages(
+            &self,
+            _principal_id: PrincipalId,
+            channel_id: i64,
+            query: ListGuildChannelMessagesQueryV1,
+        ) -> Result<ListGuildChannelMessagesResponseV1, DmError> {
+            linklynx_message_api::paginate_messages(&message_fixture(channel_id, channel_id), &query)
+                .map_err(|error| DmError::validation(error.reason_code()))
+        }
+
+        async fn create_dm_message(
+            &self,
+            principal_id: PrincipalId,
+            channel_id: i64,
+            _idempotency_key: Option<&str>,
+            request: CreateGuildChannelMessageRequestV1,
+        ) -> Result<CreateGuildChannelMessageExecution, DmError> {
+            Ok(CreateGuildChannelMessageExecution {
+                response: CreateGuildChannelMessageResponseV1 {
+                    message: create_message_fixture(
+                        channel_id,
+                        channel_id,
+                        principal_id.0,
+                        request.content,
+                    ),
+                },
+                should_publish: true,
+            })
         }
     }
 
@@ -1405,6 +1603,7 @@ mod tests {
             authorizer,
             authz_metrics: Arc::new(AuthzMetrics::default()),
             guild_channel_service: Arc::new(StaticGuildChannelService),
+            dm_service: Arc::new(StaticDmService),
             invite_service,
             message_service,
             message_realtime_hub: Arc::new(MessageRealtimeHub::default()),
@@ -2080,6 +2279,72 @@ mod tests {
         let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
         assert_eq!(json["code"], "INVITE_UNAVAILABLE");
         assert_eq!(json["request_id"], "invite-join-unavailable-test");
+    }
+
+    #[tokio::test]
+    async fn dm_list_endpoint_requires_authentication() {
+        let app = app_for_test().await;
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/users/me/dms")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn dm_list_endpoint_returns_channels_without_rest_authz_gate() {
+        let app = app_for_test_with_authorizer(Arc::new(StaticDenyAuthorizer)).await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/users/me/dms")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["channels"][0]["channel_id"], 55);
+        assert_eq!(json["channels"][0]["recipient"]["user_id"], 1002);
+    }
+
+    #[tokio::test]
+    async fn dm_open_or_create_endpoint_returns_created_channel() {
+        let app = app_for_test_with_authorizer(Arc::new(StaticDenyAuthorizer)).await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method(Method::POST)
+                    .uri("/users/me/dms")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"recipient_id":1002}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::CREATED);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["channel"]["channel_id"], 55);
+        assert_eq!(json["channel"]["recipient"]["user_id"], 1002);
     }
 
     #[tokio::test]
@@ -4613,12 +4878,13 @@ mod tests {
                     .method("POST")
                     .uri("/v1/dms/55/messages")
                     .header("authorization", format!("Bearer {member_token}"))
-                    .body(Body::empty())
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"content":"hello dm"}"#))
                     .unwrap(),
             )
             .await
             .unwrap();
-        assert_eq!(member_dm_post_response.status(), StatusCode::OK);
+        assert_eq!(member_dm_post_response.status(), StatusCode::CREATED);
 
         let member_moderation_response = app
             .clone()
@@ -5365,6 +5631,87 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn list_dm_channels_returns_participant_scoped_result() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/users/me/dms")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["channels"][0]["channel_id"], 55);
+        assert_eq!(json["channels"][0]["recipient"]["user_id"], 1002);
+    }
+
+    #[tokio::test]
+    async fn get_dm_channel_returns_dm_summary() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/v1/dms/55")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["channel"]["channel_id"], 55);
+        assert_eq!(json["channel"]["recipient"]["display_name"], "Bob");
+    }
+
+    #[tokio::test]
+    async fn create_dm_message_returns_created_message() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/v1/dms/55/messages")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .header("Idempotency-Key", "dm-idem-1")
+                    .body(Body::from(r#"{"content":"hello dm"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::CREATED);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["message"]["channel_id"], 55);
+        assert_eq!(json["message"]["author_id"], 1001);
+        assert_eq!(json["message"]["content"], "hello dm");
+    }
+
+    #[tokio::test]
     async fn create_channel_message_rejects_blank_content() {
         let app = app_for_test_with_authorizer(Arc::new(RoleScenarioAuthorizer)).await;
         let token = format!("u-member:{}", unix_timestamp_seconds() + 300);
@@ -5751,12 +6098,13 @@ mod tests {
                     .method("POST")
                     .uri("/v1/dms/55/messages")
                     .header("authorization", format!("Bearer {token}"))
-                    .body(Body::empty())
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"content":"hello dm"}"#))
                     .unwrap(),
             )
             .await
             .unwrap();
-        assert_eq!(first_response.status(), StatusCode::OK);
+        assert_eq!(first_response.status(), StatusCode::CREATED);
 
         let mut last_response = None;
 
@@ -5768,7 +6116,8 @@ mod tests {
                             .method("POST")
                             .uri("/v1/dms/55/messages")
                             .header("authorization", format!("Bearer {token}"))
-                            .body(Body::empty())
+                            .header("content-type", "application/json")
+                            .body(Body::from(r#"{"content":"hello dm"}"#))
                             .unwrap(),
                     )
                     .await
