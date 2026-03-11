@@ -30,6 +30,18 @@ export function ServerContextMenu({ data }: { data: { server: Guild } }) {
       >
         チャンネルを作成
       </MenuItem>
+      <MenuItem
+        disabled={!createChannelGuard.isAllowed}
+        onClick={() => {
+          openModal("create-channel", {
+            serverId: data.server.id,
+            initialChannelType: 4,
+          });
+          hideContextMenu();
+        }}
+      >
+        カテゴリーを作成
+      </MenuItem>
       <MenuSeparator />
       <MenuItem disabled>招待を作成</MenuItem>
       <MenuItem

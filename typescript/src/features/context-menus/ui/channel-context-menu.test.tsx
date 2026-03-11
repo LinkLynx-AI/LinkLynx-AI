@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, test } from "vitest";
 import { vi } from "vitest";
 import { render, screen, userEvent } from "@/test/test-utils";
 import { useUIStore } from "@/shared/model/stores/ui-store";
+import type { Channel } from "@/shared/model/types/channel";
 import { ChannelContextMenu } from "./channel-context-menu";
 
 const useActionGuardMock = vi.hoisted(() => vi.fn());
@@ -11,7 +12,14 @@ vi.mock("@/shared/api/queries", () => ({
   useActionGuard: useActionGuardMock,
 }));
 
-function createChannel() {
+function createChannel(overrides: Partial<Channel> = {}): Channel {
+  return {
+    ...createChannelBase(),
+    ...overrides,
+  };
+}
+
+function createChannelBase(): Channel {
   return {
     id: "3001",
     guildId: "2001",
@@ -56,7 +64,27 @@ describe("ChannelContextMenu", () => {
     expect(useUIStore.getState().modalProps).toMatchObject({
       channelId: "3001",
       channelName: "general",
+      channelType: 0,
       serverId: "2001",
+    });
+  });
+
+  test("opens child create modal from category context menu", async () => {
+    render(
+      <ChannelContextMenu
+        data={{
+          channel: createChannel({ id: "3100", type: 4, name: "times" }),
+          serverId: "2001",
+        }}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("menuitem", { name: "チャンネルを作成" }));
+
+    expect(useUIStore.getState().activeModal).toBe("create-channel");
+    expect(useUIStore.getState().modalProps).toMatchObject({
+      serverId: "2001",
+      parentId: "3100",
     });
   });
 

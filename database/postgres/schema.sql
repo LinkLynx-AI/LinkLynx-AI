@@ -43,7 +43,8 @@ CREATE TYPE public.channel_hierarchy_kind AS ENUM (
 
 CREATE TYPE public.channel_type AS ENUM (
     'guild_text',
-    'dm'
+    'dm',
+    'guild_category'
 );
 
 
@@ -115,8 +116,16 @@ BEGIN
   FROM channels
   WHERE id = NEW.parent_channel_id;
 
-  IF parent_guild_id IS NULL OR parent_type <> 'guild_text' THEN
-    RAISE EXCEPTION 'parent channel must be guild_text with guild_id';
+  IF parent_guild_id IS NULL THEN
+    RAISE EXCEPTION 'parent channel must have guild_id';
+  END IF;
+
+  IF NEW.hierarchy_kind = 'category_child' AND parent_type <> 'guild_category' THEN
+    RAISE EXCEPTION 'category_child parent must be guild_category';
+  END IF;
+
+  IF NEW.hierarchy_kind = 'thread' AND parent_type <> 'guild_text' THEN
+    RAISE EXCEPTION 'thread parent must be guild_text';
   END IF;
 
   IF child_guild_id <> parent_guild_id OR child_guild_id <> NEW.guild_id THEN
@@ -435,8 +444,9 @@ CREATE TABLE public.channels (
     created_by bigint,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT chk_channels_guild_text_name_not_blank CHECK (((type <> 'guild_text'::public.channel_type) OR (btrim(COALESCE(name, ''::text)) <> ''::text))),
+    CONSTRAINT chk_channels_guild_scoped_name_not_blank CHECK (((type <> ALL (ARRAY['guild_text'::public.channel_type, 'guild_category'::public.channel_type])) OR (btrim(COALESCE(name, ''::text)) <> ''::text))),
     CONSTRAINT chk_channels_shape_dm CHECK (((type <> 'dm'::public.channel_type) OR (guild_id IS NULL))),
+    CONSTRAINT chk_channels_shape_guild_category CHECK (((type <> 'guild_category'::public.channel_type) OR ((guild_id IS NOT NULL) AND (name IS NOT NULL)))),
     CONSTRAINT chk_channels_shape_guild_text CHECK (((type <> 'guild_text'::public.channel_type) OR ((guild_id IS NOT NULL) AND (name IS NOT NULL))))
 );
 
@@ -576,6 +586,24 @@ CREATE TABLE public.message_attachments_v2 (
     CONSTRAINT chk_msg_att_v2_retention_order CHECK (((retention_until IS NULL) OR (retention_until >= created_at))),
     CONSTRAINT chk_msg_att_v2_sha256_format CHECK ((sha256 ~ '^[0-9A-Fa-f]{64}$'::text)),
     CONSTRAINT chk_msg_att_v2_size_non_negative CHECK ((size_bytes >= 0))
+);
+
+
+
+CREATE TABLE public.message_create_idempotency_keys (
+    principal_id bigint NOT NULL,
+    channel_id bigint NOT NULL,
+    idempotency_key text NOT NULL,
+    payload_fingerprint text NOT NULL,
+    state text NOT NULL,
+    message_id bigint NOT NULL,
+    message_created_at timestamp with time zone NOT NULL,
+    completed_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chk_msg_create_idempotency_key_non_empty CHECK ((length(btrim(idempotency_key)) > 0)),
+    CONSTRAINT chk_msg_create_idempotency_payload_non_empty CHECK ((length(btrim(payload_fingerprint)) > 0)),
+    CONSTRAINT chk_msg_create_idempotency_state CHECK ((state = ANY (ARRAY['reserved'::text, 'completed'::text])))
 );
 
 
@@ -826,6 +854,11 @@ ALTER TABLE ONLY public.message_attachments_v2
 
 
 
+ALTER TABLE ONLY public.message_create_idempotency_keys
+    ADD CONSTRAINT message_create_idempotency_keys_pkey PRIMARY KEY (principal_id, channel_id, idempotency_key);
+
+
+
 ALTER TABLE ONLY public.message_reactions_v2
     ADD CONSTRAINT message_reactions_v2_pkey PRIMARY KEY (message_id, emoji, user_id);
 
@@ -911,11 +944,11 @@ CREATE INDEX idx_channel_user_overrides_v2_user ON public.channel_user_permissio
 
 
 
-CREATE INDEX idx_channels_guild ON public.channels USING btree (guild_id) WHERE (type = 'guild_text'::public.channel_type);
+CREATE INDEX idx_channels_guild ON public.channels USING btree (guild_id) WHERE (type = ANY (ARRAY['guild_text'::public.channel_type, 'guild_category'::public.channel_type]));
 
 
 
-CREATE INDEX idx_channels_guild_created_id ON public.channels USING btree (guild_id, created_at, id) WHERE (type = 'guild_text'::public.channel_type);
+CREATE INDEX idx_channels_guild_created_id ON public.channels USING btree (guild_id, created_at, id) WHERE (type = ANY (ARRAY['guild_text'::public.channel_type, 'guild_category'::public.channel_type]));
 
 
 
@@ -1200,6 +1233,16 @@ ALTER TABLE ONLY public.message_attachments_v2
 
 ALTER TABLE ONLY public.message_attachments_v2
     ADD CONSTRAINT message_attachments_v2_uploaded_by_fkey FOREIGN KEY (uploaded_by) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+
+ALTER TABLE ONLY public.message_create_idempotency_keys
+    ADD CONSTRAINT message_create_idempotency_keys_channel_id_fkey FOREIGN KEY (channel_id) REFERENCES public.channels(id) ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY public.message_create_idempotency_keys
+    ADD CONSTRAINT message_create_idempotency_keys_principal_id_fkey FOREIGN KEY (principal_id) REFERENCES public.users(id) ON DELETE CASCADE;
 
 
 

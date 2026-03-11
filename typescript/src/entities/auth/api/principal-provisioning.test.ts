@@ -48,7 +48,7 @@ describe("ensurePrincipalProvisionedForCurrentUser", () => {
     expect(result).toEqual({
       ok: true,
       data: {
-        principalId: 1001,
+        principalId: "1001",
         firebaseUid: "uid-1",
         requestId: "req-1",
       },

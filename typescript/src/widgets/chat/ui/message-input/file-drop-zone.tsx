@@ -9,40 +9,63 @@ export function FileDropZone({
   channelId,
   children,
   onFilesDropped,
+  disabled = false,
 }: {
   channelId: string;
   children: React.ReactNode;
   onFilesDropped?: (files: File[]) => void;
+  disabled?: boolean;
 }) {
   const [dragging, setDragging] = useState(false);
   const openModal = useUIStore((s) => s.openModal);
   const dragCounterRef = { current: 0 };
 
-  const handleDragEnter = useCallback((e: DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    dragCounterRef.current++;
-    if (e.dataTransfer.types.includes("Files")) {
-      setDragging(true);
-    }
-  }, []);
+  const handleDragEnter = useCallback(
+    (e: DragEvent) => {
+      if (disabled) {
+        return;
+      }
+      e.preventDefault();
+      e.stopPropagation();
+      dragCounterRef.current++;
+      if (e.dataTransfer.types.includes("Files")) {
+        setDragging(true);
+      }
+    },
+    [disabled],
+  );
 
-  const handleDragLeave = useCallback((e: DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    dragCounterRef.current--;
-    if (dragCounterRef.current === 0) {
-      setDragging(false);
-    }
-  }, []);
+  const handleDragLeave = useCallback(
+    (e: DragEvent) => {
+      if (disabled) {
+        return;
+      }
+      e.preventDefault();
+      e.stopPropagation();
+      dragCounterRef.current--;
+      if (dragCounterRef.current === 0) {
+        setDragging(false);
+      }
+    },
+    [disabled],
+  );
 
-  const handleDragOver = useCallback((e: DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-  }, []);
+  const handleDragOver = useCallback(
+    (e: DragEvent) => {
+      if (disabled) {
+        return;
+      }
+      e.preventDefault();
+      e.stopPropagation();
+    },
+    [disabled],
+  );
 
   const handleDrop = useCallback(
     (e: DragEvent) => {
+      if (disabled) {
+        return;
+      }
       e.preventDefault();
       e.stopPropagation();
       setDragging(false);
@@ -57,7 +80,7 @@ export function FileDropZone({
         }
       }
     },
-    [channelId, openModal, onFilesDropped],
+    [channelId, disabled, openModal, onFilesDropped],
   );
 
   return (

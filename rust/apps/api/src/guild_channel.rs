@@ -13,7 +13,7 @@ use axum::{
     Json,
 };
 use linklynx_shared::PrincipalId;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 use tokio_postgres::{error::SqlState, NoTls};
 use tracing::warn;

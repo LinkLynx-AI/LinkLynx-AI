@@ -18,7 +18,10 @@ fn app_with_state(state: AppState) -> Router {
             post(authz_cache_invalidate_handler),
         )
         .route("/guilds", get(list_guilds).post(create_guild))
-        .route("/guilds/{guild_id}", patch(patch_guild).delete(delete_guild))
+        .route(
+            "/guilds/{guild_id}",
+            patch(patch_guild).delete(delete_guild),
+        )
         .route(
             "/guilds/{guild_id}/channels",
             get(list_guild_channels).post(create_guild_channel),
@@ -78,6 +81,10 @@ fn app_with_state(state: AppState) -> Router {
             axum::routing::post(create_channel_message),
         )
         .route(
+            "/v1/guilds/{guild_id}/channels/{channel_id}/messages/{message_id}",
+            axum::routing::patch(edit_channel_message).delete(delete_channel_message),
+        )
+        .route(
             "/guilds/{guild_id}/permission-snapshot",
             get(get_permission_snapshot),
         )
@@ -99,6 +106,10 @@ fn app_with_state(state: AppState) -> Router {
     Router::new()
         .route("/", get(root))
         .route("/health", get(health_check))
+        .route(
+            "/users/me/dms",
+            get(list_dm_channels).post(open_or_create_dm),
+        )
         .route("/v1/invites/{invite_code}", get(get_public_invite))
         .route("/v1/invites/{invite_code}/join", post(join_public_invite))
         .route("/internal/scylla/health", get(scylla_health_check))
@@ -183,28 +194,17 @@ struct InviteJoinResponse {
 
 #[derive(Debug, Serialize)]
 struct DmChannelResponse {
-    ok: bool,
-    request_id: String,
-    principal_id: i64,
-    channel_id: i64,
+    channel: dm::DmChannelSummary,
 }
 
 #[derive(Debug, Serialize)]
-struct DmMessagesResponse {
-    ok: bool,
-    request_id: String,
-    principal_id: i64,
-    channel_id: i64,
-    messages: Vec<String>,
+struct DmChannelListResponse {
+    channels: Vec<dm::DmChannelSummary>,
 }
 
-#[derive(Debug, Serialize)]
-struct DmMessageCreateResponse {
-    ok: bool,
-    request_id: String,
-    principal_id: i64,
-    channel_id: i64,
-    message_id: String,
+#[derive(Debug, Deserialize)]
+struct OpenOrCreateDmRequest {
+    recipient_id: i64,
 }
 
 #[derive(Debug, Serialize)]
@@ -396,7 +396,10 @@ async fn join_public_invite(
 
     let rate_limit_decision = state
         .rest_rate_limit_service
-        .evaluate(authenticated.principal_id, RestRateLimitAction::InviteAccess)
+        .evaluate(
+            authenticated.principal_id,
+            RestRateLimitAction::InviteAccess,
+        )
         .await;
     if !rate_limit_decision.allowed() {
         let error_class = if rate_limit_decision.is_fail_close() {
@@ -456,16 +459,59 @@ async fn join_public_invite(
 /// @returns チャンネル最小応答
 /// @throws なし
 async fn get_guild_channel(
-    axum::extract::Path((guild_id, channel_id)): axum::extract::Path<(i64, i64)>,
+    State(state): State<AppState>,
+    Path(params): Path<GuildChannelPathParams>,
     Extension(auth_context): Extension<AuthContext>,
-) -> Json<GuildChannelResponse> {
-    Json(GuildChannelResponse {
-        ok: true,
-        request_id: auth_context.request_id,
-        principal_id: auth_context.principal_id.0,
-        guild_id,
-        channel_id,
-    })
+) -> Response {
+    let request_id = auth_context.request_id.clone();
+    let guild_id = match parse_guild_id(&params.guild_id) {
+        Ok(value) => value,
+        Err(error) => return guild_channel_error_response(&error, request_id),
+    };
+    let channel_id = match parse_channel_id(&params.channel_id) {
+        Ok(value) => value,
+        Err(error) => return guild_channel_error_response(&error, request_id),
+    };
+
+    match state
+        .guild_channel_service
+        .get_guild_channel_summary(auth_context.principal_id, guild_id, channel_id)
+        .await
+    {
+        Ok(_) => Json(GuildChannelResponse {
+            ok: true,
+            request_id: auth_context.request_id,
+            principal_id: auth_context.principal_id.0,
+            guild_id,
+            channel_id,
+        })
+        .into_response(),
+        Err(error) => guild_channel_error_response(&error, request_id),
+    }
+}
+
+/// message target に利用できる guild channel を検証する。
+/// @param state アプリケーション状態
+/// @param auth_context 認証文脈
+/// @param guild_id 対象guild_id
+/// @param channel_id 対象channel_id
+/// @returns messageable channel要約
+/// @throws GuildChannelError 非messageableまたは取得失敗時
+async fn require_messageable_guild_channel(
+    state: &AppState,
+    auth_context: &AuthContext,
+    guild_id: i64,
+    channel_id: i64,
+) -> Result<guild_channel::ChannelSummary, GuildChannelError> {
+    let channel = state
+        .guild_channel_service
+        .get_guild_channel_summary(auth_context.principal_id, guild_id, channel_id)
+        .await?;
+    if !channel.kind.is_messageable() {
+        return Err(GuildChannelError::forbidden("channel_not_messageable"));
+    }
+
+    Ok(channel)
 }
 
 /// チャンネルメッセージ一覧の最小応答を返す。
@@ -474,6 +520,7 @@ async fn get_guild_channel(
 /// @returns メッセージ一覧最小応答
 /// @throws なし
 async fn list_channel_messages(
+    State(state): State<AppState>,
     Extension(auth_context): Extension<AuthContext>,
     Path(params): Path<GuildChannelPathParams>,
     query: Result<Query<ListGuildChannelMessagesQueryV1>, QueryRejection>,
@@ -491,10 +538,19 @@ async fn list_channel_messages(
         Ok(value) => value,
         Err(error) => return guild_channel_error_response(&error, request_id),
     };
+    if let Err(error) =
+        require_messageable_guild_channel(&state, &auth_context, guild_id, channel_id).await
+    {
+        return guild_channel_error_response(&error, request_id);
+    }
 
-    match paginate_messages(&message_fixture(guild_id, channel_id), &query) {
+    match state
+        .message_service
+        .list_guild_channel_messages(guild_id, channel_id, query)
+        .await
+    {
         Ok(response) => Json(response).into_response(),
-        Err(error) => message_api_error_response(&error, request_id),
+        Err(error) => message_error_response(&error, request_id),
     }
 }
 
@@ -505,6 +561,8 @@ async fn list_channel_messages(
 /// @returns メッセージ作成レスポンス
 /// @throws なし
 async fn create_channel_message(
+    State(state): State<AppState>,
+    headers: HeaderMap,
     Extension(auth_context): Extension<AuthContext>,
     Path(params): Path<GuildChannelPathParams>,
     payload: Result<Json<CreateGuildChannelMessageRequestV1>, JsonRejection>,
@@ -518,24 +576,180 @@ async fn create_channel_message(
         Ok(value) => value,
         Err(error) => return guild_channel_error_response(&error, request_id),
     };
+    if let Err(error) =
+        require_messageable_guild_channel(&state, &auth_context, guild_id, channel_id).await
+    {
+        return guild_channel_error_response(&error, request_id);
+    }
     let payload = match parse_json_payload(payload) {
         Ok(value) => value,
         Err(error) => return guild_channel_error_response(&error, request_id),
     };
-    if let Err(error) = validate_create_request(&payload) {
-        return message_api_error_response(&error, request_id);
-    }
-
-    let response = CreateGuildChannelMessageResponseV1 {
-        message: create_message_fixture(
-            guild_id,
-            channel_id,
-            auth_context.principal_id.0,
-            payload.content,
-        ),
+    let idempotency_key = match parse_idempotency_key(&headers) {
+        Ok(value) => value,
+        Err(error) => return message_error_response(&error, request_id),
     };
 
-    (StatusCode::CREATED, Json(response)).into_response()
+    match state
+        .message_service
+        .create_guild_channel_message(
+            auth_context.principal_id,
+            guild_id,
+            channel_id,
+            idempotency_key.as_deref(),
+            payload,
+        )
+        .await
+    {
+        Ok(execution) => {
+            if execution.should_publish {
+                let publish_state = state.clone();
+                let published_message = execution.response.message.clone();
+                tokio::spawn(async move {
+                    publish_state
+                        .message_realtime_hub
+                        .publish_message_created(&publish_state, published_message)
+                        .await;
+                });
+            }
+            (StatusCode::CREATED, Json(execution.response)).into_response()
+        }
+        Err(error) => message_error_response(&error, request_id),
+    }
+}
+
+/// チャンネルメッセージ編集の最小契約応答を返す。
+/// @param auth_context 認証文脈
+/// @param params パスパラメータ
+/// @param payload 編集入力
+/// @returns メッセージ更新レスポンス
+/// @throws なし
+async fn edit_channel_message(
+    State(state): State<AppState>,
+    Extension(auth_context): Extension<AuthContext>,
+    Path(params): Path<GuildChannelMessagePathParams>,
+    payload: Result<Json<EditMessageRequest>, JsonRejection>,
+) -> Response {
+    let request_id = auth_context.request_id.clone();
+    let guild_id = match parse_guild_id(&params.guild_id) {
+        Ok(value) => value,
+        Err(error) => return guild_channel_error_response(&error, request_id),
+    };
+    let channel_id = match parse_channel_id(&params.channel_id) {
+        Ok(value) => value,
+        Err(error) => return guild_channel_error_response(&error, request_id),
+    };
+    let message_id = match parse_message_id(&params.message_id) {
+        Ok(value) => value,
+        Err(error) => return message_error_response(&error, request_id),
+    };
+    let payload = match parse_json_payload(payload) {
+        Ok(value) => value,
+        Err(error) => return guild_channel_error_response(&error, request_id),
+    };
+
+    match state
+        .message_service
+        .edit_guild_channel_message(
+            auth_context.principal_id,
+            guild_id,
+            channel_id,
+            message_id,
+            EditGuildChannelMessageRequestV1 {
+                content: payload.content,
+                expected_version: payload.expected_version,
+            },
+        )
+        .await
+    {
+        Ok(response) => {
+            let publish_state = state.clone();
+            let published_message = response.message.clone();
+            tokio::spawn(async move {
+                publish_state
+                    .message_realtime_hub
+                    .publish_message_updated(&publish_state, published_message)
+                    .await;
+            });
+            Json(response).into_response()
+        }
+        Err(error) => message_error_response(&error, request_id),
+    }
+}
+
+/// チャンネルメッセージ削除の最小契約応答を返す。
+/// @param auth_context 認証文脈
+/// @param params パスパラメータ
+/// @param payload 削除入力
+/// @returns メッセージ更新レスポンス
+/// @throws なし
+async fn delete_channel_message(
+    State(state): State<AppState>,
+    Extension(auth_context): Extension<AuthContext>,
+    Path(params): Path<GuildChannelMessagePathParams>,
+    payload: Result<Json<DeleteMessageRequest>, JsonRejection>,
+) -> Response {
+    let request_id = auth_context.request_id.clone();
+    let guild_id = match parse_guild_id(&params.guild_id) {
+        Ok(value) => value,
+        Err(error) => return guild_channel_error_response(&error, request_id),
+    };
+    let channel_id = match parse_channel_id(&params.channel_id) {
+        Ok(value) => value,
+        Err(error) => return guild_channel_error_response(&error, request_id),
+    };
+    let message_id = match parse_message_id(&params.message_id) {
+        Ok(value) => value,
+        Err(error) => return message_error_response(&error, request_id),
+    };
+    let payload = match parse_json_payload(payload) {
+        Ok(value) => value,
+        Err(error) => return guild_channel_error_response(&error, request_id),
+    };
+
+    match state
+        .message_service
+        .delete_guild_channel_message(
+            auth_context.principal_id,
+            guild_id,
+            channel_id,
+            message_id,
+            DeleteGuildChannelMessageRequestV1 {
+                expected_version: payload.expected_version,
+            },
+        )
+        .await
+    {
+        Ok(response) => {
+            let publish_state = state.clone();
+            let published_message = response.message.clone();
+            tokio::spawn(async move {
+                publish_state
+                    .message_realtime_hub
+                    .publish_message_deleted(&publish_state, published_message)
+                    .await;
+            });
+            Json(response).into_response()
+        }
+        Err(error) => message_error_response(&error, request_id),
+    }
+}
+/// create message 用 idempotency key を取り出す。
+/// @param headers HTTP ヘッダー
+/// @returns optional idempotency key
+/// @throws MessageError ヘッダー値が空または不正な場合
+fn parse_idempotency_key(headers: &HeaderMap) -> Result<Option<String>, MessageError> {
+    let Some(value) = headers.get("Idempotency-Key") else {
+        return Ok(None);
+    };
+    let value = value
+        .to_str()
+        .map_err(|_| MessageError::validation("message_idempotency_key_invalid"))?;
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return Err(MessageError::validation("message_idempotency_key_invalid"));
+    }
+    Ok(Some(trimmed.to_owned()))
 }
 
 /// DMチャンネル情報の最小応答を返す。
@@ -544,15 +758,19 @@ async fn create_channel_message(
 /// @returns DMチャンネル最小応答
 /// @throws なし
 async fn get_dm_channel(
+    State(state): State<AppState>,
     axum::extract::Path(channel_id): axum::extract::Path<i64>,
     Extension(auth_context): Extension<AuthContext>,
-) -> Json<DmChannelResponse> {
-    Json(DmChannelResponse {
-        ok: true,
-        request_id: auth_context.request_id,
-        principal_id: auth_context.principal_id.0,
-        channel_id,
-    })
+) -> Response {
+    let request_id = auth_context.request_id.clone();
+    match state
+        .dm_service
+        .get_dm_channel(auth_context.principal_id, channel_id)
+        .await
+    {
+        Ok(channel) => Json(DmChannelResponse { channel }).into_response(),
+        Err(error) => dm_error_response(&error, request_id),
+    }
 }
 
 /// DMメッセージ一覧の最小応答を返す。
@@ -561,16 +779,29 @@ async fn get_dm_channel(
 /// @returns DMメッセージ一覧最小応答
 /// @throws なし
 async fn list_dm_messages(
+    State(state): State<AppState>,
     axum::extract::Path(channel_id): axum::extract::Path<i64>,
+    query: Result<Query<ListGuildChannelMessagesQueryV1>, QueryRejection>,
     Extension(auth_context): Extension<AuthContext>,
-) -> Json<DmMessagesResponse> {
-    Json(DmMessagesResponse {
-        ok: true,
-        request_id: auth_context.request_id,
-        principal_id: auth_context.principal_id.0,
-        channel_id,
-        messages: Vec::new(),
-    })
+) -> Response {
+    let request_id = auth_context.request_id.clone();
+    let query = match query {
+        Ok(Query(value)) => value,
+        Err(_) => {
+            return message_error_response(
+                &MessageError::validation("message_query_invalid"),
+                request_id,
+            )
+        }
+    };
+    match state
+        .dm_service
+        .list_dm_messages(auth_context.principal_id, channel_id, query)
+        .await
+    {
+        Ok(messages) => Json(messages).into_response(),
+        Err(error) => dm_error_response(&error, request_id),
+    }
 }
 
 /// DMメッセージ作成の最小応答を返す。
@@ -579,16 +810,149 @@ async fn list_dm_messages(
 /// @returns DMメッセージ作成最小応答
 /// @throws なし
 async fn create_dm_message(
+    State(state): State<AppState>,
     axum::extract::Path(channel_id): axum::extract::Path<i64>,
     Extension(auth_context): Extension<AuthContext>,
-) -> Json<DmMessageCreateResponse> {
-    Json(DmMessageCreateResponse {
-        ok: true,
-        request_id: auth_context.request_id,
-        principal_id: auth_context.principal_id.0,
-        channel_id,
-        message_id: format!("dm-msg-{channel_id}"),
-    })
+    headers: HeaderMap,
+    payload: Result<Json<CreateGuildChannelMessageRequestV1>, JsonRejection>,
+) -> Response {
+    let request_id = auth_context.request_id.clone();
+    let payload = match payload {
+        Ok(Json(value)) => value,
+        Err(_) => {
+            return message_error_response(
+                &MessageError::validation("request_body_invalid"),
+                request_id,
+            )
+        }
+    };
+    let idempotency_key = match parse_idempotency_key(&headers) {
+        Ok(value) => value,
+        Err(error) => return message_error_response(&error, request_id),
+    };
+    match state
+        .dm_service
+        .create_dm_message(
+            auth_context.principal_id,
+            channel_id,
+            idempotency_key.as_deref(),
+            payload,
+        )
+        .await
+    {
+        Ok(execution) => {
+            if execution.should_publish {
+                let publish_state = state.clone();
+                let published_message = execution.response.message.clone();
+                tokio::spawn(async move {
+                    publish_state
+                        .message_realtime_hub
+                        .publish_message_created(&publish_state, published_message)
+                        .await;
+                });
+            }
+            (StatusCode::CREATED, Json(execution.response)).into_response()
+        }
+        Err(error) => dm_error_response(&error, request_id),
+    }
+}
+
+/// 認証済み主体が参加する DM 一覧を返す。
+/// @param state アプリケーション状態
+/// @param auth_context 認証文脈
+/// @returns DM 一覧
+/// @throws なし
+async fn list_dm_channels(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    let request_id = request_id_from_headers(&headers);
+    let token = match bearer_token_from_headers(&headers) {
+        Ok(token) => token,
+        Err(error) => {
+            tracing::warn!(
+                decision = %error.decision(),
+                request_id = %request_id,
+                error_class = %error.log_class(),
+                reason = %error.reason,
+                "dm list rejected at header parsing"
+            );
+            return auth_error_response(&error, request_id);
+        }
+    };
+    let authenticated = match state.auth_service.authenticate_token(&token).await {
+        Ok(authenticated) => authenticated,
+        Err(error) => {
+            tracing::warn!(
+                decision = %error.decision(),
+                request_id = %request_id,
+                error_class = %error.log_class(),
+                reason = %error.reason,
+                "dm list rejected at authentication"
+            );
+            return auth_error_response(&error, request_id);
+        }
+    };
+
+    match state
+        .dm_service
+        .list_dm_channels(authenticated.principal_id)
+        .await
+    {
+        Ok(channels) => Json(DmChannelListResponse { channels }).into_response(),
+        Err(error) => dm_error_response(&error, request_id),
+    }
+}
+
+/// 相手ユーザーとの DM を open-or-create する。
+/// @param state アプリケーション状態
+/// @param auth_context 認証文脈
+/// @param payload 作成入力
+/// @returns DM 詳細
+/// @throws なし
+async fn open_or_create_dm(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    payload: Result<Json<OpenOrCreateDmRequest>, JsonRejection>,
+) -> Response {
+    let request_id = request_id_from_headers(&headers);
+    let token = match bearer_token_from_headers(&headers) {
+        Ok(token) => token,
+        Err(error) => {
+            tracing::warn!(
+                decision = %error.decision(),
+                request_id = %request_id,
+                error_class = %error.log_class(),
+                reason = %error.reason,
+                "dm open-or-create rejected at header parsing"
+            );
+            return auth_error_response(&error, request_id);
+        }
+    };
+    let authenticated = match state.auth_service.authenticate_token(&token).await {
+        Ok(authenticated) => authenticated,
+        Err(error) => {
+            tracing::warn!(
+                decision = %error.decision(),
+                request_id = %request_id,
+                error_class = %error.log_class(),
+                reason = %error.reason,
+                "dm open-or-create rejected at authentication"
+            );
+            return auth_error_response(&error, request_id);
+        }
+    };
+    let payload = match payload {
+        Ok(Json(value)) => value,
+        Err(_) => {
+            return dm_error_response(&dm::DmError::validation("request_body_invalid"), request_id)
+        }
+    };
+    match state
+        .dm_service
+        .open_or_create_dm(authenticated.principal_id, payload.recipient_id)
+        .await
+    {
+        Ok(channel) => (StatusCode::CREATED, Json(DmChannelResponse { channel })).into_response(),
+        Err(error) => dm_error_response(&error, request_id),
+    }
 }
 
 /// モデレーション操作の最小応答を返す。
@@ -711,15 +1075,19 @@ fn build_authz_cache_invalidation_event(
             guild_id: payload.guild_id.ok_or("guild_id is required")?,
             user_id: payload.user_id.ok_or("user_id is required")?,
         },
-        "channel_role_override_changed" => AuthzCacheInvalidationEventKind::ChannelRoleOverrideChanged {
-            guild_id: payload.guild_id.ok_or("guild_id is required")?,
-            channel_id: payload.channel_id.ok_or("channel_id is required")?,
-        },
-        "channel_user_override_changed" => AuthzCacheInvalidationEventKind::ChannelUserOverrideChanged {
-            guild_id: payload.guild_id.ok_or("guild_id is required")?,
-            channel_id: payload.channel_id.ok_or("channel_id is required")?,
-            user_id: payload.user_id.ok_or("user_id is required")?,
-        },
+        "channel_role_override_changed" => {
+            AuthzCacheInvalidationEventKind::ChannelRoleOverrideChanged {
+                guild_id: payload.guild_id.ok_or("guild_id is required")?,
+                channel_id: payload.channel_id.ok_or("channel_id is required")?,
+            }
+        }
+        "channel_user_override_changed" => {
+            AuthzCacheInvalidationEventKind::ChannelUserOverrideChanged {
+                guild_id: payload.guild_id.ok_or("guild_id is required")?,
+                channel_id: payload.channel_id.ok_or("channel_id is required")?,
+                user_id: payload.user_id.ok_or("user_id is required")?,
+            }
+        }
         "policy_version_changed" => AuthzCacheInvalidationEventKind::PolicyVersionChanged {
             policy_version: payload
                 .policy_version
@@ -775,7 +1143,9 @@ fn rate_limit_error_response(
     };
     let mut response = (StatusCode::TOO_MANY_REQUESTS, Json(body)).into_response();
     if let Ok(retry_after_value) = HeaderValue::from_str(&retry_after_seconds.max(1).to_string()) {
-        response.headers_mut().insert(RETRY_AFTER, retry_after_value);
+        response
+            .headers_mut()
+            .insert(RETRY_AFTER, retry_after_value);
     }
     response
 }
@@ -901,6 +1271,26 @@ struct GuildChannelPathParams {
 }
 
 #[derive(Debug, Deserialize)]
+struct GuildChannelMessagePathParams {
+    guild_id: String,
+    channel_id: String,
+    message_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct EditMessageRequest {
+    content: String,
+    expected_version: i64,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct DeleteMessageRequest {
+    expected_version: i64,
+}
+
+#[derive(Debug, Deserialize)]
 struct InviteVerifyPathParams {
     invite_code: String,
 }
@@ -946,8 +1336,13 @@ struct ChannelListResponse {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct CreateChannelRequest {
     name: String,
+    #[serde(default)]
+    r#type: Option<guild_channel::ChannelKind>,
+    #[serde(default)]
+    parent_id: Option<i64>,
 }
 
 #[derive(Debug, Serialize)]
@@ -1069,6 +1464,21 @@ fn parse_channel_id(raw_channel_id: &str) -> Result<i64, GuildChannelError> {
     Ok(parsed)
 }
 
+/// message_idパスパラメータを検証する。
+/// @param raw_message_id 生のmessage_id文字列
+/// @returns 検証済みmessage_id
+/// @throws MessageError パラメータ不正時
+fn parse_message_id(raw_message_id: &str) -> Result<i64, MessageError> {
+    let parsed = raw_message_id
+        .parse::<i64>()
+        .map_err(|_| MessageError::validation("message_id_invalid"))?;
+    if parsed <= 0 {
+        return Err(MessageError::validation("message_id_must_be_positive"));
+    }
+
+    Ok(parsed)
+}
+
 /// channel_idクエリパラメータを検証する。
 /// @param raw_channel_id 生のchannel_id文字列
 /// @returns 検証済みchannel_id
@@ -1101,24 +1511,15 @@ fn parse_message_list_query(
         .map_err(|_| GuildChannelError::validation("message_query_invalid"))
 }
 
-/// message API validation エラーを既存レスポンス契約へ写像する。
-/// @param error message API エラー
-/// @param request_id リクエスト識別子
-/// @returns エラーレスポンス
-/// @throws なし
-fn message_api_error_response(error: &MessageApiError, request_id: String) -> Response {
-    let api_error = GuildChannelError::validation(error.reason_code());
-    guild_channel_error_response(&api_error, request_id)
-}
-
 /// contract 固定用のメッセージ fixture を返す。
 /// @param guild_id 対象 guild_id
 /// @param channel_id 対象 channel_id
 /// @returns newest-first のメッセージ列
 /// @throws なし
-fn message_fixture(guild_id: i64, channel_id: i64) -> Vec<MessageItemV1> {
+#[cfg(test)]
+fn message_fixture(guild_id: i64, channel_id: i64) -> Vec<linklynx_message_api::MessageItemV1> {
     vec![
-        MessageItemV1 {
+        linklynx_message_api::MessageItemV1 {
             message_id: 120_110,
             guild_id,
             channel_id,
@@ -1129,7 +1530,7 @@ fn message_fixture(guild_id: i64, channel_id: i64) -> Vec<MessageItemV1> {
             edited_at: None,
             is_deleted: false,
         },
-        MessageItemV1 {
+        linklynx_message_api::MessageItemV1 {
             message_id: 120_108,
             guild_id,
             channel_id,
@@ -1140,7 +1541,7 @@ fn message_fixture(guild_id: i64, channel_id: i64) -> Vec<MessageItemV1> {
             edited_at: None,
             is_deleted: false,
         },
-        MessageItemV1 {
+        linklynx_message_api::MessageItemV1 {
             message_id: 120_107,
             guild_id,
             channel_id,
@@ -1151,7 +1552,7 @@ fn message_fixture(guild_id: i64, channel_id: i64) -> Vec<MessageItemV1> {
             edited_at: None,
             is_deleted: false,
         },
-        MessageItemV1 {
+        linklynx_message_api::MessageItemV1 {
             message_id: 120_105,
             guild_id,
             channel_id,
@@ -1162,7 +1563,7 @@ fn message_fixture(guild_id: i64, channel_id: i64) -> Vec<MessageItemV1> {
             edited_at: None,
             is_deleted: false,
         },
-        MessageItemV1 {
+        linklynx_message_api::MessageItemV1 {
             message_id: 120_102,
             guild_id,
             channel_id,
@@ -1183,13 +1584,14 @@ fn message_fixture(guild_id: i64, channel_id: i64) -> Vec<MessageItemV1> {
 /// @param content 投稿内容
 /// @returns メッセージスナップショット
 /// @throws なし
+#[cfg(test)]
 fn create_message_fixture(
     guild_id: i64,
     channel_id: i64,
     author_id: i64,
     content: String,
-) -> MessageItemV1 {
-    MessageItemV1 {
+) -> linklynx_message_api::MessageItemV1 {
+    linklynx_message_api::MessageItemV1 {
         message_id: 120_111,
         guild_id,
         channel_id,
@@ -1220,12 +1622,14 @@ fn parse_profile_patch_payload(
     let status_text = parse_nullable_string_patch_field(payload, "status_text")?;
     let avatar_key = parse_nullable_string_patch_field(payload, "avatar_key")?;
     let banner_key = parse_nullable_string_patch_field(payload, "banner_key")?;
+    let theme = parse_string_patch_field(payload, "theme")?;
 
     Ok(ProfilePatchInput {
         display_name,
         status_text,
         avatar_key,
         banner_key,
+        theme,
     })
 }
 
@@ -1313,7 +1717,30 @@ fn parse_nullable_string_patch_field(
     match payload.get(field_name) {
         Some(serde_json::Value::String(value)) => Ok(Some(Some(value.clone()))),
         Some(serde_json::Value::Null) => Ok(Some(None)),
-        Some(_) => Err(ProfileError::validation(format!("{field_name}_invalid_type"))),
+        Some(_) => Err(ProfileError::validation(format!(
+            "{field_name}_invalid_type"
+        ))),
+        None => Ok(None),
+    }
+}
+
+/// 必須null不可の文字列更新フィールドを解釈する。
+/// @param payload リクエストJSONオブジェクト
+/// @param field_name 対象フィールド名
+/// @returns 更新値
+/// @throws ProfileError 型不正またはnull入力時
+fn parse_string_patch_field(
+    payload: &serde_json::Map<String, serde_json::Value>,
+    field_name: &str,
+) -> Result<Option<String>, ProfileError> {
+    match payload.get(field_name) {
+        Some(serde_json::Value::String(value)) => Ok(Some(value.clone())),
+        Some(serde_json::Value::Null) => Err(ProfileError::validation(format!(
+            "{field_name}_null_not_allowed"
+        ))),
+        Some(_) => Err(ProfileError::validation(format!(
+            "{field_name}_invalid_type"
+        ))),
         None => Ok(None),
     }
 }
@@ -1762,10 +2189,22 @@ async fn create_guild_channel(
 
     match state
         .guild_channel_service
-        .create_guild_channel(auth_context.principal_id, guild_id, payload.name)
+        .create_guild_channel(
+            auth_context.principal_id,
+            guild_id,
+            guild_channel::CreateChannelInput {
+                name: payload.name,
+                kind: payload
+                    .r#type
+                    .unwrap_or(guild_channel::ChannelKind::GuildText),
+                parent_id: payload.parent_id,
+            },
+        )
         .await
     {
-        Ok(channel) => (StatusCode::CREATED, Json(ChannelCreateResponse { channel })).into_response(),
+        Ok(channel) => {
+            (StatusCode::CREATED, Json(ChannelCreateResponse { channel })).into_response()
+        }
         Err(error) => guild_channel_error_response(&error, request_id),
     }
 }
@@ -1883,7 +2322,8 @@ async fn create_moderation_report(
         Ok(value) => value,
         Err(error) => return moderation_error_response(&error, request_id),
     };
-    let target_type = match moderation::ModerationTargetType::parse_api_label(&payload.target_type) {
+    let target_type = match moderation::ModerationTargetType::parse_api_label(&payload.target_type)
+    {
         Some(value) => value,
         None => {
             return moderation_error_response(
@@ -1905,7 +2345,11 @@ async fn create_moderation_report(
         .create_report(auth_context.principal_id, input)
         .await
     {
-        Ok(report) => (StatusCode::CREATED, Json(ModerationReportResponse { report })).into_response(),
+        Ok(report) => (
+            StatusCode::CREATED,
+            Json(ModerationReportResponse { report }),
+        )
+            .into_response(),
         Err(error) => moderation_error_response(&error, request_id),
     }
 }
@@ -2053,7 +2497,11 @@ async fn get_my_profile(
 ) -> Response {
     let request_id = auth_context.request_id.clone();
 
-    match state.profile_service.get_profile(auth_context.principal_id).await {
+    match state
+        .profile_service
+        .get_profile(auth_context.principal_id)
+        .await
+    {
         Ok(profile) => Json(ProfileResponse { profile }).into_response(),
         Err(error) => profile_error_response(&error, request_id),
     }
@@ -2192,7 +2640,8 @@ async fn rest_auth_middleware(
         "REST auth accepted"
     );
 
-    if let Some(rate_limit_action) = rest_rate_limit_action_for_request(&request_method, &request_path)
+    if let Some(rate_limit_action) =
+        rest_rate_limit_action_for_request(&request_method, &request_path)
     {
         let decision = state
             .rest_rate_limit_service
@@ -2283,6 +2732,11 @@ fn rest_authz_action_for_request(method: &axum::http::Method, path: &str) -> Aut
     if path == "/internal/authz/cache/invalidate" {
         return AuthzAction::View;
     }
+    if is_message_command_path(path)
+        && (*method == axum::http::Method::PATCH || *method == axum::http::Method::DELETE)
+    {
+        return AuthzAction::Post;
+    }
     rest_authz_action_from_method(method)
 }
 
@@ -2326,15 +2780,16 @@ fn rest_authz_resource_from_path(path: &str) -> AuthzResource {
     }
 }
 
+fn is_message_command_path(path: &str) -> bool {
+    path.starts_with("/v1/guilds/") && path.contains("/channels/") && path.contains("/messages/")
+}
+
 /// ギルドパスから guild_id を抽出する。
 /// @param path リクエストパス
 /// @returns guild_id
 /// @throws なし
 fn parse_guild_path(path: &str) -> Option<i64> {
-    let segments = path
-        .trim_matches('/')
-        .split('/')
-        .collect::<Vec<_>>();
+    let segments = path.trim_matches('/').split('/').collect::<Vec<_>>();
     match segments.as_slice() {
         ["guilds", guild_id] => guild_id.parse::<i64>().ok(),
         ["guilds", guild_id, "permission-snapshot"] => guild_id.parse::<i64>().ok(),
@@ -2348,10 +2803,7 @@ fn parse_guild_path(path: &str) -> Option<i64> {
 /// @returns guild_id と channel_id
 /// @throws なし
 fn parse_guild_channel_path(path: &str) -> Option<(i64, i64)> {
-    let segments = path
-        .trim_matches('/')
-        .split('/')
-        .collect::<Vec<_>>();
+    let segments = path.trim_matches('/').split('/').collect::<Vec<_>>();
     if segments.len() < 5 {
         return None;
     }

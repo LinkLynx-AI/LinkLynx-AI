@@ -52,9 +52,10 @@ export function ChannelItem({
       openModal("channel-edit", {
         channelId: channel.id,
         channelName: channel.name,
+        channelType: channel.type,
       });
     },
-    [channel.id, channel.name, openModal],
+    [channel.id, channel.name, channel.type, openModal],
   );
   const primeManageGuard = () => {
     if (!didPrimeManageGuard) {

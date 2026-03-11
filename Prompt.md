@@ -1,24 +1,27 @@
 # Prompt
 
 ## Goals
-- `server/guild` 機能周辺の Rust バックエンドを探索し、レビューエージェント指摘を解消してレビューOK状態まで到達する。
-- 変更は依頼スコープ（guild/channel 関連）に限定し、既存契約（AuthZ fail-close/DB制約）を維持する。
+- `LIN-829` として guild text channel の timeline/composer を実データ送受信へ接続する。
+- send/list 実 API、WS `message.subscribe` / `message.created`、履歴ページング導線を frontend で成立させる。
+- 既存 UI を維持しつつ、権限/レート制限エラーでも composer 表示を崩さない。
 
 ## Non-goals
-- guild/channel 以外の機能改善やリファクタ。
-- API仕様の破壊的変更。
+- DM 送受信の実装。
+- backend 契約の拡張や UI 全面再設計。
 
 ## Deliverables
-- `rust/apps/api/src/guild_channel/*` と関連ハンドラの必要最小限修正。
-- レビューゲート実行結果（指摘→修正→再レビュー）。
-- 検証結果（`make validate` と必要な追加チェック）。
+- `typescript/src/shared/api/*` の message 実接続。
+- `typescript/src/app/providers/ws-auth-bridge.tsx` の channel subscribe / cache 更新。
+- `typescript/src/widgets/chat/ui/*` の timeline/composer/paging/error 表示。
+- 関連 unit/component test 更新。
 
 ## Done when
-- [x] `reviewer` ゲートで blocking 指摘が 0。
-- [x] 必要な検証コマンドが成功。
-- [x] 変更内容と意図を日本語で説明可能な状態。
+- [ ] guild channel で send -> receive が UI 反映まで成立する。
+- [ ] WS 再接続後も active channel の購読が復元される。
+- [ ] 過去メッセージ読み込み導線が動作する。
+- [ ] `make validate` と `cd typescript && npm run typecheck` が通る。
 
 ## Constraints
-- Perf: 不要なクエリ増加やロック競合を導入しない。
-- Security: ADR-004 fail-close 契約（`AUTHZ_DENIED` / `AUTHZ_UNAVAILABLE`）を崩さない。
-- Compatibility: 既存 REST レスポンス契約（status/code/message）を維持する。
+- `LIN-829` の `Don't` に従い DM 実装を混在させない。
+- TypeScript / FSD ルールに従い、UI・query・api helper を分離する。
+- backend message contract は現状の `author_id` までを前提にし、frontend で最小補完する。

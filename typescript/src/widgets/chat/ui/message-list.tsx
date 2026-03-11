@@ -35,13 +35,26 @@ export function MessageList({
   messages,
   channelName,
   isLoading,
+  errorMessage,
+  hasMore,
+  isLoadingMore,
+  loadMoreErrorMessage,
+  onLoadMore,
+  scrollToBottomToken,
 }: {
   messages: MessageType[];
   channelName: string;
   isLoading?: boolean;
+  errorMessage?: string | null;
+  hasMore?: boolean;
+  isLoadingMore?: boolean;
+  loadMoreErrorMessage?: string | null;
+  onLoadMore?: () => Promise<void>;
+  scrollToBottomToken?: number;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
+  const shouldStickToBottomRef = useRef(true);
 
   const scrollToBottom = useCallback(() => {
     const el = scrollRef.current;
@@ -51,15 +64,48 @@ export function MessageList({
   }, []);
 
   useEffect(() => {
+    if (!shouldStickToBottomRef.current) {
+      return;
+    }
+
     scrollToBottom();
   }, [messages.length, scrollToBottom]);
+
+  useEffect(() => {
+    shouldStickToBottomRef.current = true;
+    setShowScrollBtn(false);
+    scrollToBottom();
+  }, [scrollToBottom, scrollToBottomToken]);
 
   const handleScroll = useCallback(() => {
     const el = scrollRef.current;
     if (!el) return;
     const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    shouldStickToBottomRef.current = distFromBottom < 200;
     setShowScrollBtn(distFromBottom > 200);
   }, []);
+
+  const handleLoadMore = useCallback(async () => {
+    const el = scrollRef.current;
+    if (el === null || onLoadMore === undefined) {
+      return;
+    }
+
+    const previousScrollHeight = el.scrollHeight;
+    const previousScrollTop = el.scrollTop;
+    shouldStickToBottomRef.current = false;
+    await onLoadMore();
+
+    window.requestAnimationFrame(() => {
+      const nextElement = scrollRef.current;
+      if (nextElement === null) {
+        return;
+      }
+
+      const nextScrollHeight = nextElement.scrollHeight;
+      nextElement.scrollTop = previousScrollTop + (nextScrollHeight - previousScrollHeight);
+    });
+  }, [onLoadMore]);
 
   return (
     <div className="relative flex-1">
@@ -71,7 +117,36 @@ export function MessageList({
         <div className="mt-auto">
           <WelcomeMessage channelName={channelName} />
 
+          {hasMore && (
+            <div className="px-4 py-3">
+              <div className="flex justify-center">
+                <button
+                  type="button"
+                  onClick={() => void handleLoadMore()}
+                  disabled={isLoadingMore || onLoadMore === undefined}
+                  className={cn(
+                    "rounded-md border border-discord-border-subtle px-3 py-1.5 text-xs font-medium",
+                    "text-discord-text-muted transition-colors hover:bg-discord-bg-mod-hover hover:text-discord-text-normal",
+                    "disabled:cursor-not-allowed disabled:opacity-60",
+                  )}
+                >
+                  {isLoadingMore ? "読み込み中..." : "過去のメッセージを読み込む"}
+                </button>
+              </div>
+              {loadMoreErrorMessage !== null && loadMoreErrorMessage !== undefined && (
+                <p className="mt-2 text-center text-xs text-discord-brand-red">
+                  {loadMoreErrorMessage}
+                </p>
+              )}
+            </div>
+          )}
+
           {isLoading && <MessageSkeletonList />}
+          {errorMessage !== null && errorMessage !== undefined && !isLoading && (
+            <div className="px-4 py-6">
+              <p className="text-center text-sm text-discord-brand-red">{errorMessage}</p>
+            </div>
+          )}
 
           {messages.map((message, index) => {
             const prev = index > 0 ? messages[index - 1] : null;

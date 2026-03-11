@@ -10,7 +10,8 @@ export function hasMyProfileUpdateFields(input: UpdateMyProfileInput): boolean {
     input.displayName !== undefined ||
     input.statusText !== undefined ||
     input.avatarKey !== undefined ||
-    input.bannerKey !== undefined
+    input.bannerKey !== undefined ||
+    input.theme !== undefined
   );
 }
 

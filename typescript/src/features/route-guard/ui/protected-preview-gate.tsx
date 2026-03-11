@@ -7,6 +7,7 @@ import {
   type PrincipalProvisionResult,
   useAuthSession,
 } from "@/entities";
+import { useAuthStore } from "@/shared/model/stores/auth-store";
 import {
   buildLoginRoute,
   type GuardKind,
@@ -34,11 +35,16 @@ function resolveCurrentReturnToPath(): string | null {
  */
 export function ProtectedPreviewGate({ guard, children }: ProtectedPreviewGateProps) {
   const session = useAuthSession();
+  const setCurrentPrincipalId = useAuthStore((s) => s.setCurrentPrincipalId);
   const isBrowser = typeof window !== "undefined";
   const shouldCheckProvision = guard === null && session.status === "authenticated";
   const provisionQuery = useQuery<PrincipalProvisionResult, Error>({
     queryKey: ["auth", "protected-route-guard", session.user?.uid ?? "anonymous"],
-    queryFn: () => ensurePrincipalProvisionedForCurrentUser(),
+    queryFn: async () => {
+      const result = await ensurePrincipalProvisionedForCurrentUser();
+      setCurrentPrincipalId(result.ok ? result.data.principalId : null);
+      return result;
+    },
     enabled: isBrowser && shouldCheckProvision,
     retry: false,
     staleTime: 0,

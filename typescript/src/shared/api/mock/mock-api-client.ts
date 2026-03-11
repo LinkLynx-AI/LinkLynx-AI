@@ -4,6 +4,9 @@ import type {
   CreateModerationMuteData,
   CreateModerationReportData,
   CreateGuildData,
+  MessagePage,
+  MessageQueryParams,
+  SendMessageParams,
   UpdateGuildData,
   CreateChannelData,
   CreateInviteData,
@@ -54,6 +57,7 @@ export class MockAPIClient implements APIClient {
   private delay = 100;
   private moderationReports: ModerationReport[] = [];
   private moderationMutes: ModerationMute[] = [];
+  private myProfileTheme: MyProfile["theme"] = "dark";
 
   private async simulateDelay(): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, this.delay));
@@ -187,14 +191,16 @@ export class MockAPIClient implements APIClient {
   }
 
   // Messages
-  async getMessages(
-    channelId: string,
-    params?: { before?: string; after?: string; limit?: number },
-  ): Promise<Message[]> {
+  async getMessages(params: MessageQueryParams): Promise<MessagePage> {
     await this.simulateDelay();
-    const messages = mockMessages[channelId] ?? [];
-    const limit = params?.limit ?? 50;
-    return messages.slice(-limit);
+    const messages = mockMessages[params.channelId] ?? [];
+    const limit = params.limit ?? 50;
+    return {
+      items: messages.slice(-limit),
+      nextBefore: null,
+      nextAfter: null,
+      hasMore: false,
+    };
   }
 
   async getMessage(channelId: string, messageId: string): Promise<Message> {
@@ -205,7 +211,7 @@ export class MockAPIClient implements APIClient {
     return msg;
   }
 
-  async sendMessage(channelId: string, data: CreateMessageData): Promise<Message> {
+  async sendMessage({ channelId, data }: SendMessageParams): Promise<Message> {
     await this.simulateDelay();
     const message: Message = {
       id: this.generateId(),
@@ -213,7 +219,9 @@ export class MockAPIClient implements APIClient {
       author: mockCurrentUser,
       content: data.content,
       timestamp: new Date().toISOString(),
+      version: "1",
       editedTimestamp: null,
+      isDeleted: false,
       type: data.referencedMessageId ? 19 : 0,
       pinned: false,
       mentionEveryone: false,
@@ -236,16 +244,28 @@ export class MockAPIClient implements APIClient {
     messages[idx] = {
       ...messages[idx],
       content: data.content,
+      version: String(Number(messages[idx].version) + 1),
       editedTimestamp: new Date().toISOString(),
+      isDeleted: false,
     };
     return messages[idx];
   }
 
-  async deleteMessage(channelId: string, messageId: string): Promise<void> {
+  async deleteMessage(channelId: string, messageId: string): Promise<Message> {
     await this.simulateDelay();
     const messages = mockMessages[channelId] ?? [];
     const idx = messages.findIndex((m) => m.id === messageId);
-    if (idx !== -1) messages.splice(idx, 1);
+    if (idx !== -1) {
+      messages[idx] = {
+        ...messages[idx],
+        content: "",
+        version: String(Number(messages[idx].version) + 1),
+        editedTimestamp: new Date().toISOString(),
+        isDeleted: true,
+      };
+      return messages[idx];
+    }
+    throw new Error("message not found");
   }
 
   async getPinnedMessages(channelId: string): Promise<Message[]> {
@@ -318,6 +338,7 @@ export class MockAPIClient implements APIClient {
       statusText: profile?.bio ?? mockCurrentUser.customStatus,
       avatarKey: null,
       bannerKey: null,
+      theme: this.myProfileTheme,
     };
   }
 
@@ -337,8 +358,10 @@ export class MockAPIClient implements APIClient {
       input.statusText !== undefined
         ? (input.statusText?.trim() ?? null)
         : mockCurrentUser.customStatus;
+    const theme = input.theme ?? this.myProfileTheme;
     mockCurrentUser.displayName = displayName;
     mockCurrentUser.customStatus = statusText;
+    this.myProfileTheme = theme;
 
     const existingProfile = mockUserProfiles[mockCurrentUser.id];
     mockUserProfiles[mockCurrentUser.id] = {
@@ -359,6 +382,7 @@ export class MockAPIClient implements APIClient {
       statusText,
       avatarKey: null,
       bannerKey: null,
+      theme,
     };
   }
 

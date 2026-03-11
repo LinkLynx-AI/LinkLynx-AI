@@ -25,6 +25,7 @@ mod tests {
             status_text: None,
             avatar_key: None,
             banner_key: None,
+            theme: None,
         };
 
         let result = normalize_profile_patch_input(patch);
@@ -44,6 +45,7 @@ mod tests {
             status_text: None,
             avatar_key: None,
             banner_key: None,
+            theme: None,
         };
 
         let result = normalize_profile_patch_input(patch);
@@ -63,6 +65,7 @@ mod tests {
             status_text: None,
             avatar_key: None,
             banner_key: None,
+            theme: None,
         };
 
         let result = normalize_profile_patch_input(patch);
@@ -82,6 +85,7 @@ mod tests {
             status_text: Some(Some("   ".to_owned())),
             avatar_key: Some(Some("  folder/avatar_1.png  ".to_owned())),
             banner_key: Some(Some("  folder/banner_1.png  ".to_owned())),
+            theme: Some(" dark ".to_owned()),
         };
 
         let normalized = normalize_profile_patch_input(patch).unwrap();
@@ -95,6 +99,7 @@ mod tests {
             normalized.banner_key,
             Some(Some("folder/banner_1.png".to_owned()))
         );
+        assert_eq!(normalized.theme, Some(ProfileTheme::Dark));
     }
 
     #[test]
@@ -104,6 +109,7 @@ mod tests {
             status_text: Some(Some("a".repeat(191))),
             avatar_key: None,
             banner_key: None,
+            theme: None,
         };
 
         let result = normalize_profile_patch_input(patch);
@@ -123,6 +129,7 @@ mod tests {
             status_text: None,
             avatar_key: Some(Some("avatar key with space".to_owned())),
             banner_key: None,
+            theme: None,
         };
 
         let result = normalize_profile_patch_input(patch);
@@ -142,6 +149,7 @@ mod tests {
             status_text: None,
             avatar_key: Some(Some("a".repeat(513))),
             banner_key: None,
+            theme: None,
         };
 
         let result = normalize_profile_patch_input(patch);
@@ -161,6 +169,7 @@ mod tests {
             status_text: None,
             avatar_key: None,
             banner_key: Some(Some("banner key with space".to_owned())),
+            theme: None,
         };
 
         let result = normalize_profile_patch_input(patch);
@@ -174,6 +183,26 @@ mod tests {
     }
 
     #[test]
+    fn normalize_profile_patch_input_rejects_invalid_theme() {
+        let patch = ProfilePatchInput {
+            display_name: None,
+            status_text: None,
+            avatar_key: None,
+            banner_key: None,
+            theme: Some("onyx".to_owned()),
+        };
+
+        let result = normalize_profile_patch_input(patch);
+        assert!(matches!(
+            result,
+            Err(ProfileError {
+                kind: ProfileErrorKind::Validation,
+                reason,
+            }) if reason == "theme_invalid_value"
+        ));
+    }
+
+    #[test]
     fn validate_profile_media_patch_keys_rejects_cross_principal_key() {
         let patch = NormalizedProfilePatch {
             display_name: None,
@@ -183,6 +212,7 @@ mod tests {
                 "v0/tenant/default/user/999/profile/banner/asset/550e8400-e29b-41d4-a716-446655440000/banner.png"
                     .to_owned(),
             )),
+            theme: None,
         };
 
         let result = validate_profile_media_patch_keys(PrincipalId(1001), &patch);
@@ -208,6 +238,7 @@ mod tests {
                 "v0/tenant/default/user/1001/profile/banner/asset/550e8400-e29b-41d4-a716-446655440001/banner.png"
                     .to_owned(),
             )),
+            theme: None,
         };
 
         let result = validate_profile_media_patch_keys(PrincipalId(1001), &patch);
@@ -260,8 +291,7 @@ mod tests {
 
     #[test]
     fn validate_profile_media_content_type_filename_match_rejects_known_mismatch() {
-        let result =
-            validate_profile_media_content_type_filename_match("image/png", "avatar.jpg");
+        let result = validate_profile_media_content_type_filename_match("image/png", "avatar.jpg");
         assert!(matches!(
             result,
             Err(ProfileError {

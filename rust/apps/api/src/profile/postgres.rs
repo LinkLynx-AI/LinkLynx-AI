@@ -76,7 +76,9 @@ impl PostgresProfileService {
     /// @throws ProfileError 接続失敗時
     async fn connect_client(&self) -> Result<Arc<tokio_postgres::Client>, ProfileError> {
         if !self.allow_postgres_notls {
-            return Err(ProfileError::dependency_unavailable("postgres_tls_required"));
+            return Err(ProfileError::dependency_unavailable(
+                "postgres_tls_required",
+            ));
         }
 
         let (client, connection) = tokio_postgres::connect(self.database_url.as_ref(), NoTls)
@@ -162,12 +164,15 @@ impl ProfileService for PostgresProfileService {
     /// @param principal_id 認証済みprincipal_id
     /// @returns プロフィール
     /// @throws ProfileError 入力不正または依存障害時
-    async fn get_profile(&self, principal_id: PrincipalId) -> Result<ProfileSettings, ProfileError> {
+    async fn get_profile(
+        &self,
+        principal_id: PrincipalId,
+    ) -> Result<ProfileSettings, ProfileError> {
         let client = self.select_client().await?;
 
         let row = match client
             .query_opt(
-                "SELECT display_name, status_text, avatar_key, banner_key
+                "SELECT display_name, status_text, avatar_key, banner_key, theme
                  FROM users
                  WHERE id = $1
                  LIMIT 1",
@@ -195,6 +200,8 @@ impl ProfileService for PostgresProfileService {
             status_text: row.get::<&str, Option<String>>("status_text"),
             avatar_key: row.get::<&str, Option<String>>("avatar_key"),
             banner_key: row.get::<&str, Option<String>>("banner_key"),
+            theme: ProfileTheme::parse(row.get::<&str, String>("theme").as_str())
+                .map_err(|_| ProfileError::dependency_unavailable("profile_theme_invalid"))?,
         })
     }
 
@@ -231,6 +238,8 @@ impl ProfileService for PostgresProfileService {
             .banner_key
             .as_ref()
             .and_then(|value| value.as_deref());
+        let set_theme = normalized_patch.theme.is_some();
+        let theme_value = normalized_patch.theme.as_ref().map(ProfileTheme::as_str);
 
         let row = match client
             .query_opt(
@@ -239,9 +248,10 @@ impl ProfileService for PostgresProfileService {
                    display_name = CASE WHEN $2::boolean THEN $3::text ELSE display_name END,
                    status_text = CASE WHEN $4::boolean THEN $5::text ELSE status_text END,
                    avatar_key = CASE WHEN $6::boolean THEN $7::text ELSE avatar_key END,
-                   banner_key = CASE WHEN $8::boolean THEN $9::text ELSE banner_key END
+                   banner_key = CASE WHEN $8::boolean THEN $9::text ELSE banner_key END,
+                   theme = CASE WHEN $10::boolean THEN $11::text ELSE theme END
                  WHERE id = $1
-                 RETURNING display_name, status_text, avatar_key, banner_key",
+                 RETURNING display_name, status_text, avatar_key, banner_key, theme",
                 &[
                     &principal_id.0,
                     &set_display_name,
@@ -252,6 +262,8 @@ impl ProfileService for PostgresProfileService {
                     &avatar_key_value,
                     &set_banner_key,
                     &banner_key_value,
+                    &set_theme,
+                    &theme_value,
                 ],
             )
             .await
@@ -276,6 +288,8 @@ impl ProfileService for PostgresProfileService {
             status_text: row.get::<&str, Option<String>>("status_text"),
             avatar_key: row.get::<&str, Option<String>>("avatar_key"),
             banner_key: row.get::<&str, Option<String>>("banner_key"),
+            theme: ProfileTheme::parse(row.get::<&str, String>("theme").as_str())
+                .map_err(|_| ProfileError::dependency_unavailable("profile_theme_invalid"))?,
         })
     }
 }

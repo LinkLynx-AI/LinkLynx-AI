@@ -59,6 +59,8 @@ export function ModalManager() {
         <CreateChannelModal
           onClose={closeModal}
           serverId={modalProps.serverId as string | undefined}
+          parentId={modalProps.parentId as string | undefined}
+          initialChannelType={modalProps.initialChannelType as 0 | 4 | undefined}
         />
       );
     case "create-invite":
@@ -84,6 +86,7 @@ export function ModalManager() {
           onClose={closeModal}
           channelId={modalProps.channelId as string | undefined}
           channelName={modalProps.channelName as string | undefined}
+          channelType={modalProps.channelType as number | undefined}
           serverId={modalProps.serverId as string | undefined}
         />
       );
@@ -151,6 +154,7 @@ export function ModalManager() {
           onClose={closeModal}
           channelId={modalProps.channelId as string | undefined}
           channelName={modalProps.channelName as string | undefined}
+          channelType={modalProps.channelType as number | undefined}
         />
       );
     case "onboarding":

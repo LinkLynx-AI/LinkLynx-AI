@@ -898,6 +898,9 @@ dependencies = [
  "http",
  "jsonwebtoken",
  "linklynx_message_api",
+ "linklynx_message_domain",
+ "linklynx_platform_postgres_message",
+ "linklynx_platform_scylla_message",
  "linklynx_protocol_events",
  "linklynx_protocol_ws",
  "linklynx_shared",
@@ -950,6 +953,38 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror",
+]
+
+[[package]]
+name = "linklynx_message_domain"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "linklynx_message_api",
+ "thiserror",
+ "tokio",
+]
+
+[[package]]
+name = "linklynx_platform_postgres_message"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "linklynx_message_domain",
+ "tokio",
+ "tokio-postgres",
+ "tracing",
+]
+
+[[package]]
+name = "linklynx_platform_scylla_message"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "linklynx_message_api",
+ "linklynx_message_domain",
+ "scylla",
+ "time",
 ]
 
 [[package]]

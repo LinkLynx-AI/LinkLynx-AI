@@ -10,8 +10,11 @@ base64.workspace = true
 http.workspace = true
 jsonwebtoken.workspace = true
 linklynx_message_api = { path = "../../crates/contracts/message-api" }
+linklynx_message_domain = { path = "../../crates/domains/message" }
 linklynx_protocol_events = { path = "../../crates/contracts/protocol-events" }
 linklynx_protocol_ws = { path = "../../crates/contracts/protocol-ws" }
+linklynx_platform_postgres_message = { path = "../../crates/platform/postgres/message" }
+linklynx_platform_scylla_message = { path = "../../crates/platform/scylla/message" }
 linklynx_shared = { path = "../../crates/shared" }
 percent-encoding.workspace = true
 reqwest.workspace = true

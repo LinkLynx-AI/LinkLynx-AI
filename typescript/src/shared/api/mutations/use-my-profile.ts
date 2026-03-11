@@ -3,6 +3,10 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { getAPIClient } from "@/shared/api/api-client";
 import type { UpdateMyProfileInput } from "@/shared/api/api-client";
+import {
+  syncMyProfileToAuthStore,
+  syncMyProfileToSessionCaches,
+} from "@/shared/api/my-profile-sync";
 
 /**
  * ログインユーザーのプロフィールを更新する。
@@ -15,8 +19,11 @@ export function useUpdateMyProfile(userId: string | null) {
     mutationFn: (input: UpdateMyProfileInput) => api.updateMyProfile(input),
     onSuccess: (updatedProfile) => {
       if (userId !== null) {
-        queryClient.setQueryData(["myProfile", userId], updatedProfile);
+        syncMyProfileToSessionCaches(queryClient, userId, updatedProfile);
+        return;
       }
+
+      syncMyProfileToAuthStore(updatedProfile);
     },
   });
 }

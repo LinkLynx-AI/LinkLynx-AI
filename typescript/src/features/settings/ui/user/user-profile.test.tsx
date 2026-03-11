@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { render, screen, userEvent, waitFor } from "@/test/test-utils";
+import { act, render, screen, userEvent, waitFor } from "@/test/test-utils";
 import { GuildChannelApiError } from "@/shared/api/guild-channel-api-client";
 import { useAuthStore } from "@/shared/model/stores/auth-store";
 
@@ -9,6 +9,7 @@ type MyProfile = {
   statusText: string | null;
   avatarKey: string | null;
   bannerKey: string | null;
+  theme: "dark" | "light";
 };
 
 type MyProfileQueryResult = {
@@ -53,6 +54,7 @@ describe("UserProfile", () => {
         customStatus: "old-status",
         bot: false,
       },
+      currentPrincipalId: null,
       status: "online",
       customStatus: "old-status",
     });
@@ -66,6 +68,7 @@ describe("UserProfile", () => {
         statusText: "old-status",
         avatarKey: null,
         bannerKey: null,
+        theme: "dark",
       },
       isLoading: false,
       isError: false,
@@ -77,30 +80,33 @@ describe("UserProfile", () => {
   afterEach(() => {
     useAuthStore.setState({
       currentUser: null,
+      currentPrincipalId: null,
       status: "online",
       customStatus: null,
     });
   });
 
-  test("saves profile and syncs auth-store on success", async () => {
+  test("saves profile and updates local form state on success", async () => {
+    const user = userEvent.setup();
     mutateAsyncMock.mockResolvedValueOnce({
       displayName: "new-name",
       statusText: "new-status",
       avatarKey: null,
       bannerKey: null,
+      theme: "dark",
     });
 
     render(<UserProfile />);
 
     const displayNameInput = screen.getByDisplayValue("old-name");
-    await userEvent.clear(displayNameInput);
-    await userEvent.type(displayNameInput, "new-name");
+    await user.clear(displayNameInput);
+    await user.type(displayNameInput, "new-name");
 
     const bioInput = screen.getByPlaceholderText("あなたについて教えてください");
-    await userEvent.clear(bioInput);
-    await userEvent.type(bioInput, "new-status");
+    await user.clear(bioInput);
+    await user.type(bioInput, "new-status");
 
-    await userEvent.click(screen.getByRole("button", { name: "変更を保存" }));
+    await user.click(screen.getByRole("button", { name: "変更を保存" }));
 
     await waitFor(() => {
       expect(mutateAsyncMock).toHaveBeenCalledWith({
@@ -110,14 +116,15 @@ describe("UserProfile", () => {
     });
     await waitFor(() => {
       expect(screen.getByText("プロフィールを更新しました。")).not.toBeNull();
-      expect(useAuthStore.getState().currentUser?.displayName).toBe("new-name");
-      expect(useAuthStore.getState().customStatus).toBe("new-status");
+      expect(screen.getByDisplayValue("new-name")).not.toBeNull();
+      expect(screen.getByDisplayValue("new-status")).not.toBeNull();
     });
     expect(useMyProfileMock).toHaveBeenCalledWith("u-1");
     expect(useUpdateMyProfileMock).toHaveBeenCalledWith("u-1");
   });
 
   test("shows retry action when update fails and can retry", async () => {
+    const user = userEvent.setup();
     mutateAsyncMock
       .mockRejectedValueOnce(
         new GuildChannelApiError("profile update failed", {
@@ -129,21 +136,22 @@ describe("UserProfile", () => {
         statusText: "retry-status",
         avatarKey: null,
         bannerKey: null,
+        theme: "dark",
       });
 
     render(<UserProfile />);
 
     const bioInput = screen.getByPlaceholderText("あなたについて教えてください");
-    await userEvent.clear(bioInput);
-    await userEvent.type(bioInput, "retry-status");
+    await user.clear(bioInput);
+    await user.type(bioInput, "retry-status");
 
-    await userEvent.click(screen.getByRole("button", { name: "変更を保存" }));
+    await user.click(screen.getByRole("button", { name: "変更を保存" }));
 
     await waitFor(() => {
       expect(screen.getByText(/request_id: req-807/)).not.toBeNull();
     });
 
-    await userEvent.click(screen.getByRole("button", { name: "再試行" }));
+    await user.click(screen.getByRole("button", { name: "再試行" }));
 
     await waitFor(() => {
       expect(mutateAsyncMock).toHaveBeenCalledTimes(2);
@@ -152,12 +160,14 @@ describe("UserProfile", () => {
   });
 
   test("keeps unsaved bio when profile query data is refreshed", async () => {
+    const user = userEvent.setup();
     const queryResult: MyProfileQueryResult = {
       data: {
         displayName: "old-name",
         statusText: "old-status",
         avatarKey: null,
         bannerKey: null,
+        theme: "dark",
       },
       isLoading: false,
       isError: false,
@@ -169,16 +179,19 @@ describe("UserProfile", () => {
     const { rerender } = render(<UserProfile />);
 
     const bioInput = screen.getByPlaceholderText("あなたについて教えてください");
-    await userEvent.clear(bioInput);
-    await userEvent.type(bioInput, "draft-status");
+    await user.clear(bioInput);
+    await user.type(bioInput, "draft-status");
 
     queryResult.data = {
       displayName: "old-name",
       statusText: "server-updated-status",
       avatarKey: null,
       bannerKey: null,
+      theme: "light",
     };
-    rerender(<UserProfile />);
+    act(() => {
+      rerender(<UserProfile />);
+    });
 
     await waitFor(() => {
       const latestBioInput = screen.getByPlaceholderText("あなたについて教えてください");
@@ -190,6 +203,7 @@ describe("UserProfile", () => {
   });
 
   test("calls refetch when profile fetch fails and retry is clicked", async () => {
+    const user = userEvent.setup();
     const refetchMock = vi.fn<() => Promise<unknown>>().mockResolvedValue(undefined);
     useMyProfileMock.mockReturnValue({
       data: undefined,
@@ -201,7 +215,7 @@ describe("UserProfile", () => {
 
     render(<UserProfile />);
 
-    await userEvent.click(screen.getByRole("button", { name: "再試行" }));
+    await user.click(screen.getByRole("button", { name: "再試行" }));
     expect(refetchMock).toHaveBeenCalledTimes(1);
   });
 });

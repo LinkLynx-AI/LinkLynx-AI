@@ -113,6 +113,48 @@ describe("ChannelDeleteModal", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
+  test("redirects when deleting category also removes selected child route", async () => {
+    usePathnameMock.mockReturnValue("/channels/2001/3001");
+    useChannelsMock.mockReturnValue({
+      data: [
+        {
+          id: "3100",
+          guildId: "2001",
+          type: 4 as const,
+          name: "times",
+          topic: null,
+          position: 0,
+          parentId: null,
+          nsfw: false,
+          rateLimitPerUser: 0,
+          lastMessageId: null,
+        },
+        {
+          ...createChannel("3001", 1),
+          parentId: "3100",
+        },
+        createChannel("3002", 2),
+      ],
+    });
+    mutateAsyncMock.mockResolvedValueOnce(undefined);
+
+    render(
+      <ChannelDeleteModal
+        channelId="3100"
+        channelName="times"
+        channelType={4}
+        onClose={vi.fn()}
+        serverId="2001"
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "カテゴリーを削除" }));
+
+    await waitFor(() => {
+      expect(replaceMock).toHaveBeenCalledWith("/channels/2001/3002");
+    });
+  });
+
   test("keeps delete disabled when channel manage permission is missing", () => {
     useActionGuardMock.mockImplementation(() => ({
       status: "forbidden",

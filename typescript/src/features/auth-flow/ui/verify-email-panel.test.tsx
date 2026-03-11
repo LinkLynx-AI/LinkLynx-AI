@@ -36,7 +36,7 @@ const ensurePrincipalProvisionedForCurrentUserMock = vi.hoisted(() =>
     Promise.resolve({
       ok: true,
       data: {
-        principalId: 1,
+        principalId: "1",
         firebaseUid: "uid-1",
         requestId: "req-1",
       },
@@ -105,7 +105,7 @@ describe("VerifyEmailPanel", () => {
     ensurePrincipalProvisionedForCurrentUserMock.mockResolvedValue({
       ok: true,
       data: {
-        principalId: 1,
+        principalId: "1",
         firebaseUid: "uid-1",
         requestId: "req-1",
       },

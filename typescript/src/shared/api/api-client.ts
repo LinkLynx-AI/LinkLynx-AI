@@ -7,6 +7,7 @@ import type {
   Message,
   CreateMessageData,
   EditMessageData,
+  DeleteMessageData,
 } from "@/shared/model/types";
 
 export type SearchParams = {
@@ -25,11 +26,33 @@ export type SearchResult = {
   totalResults: number;
 };
 
+export type MessageQueryParams = {
+  guildId?: string | null;
+  channelId: string;
+  before?: string;
+  after?: string;
+  limit?: number;
+};
+
+export type SendMessageParams = {
+  guildId?: string | null;
+  channelId: string;
+  data: CreateMessageData;
+};
+
+export type MessagePage = {
+  items: Message[];
+  nextBefore: string | null;
+  nextAfter: string | null;
+  hasMore: boolean;
+};
+
 export type MyProfile = {
   displayName: string;
   statusText: string | null;
   avatarKey: string | null;
   bannerKey: string | null;
+  theme: "dark" | "light";
 };
 
 export type UpdateMyProfileInput = {
@@ -37,6 +60,7 @@ export type UpdateMyProfileInput = {
   statusText?: string | null;
   avatarKey?: string | null;
   bannerKey?: string | null;
+  theme?: "dark" | "light";
 };
 
 export type ProfileMediaTarget = "avatar" | "banner";
@@ -220,14 +244,11 @@ export type APIClient = {
   deleteChannel(channelId: string): Promise<void>;
 
   // Messages
-  getMessages(
-    channelId: string,
-    params?: { before?: string; after?: string; limit?: number },
-  ): Promise<Message[]>;
+  getMessages(params: MessageQueryParams): Promise<MessagePage>;
   getMessage(channelId: string, messageId: string): Promise<Message>;
-  sendMessage(channelId: string, data: CreateMessageData): Promise<Message>;
+  sendMessage(params: SendMessageParams): Promise<Message>;
   editMessage(channelId: string, messageId: string, data: EditMessageData): Promise<Message>;
-  deleteMessage(channelId: string, messageId: string): Promise<void>;
+  deleteMessage(channelId: string, messageId: string, data: DeleteMessageData): Promise<Message>;
   getPinnedMessages(channelId: string): Promise<Message[]>;
 
   // Reactions
