@@ -716,6 +716,7 @@ CREATE TABLE public.users (
     theme text DEFAULT 'dark'::text NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    banner_key text,
     CONSTRAINT chk_users_theme CHECK ((theme = ANY (ARRAY['dark'::text, 'light'::text])))
 );
 

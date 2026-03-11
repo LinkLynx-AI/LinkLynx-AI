@@ -4,16 +4,11 @@ mod tests {
     use crate::message::test_support::{
         bucket_from_created_at, build_live_message_service, connect_integration_database,
         connect_integration_scylla, count_scylla_messages, insert_scylla_message,
-        next_integration_id_block, query_last_message, seed_guild_member,
-        seed_guild_text_channel, seed_user, upsert_channel_last_message, SeedMessageRow,
+        next_integration_id_block, query_last_message, seed_guild_member, seed_guild_text_channel,
+        seed_user, upsert_channel_last_message, SeedMessageRow,
     };
     use crate::ratelimit::RestRateLimitConfig;
     use async_trait::async_trait;
-    use std::{
-        collections::{HashMap, HashSet},
-        net::SocketAddr,
-        sync::atomic::{AtomicBool, Ordering},
-    };
     use auth::{
         CachingPrincipalResolver, InMemoryPrincipalCache, InMemoryPrincipalStore,
         PrincipalProvisioner, PrincipalResolver, PrincipalStore, TokenVerifier, TokenVerifyError,
@@ -22,31 +17,22 @@ mod tests {
     use authz::{
         Authorizer, AuthzAction, AuthzCheckInput, AuthzError, AuthzErrorKind, AuthzResource,
     };
-    use dm::{DmChannelSummary, DmError, DmRecipientSummary, DmService};
-    use futures_util::{SinkExt, StreamExt};
-    use guild_channel::{
-        ChannelPatchInput, ChannelSummary, CreatedChannel, CreatedGuild, GuildChannelError,
-        GuildPatchInput, GuildSummary, PostgresGuildChannelService,
-        GuildChannelService,
-    };
-    use invite::{
-        InviteError, InviteJoinResult, InviteJoinStatus, InviteService, PublicInviteGuild,
-        PublicInviteLookup, PublicInviteStatus,
-    };
-    use message::{CreateGuildChannelMessageExecution, MessageError, MessageService};
-    use moderation::{
-        CreateModerationMuteInput, CreateModerationReportInput, ModerationError, ModerationReport,
-        ModerationReportStatus, ModerationService, ModerationTargetType,
-    };
-    use profile::{ProfileError, ProfilePatchInput, ProfileService, ProfileSettings};
-    use profile::ProfileTheme;
-    use scylla_health::{ScyllaHealthReport, ScyllaHealthReporter};
     use axum::{
         body::to_bytes,
         http::{
             header::{AUTHORIZATION, ORIGIN, RETRY_AFTER},
             Method, StatusCode,
         },
+    };
+    use dm::{DmChannelSummary, DmError, DmRecipientSummary, DmService};
+    use futures_util::{SinkExt, StreamExt};
+    use guild_channel::{
+        ChannelPatchInput, ChannelSummary, CreatedChannel, CreatedGuild, GuildChannelError,
+        GuildChannelService, GuildPatchInput, GuildSummary, PostgresGuildChannelService,
+    };
+    use invite::{
+        InviteError, InviteJoinResult, InviteJoinStatus, InviteService, PublicInviteGuild,
+        PublicInviteLookup, PublicInviteStatus,
     };
     use linklynx_message_api::{
         CreateGuildChannelMessageRequestV1, CreateGuildChannelMessageResponseV1,
@@ -59,6 +45,23 @@ mod tests {
         ServerMessageFrameV1,
     };
     use linklynx_shared::PrincipalId;
+    use message::{CreateGuildChannelMessageExecution, MessageError, MessageService};
+    use moderation::{
+        CreateModerationMuteInput, CreateModerationReportInput, ModerationError, ModerationReport,
+        ModerationReportStatus, ModerationService, ModerationTargetType,
+    };
+    use profile::ProfileTheme;
+    use profile::{
+        validate_profile_media_object_key, ProfileError, ProfileMediaDownload, ProfileMediaService,
+        ProfileMediaTarget, ProfileMediaUpload, ProfileMediaUploadInput, ProfilePatchInput,
+        ProfileService, ProfileSettings,
+    };
+    use scylla_health::{ScyllaHealthReport, ScyllaHealthReporter};
+    use std::{
+        collections::{HashMap, HashSet},
+        net::SocketAddr,
+        sync::atomic::{AtomicBool, Ordering},
+    };
     use tokio::{
         net::{TcpListener, TcpStream},
         sync::Mutex,
@@ -68,8 +71,7 @@ mod tests {
     use tokio_tungstenite::{
         connect_async,
         tungstenite::{
-            client::IntoClientRequest,
-            protocol::frame::coding::CloseCode,
+            client::IntoClientRequest, protocol::frame::coding::CloseCode,
             Message as WsClientMessage,
         },
         MaybeTlsStream, WebSocketStream,
@@ -100,6 +102,8 @@ mod tests {
     struct StaticModerationService;
     struct StaticProfileService;
     struct StaticUnavailableProfileService;
+    struct StaticProfileMediaService;
+    struct StaticUnavailableProfileMediaService;
     struct StaticInviteService;
     struct StaticUnavailableInviteService;
     struct RoleScenarioAuthorizer;
@@ -307,7 +311,9 @@ mod tests {
                 (AuthzResource::Guild { .. }, AuthzAction::Manage) => {
                     Err(AuthzError::unavailable("permission_snapshot_unavailable"))
                 }
-                _ => Err(AuthzError::denied("unsupported_permission_snapshot_scenario")),
+                _ => Err(AuthzError::denied(
+                    "unsupported_permission_snapshot_scenario",
+                )),
             }
         }
     }
@@ -405,8 +411,11 @@ mod tests {
             channel_id: i64,
             query: ListGuildChannelMessagesQueryV1,
         ) -> Result<ListGuildChannelMessagesResponseV1, MessageError> {
-            linklynx_message_api::paginate_messages(&message_fixture(channel_id, channel_id), &query)
-                .map_err(MessageError::from)
+            linklynx_message_api::paginate_messages(
+                &message_fixture(channel_id, channel_id),
+                &query,
+            )
+            .map_err(MessageError::from)
         }
 
         async fn create_dm_channel_message(
@@ -551,9 +560,10 @@ mod tests {
             if let Some(key) = idempotency_key {
                 state.entries.insert(key.to_owned(), message.clone());
             }
-            state
-                .entries
-                .insert(format!("{channel_id}:{}", message.message_id), message.clone());
+            state.entries.insert(
+                format!("{channel_id}:{}", message.message_id),
+                message.clone(),
+            );
 
             Ok(CreateGuildChannelMessageExecution {
                 response: CreateGuildChannelMessageResponseV1 { message },
@@ -602,9 +612,11 @@ mod tests {
             linklynx_message_api::validate_edit_request(&request).map_err(MessageError::from)?;
             let mut state = self.state.lock().await;
             let key = format!("{channel_id}:{message_id}");
-            let existing = state.entries.get(&key).cloned().ok_or_else(|| {
-                MessageError::message_not_found("message_not_found")
-            })?;
+            let existing = state
+                .entries
+                .get(&key)
+                .cloned()
+                .ok_or_else(|| MessageError::message_not_found("message_not_found"))?;
             if existing.author_id != principal_id.0 {
                 return Err(MessageError::authz_denied("message_mutation_forbidden"));
             }
@@ -637,9 +649,11 @@ mod tests {
             linklynx_message_api::validate_delete_request(&request).map_err(MessageError::from)?;
             let mut state = self.state.lock().await;
             let key = format!("{channel_id}:{message_id}");
-            let existing = state.entries.get(&key).cloned().ok_or_else(|| {
-                MessageError::message_not_found("message_not_found")
-            })?;
+            let existing = state
+                .entries
+                .get(&key)
+                .cloned()
+                .ok_or_else(|| MessageError::message_not_found("message_not_found"))?;
             if existing.author_id != principal_id.0 {
                 return Err(MessageError::authz_denied("message_mutation_forbidden"));
             }
@@ -871,8 +885,11 @@ mod tests {
             channel_id: i64,
             query: ListGuildChannelMessagesQueryV1,
         ) -> Result<ListGuildChannelMessagesResponseV1, DmError> {
-            linklynx_message_api::paginate_messages(&message_fixture(channel_id, channel_id), &query)
-                .map_err(|error| DmError::validation(error.reason_code()))
+            linklynx_message_api::paginate_messages(
+                &message_fixture(channel_id, channel_id),
+                &query,
+            )
+            .map_err(|error| DmError::validation(error.reason_code()))
         }
 
         async fn create_dm_message(
@@ -942,7 +959,9 @@ mod tests {
                 return Err(GuildChannelError::not_found("guild_not_found"));
             }
             if principal_id.0 != 1001 {
-                return Err(GuildChannelError::forbidden("guild_manage_permission_required"));
+                return Err(GuildChannelError::forbidden(
+                    "guild_manage_permission_required",
+                ));
             }
             if patch.is_empty() {
                 return Err(GuildChannelError::validation("guild_patch_empty"));
@@ -989,7 +1008,9 @@ mod tests {
                 return Err(GuildChannelError::not_found("guild_not_found"));
             }
             if principal_id.0 != 1001 {
-                return Err(GuildChannelError::forbidden("guild_manage_permission_required"));
+                return Err(GuildChannelError::forbidden(
+                    "guild_manage_permission_required",
+                ));
             }
 
             Ok(())
@@ -1094,14 +1115,17 @@ mod tests {
                 return Err(GuildChannelError::not_found("guild_not_found"));
             }
             if principal_id.0 != 1001 {
-                return Err(GuildChannelError::forbidden("channel_manage_permission_required"));
+                return Err(GuildChannelError::forbidden(
+                    "channel_manage_permission_required",
+                ));
             }
 
             let normalized = input.name.trim();
             if normalized.is_empty() {
                 return Err(GuildChannelError::validation("channel_name_required"));
             }
-            if input.kind == guild_channel::ChannelKind::GuildCategory && input.parent_id.is_some() {
+            if input.kind == guild_channel::ChannelKind::GuildCategory && input.parent_id.is_some()
+            {
                 return Err(GuildChannelError::validation("category_parent_not_allowed"));
             }
 
@@ -1133,12 +1157,12 @@ mod tests {
                     position: 1,
                     created_at: "2026-03-03T00:01:20Z".to_owned(),
                 }),
-                (guild_channel::ChannelKind::GuildText, Some(9999)) => {
-                    Err(GuildChannelError::channel_not_found("parent_channel_not_found"))
-                }
-                (guild_channel::ChannelKind::GuildText, Some(_)) => {
-                    Err(GuildChannelError::validation("parent_channel_must_be_category"))
-                }
+                (guild_channel::ChannelKind::GuildText, Some(9999)) => Err(
+                    GuildChannelError::channel_not_found("parent_channel_not_found"),
+                ),
+                (guild_channel::ChannelKind::GuildText, Some(_)) => Err(
+                    GuildChannelError::validation("parent_channel_must_be_category"),
+                ),
                 (guild_channel::ChannelKind::GuildCategory, Some(_)) => {
                     Err(GuildChannelError::validation("category_parent_not_allowed"))
                 }
@@ -1155,7 +1179,9 @@ mod tests {
                 return Err(GuildChannelError::channel_not_found("channel_not_found"));
             }
             if principal_id.0 == 1003 {
-                return Err(GuildChannelError::forbidden("channel_manage_permission_required"));
+                return Err(GuildChannelError::forbidden(
+                    "channel_manage_permission_required",
+                ));
             }
             if principal_id.0 != 1001 {
                 return Err(GuildChannelError::forbidden("guild_membership_required"));
@@ -1189,7 +1215,9 @@ mod tests {
                 return Err(GuildChannelError::channel_not_found("channel_not_found"));
             }
             if principal_id.0 == 1003 {
-                return Err(GuildChannelError::forbidden("channel_manage_permission_required"));
+                return Err(GuildChannelError::forbidden(
+                    "channel_manage_permission_required",
+                ));
             }
             if principal_id.0 != 1001 {
                 return Err(GuildChannelError::forbidden("guild_membership_required"));
@@ -1201,7 +1229,10 @@ mod tests {
 
     #[async_trait]
     impl ProfileService for StaticProfileService {
-        async fn get_profile(&self, principal_id: PrincipalId) -> Result<ProfileSettings, ProfileError> {
+        async fn get_profile(
+            &self,
+            principal_id: PrincipalId,
+        ) -> Result<ProfileSettings, ProfileError> {
             if principal_id.0 != 1001 {
                 return Err(ProfileError::not_found("user_not_found"));
             }
@@ -1209,7 +1240,14 @@ mod tests {
             Ok(ProfileSettings {
                 display_name: "Alice".to_owned(),
                 status_text: Some("Ready".to_owned()),
-                avatar_key: Some("avatars/alice.png".to_owned()),
+                avatar_key: Some(
+                    "v0/tenant/default/user/1001/profile/avatar/asset/550e8400-e29b-41d4-a716-446655440000/avatar.png"
+                        .to_owned(),
+                ),
+                banner_key: Some(
+                    "v0/tenant/default/user/1001/profile/banner/asset/550e8400-e29b-41d4-a716-446655440001/banner.png"
+                        .to_owned(),
+                ),
                 theme: ProfileTheme::Dark,
             })
         }
@@ -1230,7 +1268,14 @@ mod tests {
             let mut profile = ProfileSettings {
                 display_name: "Alice".to_owned(),
                 status_text: Some("Ready".to_owned()),
-                avatar_key: Some("avatars/alice.png".to_owned()),
+                avatar_key: Some(
+                    "v0/tenant/default/user/1001/profile/avatar/asset/550e8400-e29b-41d4-a716-446655440000/avatar.png"
+                        .to_owned(),
+                ),
+                banner_key: Some(
+                    "v0/tenant/default/user/1001/profile/banner/asset/550e8400-e29b-41d4-a716-446655440001/banner.png"
+                        .to_owned(),
+                ),
                 theme: ProfileTheme::Dark,
             };
 
@@ -1264,15 +1309,37 @@ mod tests {
                 });
 
                 if let Some(value) = &normalized {
-                    let valid_format = value.bytes().all(|byte| {
-                        byte.is_ascii_alphanumeric() || matches!(byte, b'/' | b'_' | b'-' | b'.')
-                    });
-                    if !valid_format {
-                        return Err(ProfileError::validation("avatar_key_invalid_format"));
-                    }
+                    validate_profile_media_object_key(
+                        value,
+                        principal_id,
+                        ProfileMediaTarget::Avatar,
+                        "avatar_key",
+                    )?;
                 }
 
                 profile.avatar_key = normalized;
+            }
+
+            if let Some(banner_key) = patch.banner_key {
+                let normalized = banner_key.and_then(|value| {
+                    let trimmed = value.trim().to_owned();
+                    if trimmed.is_empty() {
+                        None
+                    } else {
+                        Some(trimmed)
+                    }
+                });
+
+                if let Some(value) = &normalized {
+                    validate_profile_media_object_key(
+                        value,
+                        principal_id,
+                        ProfileMediaTarget::Banner,
+                        "banner_key",
+                    )?;
+                }
+
+                profile.banner_key = normalized;
             }
 
             if let Some(theme) = patch.theme {
@@ -1305,6 +1372,86 @@ mod tests {
         ) -> Result<ProfileSettings, ProfileError> {
             Err(ProfileError::dependency_unavailable(
                 "profile_store_temporarily_unavailable",
+            ))
+        }
+    }
+
+    #[async_trait]
+    impl ProfileMediaService for StaticProfileMediaService {
+        async fn issue_upload_url(
+            &self,
+            principal_id: PrincipalId,
+            input: ProfileMediaUploadInput,
+        ) -> Result<ProfileMediaUpload, ProfileError> {
+            if principal_id.0 != 1001 {
+                return Err(ProfileError::not_found("user_not_found"));
+            }
+
+            Ok(ProfileMediaUpload {
+                target: input.target,
+                object_key: format!(
+                    "v0/tenant/default/user/{}/profile/{}/asset/550e8400-e29b-41d4-a716-446655440010/{}",
+                    principal_id.0,
+                    input.target.as_key_segment(),
+                    input.filename.trim()
+                ),
+                upload_url: format!(
+                    "https://storage.googleapis.com/profile-media/{}-upload",
+                    input.target.as_key_segment()
+                ),
+                expires_at: "2026-03-08T12:00:00Z".to_owned(),
+                method: "PUT".to_owned(),
+                required_headers: std::collections::BTreeMap::from([(
+                    "content-type".to_owned(),
+                    input.content_type,
+                )]),
+            })
+        }
+
+        async fn issue_download_url(
+            &self,
+            principal_id: PrincipalId,
+            target: ProfileMediaTarget,
+        ) -> Result<ProfileMediaDownload, ProfileError> {
+            if principal_id.0 != 1001 {
+                return Err(ProfileError::not_found("user_not_found"));
+            }
+
+            Ok(ProfileMediaDownload {
+                target,
+                object_key: format!(
+                    "v0/tenant/default/user/{}/profile/{}/asset/550e8400-e29b-41d4-a716-446655440011/file.png",
+                    principal_id.0,
+                    target.as_key_segment()
+                ),
+                download_url: format!(
+                    "https://storage.googleapis.com/profile-media/{}-download",
+                    target.as_key_segment()
+                ),
+                expires_at: "2026-03-08T12:00:00Z".to_owned(),
+            })
+        }
+    }
+
+    #[async_trait]
+    impl ProfileMediaService for StaticUnavailableProfileMediaService {
+        async fn issue_upload_url(
+            &self,
+            _principal_id: PrincipalId,
+            _input: ProfileMediaUploadInput,
+        ) -> Result<ProfileMediaUpload, ProfileError> {
+            Err(ProfileError::media_dependency_unavailable(
+                "profile_media_service_temporarily_unavailable",
+            ))
+        }
+
+        async fn issue_download_url(
+            &self,
+            _principal_id: PrincipalId,
+            _target: ProfileMediaTarget,
+        ) -> Result<ProfileMediaDownload, ProfileError> {
+            Err(ProfileError::media_dependency_unavailable(
+                "profile_media_service_temporarily_unavailable",
             ))
         }
     }
@@ -1354,7 +1501,9 @@ mod tests {
                 return Err(ModerationError::forbidden("moderation_role_required"));
             }
             if input.target_user_id <= 0 {
-                return Err(ModerationError::validation("target_user_id_must_be_positive"));
+                return Err(ModerationError::validation(
+                    "target_user_id_must_be_positive",
+                ));
             }
             let reason = input.reason.trim();
             if reason.is_empty() {
@@ -1606,9 +1755,10 @@ mod tests {
     }
 
     async fn app_for_test_with_scylla_report(report: ScyllaHealthReport) -> Router {
-        let state = state_for_test_with_authorizer_profile_invite_and_scylla(
+        let state = state_for_test_with_authorizer_profile_media_invite_and_scylla(
             Arc::new(StaticAllowAllAuthorizer),
             Arc::new(StaticProfileService),
+            Arc::new(StaticProfileMediaService),
             Arc::new(StaticInviteService),
             Arc::new(StaticScyllaHealthReporter { report }),
         )
@@ -1640,9 +1790,10 @@ mod tests {
         profile_service: Arc<dyn ProfileService>,
         invite_service: Arc<dyn InviteService>,
     ) -> AppState {
-        state_for_test_with_authorizer_profile_invite_scylla_and_message(
+        state_for_test_with_authorizer_profile_media_invite_scylla_and_message(
             authorizer,
             profile_service,
+            Arc::new(StaticProfileMediaService),
             invite_service,
             Arc::new(StaticScyllaHealthReporter {
                 report: ScyllaHealthReport::ready(),
@@ -1652,15 +1803,17 @@ mod tests {
         .await
     }
 
-    async fn state_for_test_with_authorizer_profile_invite_and_scylla(
+    async fn state_for_test_with_authorizer_profile_media_invite_and_scylla(
         authorizer: Arc<dyn Authorizer>,
         profile_service: Arc<dyn ProfileService>,
+        profile_media_service: Arc<dyn ProfileMediaService>,
         invite_service: Arc<dyn InviteService>,
         scylla_health_reporter: Arc<dyn ScyllaHealthReporter>,
     ) -> AppState {
-        state_for_test_with_authorizer_profile_invite_scylla_and_message(
+        state_for_test_with_authorizer_profile_media_invite_scylla_and_message(
             authorizer,
             profile_service,
+            profile_media_service,
             invite_service,
             scylla_health_reporter,
             Arc::new(StaticMessageService),
@@ -1668,9 +1821,10 @@ mod tests {
         .await
     }
 
-    async fn state_for_test_with_authorizer_profile_invite_scylla_and_message(
+    async fn state_for_test_with_authorizer_profile_media_invite_scylla_and_message(
         authorizer: Arc<dyn Authorizer>,
         profile_service: Arc<dyn ProfileService>,
+        profile_media_service: Arc<dyn ProfileMediaService>,
         invite_service: Arc<dyn InviteService>,
         scylla_health_reporter: Arc<dyn ScyllaHealthReporter>,
         message_service: Arc<dyn MessageService>,
@@ -1678,6 +1832,7 @@ mod tests {
         state_for_test_with_authorizer_profile_invite_scylla_message_and_guild_channel(
             authorizer,
             profile_service,
+            profile_media_service,
             invite_service,
             scylla_health_reporter,
             message_service,
@@ -1689,6 +1844,7 @@ mod tests {
     async fn state_for_test_with_authorizer_profile_invite_scylla_message_and_guild_channel(
         authorizer: Arc<dyn Authorizer>,
         profile_service: Arc<dyn ProfileService>,
+        profile_media_service: Arc<dyn ProfileMediaService>,
         invite_service: Arc<dyn InviteService>,
         scylla_health_reporter: Arc<dyn ScyllaHealthReporter>,
         message_service: Arc<dyn MessageService>,
@@ -1702,7 +1858,9 @@ mod tests {
         store.insert("firebase", "u-3", PrincipalId(1003)).await;
         store.insert("firebase", "u-owner", PrincipalId(9001)).await;
         store.insert("firebase", "u-admin", PrincipalId(9002)).await;
-        store.insert("firebase", "u-member", PrincipalId(9003)).await;
+        store
+            .insert("firebase", "u-member", PrincipalId(9003))
+            .await;
         let store_resolver: Arc<dyn PrincipalStore> = store.clone();
         let provisioner: Arc<dyn PrincipalProvisioner> = store.clone();
 
@@ -1727,6 +1885,7 @@ mod tests {
             message_realtime_hub: Arc::new(MessageRealtimeHub::default()),
             moderation_service: Arc::new(StaticModerationService),
             profile_service,
+            profile_media_service,
             scylla_health_reporter,
             ws_reauth_grace: Duration::from_secs(30),
             ws_ticket_ttl: Duration::from_secs(60),
@@ -1767,9 +1926,10 @@ mod tests {
         authorizer: Arc<dyn Authorizer>,
         message_service: Arc<dyn MessageService>,
     ) -> Router {
-        let state = state_for_test_with_authorizer_profile_invite_scylla_and_message(
+        let state = state_for_test_with_authorizer_profile_media_invite_scylla_and_message(
             authorizer,
             Arc::new(StaticProfileService),
+            Arc::new(StaticProfileMediaService),
             Arc::new(StaticInviteService),
             Arc::new(StaticScyllaHealthReporter {
                 report: ScyllaHealthReport::ready(),
@@ -1788,12 +1948,31 @@ mod tests {
         let state = state_for_test_with_authorizer_profile_invite_scylla_message_and_guild_channel(
             authorizer,
             Arc::new(StaticProfileService),
+            Arc::new(StaticProfileMediaService),
             Arc::new(StaticInviteService),
             Arc::new(StaticScyllaHealthReporter {
                 report: ScyllaHealthReport::ready(),
             }),
             message_service,
             guild_channel_service,
+        )
+        .await;
+        app_with_state(state)
+    }
+
+    async fn app_for_test_with_authorizer_profile_and_media(
+        authorizer: Arc<dyn Authorizer>,
+        profile_service: Arc<dyn ProfileService>,
+        profile_media_service: Arc<dyn ProfileMediaService>,
+    ) -> Router {
+        let state = state_for_test_with_authorizer_profile_media_invite_and_scylla(
+            authorizer,
+            profile_service,
+            profile_media_service,
+            Arc::new(StaticInviteService),
+            Arc::new(StaticScyllaHealthReporter {
+                report: ScyllaHealthReport::ready(),
+            }),
         )
         .await;
         app_with_state(state)
@@ -1833,10 +2012,9 @@ mod tests {
         request
             .headers_mut()
             .insert(ORIGIN, "http://localhost:3000".parse().unwrap());
-        request.headers_mut().insert(
-            AUTHORIZATION,
-            format!("Bearer {token}").parse().unwrap(),
-        );
+        request
+            .headers_mut()
+            .insert(AUTHORIZATION, format!("Bearer {token}").parse().unwrap());
 
         let (socket, _) = connect_async(request).await.unwrap();
         socket
@@ -2254,7 +2432,10 @@ mod tests {
     #[tokio::test]
     async fn public_invite_endpoint_fail_closes_when_ratelimit_degraded() {
         let state = state_for_test_with_authorizer(Arc::new(StaticAllowAllAuthorizer)).await;
-        state.rest_rate_limit_service.set_degraded_for_test(true).await;
+        state
+            .rest_rate_limit_service
+            .set_degraded_for_test(true)
+            .await;
         let app = app_with_state(state);
 
         let response = app
@@ -2561,7 +2742,10 @@ mod tests {
     #[tokio::test]
     async fn invite_join_endpoint_fail_closes_when_ratelimit_degraded() {
         let state = state_for_test_with_authorizer(Arc::new(StaticAllowAllAuthorizer)).await;
-        state.rest_rate_limit_service.set_degraded_for_test(true).await;
+        state
+            .rest_rate_limit_service
+            .set_degraded_for_test(true)
+            .await;
         let app = app_with_state(state);
         let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
 
@@ -2793,17 +2977,18 @@ mod tests {
             expires_at_epoch: unix_timestamp_seconds() + 300,
         };
 
-        assert!(authorize_ws_stream_access(&state, &authenticated, "ws-test")
-            .await
-            .is_ok());
+        assert!(
+            authorize_ws_stream_access(&state, &authenticated, "ws-test")
+                .await
+                .is_ok()
+        );
     }
 
     #[tokio::test]
     async fn message_frame_access_denies_when_target_channel_is_forbidden() {
-        let state = state_for_test_with_authorizer(Arc::new(
-            StreamAllowedGuildChannelDeniedAuthorizer,
-        ))
-        .await;
+        let state =
+            state_for_test_with_authorizer(Arc::new(StreamAllowedGuildChannelDeniedAuthorizer))
+                .await;
         let authenticated = AuthenticatedPrincipal {
             principal_id: PrincipalId(9003),
             firebase_uid: "u-member".to_owned(),
@@ -2822,10 +3007,9 @@ mod tests {
 
     #[tokio::test]
     async fn message_frame_access_denies_when_ws_stream_is_forbidden() {
-        let state = state_for_test_with_authorizer(Arc::new(
-            StreamDeniedGuildChannelAllowedAuthorizer,
-        ))
-        .await;
+        let state =
+            state_for_test_with_authorizer(Arc::new(StreamDeniedGuildChannelAllowedAuthorizer))
+                .await;
         let authenticated = AuthenticatedPrincipal {
             principal_id: PrincipalId(9003),
             firebase_uid: "u-member".to_owned(),
@@ -2855,9 +3039,11 @@ mod tests {
             channel_id: 20,
         });
 
-        assert!(authorize_message_frame_access(&state, &authenticated, "ws-test", &frame)
-            .await
-            .is_ok());
+        assert!(
+            authorize_message_frame_access(&state, &authenticated, "ws-test", &frame)
+                .await
+                .is_ok()
+        );
         let metrics = state.authz_metrics.snapshot();
         let value = serde_json::to_value(metrics).unwrap();
         assert_eq!(value["allow_total"], 2);
@@ -3006,7 +3192,9 @@ mod tests {
 
         let expected = principal_ids.first().copied().unwrap();
         assert!(
-            principal_ids.iter().all(|principal_id| *principal_id == expected),
+            principal_ids
+                .iter()
+                .all(|principal_id| *principal_id == expected),
             "all concurrent retries must resolve to the same principal_id"
         );
     }
@@ -3119,7 +3307,8 @@ mod tests {
 
     #[tokio::test]
     async fn permission_snapshot_returns_unavailable_when_downstream_authz_is_unavailable() {
-        let app = app_for_test_with_authorizer(Arc::new(PermissionSnapshotUnavailableAuthorizer)).await;
+        let app =
+            app_for_test_with_authorizer(Arc::new(PermissionSnapshotUnavailableAuthorizer)).await;
         let token = format!("u-member:{}", unix_timestamp_seconds() + 300);
         let response = app
             .oneshot(
@@ -4282,8 +4471,12 @@ mod tests {
             .await
             .unwrap();
         let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
-        assert!(json["ticket"].as_str().is_some_and(|value| !value.is_empty()));
-        assert!(json["expiresAt"].as_str().is_some_and(|value| !value.is_empty()));
+        assert!(json["ticket"]
+            .as_str()
+            .is_some_and(|value| !value.is_empty()));
+        assert!(json["expiresAt"]
+            .as_str()
+            .is_some_and(|value| !value.is_empty()));
     }
 
     #[tokio::test]
@@ -4393,8 +4586,7 @@ mod tests {
     #[tokio::test]
     async fn message_realtime_publish_updated_delivers_latest_snapshot() {
         let state =
-            state_for_test_with_authorizer(Arc::new(ToggleGuildChannelAuthorizer::new(true)))
-                .await;
+            state_for_test_with_authorizer(Arc::new(ToggleGuildChannelAuthorizer::new(true))).await;
         let (sender, mut receiver) = tokio::sync::mpsc::channel(MESSAGE_REALTIME_OUTBOUND_CAPACITY);
         let target = GuildChannelSubscriptionTargetV1 {
             guild_id: 10,
@@ -4428,7 +4620,10 @@ mod tests {
                 assert_eq!(data.message.message_id, 601);
                 assert_eq!(data.message.content, "edited realtime");
                 assert_eq!(data.message.version, 2);
-                assert_eq!(data.message.edited_at.as_deref(), Some("2026-03-10T10:05:00Z"));
+                assert_eq!(
+                    data.message.edited_at.as_deref(),
+                    Some("2026-03-10T10:05:00Z")
+                );
                 assert!(!data.message.is_deleted);
             }
             other => panic!("expected updated frame, got {other:?}"),
@@ -4438,8 +4633,7 @@ mod tests {
     #[tokio::test]
     async fn message_realtime_publish_deleted_delivers_tombstone_snapshot() {
         let state =
-            state_for_test_with_authorizer(Arc::new(ToggleGuildChannelAuthorizer::new(true)))
-                .await;
+            state_for_test_with_authorizer(Arc::new(ToggleGuildChannelAuthorizer::new(true))).await;
         let (sender, mut receiver) = tokio::sync::mpsc::channel(MESSAGE_REALTIME_OUTBOUND_CAPACITY);
         let target = GuildChannelSubscriptionTargetV1 {
             guild_id: 10,
@@ -4473,7 +4667,10 @@ mod tests {
                 assert_eq!(data.message.message_id, 602);
                 assert_eq!(data.message.content, "");
                 assert_eq!(data.message.version, 2);
-                assert_eq!(data.message.edited_at.as_deref(), Some("2026-03-10T10:06:00Z"));
+                assert_eq!(
+                    data.message.edited_at.as_deref(),
+                    Some("2026-03-10T10:06:00Z")
+                );
                 assert!(data.message.is_deleted);
             }
             other => panic!("expected deleted frame, got {other:?}"),
@@ -4637,11 +4834,12 @@ mod tests {
         ));
 
         let response =
-            post_test_channel_message(address, "u-member", 10, 20, "hello after unsub", None)
-                .await;
+            post_test_channel_message(address, "u-member", 10, 20, "hello after unsub", None).await;
         assert_eq!(response.status(), reqwest::StatusCode::CREATED);
         assert!(
-            timeout(Duration::from_millis(250), socket.next()).await.is_err(),
+            timeout(Duration::from_millis(250), socket.next())
+                .await
+                .is_err(),
             "unsubscribed socket should not receive fanout"
         );
 
@@ -4669,20 +4867,11 @@ mod tests {
             })
         ));
 
-        let first_response = post_test_channel_message(
-            address,
-            "u-member",
-            10,
-            20,
-            "hello idem",
-            Some("idem-1"),
-        )
-        .await;
+        let first_response =
+            post_test_channel_message(address, "u-member", 10, 20, "hello idem", Some("idem-1"))
+                .await;
         assert_eq!(first_response.status(), reqwest::StatusCode::CREATED);
-        let first_body = first_response
-            .json::<serde_json::Value>()
-            .await
-            .unwrap();
+        let first_body = first_response.json::<serde_json::Value>().await.unwrap();
         let created = next_server_message_frame(&mut socket).await;
         let first_message_id = match created {
             ServerMessageFrameV1::Created(data) => {
@@ -4692,20 +4881,11 @@ mod tests {
             other => panic!("expected message.created frame, got {other:?}"),
         };
 
-        let second_response = post_test_channel_message(
-            address,
-            "u-member",
-            10,
-            20,
-            "hello idem",
-            Some("idem-1"),
-        )
-        .await;
+        let second_response =
+            post_test_channel_message(address, "u-member", 10, 20, "hello idem", Some("idem-1"))
+                .await;
         assert_eq!(second_response.status(), reqwest::StatusCode::CREATED);
-        let second_body = second_response
-            .json::<serde_json::Value>()
-            .await
-            .unwrap();
+        let second_body = second_response.json::<serde_json::Value>().await.unwrap();
         assert_eq!(
             first_body["message"]["message_id"].as_i64().unwrap(),
             second_body["message"]["message_id"].as_i64().unwrap()
@@ -4715,7 +4895,9 @@ mod tests {
             first_message_id
         );
         assert!(
-            timeout(Duration::from_millis(250), socket.next()).await.is_err(),
+            timeout(Duration::from_millis(250), socket.next())
+                .await
+                .is_err(),
             "completed replay should not emit a second message.created"
         );
 
@@ -4743,7 +4925,9 @@ mod tests {
             })
         ));
 
-        let response = patch_test_channel_message(address, "u-member", 10, 20, 120110, "edited realtime", 1).await;
+        let response =
+            patch_test_channel_message(address, "u-member", 10, 20, 120110, "edited realtime", 1)
+                .await;
         assert_eq!(response.status(), reqwest::StatusCode::OK);
 
         match next_server_message_frame(&mut socket).await {
@@ -4825,7 +5009,14 @@ mod tests {
         let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
         assert_eq!(json["profile"]["display_name"], "Alice");
         assert_eq!(json["profile"]["status_text"], "Ready");
-        assert_eq!(json["profile"]["avatar_key"], "avatars/alice.png");
+        assert_eq!(
+            json["profile"]["avatar_key"],
+            "v0/tenant/default/user/1001/profile/avatar/asset/550e8400-e29b-41d4-a716-446655440000/avatar.png"
+        );
+        assert_eq!(
+            json["profile"]["banner_key"],
+            "v0/tenant/default/user/1001/profile/banner/asset/550e8400-e29b-41d4-a716-446655440001/banner.png"
+        );
         assert_eq!(json["profile"]["theme"], "dark");
     }
 
@@ -4907,6 +5098,34 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn patch_my_profile_updates_banner_key() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("PATCH")
+                    .uri("/users/me/profile")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"banner_key":"v0/tenant/default/user/1001/profile/banner/asset/550e8400-e29b-41d4-a716-446655440002/banner.png"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(
+            json["profile"]["banner_key"],
+            "v0/tenant/default/user/1001/profile/banner/asset/550e8400-e29b-41d4-a716-446655440002/banner.png"
+        );
+    }
+
+    #[tokio::test]
     async fn patch_my_profile_rejects_empty_payload() {
         let app = app_for_test().await;
         let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
@@ -4979,6 +5198,145 @@ mod tests {
             .unwrap();
         let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
         assert_eq!(json["code"], "VALIDATION_ERROR");
+    }
+
+    #[tokio::test]
+    async fn patch_my_profile_rejects_invalid_banner_key_format() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("PATCH")
+                    .uri("/users/me/profile")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"banner_key":"bad key"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "VALIDATION_ERROR");
+    }
+
+    #[tokio::test]
+    async fn patch_my_profile_rejects_cross_principal_banner_key() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("PATCH")
+                    .uri("/users/me/profile")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        r#"{"banner_key":"v0/tenant/default/user/999/profile/banner/asset/550e8400-e29b-41d4-a716-446655440002/banner.png"}"#,
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "VALIDATION_ERROR");
+    }
+
+    #[tokio::test]
+    async fn issue_my_profile_media_upload_url_returns_contract() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/users/me/profile/media/upload-url")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        r#"{"target":"avatar","filename":"avatar.png","content_type":"image/png"}"#,
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["upload"]["target"], "avatar");
+        assert_eq!(json["upload"]["method"], "PUT");
+        assert_eq!(
+            json["upload"]["required_headers"]["content-type"],
+            "image/png"
+        );
+    }
+
+    #[tokio::test]
+    async fn get_my_profile_media_download_url_returns_contract() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/users/me/profile/media/banner/download-url")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["media"]["target"], "banner");
+        assert_eq!(
+            json["media"]["download_url"],
+            "https://storage.googleapis.com/profile-media/banner-download"
+        );
+    }
+
+    #[tokio::test]
+    async fn get_my_profile_media_download_url_returns_media_unavailable() {
+        let app = app_for_test_with_authorizer_profile_and_media(
+            Arc::new(StaticAllowAllAuthorizer),
+            Arc::new(StaticProfileService),
+            Arc::new(StaticUnavailableProfileMediaService),
+        )
+        .await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/users/me/profile/media/avatar/download-url")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "PROFILE_MEDIA_UNAVAILABLE");
     }
 
     #[tokio::test]
@@ -5588,8 +5946,14 @@ mod tests {
 
         seed_user(&client, owner_id, "http-edit-owner").await;
         seed_user(&client, author_id, "http-edit-member").await;
-        seed_guild_text_channel(&client, guild_id, owner_id, channel_id, "2026-03-07T00:00:00Z")
-            .await;
+        seed_guild_text_channel(
+            &client,
+            guild_id,
+            owner_id,
+            channel_id,
+            "2026-03-07T00:00:00Z",
+        )
+        .await;
         seed_guild_member(&client, guild_id, author_id, "2026-03-07T00:00:00Z").await;
         upsert_channel_last_message(&client, channel_id, message_id, created_at).await;
         insert_scylla_message(
@@ -5623,7 +5987,9 @@ mod tests {
                     ))
                     .header("authorization", format!("Bearer {token}"))
                     .header("content-type", "application/json")
-                    .body(Body::from(r#"{"content":"edited live http","expected_version":1}"#))
+                    .body(Body::from(
+                        r#"{"content":"edited live http","expected_version":1}"#,
+                    ))
                     .unwrap(),
             )
             .await
@@ -5803,14 +6169,22 @@ mod tests {
         assert_eq!(first.status(), StatusCode::CREATED);
         assert_eq!(second.status(), StatusCode::CREATED);
 
-        let first_body = to_bytes(first.into_body(), MAX_RESPONSE_BYTES).await.unwrap();
+        let first_body = to_bytes(first.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
         let second_body = to_bytes(second.into_body(), MAX_RESPONSE_BYTES)
             .await
             .unwrap();
         let first_json = serde_json::from_slice::<serde_json::Value>(&first_body).unwrap();
         let second_json = serde_json::from_slice::<serde_json::Value>(&second_body).unwrap();
-        assert_eq!(first_json["message"]["message_id"], second_json["message"]["message_id"]);
-        assert_eq!(first_json["message"]["created_at"], second_json["message"]["created_at"]);
+        assert_eq!(
+            first_json["message"]["message_id"],
+            second_json["message"]["message_id"]
+        );
+        assert_eq!(
+            first_json["message"]["created_at"],
+            second_json["message"]["created_at"]
+        );
     }
 
     #[tokio::test]
@@ -6071,7 +6445,9 @@ mod tests {
             )
             .await
             .unwrap();
-        let create_body = to_bytes(create.into_body(), MAX_RESPONSE_BYTES).await.unwrap();
+        let create_body = to_bytes(create.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
         let create_json = serde_json::from_slice::<serde_json::Value>(&create_body).unwrap();
         let message_id = create_json["message"]["message_id"].as_i64().unwrap();
 
@@ -6118,7 +6494,9 @@ mod tests {
             )
             .await
             .unwrap();
-        let create_body = to_bytes(create.into_body(), MAX_RESPONSE_BYTES).await.unwrap();
+        let create_body = to_bytes(create.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
         let create_json = serde_json::from_slice::<serde_json::Value>(&create_body).unwrap();
         let message_id = create_json["message"]["message_id"].as_i64().unwrap();
 
@@ -6200,7 +6578,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn list_channel_messages_returns_not_found_when_message_service_reports_missing_channel() {
+    async fn list_channel_messages_returns_not_found_when_message_service_reports_missing_channel()
+    {
         let app = app_for_test_with_authorizer_and_message_service(
             Arc::new(RoleScenarioAuthorizer),
             Arc::new(StaticNotFoundMessageService),
@@ -6337,7 +6716,10 @@ mod tests {
     #[tokio::test]
     async fn moderation_endpoint_fail_closes_when_ratelimit_degraded() {
         let state = state_for_test_with_authorizer(Arc::new(RoleScenarioAuthorizer)).await;
-        state.rest_rate_limit_service.set_degraded_for_test(true).await;
+        state
+            .rest_rate_limit_service
+            .set_degraded_for_test(true)
+            .await;
         let app = app_with_state(state);
         let token = format!("u-admin:{}", unix_timestamp_seconds() + 300);
 
@@ -6366,7 +6748,10 @@ mod tests {
     #[tokio::test]
     async fn message_create_continues_with_l1_when_ratelimit_degraded() {
         let state = state_for_test_with_authorizer(Arc::new(RoleScenarioAuthorizer)).await;
-        state.rest_rate_limit_service.set_degraded_for_test(true).await;
+        state
+            .rest_rate_limit_service
+            .set_degraded_for_test(true)
+            .await;
         let app = app_with_state(state);
         let token = format!("u-member:{}", unix_timestamp_seconds() + 300);
         let first_response = app

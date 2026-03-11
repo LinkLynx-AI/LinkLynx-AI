@@ -18,7 +18,10 @@ fn app_with_state(state: AppState) -> Router {
             post(authz_cache_invalidate_handler),
         )
         .route("/guilds", get(list_guilds).post(create_guild))
-        .route("/guilds/{guild_id}", patch(patch_guild).delete(delete_guild))
+        .route(
+            "/guilds/{guild_id}",
+            patch(patch_guild).delete(delete_guild),
+        )
         .route(
             "/guilds/{guild_id}/channels",
             get(list_guild_channels).post(create_guild_channel),
@@ -51,6 +54,14 @@ fn app_with_state(state: AppState) -> Router {
             "/users/me/profile",
             get(get_my_profile).patch(patch_my_profile),
         )
+        .route(
+            "/users/me/profile/media/upload-url",
+            post(issue_my_profile_media_upload_url),
+        )
+        .route(
+            "/users/me/profile/media/{target}/download-url",
+            get(get_my_profile_media_download_url),
+        )
         .route("/v1/guilds/{guild_id}", get(get_guild))
         .route("/v1/guilds/{guild_id}", axum::routing::patch(update_guild))
         .route(
@@ -71,8 +82,7 @@ fn app_with_state(state: AppState) -> Router {
         )
         .route(
             "/v1/guilds/{guild_id}/channels/{channel_id}/messages/{message_id}",
-            axum::routing::patch(edit_channel_message)
-                .delete(delete_channel_message),
+            axum::routing::patch(edit_channel_message).delete(delete_channel_message),
         )
         .route(
             "/guilds/{guild_id}/permission-snapshot",
@@ -96,7 +106,10 @@ fn app_with_state(state: AppState) -> Router {
     Router::new()
         .route("/", get(root))
         .route("/health", get(health_check))
-        .route("/users/me/dms", get(list_dm_channels).post(open_or_create_dm))
+        .route(
+            "/users/me/dms",
+            get(list_dm_channels).post(open_or_create_dm),
+        )
         .route("/v1/invites/{invite_code}", get(get_public_invite))
         .route("/v1/invites/{invite_code}/join", post(join_public_invite))
         .route("/internal/scylla/health", get(scylla_health_check))
@@ -383,7 +396,10 @@ async fn join_public_invite(
 
     let rate_limit_decision = state
         .rest_rate_limit_service
-        .evaluate(authenticated.principal_id, RestRateLimitAction::InviteAccess)
+        .evaluate(
+            authenticated.principal_id,
+            RestRateLimitAction::InviteAccess,
+        )
         .await;
     if !rate_limit_decision.allowed() {
         let error_class = if rate_limit_decision.is_fail_close() {
@@ -731,9 +747,7 @@ fn parse_idempotency_key(headers: &HeaderMap) -> Result<Option<String>, MessageE
         .map_err(|_| MessageError::validation("message_idempotency_key_invalid"))?;
     let trimmed = value.trim();
     if trimmed.is_empty() {
-        return Err(MessageError::validation(
-            "message_idempotency_key_invalid",
-        ));
+        return Err(MessageError::validation("message_idempotency_key_invalid"));
     }
     Ok(Some(trimmed.to_owned()))
 }
@@ -848,10 +862,7 @@ async fn create_dm_message(
 /// @param auth_context 認証文脈
 /// @returns DM 一覧
 /// @throws なし
-async fn list_dm_channels(
-    State(state): State<AppState>,
-    headers: HeaderMap,
-) -> Response {
+async fn list_dm_channels(State(state): State<AppState>, headers: HeaderMap) -> Response {
     let request_id = request_id_from_headers(&headers);
     let token = match bearer_token_from_headers(&headers) {
         Ok(token) => token,
@@ -880,7 +891,11 @@ async fn list_dm_channels(
         }
     };
 
-    match state.dm_service.list_dm_channels(authenticated.principal_id).await {
+    match state
+        .dm_service
+        .list_dm_channels(authenticated.principal_id)
+        .await
+    {
         Ok(channels) => Json(DmChannelListResponse { channels }).into_response(),
         Err(error) => dm_error_response(&error, request_id),
     }
@@ -926,7 +941,9 @@ async fn open_or_create_dm(
     };
     let payload = match payload {
         Ok(Json(value)) => value,
-        Err(_) => return dm_error_response(&dm::DmError::validation("request_body_invalid"), request_id),
+        Err(_) => {
+            return dm_error_response(&dm::DmError::validation("request_body_invalid"), request_id)
+        }
     };
     match state
         .dm_service
@@ -1058,15 +1075,19 @@ fn build_authz_cache_invalidation_event(
             guild_id: payload.guild_id.ok_or("guild_id is required")?,
             user_id: payload.user_id.ok_or("user_id is required")?,
         },
-        "channel_role_override_changed" => AuthzCacheInvalidationEventKind::ChannelRoleOverrideChanged {
-            guild_id: payload.guild_id.ok_or("guild_id is required")?,
-            channel_id: payload.channel_id.ok_or("channel_id is required")?,
-        },
-        "channel_user_override_changed" => AuthzCacheInvalidationEventKind::ChannelUserOverrideChanged {
-            guild_id: payload.guild_id.ok_or("guild_id is required")?,
-            channel_id: payload.channel_id.ok_or("channel_id is required")?,
-            user_id: payload.user_id.ok_or("user_id is required")?,
-        },
+        "channel_role_override_changed" => {
+            AuthzCacheInvalidationEventKind::ChannelRoleOverrideChanged {
+                guild_id: payload.guild_id.ok_or("guild_id is required")?,
+                channel_id: payload.channel_id.ok_or("channel_id is required")?,
+            }
+        }
+        "channel_user_override_changed" => {
+            AuthzCacheInvalidationEventKind::ChannelUserOverrideChanged {
+                guild_id: payload.guild_id.ok_or("guild_id is required")?,
+                channel_id: payload.channel_id.ok_or("channel_id is required")?,
+                user_id: payload.user_id.ok_or("user_id is required")?,
+            }
+        }
         "policy_version_changed" => AuthzCacheInvalidationEventKind::PolicyVersionChanged {
             policy_version: payload
                 .policy_version
@@ -1122,7 +1143,9 @@ fn rate_limit_error_response(
     };
     let mut response = (StatusCode::TOO_MANY_REQUESTS, Json(body)).into_response();
     if let Ok(retry_after_value) = HeaderValue::from_str(&retry_after_seconds.max(1).to_string()) {
-        response.headers_mut().insert(RETRY_AFTER, retry_after_value);
+        response
+            .headers_mut()
+            .insert(RETRY_AFTER, retry_after_value);
     }
     response
 }
@@ -1346,6 +1369,29 @@ struct ChannelPatchResponse {
 #[derive(Debug, Serialize)]
 struct ProfileResponse {
     profile: profile::ProfileSettings,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ProfileMediaUploadUrlRequest {
+    target: String,
+    filename: String,
+    content_type: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct ProfileMediaTargetPathParams {
+    target: String,
+}
+
+#[derive(Debug, Serialize)]
+struct ProfileMediaUploadUrlResponse {
+    upload: profile::ProfileMediaUpload,
+}
+
+#[derive(Debug, Serialize)]
+struct ProfileMediaDownloadUrlResponse {
+    media: profile::ProfileMediaDownload,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1575,13 +1621,32 @@ fn parse_profile_patch_payload(
     let display_name = parse_display_name_patch_field(payload)?;
     let status_text = parse_nullable_string_patch_field(payload, "status_text")?;
     let avatar_key = parse_nullable_string_patch_field(payload, "avatar_key")?;
+    let banner_key = parse_nullable_string_patch_field(payload, "banner_key")?;
     let theme = parse_string_patch_field(payload, "theme")?;
 
     Ok(ProfilePatchInput {
         display_name,
         status_text,
         avatar_key,
+        banner_key,
         theme,
+    })
+}
+
+/// JSON入力を検証して profile media upload 発行入力を取得する。
+/// @param payload JSON抽出結果
+/// @returns 検証済み profile media upload 入力
+/// @throws ProfileError JSON不正時
+fn parse_profile_media_upload_payload(
+    payload: Result<Json<ProfileMediaUploadUrlRequest>, JsonRejection>,
+) -> Result<profile::ProfileMediaUploadInput, ProfileError> {
+    let payload = payload
+        .map(|Json(value)| value)
+        .map_err(|_| ProfileError::validation("request_body_invalid"))?;
+    Ok(profile::ProfileMediaUploadInput {
+        target: profile::ProfileMediaTarget::parse(payload.target.as_str())?,
+        filename: payload.filename,
+        content_type: payload.content_type,
     })
 }
 
@@ -1652,7 +1717,9 @@ fn parse_nullable_string_patch_field(
     match payload.get(field_name) {
         Some(serde_json::Value::String(value)) => Ok(Some(Some(value.clone()))),
         Some(serde_json::Value::Null) => Ok(Some(None)),
-        Some(_) => Err(ProfileError::validation(format!("{field_name}_invalid_type"))),
+        Some(_) => Err(ProfileError::validation(format!(
+            "{field_name}_invalid_type"
+        ))),
         None => Ok(None),
     }
 }
@@ -1668,10 +1735,12 @@ fn parse_string_patch_field(
 ) -> Result<Option<String>, ProfileError> {
     match payload.get(field_name) {
         Some(serde_json::Value::String(value)) => Ok(Some(value.clone())),
-        Some(serde_json::Value::Null) => {
-            Err(ProfileError::validation(format!("{field_name}_null_not_allowed")))
-        }
-        Some(_) => Err(ProfileError::validation(format!("{field_name}_invalid_type"))),
+        Some(serde_json::Value::Null) => Err(ProfileError::validation(format!(
+            "{field_name}_null_not_allowed"
+        ))),
+        Some(_) => Err(ProfileError::validation(format!(
+            "{field_name}_invalid_type"
+        ))),
         None => Ok(None),
     }
 }
@@ -2125,13 +2194,17 @@ async fn create_guild_channel(
             guild_id,
             guild_channel::CreateChannelInput {
                 name: payload.name,
-                kind: payload.r#type.unwrap_or(guild_channel::ChannelKind::GuildText),
+                kind: payload
+                    .r#type
+                    .unwrap_or(guild_channel::ChannelKind::GuildText),
                 parent_id: payload.parent_id,
             },
         )
         .await
     {
-        Ok(channel) => (StatusCode::CREATED, Json(ChannelCreateResponse { channel })).into_response(),
+        Ok(channel) => {
+            (StatusCode::CREATED, Json(ChannelCreateResponse { channel })).into_response()
+        }
         Err(error) => guild_channel_error_response(&error, request_id),
     }
 }
@@ -2249,7 +2322,8 @@ async fn create_moderation_report(
         Ok(value) => value,
         Err(error) => return moderation_error_response(&error, request_id),
     };
-    let target_type = match moderation::ModerationTargetType::parse_api_label(&payload.target_type) {
+    let target_type = match moderation::ModerationTargetType::parse_api_label(&payload.target_type)
+    {
         Some(value) => value,
         None => {
             return moderation_error_response(
@@ -2271,7 +2345,11 @@ async fn create_moderation_report(
         .create_report(auth_context.principal_id, input)
         .await
     {
-        Ok(report) => (StatusCode::CREATED, Json(ModerationReportResponse { report })).into_response(),
+        Ok(report) => (
+            StatusCode::CREATED,
+            Json(ModerationReportResponse { report }),
+        )
+            .into_response(),
         Err(error) => moderation_error_response(&error, request_id),
     }
 }
@@ -2419,7 +2497,11 @@ async fn get_my_profile(
 ) -> Response {
     let request_id = auth_context.request_id.clone();
 
-    match state.profile_service.get_profile(auth_context.principal_id).await {
+    match state
+        .profile_service
+        .get_profile(auth_context.principal_id)
+        .await
+    {
         Ok(profile) => Json(ProfileResponse { profile }).into_response(),
         Err(error) => profile_error_response(&error, request_id),
     }
@@ -2448,6 +2530,60 @@ async fn patch_my_profile(
         .await
     {
         Ok(profile) => Json(ProfileResponse { profile }).into_response(),
+        Err(error) => profile_error_response(&error, request_id),
+    }
+}
+
+/// 認証済みprincipal向けのプロフィール画像アップロードURLを発行する。
+/// @param state アプリケーション状態
+/// @param auth_context 認証文脈
+/// @param payload 発行入力
+/// @returns アップロードURLレスポンス
+/// @throws なし
+async fn issue_my_profile_media_upload_url(
+    State(state): State<AppState>,
+    Extension(auth_context): Extension<AuthContext>,
+    payload: Result<Json<ProfileMediaUploadUrlRequest>, JsonRejection>,
+) -> Response {
+    let request_id = auth_context.request_id.clone();
+    let input = match parse_profile_media_upload_payload(payload) {
+        Ok(value) => value,
+        Err(error) => return profile_error_response(&error, request_id),
+    };
+
+    match state
+        .profile_media_service
+        .issue_upload_url(auth_context.principal_id, input)
+        .await
+    {
+        Ok(upload) => Json(ProfileMediaUploadUrlResponse { upload }).into_response(),
+        Err(error) => profile_error_response(&error, request_id),
+    }
+}
+
+/// 認証済みprincipal向けのプロフィール画像ダウンロードURLを発行する。
+/// @param state アプリケーション状態
+/// @param auth_context 認証文脈
+/// @param params パスパラメータ
+/// @returns ダウンロードURLレスポンス
+/// @throws なし
+async fn get_my_profile_media_download_url(
+    State(state): State<AppState>,
+    Extension(auth_context): Extension<AuthContext>,
+    Path(params): Path<ProfileMediaTargetPathParams>,
+) -> Response {
+    let request_id = auth_context.request_id.clone();
+    let target = match profile::ProfileMediaTarget::parse(params.target.as_str()) {
+        Ok(value) => value,
+        Err(error) => return profile_error_response(&error, request_id),
+    };
+
+    match state
+        .profile_media_service
+        .issue_download_url(auth_context.principal_id, target)
+        .await
+    {
+        Ok(media) => Json(ProfileMediaDownloadUrlResponse { media }).into_response(),
         Err(error) => profile_error_response(&error, request_id),
     }
 }
@@ -2504,7 +2640,8 @@ async fn rest_auth_middleware(
         "REST auth accepted"
     );
 
-    if let Some(rate_limit_action) = rest_rate_limit_action_for_request(&request_method, &request_path)
+    if let Some(rate_limit_action) =
+        rest_rate_limit_action_for_request(&request_method, &request_path)
     {
         let decision = state
             .rest_rate_limit_service
@@ -2644,9 +2781,7 @@ fn rest_authz_resource_from_path(path: &str) -> AuthzResource {
 }
 
 fn is_message_command_path(path: &str) -> bool {
-    path.starts_with("/v1/guilds/")
-        && path.contains("/channels/")
-        && path.contains("/messages/")
+    path.starts_with("/v1/guilds/") && path.contains("/channels/") && path.contains("/messages/")
 }
 
 /// ギルドパスから guild_id を抽出する。
@@ -2654,10 +2789,7 @@ fn is_message_command_path(path: &str) -> bool {
 /// @returns guild_id
 /// @throws なし
 fn parse_guild_path(path: &str) -> Option<i64> {
-    let segments = path
-        .trim_matches('/')
-        .split('/')
-        .collect::<Vec<_>>();
+    let segments = path.trim_matches('/').split('/').collect::<Vec<_>>();
     match segments.as_slice() {
         ["guilds", guild_id] => guild_id.parse::<i64>().ok(),
         ["guilds", guild_id, "permission-snapshot"] => guild_id.parse::<i64>().ok(),
@@ -2671,10 +2803,7 @@ fn parse_guild_path(path: &str) -> Option<i64> {
 /// @returns guild_id と channel_id
 /// @throws なし
 fn parse_guild_channel_path(path: &str) -> Option<(i64, i64)> {
-    let segments = path
-        .trim_matches('/')
-        .split('/')
-        .collect::<Vec<_>>();
+    let segments = path.trim_matches('/').split('/').collect::<Vec<_>>();
     if segments.len() < 5 {
         return None;
     }

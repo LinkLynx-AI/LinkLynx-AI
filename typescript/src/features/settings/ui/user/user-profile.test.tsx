@@ -8,6 +8,7 @@ type MyProfile = {
   displayName: string;
   statusText: string | null;
   avatarKey: string | null;
+  bannerKey: string | null;
   theme: "dark" | "light";
 };
 
@@ -66,6 +67,7 @@ describe("UserProfile", () => {
         displayName: "old-name",
         statusText: "old-status",
         avatarKey: null,
+        bannerKey: null,
         theme: "dark",
       },
       isLoading: false,
@@ -90,6 +92,7 @@ describe("UserProfile", () => {
       displayName: "new-name",
       statusText: "new-status",
       avatarKey: null,
+      bannerKey: null,
       theme: "dark",
     });
 
@@ -132,6 +135,7 @@ describe("UserProfile", () => {
         displayName: "retry-name",
         statusText: "retry-status",
         avatarKey: null,
+        bannerKey: null,
         theme: "dark",
       });
 
@@ -162,6 +166,7 @@ describe("UserProfile", () => {
         displayName: "old-name",
         statusText: "old-status",
         avatarKey: null,
+        bannerKey: null,
         theme: "dark",
       },
       isLoading: false,
@@ -181,6 +186,7 @@ describe("UserProfile", () => {
       displayName: "old-name",
       statusText: "server-updated-status",
       avatarKey: null,
+      bannerKey: null,
       theme: "light",
     };
     act(() => {

@@ -17,7 +17,7 @@
 
 - PostgreSQL: ユーザー、ギルド、権限、招待、監査、既読、Outbox などの正データ
 - ScyllaDB: メッセージ SoR（本文、編集状態、履歴ページング、read_state_hotpath）
-- GCS: 添付バイナリオブジェクトの SoR（署名URL運用 + 保持/復旧基準）
+- GCS: 添付/プロフィール画像バイナリオブジェクトの SoR（署名URL運用 + 保持/復旧基準）
 
 ## 2. PostgreSQL の現在状態
 
@@ -38,8 +38,10 @@
 14. `0014_lin637_attachment_metadata_persistence`
 15. `0015_lin803_server_channel_minimal_contract`
 16. `0016_lin822_minimal_moderation`
-17. `0017_lin941_channel_category_contract`
-18. `0018_lin941_channel_category_constraints`
+17. `0017_lin939_profile_banner_key`
+18. `0017_lin941_channel_category_contract`
+19. `0017_lin948_message_create_idempotency`
+20. `0018_lin941_channel_category_constraints`
 
 ### 2.1 型（ENUM）
 
@@ -93,6 +95,7 @@
 - `channel_pins_v2` は LIN-635 で導入されたピン留め状態メタデータで、`pinned_at/pinned_by` と `unpinned_at/unpinned_by` により監査可能な状態遷移を保持する
 - `message_reactions_v2` は LIN-636 で導入されたリアクションメタデータで、`(message_id, emoji, user_id)` 主キーにより重複リアクションを防止する
 - `message_attachments_v2` は LIN-637 で導入された添付メタデータで、GCS object key と保持/削除監査列（`deleted_at`, `retention_until`）を保持する
+- `users.avatar_key` / `users.banner_key` は LIN-939 で profile media object key を保持し、実 URL ではなく GCS object key を source of truth とする
 - `message_create_idempotency_keys` は LIN-948 で導入された durable dedupe table で、`(principal_id, channel_id, idempotency_key)` 単位に reservation / completion state と固定 `message_id` を保持する
 - `moderation_reports` は LIN-822 で導入された最小通報キューで、`status=open/resolved` と `resolved_by/resolved_at` 整合制約を保持する
 - `moderation_mutes` は LIN-822 で導入された最小ミュート管理で、`(guild_id, target_user_id)` 一意制約により同時多重ミュートを防止する
@@ -165,86 +168,94 @@ The source of truth for attachment binary operations on GCS (signed URL policy, 
 
 - `database/contracts/lin590_gcs_signed_url_and_retention_baseline.md`
 - `docs/runbooks/gcs-signed-url-retention-operations-runbook.md`
-### 2.9 Event Stream Operations Baseline (LIN-601)
+
+### 2.9 GCS Profile Media Operations Contract (LIN-939)
+
+The source of truth for profile avatar/banner binary operations on GCS (`users.avatar_key` / `users.banner_key`, object key naming, same-bucket target split, and signed upload/download URL policy) is:
+
+- `database/contracts/lin939_profile_media_gcs_contract.md`
+- `docs/runbooks/profile-media-gcs-operations-runbook.md`
+
+### 2.10 Event Stream Operations Baseline (LIN-601)
 
 The source of truth for v1 Redpanda event stream operations (topic naming, retention, replay/reprocess, and outage recovery baseline) is:
 
 - `database/contracts/lin601_redpanda_event_stream_baseline.md`
 - `docs/runbooks/redpanda-topic-retention-replay-runbook.md`
 
-### 2.10 Auth Schema Gap Correction (LIN-631)
+### 2.11 Auth Schema Gap Correction (LIN-631)
 
 The source of truth for auth-schema gap correction between legacy Notion design and current `main` is:
 
 - `database/contracts/lin631_notion_auth_schema_gap_correction.md`
 
-### 2.11 Arbitrary Role Model / SpiceDB Mapping Contract (LIN-632)
+### 2.12 Arbitrary Role Model / SpiceDB Mapping Contract (LIN-632)
 
 The source of truth for arbitrary-role migration model and Postgres -> SpiceDB tuple mapping is:
 
 - `database/contracts/lin632_spicedb_role_model_migration_contract.md`
 
-### 2.12 Channel User Override / SpiceDB Mapping Contract (LIN-633)
+### 2.13 Channel User Override / SpiceDB Mapping Contract (LIN-633)
 
 The source of truth for channel-level user override (tri-state), evaluation precedence, and role/user override -> SpiceDB tuple conversion is:
 
 - `database/contracts/lin633_channel_user_override_spicedb_contract.md`
 
-### 2.13 Channel Hierarchy (Category/Thread) Contract (LIN-634)
+### 2.14 Channel Hierarchy (Category/Thread) Contract (LIN-634)
 
 The source of truth for channel hierarchy schema (category/thread), scope constraints, and compatibility policy is:
 
 - `database/contracts/lin634_channel_hierarchy_category_thread_contract.md`
 
-### 2.14 Channel Category Contract Delta (LIN-941)
+### 2.15 Channel Category Contract Delta (LIN-941)
 
 The source of truth for v1 category container representation (`channel_type.guild_category`), category-child parent scope, and category non-messageable compatibility policy is:
 
 - `database/contracts/lin634_channel_hierarchy_category_thread_contract.md`
 
-### 2.15 Legacy Permission Assets Removal Contract (LIN-857)
+### 2.16 Legacy Permission Assets Removal Contract (LIN-857)
 
 The source of truth for post-cutover removal of legacy permission tables/columns is:
 
 - `database/contracts/lin857_legacy_permission_assets_removal_contract.md`
 
-### 2.16 Message Reply/Pin Persistence Contract (LIN-635)
+### 2.17 Message Reply/Pin Persistence Contract (LIN-635)
 
 The source of truth for message reply reference tracking, pin/unpin audit columns, and tombstone compatibility policy is:
 
 - `database/contracts/lin635_message_reply_pin_persistence_contract.md`
 
-### 2.17 Message Reaction Persistence Contract (LIN-636)
+### 2.18 Message Reaction Persistence Contract (LIN-636)
 
 The source of truth for message reaction persistence, duplicate-prevention constraints, and message-based aggregation index policy is:
 
 - `database/contracts/lin636_message_reaction_persistence_contract.md`
 
-### 2.18 Attachment Metadata Persistence Contract (LIN-637)
+### 2.19 Attachment Metadata Persistence Contract (LIN-637)
 
 The source of truth for attachment metadata persistence, logical deletion/retention audit columns, and LIN-590 alignment policy is:
 
 - `database/contracts/lin637_attachment_metadata_persistence_contract.md`
 
-### 2.18 Message Create Durable Idempotency Contract (LIN-948)
+### 2.20 Message Create Durable Idempotency Contract (LIN-948)
 
 The source of truth for guild message create durable reservation state, payload mismatch rejection, and fixed `message_id` / `message_created_at` replay policy is:
 
 - `database/contracts/lin948_message_create_idempotency_contract.md`
 
-### 2.19 Minimal Moderation Contract (LIN-822)
+### 2.21 Minimal Moderation Contract (LIN-822)
 
 The source of truth for minimal moderation persistence (`moderation_reports`, `moderation_mutes`), `audit_action` enum extension, and report state transitions is:
 
 - `database/contracts/lin822_minimal_moderation_contract.md`
 
-### 2.20 SpiceDB Namespace/Relation/Permission Model Contract (LIN-862)
+### 2.22 SpiceDB Namespace/Relation/Permission Model Contract (LIN-862)
 
 The source of truth for SpiceDB namespace/relation/permission design aligned with LIN-861 matrix and LIN-632/LIN-633 tuple mapping is:
 
 - `database/contracts/lin862_spicedb_namespace_relation_permission_contract.md`
 
-### 2.21 Postgres -> SpiceDB Tuple Mapping/Sync Contract (LIN-864)
+### 2.23 Postgres -> SpiceDB Tuple Mapping/Sync Contract (LIN-864)
 
 The source of truth for Postgres `*_v2` permission data to canonical SpiceDB tuple conversion, initial backfill contract, outbox delta-sync semantics, and full-resync operational hook is:
 
@@ -310,6 +321,9 @@ The source of truth for Scylla operations (SoR boundary, partition review criter
 - LIN-590 GCS attachment operations baseline:
   - `database/contracts/lin590_gcs_signed_url_and_retention_baseline.md`
   - `docs/runbooks/gcs-signed-url-retention-operations-runbook.md`
+- LIN-939 GCS profile media operations baseline:
+  - `database/contracts/lin939_profile_media_gcs_contract.md`
+  - `docs/runbooks/profile-media-gcs-operations-runbook.md`
 - LIN-601 Event stream operations baseline:
   - `database/contracts/lin601_redpanda_event_stream_baseline.md`
   - `docs/runbooks/redpanda-topic-retention-replay-runbook.md`

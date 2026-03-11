@@ -15,4 +15,5 @@
 - `scylla-node-loss-backup-runbook.md`: Scylla node-loss continuity decisions and minimum backup/restore execution baseline for v0.
 - `scylla-local-runtime-bootstrap-runbook.md`: Scylla local runtime env, schema bootstrap, health probe, and troubleshooting baseline for API development.
 - `gcs-signed-url-retention-operations-runbook.md`: GCS attachment signed URL issuance/reissue flow, accidental deletion recovery, and retention policy change baseline.
+- `profile-media-gcs-operations-runbook.md`: Profile avatar/banner signed URL issuance, same-bucket upload/download verification, and runtime credential triage baseline.
 - `redpanda-topic-retention-replay-runbook.md`: Redpanda topic naming/retention change controls, replay execution, outage recovery, and rollback baseline for v1 event stream operations.

@@ -7,10 +7,13 @@ import type {
   MessageQueryParams,
   SendMessageParams,
   PermissionSnapshot,
+  CreateMyProfileMediaUploadUrlInput,
   CreateModerationMuteData,
   CreateModerationReportData,
   CreateChannelData,
   CreateGuildData,
+  MyProfileMediaDownload,
+  MyProfileMediaUpload,
   UpdateGuildData,
   CreateInviteData,
   Invite,
@@ -73,6 +76,7 @@ function buildMyProfile(user: User): MyProfile {
     displayName: user.displayName,
     statusText: user.customStatus,
     avatarKey: null,
+    bannerKey: null,
     theme: useSettingsStore.getState().theme === "light" ? "light" : "dark",
   };
 }
@@ -238,6 +242,7 @@ export class NoDataAPIClient implements APIClient {
         displayName,
         statusText,
         avatarKey: null,
+        bannerKey: null,
         theme,
       });
     } catch (error) {
@@ -273,6 +278,16 @@ export class NoDataAPIClient implements APIClient {
 
   createDM(_recipientId: string): Promise<Channel> {
     return unsupportedPromise("createDM");
+  }
+
+  createMyProfileMediaUploadUrl(
+    _input: CreateMyProfileMediaUploadUrlInput,
+  ): Promise<MyProfileMediaUpload> {
+    return unsupportedPromise("createMyProfileMediaUploadUrl");
+  }
+
+  getMyProfileMediaDownloadUrl(_target: "avatar" | "banner"): Promise<MyProfileMediaDownload> {
+    return unsupportedPromise("getMyProfileMediaDownloadUrl");
   }
 
   createGroupDM(_recipientIds: string[]): Promise<Channel> {
