@@ -5,6 +5,27 @@ import { getAPIClient } from "@/shared/api/api-client";
 import type { CreateChannelData } from "@/shared/api/api-client";
 import type { Channel } from "@/shared/model/types";
 
+function collectDeletedChannelIds(channels: Channel[], channelId: string): Set<string> {
+  const deletedIds = new Set<string>([channelId]);
+
+  let foundChild = true;
+  while (foundChild) {
+    foundChild = false;
+    for (const channel of channels) {
+      if (
+        channel.parentId !== null &&
+        deletedIds.has(channel.parentId) &&
+        !deletedIds.has(channel.id)
+      ) {
+        deletedIds.add(channel.id);
+        foundChild = true;
+      }
+    }
+  }
+
+  return deletedIds;
+}
+
 export function useCreateChannel() {
   const queryClient = useQueryClient();
   const api = getAPIClient();
@@ -38,14 +59,18 @@ export function useDeleteChannel() {
     mutationFn: ({ channelId }: { serverId: string; channelId: string }) =>
       api.deleteChannel(channelId),
     onSuccess: (_, { serverId, channelId }) => {
+      let deletedIds = new Set<string>([channelId]);
       queryClient.setQueryData<Channel[] | undefined>(["channels", serverId], (currentChannels) => {
         if (currentChannels === undefined) {
           return currentChannels;
         }
 
-        return currentChannels.filter((channel) => channel.id !== channelId);
+        deletedIds = collectDeletedChannelIds(currentChannels, channelId);
+        return currentChannels.filter((channel) => !deletedIds.has(channel.id));
       });
-      queryClient.removeQueries({ queryKey: ["channel", channelId], exact: true });
+      for (const deletedId of deletedIds) {
+        queryClient.removeQueries({ queryKey: ["channel", deletedId], exact: true });
+      }
       queryClient.invalidateQueries({ queryKey: ["channels", serverId] });
     },
   });

@@ -41,6 +41,9 @@ const CHANNEL_SUMMARY_SCHEMA = z.object({
   channel_id: z.number().int().positive(),
   guild_id: z.number().int().positive(),
   name: z.string().trim().min(1),
+  type: z.enum(["guild_text", "guild_category"]).optional(),
+  parent_id: z.number().int().positive().nullable().optional(),
+  position: z.number().int().nonnegative().optional(),
   created_at: z.string().trim().min(1),
 });
 const CHANNEL_LIST_RESPONSE_SCHEMA = z.object({
@@ -136,7 +139,8 @@ const DEFAULT_CHANNEL_VALUES = {
   rateLimitPerUser: 0,
   lastMessageId: null,
 } as const;
-const SUPPORTED_CHANNEL_TYPES = [0] as const;
+const SUPPORTED_CHANNEL_TYPES = [0, 4] as const;
+const CATEGORY_CHANNEL_TYPE = 4 as const;
 const CREATE_ERROR_MESSAGES = {
   validation: "入力内容を確認してください。",
   authzDenied: "この操作を行う権限がありません。",
@@ -436,11 +440,13 @@ function mapCreatedGuild(summary: GuildCreateResponse["guild"]): Guild {
 
 function mapChannel(summary: ChannelListResponse["channels"][number], position: number): Channel {
   return {
+    ...DEFAULT_CHANNEL_VALUES,
     id: String(summary.channel_id),
+    type: summary.type === "guild_category" ? CATEGORY_CHANNEL_TYPE : 0,
     guildId: String(summary.guild_id),
     name: summary.name,
-    position,
-    ...DEFAULT_CHANNEL_VALUES,
+    position: summary.position ?? position,
+    parentId: summary.parent_id == null ? null : String(summary.parent_id),
   };
 }
 
@@ -692,13 +698,64 @@ export class GuildChannelAPIClient extends NoDataAPIClient {
     if (current !== undefined) {
       return {
         ...current,
-        id: String(summary.channel_id),
-        guildId: String(summary.guild_id),
-        name: summary.name,
+        ...mapChannel(summary, fallbackPosition),
       };
     }
 
     return mapChannel(summary, fallbackPosition);
+  }
+
+  private collectDeletedChannelIds(channelId: string, guildId: string | undefined): Set<string> {
+    const deletedIds = new Set<string>([channelId]);
+    if (guildId === undefined) {
+      return deletedIds;
+    }
+
+    const cachedChannels = this.channelCacheByGuild.get(guildId);
+    if (cachedChannels === undefined) {
+      return deletedIds;
+    }
+
+    let foundChild = true;
+    while (foundChild) {
+      foundChild = false;
+      for (const channel of cachedChannels) {
+        if (
+          channel.parentId !== null &&
+          deletedIds.has(channel.parentId) &&
+          !deletedIds.has(channel.id)
+        ) {
+          deletedIds.add(channel.id);
+          foundChild = true;
+        }
+      }
+    }
+
+    return deletedIds;
+  }
+
+  private removeChannelsFromGuildCache(channelIds: Set<string>, guildId: string | undefined): void {
+    for (const channelId of channelIds) {
+      this.channelIndex.delete(channelId);
+    }
+
+    if (guildId !== undefined) {
+      const cachedChannels = this.channelCacheByGuild.get(guildId);
+      if (cachedChannels !== undefined) {
+        this.channelCacheByGuild.set(
+          guildId,
+          cachedChannels.filter((channel) => !channelIds.has(channel.id)),
+        );
+      }
+      return;
+    }
+
+    for (const [cachedGuildId, cachedChannels] of this.channelCacheByGuild.entries()) {
+      const nextChannels = cachedChannels.filter((channel) => !channelIds.has(channel.id));
+      if (nextChannels.length !== cachedChannels.length) {
+        this.channelCacheByGuild.set(cachedGuildId, nextChannels);
+      }
+    }
   }
 
   private upsertChannelInGuildCache(channel: Channel): void {
@@ -1070,9 +1127,36 @@ export class GuildChannelAPIClient extends NoDataAPIClient {
       });
     }
 
+    const normalizedParentId = data.parentId?.trim() ?? "";
+    if (data.type === CATEGORY_CHANNEL_TYPE && normalizedParentId.length > 0) {
+      throw new GuildChannelApiError(CREATE_ERROR_MESSAGES.validation, {
+        status: 400,
+        code: "VALIDATION_ERROR",
+      });
+    }
+
+    let parsedParentId: number | null = null;
+    if (normalizedParentId.length > 0) {
+      parsedParentId = Number.parseInt(normalizedParentId, 10);
+      if (!Number.isInteger(parsedParentId) || parsedParentId <= 0) {
+        throw new GuildChannelApiError(CREATE_ERROR_MESSAGES.validation, {
+          status: 400,
+          code: "VALIDATION_ERROR",
+        });
+      }
+    }
+
+    const body: Record<string, unknown> = { name: normalizedName };
+    if (data.type === CATEGORY_CHANNEL_TYPE) {
+      body.type = "guild_category";
+    } else if (parsedParentId !== null) {
+      body.type = "guild_text";
+      body.parent_id = parsedParentId;
+    }
+
     const response = await this.postJson(
       `/guilds/${encodeURIComponent(normalizedServerId)}/channels`,
-      { name: normalizedName },
+      body,
       CHANNEL_CREATE_RESPONSE_SCHEMA,
     );
     const cachedChannels = this.channelCacheByGuild.get(normalizedServerId);
@@ -1283,8 +1367,9 @@ export class GuildChannelAPIClient extends NoDataAPIClient {
     }
 
     const indexedChannel = this.channelIndex.get(normalizedChannelId);
+    const deletedIds = this.collectDeletedChannelIds(normalizedChannelId, indexedChannel?.guildId);
     await this.deleteNoContent(`/channels/${encodeURIComponent(normalizedChannelId)}`);
-    this.removeChannelFromGuildCache(normalizedChannelId, indexedChannel?.guildId);
+    this.removeChannelsFromGuildCache(deletedIds, indexedChannel?.guildId);
   }
 }
 

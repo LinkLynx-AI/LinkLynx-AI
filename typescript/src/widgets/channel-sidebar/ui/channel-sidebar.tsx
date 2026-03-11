@@ -6,6 +6,7 @@ import { useChannels } from "@/shared/api/queries/use-channels";
 import { toApiErrorText } from "@/shared/api/guild-channel-api-client";
 import { buildModerationQueueRoute, parseGuildChannelRoute } from "@/shared/config/routes";
 import { useGuildStore } from "@/shared/model/stores/guild-store";
+import { useUIStore } from "@/shared/model/stores/ui-store";
 import { useServer } from "@/shared/api/queries/use-servers";
 import { usePathname } from "next/navigation";
 import { ServerHeader } from "./server-header";
@@ -21,28 +22,24 @@ type CategoryGroup = {
   channels: Channel[];
 };
 
-function groupChannelsByCategory(channels: Channel[]): CategoryGroup[] {
-  const categories = channels.filter((c) => c.type === 4).sort((a, b) => a.position - b.position);
+function compareChannelPosition(a: Channel, b: Channel): number {
+  return a.position - b.position || a.id.localeCompare(b.id);
+}
 
-  const groups: CategoryGroup[] = [];
+export function groupChannelsByCategory(channels: Channel[]): CategoryGroup[] {
+  return channels
+    .filter((channel) => channel.type === 4 || !channel.parentId)
+    .sort(compareChannelPosition)
+    .map((channel) => {
+      if (channel.type !== 4) {
+        return { category: null, channels: [channel] };
+      }
 
-  // Channels without a parent category (top-level)
-  const orphans = channels
-    .filter((c) => c.type !== 4 && !c.parentId)
-    .sort((a, b) => a.position - b.position);
-
-  if (orphans.length > 0) {
-    groups.push({ category: null, channels: orphans });
-  }
-
-  for (const cat of categories) {
-    const children = channels
-      .filter((c) => c.parentId === cat.id && c.type !== 4)
-      .sort((a, b) => a.position - b.position);
-    groups.push({ category: cat, channels: children });
-  }
-
-  return groups;
+      const children = channels
+        .filter((child) => child.parentId === channel.id && child.type !== 4)
+        .sort(compareChannelPosition);
+      return { category: channel, channels: children };
+    });
 }
 
 export function ChannelSidebar() {
@@ -54,6 +51,7 @@ export function ChannelSidebar() {
   const activeChannelId = routeSelection ? routeSelection.channelId : activeChannelIdFromStore;
   const collapsedCategories = useGuildStore((s) => s.collapsedCategories);
   const toggleCategory = useGuildStore((s) => s.toggleCategory);
+  const openModal = useUIStore((s) => s.openModal);
 
   const { data: server } = useServer(activeServerId ?? "");
   const {
@@ -127,9 +125,17 @@ export function ChannelSidebar() {
             return (
               <ChannelCategory
                 key={key}
+                channel={group.category}
+                serverId={activeServerId}
                 name={group.category.name}
                 collapsed={isCollapsed}
                 onToggle={() => toggleCategory(activeServerId, group.category!.id)}
+                onCreateChannel={() =>
+                  openModal("create-channel", {
+                    serverId: activeServerId,
+                    parentId: group.category!.id,
+                  })
+                }
               >
                 {group.channels.map((ch) =>
                   ch.type === 2 ? (
