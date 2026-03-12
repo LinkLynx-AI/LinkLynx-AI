@@ -14,7 +14,7 @@ export function useMessages(guildId: string | null | undefined, channelId: strin
   const enabled = channelId.trim().length > 0;
 
   const query = useInfiniteQuery({
-    queryKey: buildMessagesQueryKey(guildId ?? "disabled", channelId),
+    queryKey: buildMessagesQueryKey(guildId, channelId),
     queryFn: ({ pageParam }) =>
       api.getMessages({
         guildId,
