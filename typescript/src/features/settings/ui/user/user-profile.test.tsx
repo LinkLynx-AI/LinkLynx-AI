@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { act, render, screen, userEvent, waitFor } from "@/test/test-utils";
+import { PROFILE_IMAGE_SIZE_LIMIT_BYTES } from "../../lib/profile-image";
 import { GuildChannelApiError } from "@/shared/api/guild-channel-api-client";
 import { useAuthStore } from "@/shared/model/stores/auth-store";
 
@@ -36,6 +37,9 @@ const useUpdateMyProfileMock = vi.hoisted(() =>
 const uploadProfileMediaFileMock = vi.hoisted(() =>
   vi.fn<(target: "avatar" | "banner", file: File) => Promise<string>>(),
 );
+const croppedImageResultOverrideMock = vi.hoisted(
+  () => vi.fn<() => { file: File; url: string } | null>(),
+);
 
 vi.mock("@/shared/api/mutations", () => ({
   useUpdateMyProfile: useUpdateMyProfileMock,
@@ -63,7 +67,13 @@ vi.mock("@/shared/ui/image-crop-modal", () => ({
     onClose: () => void;
   }) => (
     <div>
-      <button type="button" onClick={() => onCrop({ file: sourceFile, url: imageUrl })}>
+      <button
+        type="button"
+        onClick={() => {
+          const override = croppedImageResultOverrideMock();
+          onCrop(override ?? { file: sourceFile, url: imageUrl });
+        }}
+      >
         適用
       </button>
       <button type="button" onClick={onClose}>
@@ -75,9 +85,18 @@ vi.mock("@/shared/ui/image-crop-modal", () => ({
 
 import { UserProfile } from "./user-profile";
 
+function setFileSize(file: File, size: number): File {
+  Object.defineProperty(file, "size", {
+    configurable: true,
+    value: size,
+  });
+  return file;
+}
+
 describe("UserProfile", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    croppedImageResultOverrideMock.mockReturnValue(null);
     vi.stubGlobal(
       "URL",
       Object.assign(URL, {
@@ -328,5 +347,50 @@ describe("UserProfile", () => {
         bannerKey: "profiles/u-1/banner/new-banner.png",
       });
     });
+  });
+
+  test("blocks oversized avatar selection before crop or save", async () => {
+    const user = userEvent.setup();
+    render(<UserProfile />);
+
+    const oversizedFile = setFileSize(
+      new File(["avatar"], "large-avatar.png", { type: "image/png" }),
+      PROFILE_IMAGE_SIZE_LIMIT_BYTES.avatar + 1,
+    );
+
+    await user.upload(screen.getByLabelText("アバター画像ファイル"), oversizedFile);
+
+    expect(
+      screen.getByText("アバター画像は 2MB 以下のファイルを選択してください。"),
+    ).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "適用" })).toBeNull();
+    expect(uploadProfileMediaFileMock).not.toHaveBeenCalled();
+    expect(mutateAsyncMock).not.toHaveBeenCalled();
+  });
+
+  test("blocks oversized cropped avatar before save", async () => {
+    const user = userEvent.setup();
+    croppedImageResultOverrideMock.mockReturnValue({
+      file: setFileSize(
+        new File(["cropped-avatar"], "cropped-avatar.png", { type: "image/png" }),
+        PROFILE_IMAGE_SIZE_LIMIT_BYTES.avatar + 1,
+      ),
+      url: "blob:cropped-avatar.png",
+    });
+
+    render(<UserProfile />);
+
+    await user.upload(
+      screen.getByLabelText("アバター画像ファイル"),
+      new File(["avatar"], "avatar.png", { type: "image/png" }),
+    );
+
+    await user.click(screen.getByRole("button", { name: "適用" }));
+
+    expect(
+      screen.getByText("アバター画像は 2MB 以下のファイルを選択してください。"),
+    ).not.toBeNull();
+    expect(uploadProfileMediaFileMock).not.toHaveBeenCalled();
+    expect(mutateAsyncMock).not.toHaveBeenCalled();
   });
 });
