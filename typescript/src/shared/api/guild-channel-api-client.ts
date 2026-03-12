@@ -1498,6 +1498,61 @@ export class GuildChannelAPIClient extends NoDataAPIClient {
     return mapMessageItem(response.message);
   }
 
+  /**
+   * ピン留め一覧は未接続のため空配列を返す。
+   */
+  getPinnedMessages(_channelId: string): Promise<Message[]> {
+    return Promise.resolve([]);
+  }
+
+  /**
+   * リアクション追加は v1 では未接続として扱う。
+   */
+  addReaction(_channelId: string, _messageId: string, _emoji: string): Promise<void> {
+    return Promise.reject(
+      new GuildChannelApiError("リアクション追加は v1 では未接続です。", {
+        status: 501,
+        code: "FEATURE_UNAVAILABLE",
+      }),
+    );
+  }
+
+  /**
+   * リアクション解除は v1 では未接続として扱う。
+   */
+  removeReaction(_channelId: string, _messageId: string, _emoji: string): Promise<void> {
+    return Promise.reject(
+      new GuildChannelApiError("リアクション解除は v1 では未接続です。", {
+        status: 501,
+        code: "FEATURE_UNAVAILABLE",
+      }),
+    );
+  }
+
+  /**
+   * ピン留めは v1 では未接続として扱う。
+   */
+  pinMessage(_channelId: string, _messageId: string): Promise<void> {
+    return Promise.reject(
+      new GuildChannelApiError("ピン留め操作は v1 では未接続です。", {
+        status: 501,
+        code: "FEATURE_UNAVAILABLE",
+      }),
+    );
+  }
+
+  /**
+   * ピン留め解除は v1 では未接続として扱う。
+   */
+  unpinMessage(_channelId: string, _messageId: string): Promise<void> {
+    return Promise.reject(
+      new GuildChannelApiError("ピン留め操作は v1 では未接続です。", {
+        status: 501,
+        code: "FEATURE_UNAVAILABLE",
+      }),
+    );
+  }
+
   async getMyProfile(): Promise<MyProfile> {
     const response = await this.getJson("/users/me/profile", MY_PROFILE_RESPONSE_SCHEMA);
     return mapMyProfile(response);
