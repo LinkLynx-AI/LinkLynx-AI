@@ -13,9 +13,19 @@ const useAuthSessionMock = vi.hoisted(() =>
   })),
 );
 const useMyProfileMock = vi.hoisted(() => vi.fn());
+const resolveMyProfileMediaUrlsMock = vi.hoisted(() => vi.fn());
+const apiClientMock = vi.hoisted(() => ({}));
 
 vi.mock("@/entities/auth", () => ({
   useAuthSession: useAuthSessionMock,
+}));
+
+vi.mock("@/shared/api/api-client", () => ({
+  getAPIClient: () => apiClientMock,
+}));
+
+vi.mock("@/shared/api/my-profile-media", () => ({
+  resolveMyProfileMediaUrls: resolveMyProfileMediaUrlsMock,
 }));
 
 vi.mock("@/shared/api/queries", () => ({
@@ -27,6 +37,10 @@ import { AuthBridge } from "./auth-bridge";
 describe("AuthBridge", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    resolveMyProfileMediaUrlsMock.mockResolvedValue({
+      avatarUrl: null,
+      bannerUrl: null,
+    });
     useAuthStore.setState({
       currentUser: null,
       currentPrincipalId: null,
@@ -59,10 +73,14 @@ describe("AuthBridge", () => {
       data: {
         displayName: "Alice Cooper",
         statusText: "Ready to ship",
-        avatarKey: null,
-        bannerKey: null,
+        avatarKey: "avatar/alice.png",
+        bannerKey: "banner/alice.png",
         theme: "light",
       },
+    });
+    resolveMyProfileMediaUrlsMock.mockResolvedValue({
+      avatarUrl: "https://cdn.example/alice.png",
+      bannerUrl: "https://cdn.example/banner.png",
     });
 
     render(<AuthBridge />);
@@ -73,6 +91,7 @@ describe("AuthBridge", () => {
         username: "alice",
         displayName: "Alice Cooper",
         customStatus: "Ready to ship",
+        avatar: "https://cdn.example/alice.png",
       });
       expect(useAuthStore.getState().customStatus).toBe("Ready to ship");
       expect(useSettingsStore.getState().theme).toBe("light");

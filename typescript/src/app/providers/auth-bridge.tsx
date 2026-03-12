@@ -1,8 +1,11 @@
 "use client";
 
 import { useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useAuthSession } from "@/entities/auth";
-import { syncMyProfileToAuthStore } from "@/shared/api/my-profile-sync";
+import { getAPIClient } from "@/shared/api/api-client";
+import { resolveMyProfileMediaUrls } from "@/shared/api/my-profile-media";
+import { syncMyProfileToAuthStore, syncMyProfileToSessionCaches } from "@/shared/api/my-profile-sync";
 import { useMyProfile } from "@/shared/api/queries";
 import { useAuthStore } from "@/shared/model/stores/auth-store";
 import type { User } from "@/shared/model/types/user";
@@ -53,6 +56,8 @@ function isSameUser(left: User | null, right: User): boolean {
  */
 export function AuthBridge() {
   const session = useAuthSession();
+  const queryClient = useQueryClient();
+  const api = getAPIClient();
   const currentUser = useAuthStore((s) => s.currentUser);
   const currentPrincipalId = useAuthStore((s) => s.currentPrincipalId);
   const setCurrentUser = useAuthStore((s) => s.setCurrentUser);
@@ -84,8 +89,31 @@ export function AuthBridge() {
       return;
     }
 
-    syncMyProfileToAuthStore(myProfile);
-  }, [myProfile, session.status, session.user]);
+    let cancelled = false;
+    void resolveMyProfileMediaUrls(api, myProfile)
+      .then((mediaUrls) => {
+        if (cancelled) {
+          return;
+        }
+
+        const resolvedUserId = useAuthStore.getState().currentUser?.id;
+        if (resolvedUserId === undefined) {
+          syncMyProfileToAuthStore(myProfile, mediaUrls);
+          return;
+        }
+
+        syncMyProfileToSessionCaches(queryClient, resolvedUserId, myProfile, mediaUrls);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          syncMyProfileToAuthStore(myProfile);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [api, myProfile, queryClient, session.status, session.user]);
 
   return null;
 }
