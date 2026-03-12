@@ -21,6 +21,7 @@ function updateRelationshipsWithMyProfile(
   relationships: Relationship[] | undefined,
   userId: string,
   profile: MyProfile,
+  avatarUrlOverride?: string | null,
 ): Relationship[] | undefined {
   if (relationships === undefined) {
     return relationships;
@@ -28,7 +29,10 @@ function updateRelationshipsWithMyProfile(
 
   return relationships.map((relationship) =>
     relationship.user.id === userId
-      ? { ...relationship, user: applyMyProfileToUser(relationship.user, profile) }
+      ? {
+          ...relationship,
+          user: applyMyProfileToUser(relationship.user, profile, avatarUrlOverride),
+        }
       : relationship,
   );
 }
@@ -37,6 +41,7 @@ function updateMembersWithMyProfile(
   members: GuildMember[] | undefined,
   userId: string,
   profile: MyProfile,
+  avatarUrlOverride?: string | null,
 ): GuildMember[] | undefined {
   if (members === undefined) {
     return members;
@@ -46,8 +51,7 @@ function updateMembersWithMyProfile(
     member.user.id === userId
       ? {
           ...member,
-          user: applyMyProfileToUser(member.user, profile),
-          avatar: profile.avatarKey === null ? null : member.avatar,
+          user: applyMyProfileToUser(member.user, profile, avatarUrlOverride),
         }
       : member,
   );
@@ -60,14 +64,12 @@ export function syncMyProfileToAuthStore(
   profile: MyProfile,
   avatarUrlOverride?: string | null,
 ): void {
-  const { currentUser, setCurrentUser, setCustomStatus } = useAuthStore.getState();
+  const { currentUser, setCurrentUser } = useAuthStore.getState();
   if (currentUser === null) {
     return;
   }
 
-  const nextUser = applyMyProfileToUser(currentUser, profile, avatarUrlOverride);
-  setCurrentUser(nextUser);
-  setCustomStatus(profile.statusText);
+  setCurrentUser(applyMyProfileToUser(currentUser, profile, avatarUrlOverride));
 }
 
 /**
@@ -81,10 +83,10 @@ export function syncMyProfileToSessionCaches(
 ): void {
   queryClient.setQueryData(["myProfile", userId], profile);
   queryClient.setQueryData(["friends"], (existing: Relationship[] | undefined) =>
-    updateRelationshipsWithMyProfile(existing, userId, profile),
+    updateRelationshipsWithMyProfile(existing, userId, profile, avatarUrlOverride),
   );
   queryClient.setQueriesData({ queryKey: ["members"] }, (existing: GuildMember[] | undefined) =>
-    updateMembersWithMyProfile(existing, userId, profile),
+    updateMembersWithMyProfile(existing, userId, profile, avatarUrlOverride),
   );
   syncMyProfileToAuthStore(profile, avatarUrlOverride);
 }

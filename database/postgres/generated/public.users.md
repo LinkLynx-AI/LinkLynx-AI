@@ -14,6 +14,7 @@
 | theme | text | 'dark'::text | false |  |  |  |
 | created_at | timestamp with time zone | now() | false |  |  |  |
 | updated_at | timestamp with time zone | now() | false |  |  |  |
+| banner_key | text |  | true |  |  |  |
 
 ## Constraints
 

@@ -7,6 +7,7 @@ import type {
   Message,
   CreateMessageData,
   EditMessageData,
+  DeleteMessageData,
 } from "@/shared/model/types";
 
 export type SearchParams = {
@@ -26,7 +27,7 @@ export type SearchResult = {
 };
 
 export type MessageQueryParams = {
-  guildId: string;
+  guildId?: string | null;
   channelId: string;
   before?: string;
   after?: string;
@@ -34,7 +35,7 @@ export type MessageQueryParams = {
 };
 
 export type SendMessageParams = {
-  guildId: string;
+  guildId?: string | null;
   channelId: string;
   data: CreateMessageData;
 };
@@ -51,6 +52,7 @@ export type MyProfile = {
   statusText: string | null;
   avatarKey: string | null;
   bannerKey: string | null;
+  theme: "dark" | "light";
 };
 
 export type UpdateMyProfileInput = {
@@ -58,6 +60,31 @@ export type UpdateMyProfileInput = {
   statusText?: string | null;
   avatarKey?: string | null;
   bannerKey?: string | null;
+  theme?: "dark" | "light";
+};
+
+export type ProfileMediaTarget = "avatar" | "banner";
+
+export type CreateMyProfileMediaUploadUrlInput = {
+  target: ProfileMediaTarget;
+  filename: string;
+  contentType: string;
+};
+
+export type MyProfileMediaUpload = {
+  target: ProfileMediaTarget;
+  objectKey: string;
+  uploadUrl: string;
+  expiresAt: string;
+  method: "PUT";
+  requiredHeaders: Record<string, string>;
+};
+
+export type MyProfileMediaDownload = {
+  target: ProfileMediaTarget;
+  objectKey: string;
+  downloadUrl: string;
+  expiresAt: string;
 };
 
 export type CreateGuildData = {
@@ -221,7 +248,7 @@ export type APIClient = {
   getMessage(channelId: string, messageId: string): Promise<Message>;
   sendMessage(params: SendMessageParams): Promise<Message>;
   editMessage(channelId: string, messageId: string, data: EditMessageData): Promise<Message>;
-  deleteMessage(channelId: string, messageId: string): Promise<void>;
+  deleteMessage(channelId: string, messageId: string, data: DeleteMessageData): Promise<Message>;
   getPinnedMessages(channelId: string): Promise<Message[]>;
 
   // Reactions
@@ -237,6 +264,10 @@ export type APIClient = {
   getUserProfile(userId: string): Promise<UserProfile>;
   getMyProfile(): Promise<MyProfile>;
   updateMyProfile(input: UpdateMyProfileInput): Promise<MyProfile>;
+  createMyProfileMediaUploadUrl(
+    input: CreateMyProfileMediaUploadUrlInput,
+  ): Promise<MyProfileMediaUpload>;
+  getMyProfileMediaDownloadUrl(target: ProfileMediaTarget): Promise<MyProfileMediaDownload>;
 
   // Relationships (Friends)
   getFriends(): Promise<Relationship[]>;

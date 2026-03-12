@@ -3,7 +3,9 @@
 pub enum ProfileErrorKind {
     Validation,
     NotFound,
+    MediaNotFound,
     DependencyUnavailable,
+    MediaDependencyUnavailable,
 }
 
 /// プロフィールAPI失敗情報を保持する。
@@ -36,6 +38,17 @@ impl ProfileError {
         }
     }
 
+    /// プロフィール画像未存在エラーを生成する。
+    /// @param reason 失敗理由
+    /// @returns 画像未存在エラー
+    /// @throws なし
+    pub fn media_not_found(reason: impl Into<String>) -> Self {
+        Self {
+            kind: ProfileErrorKind::MediaNotFound,
+            reason: reason.into(),
+        }
+    }
+
     /// 依存障害エラーを生成する。
     /// @param reason 失敗理由
     /// @returns 依存障害エラー
@@ -43,6 +56,17 @@ impl ProfileError {
     pub fn dependency_unavailable(reason: impl Into<String>) -> Self {
         Self {
             kind: ProfileErrorKind::DependencyUnavailable,
+            reason: reason.into(),
+        }
+    }
+
+    /// プロフィール画像依存障害エラーを生成する。
+    /// @param reason 失敗理由
+    /// @returns 画像依存障害エラー
+    /// @throws なし
+    pub fn media_dependency_unavailable(reason: impl Into<String>) -> Self {
+        Self {
+            kind: ProfileErrorKind::MediaDependencyUnavailable,
             reason: reason.into(),
         }
     }
@@ -55,7 +79,9 @@ impl ProfileError {
         match self.kind {
             ProfileErrorKind::Validation => StatusCode::BAD_REQUEST,
             ProfileErrorKind::NotFound => StatusCode::NOT_FOUND,
+            ProfileErrorKind::MediaNotFound => StatusCode::NOT_FOUND,
             ProfileErrorKind::DependencyUnavailable => StatusCode::SERVICE_UNAVAILABLE,
+            ProfileErrorKind::MediaDependencyUnavailable => StatusCode::SERVICE_UNAVAILABLE,
         }
     }
 
@@ -67,7 +93,9 @@ impl ProfileError {
         match self.kind {
             ProfileErrorKind::Validation => "VALIDATION_ERROR",
             ProfileErrorKind::NotFound => "USER_NOT_FOUND",
+            ProfileErrorKind::MediaNotFound => "PROFILE_MEDIA_NOT_FOUND",
             ProfileErrorKind::DependencyUnavailable => "PROFILE_UNAVAILABLE",
+            ProfileErrorKind::MediaDependencyUnavailable => "PROFILE_MEDIA_UNAVAILABLE",
         }
     }
 
@@ -79,7 +107,11 @@ impl ProfileError {
         match self.kind {
             ProfileErrorKind::Validation => "request payload is invalid",
             ProfileErrorKind::NotFound => "user resource was not found",
+            ProfileErrorKind::MediaNotFound => "profile media resource was not found",
             ProfileErrorKind::DependencyUnavailable => "profile dependency is unavailable",
+            ProfileErrorKind::MediaDependencyUnavailable => {
+                "profile media dependency is unavailable"
+            }
         }
     }
 }

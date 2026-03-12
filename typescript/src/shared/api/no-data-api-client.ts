@@ -1,4 +1,5 @@
 import { useAuthStore } from "@/shared/model/stores/auth-store";
+import { useSettingsStore } from "@/shared/model/stores/settings-store";
 import type {
   APIClient,
   AuditLogEntry,
@@ -6,10 +7,13 @@ import type {
   MessageQueryParams,
   SendMessageParams,
   PermissionSnapshot,
+  CreateMyProfileMediaUploadUrlInput,
   CreateModerationMuteData,
   CreateModerationReportData,
   CreateChannelData,
   CreateGuildData,
+  MyProfileMediaDownload,
+  MyProfileMediaUpload,
   UpdateGuildData,
   CreateInviteData,
   Invite,
@@ -33,6 +37,7 @@ import type {
   UserProfile,
   CreateMessageData,
   EditMessageData,
+  DeleteMessageData,
 } from "@/shared/model/types";
 
 function unsupported(action: string): Error {
@@ -72,6 +77,7 @@ function buildMyProfile(user: User): MyProfile {
     statusText: user.customStatus,
     avatarKey: null,
     bannerKey: null,
+    theme: useSettingsStore.getState().theme === "light" ? "light" : "dark",
   };
 }
 
@@ -154,7 +160,11 @@ export class NoDataAPIClient implements APIClient {
     return unsupportedPromise("editMessage");
   }
 
-  deleteMessage(_channelId: string, _messageId: string): Promise<void> {
+  deleteMessage(
+    _channelId: string,
+    _messageId: string,
+    _data: DeleteMessageData,
+  ): Promise<Message> {
     return unsupportedPromise("deleteMessage");
   }
 
@@ -217,6 +227,8 @@ export class NoDataAPIClient implements APIClient {
         input.statusText !== undefined
           ? (input.statusText?.trim() ?? null)
           : currentUser.customStatus;
+      const theme =
+        input.theme ?? (useSettingsStore.getState().theme === "light" ? "light" : "dark");
 
       const updatedUser: User = {
         ...currentUser,
@@ -224,12 +236,14 @@ export class NoDataAPIClient implements APIClient {
         customStatus: statusText,
       };
       useAuthStore.setState({ currentUser: updatedUser, customStatus: statusText });
+      useSettingsStore.getState().setTheme(theme);
 
       return Promise.resolve({
         displayName,
         statusText,
         avatarKey: null,
         bannerKey: null,
+        theme,
       });
     } catch (error) {
       return Promise.reject(
@@ -264,6 +278,16 @@ export class NoDataAPIClient implements APIClient {
 
   createDM(_recipientId: string): Promise<Channel> {
     return unsupportedPromise("createDM");
+  }
+
+  createMyProfileMediaUploadUrl(
+    _input: CreateMyProfileMediaUploadUrlInput,
+  ): Promise<MyProfileMediaUpload> {
+    return unsupportedPromise("createMyProfileMediaUploadUrl");
+  }
+
+  getMyProfileMediaDownloadUrl(_target: "avatar" | "banner"): Promise<MyProfileMediaDownload> {
+    return unsupportedPromise("getMyProfileMediaDownloadUrl");
   }
 
   createGroupDM(_recipientIds: string[]): Promise<Channel> {

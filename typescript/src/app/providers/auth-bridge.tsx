@@ -9,15 +9,16 @@ import type { User } from "@/shared/model/types/user";
 
 function buildSessionBackedUser(
   currentUser: User | null,
-  currentPrincipalId: string | null,
   sessionUser: { uid: string; email: string | null },
+  currentPrincipalId: string | null,
 ): User {
-  const resolvedUserId = currentPrincipalId ?? sessionUser.uid;
   const username = sessionUser.email?.split("@")[0] ?? "User";
+  const resolvedUserId = currentPrincipalId ?? sessionUser.uid;
 
   if (currentUser?.id === resolvedUserId) {
     return {
       ...currentUser,
+      id: resolvedUserId,
       username,
       bot: false,
     };
@@ -52,8 +53,8 @@ function isSameUser(left: User | null, right: User): boolean {
  */
 export function AuthBridge() {
   const session = useAuthSession();
-  const currentPrincipalId = useAuthStore((s) => s.currentPrincipalId);
   const currentUser = useAuthStore((s) => s.currentUser);
+  const currentPrincipalId = useAuthStore((s) => s.currentPrincipalId);
   const setCurrentUser = useAuthStore((s) => s.setCurrentUser);
   const clearCurrentUser = useAuthStore((s) => s.clearCurrentUser);
   const currentUserId =
@@ -67,7 +68,7 @@ export function AuthBridge() {
       return;
     }
 
-    const nextUser = buildSessionBackedUser(currentUser, currentPrincipalId, session.user);
+    const nextUser = buildSessionBackedUser(currentUser, session.user, currentPrincipalId);
     if (!isSameUser(currentUser, nextUser)) {
       setCurrentUser(nextUser);
     }

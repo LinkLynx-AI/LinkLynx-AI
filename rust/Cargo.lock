@@ -893,6 +893,7 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "axum",
+ "base64",
  "futures-util",
  "http",
  "jsonwebtoken",
@@ -903,6 +904,7 @@ dependencies = [
  "linklynx_protocol_events",
  "linklynx_protocol_ws",
  "linklynx_shared",
+ "percent-encoding",
  "reqwest",
  "scylla",
  "serde",

@@ -6,6 +6,7 @@ edition.workspace = true
 [dependencies]
 async-trait.workspace = true
 axum.workspace = true
+base64.workspace = true
 http.workspace = true
 jsonwebtoken.workspace = true
 linklynx_message_api = { path = "../../crates/contracts/message-api" }
@@ -15,6 +16,7 @@ linklynx_protocol_ws = { path = "../../crates/contracts/protocol-ws" }
 linklynx_platform_postgres_message = { path = "../../crates/platform/postgres/message" }
 linklynx_platform_scylla_message = { path = "../../crates/platform/scylla/message" }
 linklynx_shared = { path = "../../crates/shared" }
+percent-encoding.workspace = true
 reqwest.workspace = true
 scylla.workspace = true
 serde.workspace = true

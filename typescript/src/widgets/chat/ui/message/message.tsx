@@ -1,11 +1,18 @@
 "use client";
 
 import { useCallback, useState, useRef, type KeyboardEvent } from "react";
+import {
+  GuildChannelApiError,
+  toDeleteActionErrorText,
+  toUpdateActionErrorText,
+} from "@/shared/api";
 import { Avatar } from "@/shared/ui/avatar";
 import { cn } from "@/shared/lib/cn";
 import { formatMessageTimestamp, formatShortTimestamp } from "@/shared/lib/format-date";
 import { useUIStore } from "@/shared/model/stores/ui-store";
 import { useEditMessage } from "@/shared/api/mutations/use-edit-message";
+import { useDeleteMessage } from "@/shared/api/mutations/use-message-actions";
+import { useAuthStore } from "@/shared/model/stores/auth-store";
 import type { Message as MessageType } from "@/shared/model/types/message";
 import { MessageActions } from "./message-actions";
 import { MessageAttachment } from "./message-attachment";
@@ -21,10 +28,12 @@ const SYSTEM_TYPES = new Set([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
 
 function InlineEditForm({
   content,
+  errorText,
   onSave,
   onCancel,
 }: {
   content: string;
+  errorText: string | null;
   onSave: (newContent: string) => void;
   onCancel: () => void;
 }) {
@@ -92,38 +101,106 @@ function InlineEditForm({
           保存
         </button>
       </span>
+      {errorText !== null && <div className="mt-1 text-xs text-red-400">{errorText}</div>}
     </div>
   );
 }
 
 export function Message({ message, isGrouped }: { message: MessageType; isGrouped: boolean }) {
   const [hovered, setHovered] = useState(false);
-  const [editing, setEditing] = useState(false);
   const [dismissed, setDismissed] = useState(false);
+  const [editErrorText, setEditErrorText] = useState<string | null>(null);
   const ephemeral = isEphemeral(message.flags);
   const showProfilePopout = useUIStore((s) => s.showProfilePopout);
   const showContextMenu = useUIStore((s) => s.showContextMenu);
-  const { mutate: editMessage } = useEditMessage();
+  const addToast = useUIStore((s) => s.addToast);
+  const activeMessageEdit = useUIStore((s) => s.activeMessageEdit);
+  const startMessageEdit = useUIStore((s) => s.startMessageEdit);
+  const stopMessageEdit = useUIStore((s) => s.stopMessageEdit);
+  const currentPrincipalId = useAuthStore((s) => s.currentPrincipalId);
+  const currentUser = useAuthStore((s) => s.currentUser);
+  const editMessage = useEditMessage();
+  const deleteMessage = useDeleteMessage();
+  const editing =
+    activeMessageEdit?.channelId === message.channelId &&
+    activeMessageEdit.messageId === message.id;
+  const isOwnMessage = (currentPrincipalId ?? currentUser?.id ?? null) === message.author.id;
+  const canMutateMessage = isOwnMessage && !message.isDeleted;
 
   const startEditing = useCallback(() => {
-    setEditing(true);
-  }, []);
+    setEditErrorText(null);
+    startMessageEdit(message.channelId, message.id);
+  }, [message.channelId, message.id, startMessageEdit]);
 
   const cancelEditing = useCallback(() => {
-    setEditing(false);
-  }, []);
+    setEditErrorText(null);
+    stopMessageEdit();
+  }, [stopMessageEdit]);
 
   const saveEdit = useCallback(
     (newContent: string) => {
-      editMessage({
+      setEditErrorText(null);
+      editMessage.mutate(
+        {
+          channelId: message.channelId,
+          messageId: message.id,
+          message,
+          data: {
+            content: newContent,
+            expectedVersion: message.version,
+          },
+        },
+        {
+          onSuccess: () => {
+            stopMessageEdit();
+          },
+          onError: (error) => {
+            const text = toUpdateActionErrorText(error, "メッセージの編集に失敗しました。");
+            if (
+              error instanceof GuildChannelApiError &&
+              (error.code === "MESSAGE_CONFLICT" ||
+                error.code === "AUTHZ_DENIED" ||
+                error.code === "AUTHZ_UNAVAILABLE" ||
+                error.code === "CHANNEL_NOT_FOUND")
+            ) {
+              stopMessageEdit();
+              setEditErrorText(null);
+              addToast({ message: text, type: "error" });
+              return;
+            }
+            setEditErrorText(text);
+          },
+        },
+      );
+    },
+    [addToast, editMessage, message, stopMessageEdit],
+  );
+
+  const handleDelete = useCallback(() => {
+    deleteMessage.mutate(
+      {
         channelId: message.channelId,
         messageId: message.id,
-        data: { content: newContent },
-      });
-      setEditing(false);
-    },
-    [editMessage, message.channelId, message.id],
-  );
+        message,
+      },
+      {
+        onError: (error) => {
+          addToast({
+            message: toDeleteActionErrorText(error, "メッセージの削除に失敗しました。"),
+            type: "error",
+          });
+        },
+      },
+    );
+  }, [addToast, deleteMessage, message]);
+
+  const renderMessageBody = () => {
+    if (message.isDeleted) {
+      return <span className="italic text-discord-text-muted">メッセージは削除されました。</span>;
+    }
+
+    return <MessageContent content={message.content} mentions={message.mentions} />;
+  };
 
   const handleContextMenu = useCallback(
     (e: React.MouseEvent) => {
@@ -150,14 +227,19 @@ export function Message({ message, isGrouped }: { message: MessageType; isGroupe
   const renderContent = () => {
     if (editing) {
       return (
-        <InlineEditForm content={message.content} onSave={saveEdit} onCancel={cancelEditing} />
+        <InlineEditForm
+          content={message.content}
+          errorText={editErrorText}
+          onSave={saveEdit}
+          onCancel={cancelEditing}
+        />
       );
     }
 
     return (
       <>
-        <MessageContent content={message.content} mentions={message.mentions} />
-        {message.editedTimestamp && (
+        {renderMessageBody()}
+        {!message.isDeleted && message.editedTimestamp && (
           <span className="text-[10px] text-discord-text-muted"> (編集済み)</span>
         )}
       </>
@@ -176,7 +258,12 @@ export function Message({ message, isGrouped }: { message: MessageType; isGroupe
       onContextMenu={handleContextMenu}
     >
       {hovered && !editing && (
-        <MessageActions message={message} channelId={message.channelId} onEdit={startEditing} />
+        <MessageActions
+          message={message}
+          channelId={message.channelId}
+          onEdit={canMutateMessage ? startEditing : undefined}
+          onDelete={canMutateMessage ? handleDelete : undefined}
+        />
       )}
 
       {message.referencedMessage && (

@@ -1,5 +1,6 @@
 mod auth;
 mod authz;
+mod dm;
 mod guild_channel;
 mod invite;
 mod message;
@@ -41,12 +42,16 @@ use axum::{
     routing::{get, patch, post},
     Json, Router,
 };
+use dm::{build_runtime_dm_service, dm_error_response, DmService};
 use guild_channel::{
     build_runtime_guild_channel_service, guild_channel_error_response, GuildChannelError,
     GuildChannelService,
 };
 use invite::{build_runtime_invite_service, invite_error_response, InviteService};
-use linklynx_message_api::{CreateGuildChannelMessageRequestV1, ListGuildChannelMessagesQueryV1};
+use linklynx_message_api::{
+    CreateGuildChannelMessageRequestV1, DeleteGuildChannelMessageRequestV1,
+    EditGuildChannelMessageRequestV1, ListGuildChannelMessagesQueryV1,
+};
 use linklynx_protocol_ws::{
     ClientMessageFrameV1, GuildChannelSubscriptionTargetV1, MessageSubscriptionStateV1,
     ServerMessageFrameV1,
@@ -58,8 +63,8 @@ use moderation::{
     build_runtime_moderation_service, moderation_error_response, ModerationError, ModerationService,
 };
 use profile::{
-    build_runtime_profile_service, profile_error_response, ProfileError, ProfilePatchInput,
-    ProfileService,
+    build_runtime_profile_media_service, build_runtime_profile_service, profile_error_response,
+    ProfileError, ProfileMediaService, ProfilePatchInput, ProfileService,
 };
 use ratelimit::{
     build_runtime_rest_rate_limit_service, rest_rate_limit_action_for_request, RestRateLimitAction,
@@ -76,11 +81,13 @@ pub(crate) struct AppState {
     authorizer: Arc<dyn Authorizer>,
     authz_metrics: Arc<AuthzMetrics>,
     guild_channel_service: Arc<dyn GuildChannelService>,
+    dm_service: Arc<dyn DmService>,
     invite_service: Arc<dyn InviteService>,
     message_service: Arc<dyn MessageService>,
     message_realtime_hub: Arc<MessageRealtimeHub>,
     moderation_service: Arc<dyn ModerationService>,
     profile_service: Arc<dyn ProfileService>,
+    profile_media_service: Arc<dyn ProfileMediaService>,
     scylla_health_reporter: Arc<dyn ScyllaHealthReporter>,
     ws_reauth_grace: Duration,
     ws_ticket_ttl: Duration,
@@ -137,11 +144,13 @@ async fn build_runtime_state() -> AppState {
     let authorizer = build_runtime_authorizer();
     let authz_metrics = Arc::new(AuthzMetrics::default());
     let guild_channel_service = build_runtime_guild_channel_service();
-    let invite_service = build_runtime_invite_service();
     let message_service = build_runtime_message_service().await;
+    let dm_service = build_runtime_dm_service(Arc::clone(&message_service));
+    let invite_service = build_runtime_invite_service();
     let message_realtime_hub = Arc::new(MessageRealtimeHub::default());
     let moderation_service = build_runtime_moderation_service();
     let profile_service = build_runtime_profile_service();
+    let profile_media_service = build_runtime_profile_media_service(Arc::clone(&profile_service));
     let scylla_health_reporter = build_runtime_scylla_health_reporter().await;
     let ws_reauth_grace = Duration::from_secs(
         env::var("WS_REAUTH_GRACE_SECONDS")
@@ -162,11 +171,13 @@ async fn build_runtime_state() -> AppState {
         authorizer,
         authz_metrics,
         guild_channel_service,
+        dm_service,
         invite_service,
         message_service,
         message_realtime_hub,
         moderation_service,
         profile_service,
+        profile_media_service,
         scylla_health_reporter,
         ws_reauth_grace,
         ws_ticket_ttl,

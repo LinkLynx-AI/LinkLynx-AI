@@ -220,6 +220,7 @@ pub(crate) async fn seed_guild_text_channel(
         )
         .await
         .expect("failed to seed guild");
+    seed_guild_member(client, guild_id, owner_id, channel_created_at).await;
     client
         .execute(
             "INSERT INTO channels (id, type, guild_id, name, created_by, created_at)
@@ -240,6 +241,32 @@ pub(crate) async fn seed_guild_text_channel(
         )
         .await
         .expect("failed to seed channel");
+}
+
+/// integration 用の guild member row を seed する。
+/// @param client Postgres client
+/// @param guild_id 対象 guild_id
+/// @param user_id 対象 user_id
+/// @param joined_at 参加時刻
+/// @returns `()`
+/// @throws panic seed SQL が失敗した場合
+pub(crate) async fn seed_guild_member(
+    client: &tokio_postgres::Client,
+    guild_id: i64,
+    user_id: i64,
+    joined_at: &str,
+) {
+    client
+        .execute(
+            "INSERT INTO guild_members (guild_id, user_id, joined_at)
+             VALUES ($1, $2, CAST($3 AS text)::timestamptz)
+             ON CONFLICT (guild_id, user_id)
+             DO UPDATE SET
+               joined_at = EXCLUDED.joined_at",
+            &[&guild_id, &user_id, &joined_at],
+        )
+        .await
+        .expect("failed to seed guild member");
 }
 
 /// integration 用の channel_last_message を upsert する。

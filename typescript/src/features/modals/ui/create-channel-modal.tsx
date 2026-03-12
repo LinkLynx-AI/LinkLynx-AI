@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Hash, Volume2, MessageSquare, Lock } from "lucide-react";
+import { Hash, Volume2, MessageSquare, Lock, FolderClosed } from "lucide-react";
 import { Modal, ModalHeader, ModalBody, ModalFooter } from "@/shared/ui/modal";
 import { Button } from "@/shared/ui/button";
 import { Input } from "@/shared/ui/input";
@@ -14,6 +14,7 @@ import { buildChannelRoute } from "@/shared/config/routes";
 import { cn } from "@/shared/lib/cn";
 
 const TEXT_CHANNEL_TYPE = 0 as const;
+const CATEGORY_CHANNEL_TYPE = 4 as const;
 
 const channelTypes = [
   {
@@ -21,6 +22,13 @@ const channelTypes = [
     label: "テキスト",
     icon: Hash,
     description: "メッセージや画像、GIFなどを送信できます",
+    supported: true,
+  },
+  {
+    type: CATEGORY_CHANNEL_TYPE,
+    label: "カテゴリ",
+    icon: FolderClosed,
+    description: "配下にテキストチャンネルを整理できます",
     supported: true,
   },
   {
@@ -42,12 +50,18 @@ const channelTypes = [
 export function CreateChannelModal({
   onClose,
   serverId,
+  parentId,
+  initialChannelType,
 }: {
   onClose: () => void;
   serverId?: string;
+  parentId?: string;
+  initialChannelType?: 0 | 4;
 }) {
   const router = useRouter();
-  const [channelType, setChannelType] = useState<0 | 2 | 15>(0);
+  const [channelType, setChannelType] = useState<0 | 4 | 2 | 15>(
+    initialChannelType ?? TEXT_CHANNEL_TYPE,
+  );
   const [channelName, setChannelName] = useState("");
   const [isPrivate, setIsPrivate] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -81,65 +95,81 @@ export function CreateChannelModal({
     try {
       const createdChannel = await createChannel.mutateAsync({
         serverId,
-        data: { name: normalizedName, type: TEXT_CHANNEL_TYPE },
+        data: {
+          name: normalizedName,
+          type: channelType,
+          parentId: channelType === CATEGORY_CHANNEL_TYPE ? undefined : parentId,
+        },
       });
       onClose();
-      router.push(buildChannelRoute(serverId, createdChannel.id));
+      if (createdChannel.type !== CATEGORY_CHANNEL_TYPE) {
+        router.push(buildChannelRoute(serverId, createdChannel.id));
+      }
     } catch (error: unknown) {
       setSubmitError(toCreateActionErrorText(error, "チャンネルの作成に失敗しました。"));
     }
   };
   const guardMessage = serverId === undefined ? null : actionGuard.message;
+  const isCategoryCreate = channelType === CATEGORY_CHANNEL_TYPE;
+  const typeSelectionLocked = initialChannelType !== undefined || parentId !== undefined;
+  const modalTitle = isCategoryCreate ? "カテゴリーを作成" : "チャンネルを作成";
+  const submitLabel = isCategoryCreate ? "カテゴリーを作成" : "チャンネルを作成";
+  const helperText =
+    parentId !== undefined
+      ? "選択したカテゴリ配下にテキストチャンネルを作成します。"
+      : isCategoryCreate
+        ? "カテゴリは配下にテキストチャンネルを整理するためのコンテナです。"
+        : "v1ではテキストチャンネルとカテゴリを作成できます。";
 
   return (
     <Modal open onClose={handleClose} className="max-w-[460px]">
-      <ModalHeader>チャンネルを作成</ModalHeader>
+      <ModalHeader>{modalTitle}</ModalHeader>
       <ModalBody>
         <div className="space-y-4">
           <div>
             <p className="mb-2 text-xs font-bold uppercase text-discord-header-secondary">
               チャンネルの種類
             </p>
-            <p className="mb-2 text-xs text-discord-text-muted">
-              v1ではテキストチャンネルのみ作成できます。
-            </p>
-            <div className="space-y-2">
-              {channelTypes.map((ct) => {
-                const Icon = ct.icon;
-                const isDisabled = !ct.supported;
-                return (
-                  <button
-                    key={ct.type}
-                    disabled={isDisabled}
-                    onClick={() => {
-                      if (isDisabled) {
-                        return;
-                      }
-                      setChannelType(ct.type);
-                    }}
-                    className={cn(
-                      "flex w-full items-center gap-3 rounded-[3px] px-3 py-2.5 text-left transition-colors",
-                      isDisabled && "cursor-not-allowed opacity-55",
-                      channelType === ct.type
-                        ? "bg-discord-bg-mod-selected"
-                        : "bg-discord-bg-secondary hover:bg-discord-bg-mod-hover",
-                    )}
-                  >
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-discord-bg-tertiary">
-                      <Icon className="h-5 w-5 text-discord-interactive-normal" />
-                    </div>
-                    <div>
-                      <div className="font-medium text-discord-text-normal">{ct.label}</div>
-                      <div className="text-xs text-discord-text-muted">{ct.description}</div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
+            <p className="mb-2 text-xs text-discord-text-muted">{helperText}</p>
+            {!typeSelectionLocked && (
+              <div className="space-y-2">
+                {channelTypes.map((ct) => {
+                  const Icon = ct.icon;
+                  const isDisabled = !ct.supported;
+                  return (
+                    <button
+                      key={ct.type}
+                      disabled={isDisabled}
+                      onClick={() => {
+                        if (isDisabled) {
+                          return;
+                        }
+                        setChannelType(ct.type);
+                      }}
+                      className={cn(
+                        "flex w-full items-center gap-3 rounded-[3px] px-3 py-2.5 text-left transition-colors",
+                        isDisabled && "cursor-not-allowed opacity-55",
+                        channelType === ct.type
+                          ? "bg-discord-bg-mod-selected"
+                          : "bg-discord-bg-secondary hover:bg-discord-bg-mod-hover",
+                      )}
+                    >
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-discord-bg-tertiary">
+                        <Icon className="h-5 w-5 text-discord-interactive-normal" />
+                      </div>
+                      <div>
+                        <div className="font-medium text-discord-text-normal">{ct.label}</div>
+                        <div className="text-xs text-discord-text-muted">{ct.description}</div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
           <Input
-            label="チャンネル名"
-            placeholder="新しいチャンネル"
+            label={isCategoryCreate ? "カテゴリー名" : "チャンネル名"}
+            placeholder={isCategoryCreate ? "新しいカテゴリ" : "新しいチャンネル"}
             value={channelName}
             onChange={(e) => {
               setChannelName(e.target.value);
@@ -191,7 +221,7 @@ export function CreateChannelModal({
           }
           onClick={() => void handleCreate()}
         >
-          チャンネルを作成
+          {submitLabel}
         </Button>
       </ModalFooter>
     </Modal>

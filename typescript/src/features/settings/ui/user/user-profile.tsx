@@ -49,7 +49,6 @@ function toProfileSaveErrorText(error: unknown): string {
 export function UserProfile() {
   const currentUser = useAuthStore((s) => s.currentUser);
   const setCurrentUser = useAuthStore((s) => s.setCurrentUser);
-  const setCustomStatus = useAuthStore((s) => s.setCustomStatus);
   const currentUserId = currentUser?.id ?? null;
   const {
     data: myProfile,
@@ -296,7 +295,6 @@ export function UserProfile() {
           avatar: nextAvatarUrl,
         });
       }
-      setCustomStatus(updatedProfile.statusText);
       setDisplayName(updatedProfile.displayName);
       setBio(updatedProfile.statusText ?? "");
       setPendingAvatarFile(null);

@@ -85,6 +85,7 @@ describe("useUpdateMyProfile", () => {
       statusText: "new-status",
       avatarKey: "avatars/new-name.png",
       bannerKey: "banners/new-name.png",
+      theme: "dark",
     });
 
     const { result } = renderHook(() => useUpdateMyProfile("u-1"), { wrapper });
@@ -109,6 +110,7 @@ describe("useUpdateMyProfile", () => {
       statusText: "new-status",
       avatarKey: "avatars/new-name.png",
       bannerKey: "banners/new-name.png",
+      theme: "dark",
     });
     expect(queryClient.getQueryData(["friends"])).toEqual([
       {

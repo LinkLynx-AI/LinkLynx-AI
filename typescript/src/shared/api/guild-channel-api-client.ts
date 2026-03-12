@@ -1,20 +1,30 @@
 import { z } from "zod";
 import { getFirebaseAuth } from "@/shared/lib";
-import type { Channel, Guild, Message } from "@/shared/model/types";
+import type {
+  Channel,
+  DeleteMessageData,
+  EditMessageData,
+  Guild,
+  Message,
+} from "@/shared/model/types";
 import { useAuthStore } from "@/shared/model/stores/auth-store";
 import type {
+  CreateMyProfileMediaUploadUrlInput,
   ChannelPermissionSnapshot,
   CreateChannelData,
   CreateGuildData,
   CreateModerationMuteData,
   CreateModerationReportData,
   GuildPermissionSnapshot,
+  MyProfileMediaDownload,
+  MyProfileMediaUpload,
   MessagePage,
   MessageQueryParams,
   MyProfile,
   ModerationMute,
   ModerationReport,
   PermissionSnapshot,
+  ProfileMediaTarget,
   SendMessageParams,
   UpdateGuildData,
   UpdateMyProfileInput,
@@ -52,7 +62,27 @@ const CHANNEL_SUMMARY_SCHEMA = z.object({
   channel_id: z.number().int().positive(),
   guild_id: z.number().int().positive(),
   name: z.string().trim().min(1),
+  type: z.enum(["guild_text", "guild_category"]).optional(),
+  parent_id: z.number().int().positive().nullable().optional(),
+  position: z.number().int().nonnegative().optional(),
   created_at: z.string().trim().min(1),
+});
+const DM_RECIPIENT_SCHEMA = z.object({
+  user_id: z.number().int().positive(),
+  display_name: z.string().trim().min(1),
+  avatar_key: z.string().trim().min(1).nullable().optional(),
+});
+const DM_CHANNEL_SUMMARY_SCHEMA = z.object({
+  channel_id: z.number().int().positive(),
+  created_at: z.string().trim().min(1),
+  last_message_id: z.number().int().positive().nullable().optional(),
+  recipient: DM_RECIPIENT_SCHEMA,
+});
+const DM_CHANNEL_LIST_RESPONSE_SCHEMA = z.object({
+  channels: z.array(DM_CHANNEL_SUMMARY_SCHEMA),
+});
+const DM_CHANNEL_RESPONSE_SCHEMA = z.object({
+  channel: DM_CHANNEL_SUMMARY_SCHEMA,
 });
 const CHANNEL_LIST_RESPONSE_SCHEMA = z.object({
   channels: z.array(CHANNEL_SUMMARY_SCHEMA),
@@ -99,9 +129,29 @@ const MY_PROFILE_SCHEMA = z.object({
   status_text: z.string().nullable(),
   avatar_key: z.string().nullable(),
   banner_key: z.string().nullable(),
+  theme: z.enum(["dark", "light"]),
 });
 const MY_PROFILE_RESPONSE_SCHEMA = z.object({
   profile: MY_PROFILE_SCHEMA,
+});
+const PROFILE_MEDIA_TARGET_SCHEMA = z.enum(["avatar", "banner"]);
+const PROFILE_MEDIA_UPLOAD_RESPONSE_SCHEMA = z.object({
+  upload: z.object({
+    target: PROFILE_MEDIA_TARGET_SCHEMA,
+    object_key: z.string().trim().min(1),
+    upload_url: z.string().url(),
+    expires_at: z.string().trim().min(1),
+    method: z.literal("PUT"),
+    required_headers: z.record(z.string(), z.string()),
+  }),
+});
+const PROFILE_MEDIA_DOWNLOAD_RESPONSE_SCHEMA = z.object({
+  media: z.object({
+    target: PROFILE_MEDIA_TARGET_SCHEMA,
+    object_key: z.string().trim().min(1),
+    download_url: z.string().url(),
+    expires_at: z.string().trim().min(1),
+  }),
 });
 const PERMISSION_SNAPSHOT_RESPONSE_SCHEMA = z.object({
   request_id: z.string().trim().min(1),
@@ -148,9 +198,11 @@ const DEFAULT_CHANNEL_VALUES = {
   rateLimitPerUser: 0,
   lastMessageId: null,
 } as const;
-const SUPPORTED_CHANNEL_TYPES = [0] as const;
+const SUPPORTED_CHANNEL_TYPES = [0, 4] as const;
+const CATEGORY_CHANNEL_TYPE = 4 as const;
 const CREATE_ERROR_MESSAGES = {
   validation: "入力内容を確認してください。",
+  userNotFound: "対象ユーザーが見つかりません。",
   authzDenied: "この操作を行う権限がありません。",
   authzUnavailable: "認可サービスが一時的に利用できません。しばらくしてから再試行してください。",
   guildNotFound: "対象のサーバーが見つかりません。",
@@ -166,6 +218,7 @@ const UPDATE_ERROR_MESSAGES = {
   network: "ネットワーク接続を確認してから再試行してください。",
 } as const;
 const DELETE_ERROR_MESSAGES = {
+  validation: "入力内容を確認してください。",
   authzDenied: "この操作を行う権限がありません。",
   authzUnavailable: "認可サービスが一時的に利用できません。しばらくしてから再試行してください。",
   guildNotFound: "対象のサーバーが見つかりません。",
@@ -189,13 +242,24 @@ const MESSAGE_TIMELINE_ERROR_MESSAGES = {
   authRequired: "ログイン状態を確認してから再試行してください。",
   network: "ネットワーク接続を確認してから再試行してください。",
 } as const;
+const MESSAGE_UPDATE_ERROR_MESSAGES = {
+  conflict: "メッセージが更新されています。最新状態を読み直しました。",
+} as const;
+const MESSAGE_DELETE_ERROR_MESSAGES = {
+  conflict: "メッセージの状態が変わっています。最新状態を読み直しました。",
+} as const;
+const MESSAGE_UPDATE_RESPONSE_SCHEMA = MESSAGE_CREATE_RESPONSE_SCHEMA;
+const MESSAGE_DELETE_RESPONSE_SCHEMA = MESSAGE_CREATE_RESPONSE_SCHEMA;
 
 type GuildListResponse = z.infer<typeof GUILD_LIST_RESPONSE_SCHEMA>;
 type GuildCreateResponse = z.infer<typeof GUILD_CREATE_RESPONSE_SCHEMA>;
 type GuildUpdateResponse = z.infer<typeof GUILD_UPDATE_RESPONSE_SCHEMA>;
 type ChannelListResponse = z.infer<typeof CHANNEL_LIST_RESPONSE_SCHEMA>;
 type ChannelSummaryResponse = z.infer<typeof CHANNEL_SUMMARY_SCHEMA>;
+type DmChannelListResponse = z.infer<typeof DM_CHANNEL_LIST_RESPONSE_SCHEMA>;
 type MyProfileResponse = z.infer<typeof MY_PROFILE_RESPONSE_SCHEMA>;
+type ProfileMediaUploadResponse = z.infer<typeof PROFILE_MEDIA_UPLOAD_RESPONSE_SCHEMA>;
+type ProfileMediaDownloadResponse = z.infer<typeof PROFILE_MEDIA_DOWNLOAD_RESPONSE_SCHEMA>;
 type PermissionSnapshotResponse = z.infer<typeof PERMISSION_SNAPSHOT_RESPONSE_SCHEMA>;
 type SupportedChannelType = (typeof SUPPORTED_CHANNEL_TYPES)[number];
 type ModerationReportApi = z.infer<typeof MODERATION_REPORT_SCHEMA>;
@@ -279,6 +343,9 @@ export function toCreateActionErrorText(error: unknown, fallbackMessage: string)
   if (error.code === "VALIDATION_ERROR") {
     return attachRequestId(CREATE_ERROR_MESSAGES.validation, error.requestId);
   }
+  if (error.code === "USER_NOT_FOUND") {
+    return attachRequestId(CREATE_ERROR_MESSAGES.userNotFound, error.requestId);
+  }
   if (error.code === "AUTHZ_DENIED") {
     return attachRequestId(CREATE_ERROR_MESSAGES.authzDenied, error.requestId);
   }
@@ -315,6 +382,9 @@ export function toUpdateActionErrorText(error: unknown, fallbackMessage: string)
   if (error.code === "AUTHZ_UNAVAILABLE") {
     return attachRequestId(UPDATE_ERROR_MESSAGES.authzUnavailable, error.requestId);
   }
+  if (error.code === "MESSAGE_CONFLICT" || error.status === 409) {
+    return attachRequestId(MESSAGE_UPDATE_ERROR_MESSAGES.conflict, error.requestId);
+  }
   if (error.code === "CHANNEL_NOT_FOUND") {
     return attachRequestId(UPDATE_ERROR_MESSAGES.channelNotFound, error.requestId);
   }
@@ -339,8 +409,14 @@ export function toDeleteActionErrorText(error: unknown, fallbackMessage: string)
   if (error.code === "AUTHZ_DENIED") {
     return attachRequestId(DELETE_ERROR_MESSAGES.authzDenied, error.requestId);
   }
+  if (error.code === "VALIDATION_ERROR") {
+    return attachRequestId(DELETE_ERROR_MESSAGES.validation, error.requestId);
+  }
   if (error.code === "AUTHZ_UNAVAILABLE") {
     return attachRequestId(DELETE_ERROR_MESSAGES.authzUnavailable, error.requestId);
+  }
+  if (error.code === "MESSAGE_CONFLICT" || error.status === 409) {
+    return attachRequestId(MESSAGE_DELETE_ERROR_MESSAGES.conflict, error.requestId);
   }
   if (error.code === "GUILD_NOT_FOUND") {
     return attachRequestId(DELETE_ERROR_MESSAGES.guildNotFound, error.requestId);
@@ -539,11 +615,45 @@ function mapCreatedGuild(summary: GuildCreateResponse["guild"]): Guild {
 
 function mapChannel(summary: ChannelListResponse["channels"][number], position: number): Channel {
   return {
+    ...DEFAULT_CHANNEL_VALUES,
     id: String(summary.channel_id),
+    type: summary.type === "guild_category" ? CATEGORY_CHANNEL_TYPE : 0,
     guildId: String(summary.guild_id),
     name: summary.name,
-    position,
+    position: summary.position ?? position,
+    parentId: summary.parent_id == null ? null : String(summary.parent_id),
+  };
+}
+
+function mapDmRecipient(
+  recipient: DmChannelListResponse["channels"][number]["recipient"],
+): NonNullable<Channel["recipients"]>[number] {
+  return {
+    id: String(recipient.user_id),
+    username: recipient.display_name,
+    displayName: recipient.display_name,
+    avatar: recipient.avatar_key ?? null,
+    status: "offline",
+    customStatus: null,
+    bot: false,
+  };
+}
+
+function mapDmChannel(
+  summary: DmChannelListResponse["channels"][number],
+  position: number,
+): Channel {
+  return {
     ...DEFAULT_CHANNEL_VALUES,
+    id: String(summary.channel_id),
+    type: 1,
+    name: summary.recipient.display_name,
+    position,
+    recipients: [mapDmRecipient(summary.recipient)],
+    lastMessageId:
+      summary.last_message_id == null
+        ? DEFAULT_CHANNEL_VALUES.lastMessageId
+        : String(summary.last_message_id),
   };
 }
 
@@ -553,6 +663,27 @@ function mapMyProfile(response: MyProfileResponse): MyProfile {
     statusText: response.profile.status_text,
     avatarKey: response.profile.avatar_key,
     bannerKey: response.profile.banner_key,
+    theme: response.profile.theme,
+  };
+}
+
+function mapProfileMediaUpload(response: ProfileMediaUploadResponse): MyProfileMediaUpload {
+  return {
+    target: response.upload.target,
+    objectKey: response.upload.object_key,
+    uploadUrl: response.upload.upload_url,
+    expiresAt: response.upload.expires_at,
+    method: response.upload.method,
+    requiredHeaders: response.upload.required_headers,
+  };
+}
+
+function mapProfileMediaDownload(response: ProfileMediaDownloadResponse): MyProfileMediaDownload {
+  return {
+    target: response.media.target,
+    objectKey: response.media.object_key,
+    downloadUrl: response.media.download_url,
+    expiresAt: response.media.expires_at,
   };
 }
 
@@ -630,6 +761,7 @@ export class GuildChannelAPIClient extends NoDataAPIClient {
   private apiBaseUrl: string | null = null;
   private readonly channelCacheByGuild = new Map<string, Channel[]>();
   private readonly channelIndex = new Map<string, Channel>();
+  private dmChannelsCache: Channel[] | null = null;
 
   private getApiBaseUrl(): string {
     if (this.apiBaseUrl === null) {
@@ -674,7 +806,7 @@ export class GuildChannelAPIClient extends NoDataAPIClient {
 
   private async requestJson<T>(params: {
     path: string;
-    method: "GET" | "POST" | "PATCH";
+    method: "GET" | "POST" | "PATCH" | "DELETE";
     schema: z.ZodType<T>;
     expectedStatus: number;
     body?: Record<string, unknown>;
@@ -787,6 +919,7 @@ export class GuildChannelAPIClient extends NoDataAPIClient {
     path: string,
     body: Record<string, unknown>,
     schema: z.ZodType<T>,
+    options?: { parseResponseText?: (rawText: string) => unknown },
   ): Promise<T> {
     return this.requestJson({
       path,
@@ -794,6 +927,23 @@ export class GuildChannelAPIClient extends NoDataAPIClient {
       body,
       schema,
       expectedStatus: 200,
+      parseResponseText: options?.parseResponseText,
+    });
+  }
+
+  private async deleteJson<T>(
+    path: string,
+    body: Record<string, unknown>,
+    schema: z.ZodType<T>,
+    options?: { parseResponseText?: (rawText: string) => unknown },
+  ): Promise<T> {
+    return this.requestJson({
+      path,
+      method: "DELETE",
+      body,
+      schema,
+      expectedStatus: 200,
+      parseResponseText: options?.parseResponseText,
     });
   }
 
@@ -827,13 +977,64 @@ export class GuildChannelAPIClient extends NoDataAPIClient {
     if (current !== undefined) {
       return {
         ...current,
-        id: String(summary.channel_id),
-        guildId: String(summary.guild_id),
-        name: summary.name,
+        ...mapChannel(summary, fallbackPosition),
       };
     }
 
     return mapChannel(summary, fallbackPosition);
+  }
+
+  private collectDeletedChannelIds(channelId: string, guildId: string | undefined): Set<string> {
+    const deletedIds = new Set<string>([channelId]);
+    if (guildId === undefined) {
+      return deletedIds;
+    }
+
+    const cachedChannels = this.channelCacheByGuild.get(guildId);
+    if (cachedChannels === undefined) {
+      return deletedIds;
+    }
+
+    let foundChild = true;
+    while (foundChild) {
+      foundChild = false;
+      for (const channel of cachedChannels) {
+        if (
+          channel.parentId !== null &&
+          deletedIds.has(channel.parentId) &&
+          !deletedIds.has(channel.id)
+        ) {
+          deletedIds.add(channel.id);
+          foundChild = true;
+        }
+      }
+    }
+
+    return deletedIds;
+  }
+
+  private removeChannelsFromGuildCache(channelIds: Set<string>, guildId: string | undefined): void {
+    for (const channelId of channelIds) {
+      this.channelIndex.delete(channelId);
+    }
+
+    if (guildId !== undefined) {
+      const cachedChannels = this.channelCacheByGuild.get(guildId);
+      if (cachedChannels !== undefined) {
+        this.channelCacheByGuild.set(
+          guildId,
+          cachedChannels.filter((channel) => !channelIds.has(channel.id)),
+        );
+      }
+      return;
+    }
+
+    for (const [cachedGuildId, cachedChannels] of this.channelCacheByGuild.entries()) {
+      const nextChannels = cachedChannels.filter((channel) => !channelIds.has(channel.id));
+      if (nextChannels.length !== cachedChannels.length) {
+        this.channelCacheByGuild.set(cachedGuildId, nextChannels);
+      }
+    }
   }
 
   private upsertChannelInGuildCache(channel: Channel): void {
@@ -891,12 +1092,52 @@ export class GuildChannelAPIClient extends NoDataAPIClient {
     }
   }
 
+  private upsertDmChannel(channel: Channel): void {
+    this.channelIndex.set(channel.id, channel);
+    if (this.dmChannelsCache === null) {
+      this.dmChannelsCache = [channel];
+      return;
+    }
+
+    const index = this.dmChannelsCache.findIndex((candidate) => candidate.id === channel.id);
+    if (index < 0) {
+      this.dmChannelsCache = [...this.dmChannelsCache, channel];
+      return;
+    }
+
+    const nextChannels = [...this.dmChannelsCache];
+    nextChannels[index] = channel;
+    this.dmChannelsCache = nextChannels;
+  }
+
+  private async fetchDmChannels(): Promise<Channel[]> {
+    const response = await this.getJson("/users/me/dms", DM_CHANNEL_LIST_RESPONSE_SCHEMA);
+    const channels = response.channels.map((channel, position) => mapDmChannel(channel, position));
+    this.dmChannelsCache = channels;
+    for (const channel of channels) {
+      this.channelIndex.set(channel.id, channel);
+    }
+    return channels;
+  }
+
+  private async fetchDmChannel(channelId: string): Promise<Channel> {
+    const response = await this.getJson(
+      `/v1/dms/${encodeURIComponent(channelId)}`,
+      DM_CHANNEL_RESPONSE_SCHEMA,
+    );
+    const position = this.dmChannelsCache?.findIndex((channel) => channel.id === channelId) ?? 0;
+    const channel = mapDmChannel(response.channel, position < 0 ? 0 : position);
+    this.upsertDmChannel(channel);
+    return channel;
+  }
+
   private async fetchGuilds(options: { resetChannelCache: boolean }): Promise<Guild[]> {
     const response = await this.getJson("/guilds", GUILD_LIST_RESPONSE_SCHEMA);
     const guilds = response.guilds.map(mapGuild);
 
     if (options.resetChannelCache) {
       this.channelCacheByGuild.clear();
+      this.dmChannelsCache = null;
       this.channelIndex.clear();
     }
 
@@ -1065,6 +1306,30 @@ export class GuildChannelAPIClient extends NoDataAPIClient {
       return refreshed;
     }
 
+    if (this.dmChannelsCache === null) {
+      try {
+        const channels = await this.fetchDmChannels();
+        const dmChannel = channels.find((channel) => channel.id === normalizedChannelId);
+        if (dmChannel !== undefined) {
+          return dmChannel;
+        }
+      } catch {
+        // Fall through to DM detail lookup.
+      }
+    }
+
+    try {
+      return await this.fetchDmChannel(normalizedChannelId);
+    } catch (error) {
+      if (
+        error instanceof GuildChannelApiError &&
+        error.code !== "CHANNEL_NOT_FOUND" &&
+        error.status !== 404
+      ) {
+        throw error;
+      }
+    }
+
     if (!fetchedAnyChannelList && firstFetchError !== null) {
       if (firstFetchError instanceof Error) {
         throw firstFetchError;
@@ -1081,9 +1346,9 @@ export class GuildChannelAPIClient extends NoDataAPIClient {
   }
 
   async getMessages(params: MessageQueryParams): Promise<MessagePage> {
-    const normalizedGuildId = params.guildId.trim();
+    const normalizedGuildId = params.guildId?.trim() ?? "";
     const normalizedChannelId = params.channelId.trim();
-    if (normalizedGuildId.length === 0 || normalizedChannelId.length === 0) {
+    if (normalizedChannelId.length === 0) {
       throw new GuildChannelApiError(MESSAGE_ERROR_MESSAGES.channelNotFound, {
         status: 404,
         code: "CHANNEL_NOT_FOUND",
@@ -1102,38 +1367,38 @@ export class GuildChannelAPIClient extends NoDataAPIClient {
     }
 
     const suffix = searchParams.size === 0 ? "" : `?${searchParams.toString()}`;
-    const response = await this.getJson(
-      `/v1/guilds/${encodeURIComponent(normalizedGuildId)}/channels/${encodeURIComponent(
-        normalizedChannelId,
-      )}/messages${suffix}`,
-      MESSAGE_LIST_RESPONSE_SCHEMA,
-      {
-        parseResponseText: parseMessagePayload,
-      },
-    );
+    const path =
+      normalizedGuildId.length > 0
+        ? `/v1/guilds/${encodeURIComponent(normalizedGuildId)}/channels/${encodeURIComponent(
+            normalizedChannelId,
+          )}/messages${suffix}`
+        : `/v1/dms/${encodeURIComponent(normalizedChannelId)}/messages${suffix}`;
+    const response = await this.getJson(path, MESSAGE_LIST_RESPONSE_SCHEMA, {
+      parseResponseText: parseMessagePayload,
+    });
 
     return mapMessagePage(response);
   }
 
   async sendMessage(params: SendMessageParams): Promise<Message> {
-    const normalizedGuildId = params.guildId.trim();
+    const normalizedGuildId = params.guildId?.trim() ?? "";
     const normalizedChannelId = params.channelId.trim();
     const normalizedContent = params.data.content.trim();
-    if (
-      normalizedGuildId.length === 0 ||
-      normalizedChannelId.length === 0 ||
-      normalizedContent.length === 0
-    ) {
+    if (normalizedChannelId.length === 0 || normalizedContent.length === 0) {
       throw new GuildChannelApiError(MESSAGE_ERROR_MESSAGES.validation, {
         status: 400,
         code: "VALIDATION_ERROR",
       });
     }
 
+    const path =
+      normalizedGuildId.length > 0
+        ? `/v1/guilds/${encodeURIComponent(normalizedGuildId)}/channels/${encodeURIComponent(
+            normalizedChannelId,
+          )}/messages`
+        : `/v1/dms/${encodeURIComponent(normalizedChannelId)}/messages`;
     const response = await this.postJson(
-      `/v1/guilds/${encodeURIComponent(normalizedGuildId)}/channels/${encodeURIComponent(
-        normalizedChannelId,
-      )}/messages`,
+      path,
       { content: normalizedContent },
       MESSAGE_CREATE_RESPONSE_SCHEMA,
       {
@@ -1164,6 +1429,75 @@ export class GuildChannelAPIClient extends NoDataAPIClient {
     };
   }
 
+  async editMessage(channelId: string, messageId: string, data: EditMessageData): Promise<Message> {
+    const normalizedChannelId = channelId.trim();
+    const normalizedMessageId = messageId.trim();
+    const normalizedContent = data.content.trim();
+    const expectedVersion = data.expectedVersion.trim();
+    if (
+      normalizedChannelId.length === 0 ||
+      normalizedMessageId.length === 0 ||
+      normalizedContent.length === 0 ||
+      expectedVersion.length === 0
+    ) {
+      throw new GuildChannelApiError(UPDATE_ERROR_MESSAGES.validation, {
+        status: 400,
+        code: "VALIDATION_ERROR",
+      });
+    }
+
+    const channel = await this.getChannel(normalizedChannelId);
+    const response = await this.patchJson(
+      `/v1/guilds/${encodeURIComponent(channel.guildId ?? "")}/channels/${encodeURIComponent(
+        normalizedChannelId,
+      )}/messages/${encodeURIComponent(normalizedMessageId)}`,
+      {
+        content: normalizedContent,
+        expected_version: Number(expectedVersion),
+      },
+      MESSAGE_UPDATE_RESPONSE_SCHEMA,
+      {
+        parseResponseText: parseMessagePayload,
+      },
+    );
+
+    return mapMessageItem(response.message);
+  }
+
+  async deleteMessage(
+    channelId: string,
+    messageId: string,
+    data: DeleteMessageData,
+  ): Promise<Message> {
+    const normalizedChannelId = channelId.trim();
+    const normalizedMessageId = messageId.trim();
+    const expectedVersion = data.expectedVersion.trim();
+    if (
+      normalizedChannelId.length === 0 ||
+      normalizedMessageId.length === 0 ||
+      expectedVersion.length === 0
+    ) {
+      throw new GuildChannelApiError(DELETE_ERROR_MESSAGES.validation, {
+        status: 400,
+        code: "VALIDATION_ERROR",
+      });
+    }
+
+    const channel = await this.getChannel(normalizedChannelId);
+    const response = await this.deleteJson(
+      `/v1/guilds/${encodeURIComponent(channel.guildId ?? "")}/channels/${encodeURIComponent(
+        normalizedChannelId,
+      )}/messages/${encodeURIComponent(normalizedMessageId)}`,
+      {
+        expected_version: Number(expectedVersion),
+      },
+      MESSAGE_DELETE_RESPONSE_SCHEMA,
+      { parseResponseText: parseMessagePayload },
+    );
+
+    return mapMessageItem(response.message);
+  }
+
   async getMyProfile(): Promise<MyProfile> {
     const response = await this.getJson("/users/me/profile", MY_PROFILE_RESPONSE_SCHEMA);
     return mapMyProfile(response);
@@ -1190,9 +1524,37 @@ export class GuildChannelAPIClient extends NoDataAPIClient {
     if (input.bannerKey !== undefined) {
       body.banner_key = input.bannerKey;
     }
+    if (input.theme !== undefined) {
+      body.theme = input.theme;
+    }
 
     const response = await this.patchJson("/users/me/profile", body, MY_PROFILE_RESPONSE_SCHEMA);
     return mapMyProfile(response);
+  }
+
+  async createMyProfileMediaUploadUrl(
+    input: CreateMyProfileMediaUploadUrlInput,
+  ): Promise<MyProfileMediaUpload> {
+    const response = await this.requestJson({
+      path: "/users/me/profile/media/upload-url",
+      method: "POST",
+      body: {
+        target: input.target,
+        filename: input.filename,
+        content_type: input.contentType,
+      },
+      schema: PROFILE_MEDIA_UPLOAD_RESPONSE_SCHEMA,
+      expectedStatus: 200,
+    });
+    return mapProfileMediaUpload(response);
+  }
+
+  async getMyProfileMediaDownloadUrl(target: ProfileMediaTarget): Promise<MyProfileMediaDownload> {
+    const response = await this.getJson(
+      `/users/me/profile/media/${target}/download-url`,
+      PROFILE_MEDIA_DOWNLOAD_RESPONSE_SCHEMA,
+    );
+    return mapProfileMediaDownload(response);
   }
 
   async createServer(data: CreateGuildData): Promise<Guild> {
@@ -1292,9 +1654,36 @@ export class GuildChannelAPIClient extends NoDataAPIClient {
       });
     }
 
+    const normalizedParentId = data.parentId?.trim() ?? "";
+    if (data.type === CATEGORY_CHANNEL_TYPE && normalizedParentId.length > 0) {
+      throw new GuildChannelApiError(CREATE_ERROR_MESSAGES.validation, {
+        status: 400,
+        code: "VALIDATION_ERROR",
+      });
+    }
+
+    let parsedParentId: number | null = null;
+    if (normalizedParentId.length > 0) {
+      parsedParentId = Number.parseInt(normalizedParentId, 10);
+      if (!Number.isInteger(parsedParentId) || parsedParentId <= 0) {
+        throw new GuildChannelApiError(CREATE_ERROR_MESSAGES.validation, {
+          status: 400,
+          code: "VALIDATION_ERROR",
+        });
+      }
+    }
+
+    const body: Record<string, unknown> = { name: normalizedName };
+    if (data.type === CATEGORY_CHANNEL_TYPE) {
+      body.type = "guild_category";
+    } else if (parsedParentId !== null) {
+      body.type = "guild_text";
+      body.parent_id = parsedParentId;
+    }
+
     const response = await this.postJson(
       `/guilds/${encodeURIComponent(normalizedServerId)}/channels`,
-      { name: normalizedName },
+      body,
       CHANNEL_CREATE_RESPONSE_SCHEMA,
     );
     const cachedChannels = this.channelCacheByGuild.get(normalizedServerId);
@@ -1306,6 +1695,44 @@ export class GuildChannelAPIClient extends NoDataAPIClient {
     }
     this.channelIndex.set(channel.id, channel);
 
+    return channel;
+  }
+
+  async getDMChannels(): Promise<Channel[]> {
+    if (this.dmChannelsCache !== null) {
+      return this.dmChannelsCache;
+    }
+    return this.fetchDmChannels();
+  }
+
+  async createDM(recipientId: string): Promise<Channel> {
+    const normalizedRecipientId = recipientId.trim();
+    const recipientNumber = Number(normalizedRecipientId);
+    if (
+      normalizedRecipientId.length === 0 ||
+      !Number.isSafeInteger(recipientNumber) ||
+      recipientNumber <= 0
+    ) {
+      throw new GuildChannelApiError(CREATE_ERROR_MESSAGES.validation, {
+        status: 400,
+        code: "VALIDATION_ERROR",
+      });
+    }
+
+    const response = await this.postJson(
+      "/users/me/dms",
+      { recipient_id: recipientNumber },
+      DM_CHANNEL_RESPONSE_SCHEMA,
+    );
+    const channel = mapDmChannel(
+      response.channel,
+      this.dmChannelsCache?.findIndex(
+        (candidate) => candidate.id === String(response.channel.channel_id),
+      ) ??
+        this.dmChannelsCache?.length ??
+        0,
+    );
+    this.upsertDmChannel(channel);
     return channel;
   }
 
@@ -1505,8 +1932,9 @@ export class GuildChannelAPIClient extends NoDataAPIClient {
     }
 
     const indexedChannel = this.channelIndex.get(normalizedChannelId);
+    const deletedIds = this.collectDeletedChannelIds(normalizedChannelId, indexedChannel?.guildId);
     await this.deleteNoContent(`/channels/${encodeURIComponent(normalizedChannelId)}`);
-    this.removeChannelFromGuildCache(normalizedChannelId, indexedChannel?.guildId);
+    this.removeChannelsFromGuildCache(deletedIds, indexedChannel?.guildId);
   }
 }
 

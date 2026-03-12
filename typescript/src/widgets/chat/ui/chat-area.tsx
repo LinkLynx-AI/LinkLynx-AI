@@ -32,7 +32,7 @@ export function ChatArea({
   return (
     <div className="flex flex-1 flex-col bg-discord-bg-primary">
       <ChannelHeader channelName={channelName} topic={topic} />
-      <FileDropZone channelId={channelId} disabled={guildId === undefined}>
+      <FileDropZone channelId={channelId} disabled={false}>
         <MessageList
           messages={messagesQuery.messages}
           channelName={channelName}

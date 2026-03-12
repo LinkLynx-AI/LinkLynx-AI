@@ -1,9 +1,16 @@
 // @vitest-environment jsdom
+import type { AuthSessionContextValue } from "@/entities/auth";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { render, waitFor } from "@/test/test-utils";
 import { useAuthStore } from "@/shared/model/stores/auth-store";
 
-const useAuthSessionMock = vi.hoisted(() => vi.fn());
+const useAuthSessionMock = vi.hoisted(() =>
+  vi.fn<() => AuthSessionContextValue>(() => ({
+    status: "unauthenticated",
+    user: null,
+    getIdToken: () => Promise.resolve(null),
+  })),
+);
 const useMyProfileMock = vi.hoisted(() => vi.fn());
 const useStorageObjectUrlMock = vi.hoisted(() => vi.fn());
 
@@ -34,7 +41,7 @@ describe("AuthBridge", () => {
     useAuthSessionMock.mockReturnValue({
       status: "authenticated",
       user: {
-        uid: "uid-1",
+        uid: "u-1",
         email: "alice@example.com",
         emailVerified: true,
       },
@@ -45,7 +52,8 @@ describe("AuthBridge", () => {
         displayName: "Alice Cooper",
         statusText: "Ready to ship",
         avatarKey: "avatars/alice.png",
-        bannerKey: "banners/alice.png",
+        bannerKey: null,
+        theme: "dark",
       },
     });
     useStorageObjectUrlMock.mockReturnValue({
@@ -56,7 +64,7 @@ describe("AuthBridge", () => {
 
     await waitFor(() => {
       expect(useAuthStore.getState().currentUser).toMatchObject({
-        id: "uid-1",
+        id: "u-1",
         username: "alice",
         displayName: "Alice Cooper",
         customStatus: "Ready to ship",
@@ -74,7 +82,7 @@ describe("AuthBridge", () => {
         email: "fallback@example.com",
         emailVerified: true,
       },
-      getIdToken: () => Promise.resolve("token-1"),
+      getIdToken: () => Promise.resolve("token-2"),
     });
     useMyProfileMock.mockReturnValue({
       data: undefined,
@@ -93,25 +101,57 @@ describe("AuthBridge", () => {
     });
   });
 
-  test("未認証セッションへ遷移したら auth-store の currentUser をクリアする", async () => {
+  test("clears stale auth-store state when session becomes unauthenticated", async () => {
     useAuthStore.setState({
       currentUser: {
-        id: "uid-old",
-        username: "old-user",
-        displayName: "old-user",
-        avatar: "avatars/old.png",
+        id: "u-stale",
+        username: "stale",
+        displayName: "Stale",
+        avatar: null,
         status: "online",
-        customStatus: "old-status",
+        customStatus: "stale-status",
         bot: false,
       },
       currentPrincipalId: null,
       status: "online",
-      customStatus: "old-status",
+      customStatus: "stale-status",
     });
     useAuthSessionMock.mockReturnValue({
       status: "unauthenticated",
       user: null,
       getIdToken: () => Promise.resolve(null),
+    });
+    useMyProfileMock.mockReturnValue({
+      data: undefined,
+    });
+
+    render(<AuthBridge />);
+
+    await waitFor(() => {
+      expect(useAuthStore.getState().currentUser).toBeNull();
+      expect(useAuthStore.getState().customStatus).toBeNull();
+    });
+  });
+
+  test("clears auth-store when authenticated session has no user", async () => {
+    useAuthStore.setState({
+      currentUser: {
+        id: "uid-old",
+        username: "old-user",
+        displayName: "old-user",
+        avatar: null,
+        status: "online",
+        customStatus: null,
+        bot: false,
+      },
+      currentPrincipalId: null,
+      status: "online",
+      customStatus: null,
+    });
+    useAuthSessionMock.mockReturnValue({
+      status: "authenticated",
+      user: null,
+      getIdToken: () => Promise.resolve("token-1"),
     });
     useMyProfileMock.mockReturnValue({
       data: undefined,

@@ -5,10 +5,11 @@ import { CreateChannelModal } from "./create-channel-modal";
 
 const mutateAsyncMock = vi.hoisted(() => vi.fn());
 const useActionGuardMock = vi.hoisted(() => vi.fn());
+const pushMock = vi.hoisted(() => vi.fn());
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({
-    push: vi.fn(),
+    push: pushMock,
   }),
 }));
 
@@ -26,6 +27,7 @@ vi.mock("@/shared/api/queries", () => ({
 describe("CreateChannelModal", () => {
   beforeEach(() => {
     mutateAsyncMock.mockReset();
+    pushMock.mockReset();
     useActionGuardMock.mockImplementation(() => ({
       status: "allowed",
       isAllowed: true,
@@ -74,5 +76,41 @@ describe("CreateChannelModal", () => {
       true,
     );
     expect(mutateAsyncMock).not.toHaveBeenCalled();
+  });
+
+  test("creates category without route transition", async () => {
+    mutateAsyncMock.mockResolvedValueOnce({
+      id: "3100",
+      type: 4,
+    });
+
+    render(<CreateChannelModal onClose={() => undefined} serverId="2001" initialChannelType={4} />);
+
+    await userEvent.type(screen.getByPlaceholderText("新しいカテゴリ"), "times");
+    await userEvent.click(screen.getByRole("button", { name: "カテゴリーを作成" }));
+
+    expect(mutateAsyncMock).toHaveBeenCalledWith({
+      serverId: "2001",
+      data: { name: "times", type: 4, parentId: undefined },
+    });
+    expect(pushMock).not.toHaveBeenCalled();
+  });
+
+  test("creates child text channel under selected category", async () => {
+    mutateAsyncMock.mockResolvedValueOnce({
+      id: "3101",
+      type: 0,
+    });
+
+    render(<CreateChannelModal onClose={() => undefined} serverId="2001" parentId="3100" />);
+
+    await userEvent.type(screen.getByPlaceholderText("新しいチャンネル"), "times-abe");
+    await userEvent.click(screen.getByRole("button", { name: "チャンネルを作成" }));
+
+    expect(mutateAsyncMock).toHaveBeenCalledWith({
+      serverId: "2001",
+      data: { name: "times-abe", type: 0, parentId: "3100" },
+    });
+    expect(pushMock).toHaveBeenCalledWith("/channels/2001/3101");
   });
 });
