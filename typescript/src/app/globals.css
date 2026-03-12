@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-/* ===== Discord Design Tokens (Dark Theme 2025) ===== */
+/* ===== Discord Design Tokens ===== */
 
 @theme inline {
   /* Font Family */
@@ -15,28 +15,28 @@
   --font-size-xl: 1.5rem; /* 24px - modal titles */
 
   /* Background Colors */
-  --color-discord-bg-primary: #313338;
-  --color-discord-bg-secondary: #2b2d31;
-  --color-discord-bg-tertiary: #1e1f22;
-  --color-discord-bg-floating: #111214;
-  --color-discord-bg-accent: #4e5058;
-  --color-discord-bg-mod-hover: rgba(79, 84, 92, 0.16);
-  --color-discord-bg-mod-active: rgba(79, 84, 92, 0.24);
-  --color-discord-bg-mod-selected: rgba(79, 84, 92, 0.32);
+  --color-discord-bg-primary: #f2f3f5;
+  --color-discord-bg-secondary: #e3e5e8;
+  --color-discord-bg-tertiary: #ffffff;
+  --color-discord-bg-floating: #ffffff;
+  --color-discord-bg-accent: #d4d7dc;
+  --color-discord-bg-mod-hover: rgba(6, 8, 11, 0.04);
+  --color-discord-bg-mod-active: rgba(6, 8, 11, 0.08);
+  --color-discord-bg-mod-selected: rgba(6, 8, 11, 0.12);
 
   /* Text Colors */
-  --color-discord-text-normal: #dbdee1;
-  --color-discord-text-muted: #949ba4;
-  --color-discord-text-link: #00a8fc;
-  --color-discord-header-primary: #f2f3f5;
-  --color-discord-header-secondary: #b5bac1;
-  --color-discord-channels-default: #949ba4;
+  --color-discord-text-normal: #2e3338;
+  --color-discord-text-muted: #5c6672;
+  --color-discord-text-link: #0068e0;
+  --color-discord-header-primary: #060607;
+  --color-discord-header-secondary: #4e5765;
+  --color-discord-channels-default: #4e5765;
 
   /* Interactive Colors */
-  --color-discord-interactive-normal: #b5bac1;
-  --color-discord-interactive-hover: #dbdee1;
-  --color-discord-interactive-active: #ffffff;
-  --color-discord-interactive-muted: #4e5058;
+  --color-discord-interactive-normal: #4e5765;
+  --color-discord-interactive-hover: #060607;
+  --color-discord-interactive-active: #060607;
+  --color-discord-interactive-muted: #aeb4bc;
 
   /* Brand Colors */
   --color-discord-brand-blurple: #5865f2;
@@ -64,13 +64,13 @@
   --color-discord-status-streaming: #593695;
 
   /* Misc Colors */
-  --color-discord-divider: #3f4147;
-  --color-discord-input-bg: #383a40;
-  --color-discord-header-separator: #1f2023;
+  --color-discord-divider: #d4d7dc;
+  --color-discord-input-bg: #ebedef;
+  --color-discord-header-separator: #c7ccd1;
   --color-discord-mention-bg: rgba(88, 101, 242, 0.3);
   --color-discord-mention-hover-bg: rgba(88, 101, 242, 0.5);
-  --color-discord-scrollbar-thumb: #1a1b1e;
-  --color-discord-scrollbar-track: #2b2d31;
+  --color-discord-scrollbar-thumb: #c4c9ce;
+  --color-discord-scrollbar-track: #e3e5e8;
 
   /* Spacing / Layout Dimensions */
   --spacing-server-list: 4.5rem; /* 72px */
@@ -80,6 +80,32 @@
   --spacing-user-panel: 3.25rem; /* 52px */
   --spacing-input-height: 2.75rem; /* 44px */
   --spacing-server-icon: 3rem; /* 48px */
+}
+
+.dark {
+  --color-discord-bg-primary: #313338;
+  --color-discord-bg-secondary: #2b2d31;
+  --color-discord-bg-tertiary: #1e1f22;
+  --color-discord-bg-floating: #111214;
+  --color-discord-bg-accent: #4e5058;
+  --color-discord-bg-mod-hover: rgba(79, 84, 92, 0.16);
+  --color-discord-bg-mod-active: rgba(79, 84, 92, 0.24);
+  --color-discord-bg-mod-selected: rgba(79, 84, 92, 0.32);
+  --color-discord-text-normal: #dbdee1;
+  --color-discord-text-muted: #949ba4;
+  --color-discord-text-link: #00a8fc;
+  --color-discord-header-primary: #f2f3f5;
+  --color-discord-header-secondary: #b5bac1;
+  --color-discord-channels-default: #949ba4;
+  --color-discord-interactive-normal: #b5bac1;
+  --color-discord-interactive-hover: #dbdee1;
+  --color-discord-interactive-active: #ffffff;
+  --color-discord-interactive-muted: #4e5058;
+  --color-discord-divider: #3f4147;
+  --color-discord-input-bg: #383a40;
+  --color-discord-header-separator: #1f2023;
+  --color-discord-scrollbar-thumb: #1a1b1e;
+  --color-discord-scrollbar-track: #2b2d31;
 }
 
 /* ===== Base Styles ===== */

@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { renderHook, waitFor } from "@/test/test-utils";
 import type { Relationship } from "@/shared/api/api-client";
+import { useSettingsStore } from "@/shared/model/stores/settings-store";
 import type { GuildMember } from "@/shared/model/types/server";
 import { useAuthStore } from "@/shared/model/stores/auth-store";
 import { useUpdateMyProfile } from "./use-my-profile";
@@ -39,6 +40,16 @@ describe("useUpdateMyProfile", () => {
       currentPrincipalId: null,
       status: "online",
       customStatus: "old-status",
+    });
+    useSettingsStore.setState({
+      theme: "dark",
+      compactMode: false,
+      fontSize: 16,
+      messageGroupSpacing: 16,
+      showTimestamps: true,
+      use24HourTime: false,
+      enableReducedMotion: false,
+      enableHighContrast: false,
     });
   });
 
@@ -86,7 +97,7 @@ describe("useUpdateMyProfile", () => {
       statusText: "new-status",
       avatarKey: "avatars/new-name.png",
       bannerKey: "banners/new-name.png",
-      theme: "dark",
+      theme: "light",
     });
     mockGetMyProfileMediaDownloadUrl.mockResolvedValue({
       target: "avatar",
@@ -118,7 +129,7 @@ describe("useUpdateMyProfile", () => {
       statusText: "new-status",
       avatarKey: "avatars/new-name.png",
       bannerKey: "banners/new-name.png",
-      theme: "dark",
+      theme: "light",
     });
     expect(queryClient.getQueryData(["friends"])).toEqual([
       {
@@ -158,5 +169,6 @@ describe("useUpdateMyProfile", () => {
       avatar: "https://cdn.example/avatar-new.png",
     });
     expect(useAuthStore.getState().customStatus).toBe("new-status");
+    expect(useSettingsStore.getState().theme).toBe("light");
   });
 });

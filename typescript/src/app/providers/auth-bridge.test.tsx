@@ -3,6 +3,7 @@ import type { AuthSessionContextValue } from "@/entities/auth";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { render, waitFor } from "@/test/test-utils";
 import { useAuthStore } from "@/shared/model/stores/auth-store";
+import { useSettingsStore } from "@/shared/model/stores/settings-store";
 
 const useAuthSessionMock = vi.hoisted(() =>
   vi.fn<() => AuthSessionContextValue>(() => ({
@@ -35,6 +36,16 @@ describe("AuthBridge", () => {
       status: "online",
       customStatus: null,
     });
+    useSettingsStore.setState({
+      theme: "dark",
+      compactMode: false,
+      fontSize: 16,
+      messageGroupSpacing: 16,
+      showTimestamps: true,
+      use24HourTime: false,
+      enableReducedMotion: false,
+      enableHighContrast: false,
+    });
   });
 
   test("hydrates auth-store with my profile after authentication", async () => {
@@ -53,7 +64,7 @@ describe("AuthBridge", () => {
         statusText: "Ready to ship",
         avatarKey: "avatars/alice.png",
         bannerKey: "banners/alice.png",
-        theme: "dark",
+        theme: "light",
       },
     });
     useMyProfileMediaDownloadUrlMock.mockReturnValue({
@@ -71,6 +82,7 @@ describe("AuthBridge", () => {
         avatar: "https://cdn.example/alice.png",
       });
       expect(useAuthStore.getState().customStatus).toBe("Ready to ship");
+      expect(useSettingsStore.getState().theme).toBe("light");
     });
   });
 

@@ -740,6 +740,12 @@ fn build_message_server_frame(frame: ClientMessageFrameV1) -> ServerMessageFrame
         ClientMessageFrameV1::Unsubscribe(target) => {
             ServerMessageFrameV1::Unsubscribed(MessageSubscriptionStateV1::from(target))
         }
+        ClientMessageFrameV1::DmSubscribe(target) => {
+            ServerMessageFrameV1::DmSubscribed(DmMessageSubscriptionStateV1::from(target))
+        }
+        ClientMessageFrameV1::DmUnsubscribe(target) => {
+            ServerMessageFrameV1::DmUnsubscribed(DmMessageSubscriptionStateV1::from(target))
+        }
     }
 }
 
@@ -770,6 +776,18 @@ async fn handle_message_frame(
             state
                 .message_realtime_hub
                 .unsubscribe(session_id, target)
+                .await;
+        }
+        ClientMessageFrameV1::DmSubscribe(target) => {
+            state
+                .message_realtime_hub
+                .subscribe_dm(session_id, principal_id, target, outbound_tx.clone())
+                .await;
+        }
+        ClientMessageFrameV1::DmUnsubscribe(target) => {
+            state
+                .message_realtime_hub
+                .unsubscribe_dm(session_id, target)
                 .await;
         }
     }
@@ -979,14 +997,27 @@ async fn check_message_frame_target_access(
     request_id: &str,
     frame: &ClientMessageFrameV1,
 ) -> Result<(), authz::AuthzError> {
-    let target = message_frame_target(frame);
-    check_message_target_access_for_principal(
-        state,
-        authenticated.principal_id,
-        request_id,
-        target,
-    )
-    .await
+    match frame {
+        ClientMessageFrameV1::Subscribe(target) | ClientMessageFrameV1::Unsubscribe(target) => {
+            check_message_target_access_for_principal(
+                state,
+                authenticated.principal_id,
+                request_id,
+                target,
+            )
+            .await
+        }
+        ClientMessageFrameV1::DmSubscribe(target)
+        | ClientMessageFrameV1::DmUnsubscribe(target) => {
+            check_dm_target_access_for_principal(
+                state,
+                authenticated.principal_id,
+                request_id,
+                target.channel_id,
+            )
+            .await
+        }
+    }
 }
 
 /// guild message target の生判定を主体IDで評価する。
@@ -1031,14 +1062,40 @@ async fn check_message_target_access_for_principal(
     Ok(())
 }
 
-/// message frame から購読対象を抽出する。
-/// @param frame message frame
-/// @returns 購読対象 guild/channel
-/// @throws なし
-fn message_frame_target(frame: &ClientMessageFrameV1) -> &GuildChannelSubscriptionTargetV1 {
-    match frame {
-        ClientMessageFrameV1::Subscribe(target) | ClientMessageFrameV1::Unsubscribe(target) => {
-            target
-        }
+/// DM target の生判定を主体IDで評価する。
+/// @param state アプリケーション状態
+/// @param principal_id 認可対象主体
+/// @param request_id 接続識別子
+/// @param channel_id 購読対象 DM channel
+/// @returns 認可成功時は `Ok(())`
+/// @throws authz::AuthzError 認可拒否または依存障害時
+async fn check_dm_target_access_for_principal(
+    state: &AppState,
+    principal_id: PrincipalId,
+    request_id: &str,
+    channel_id: i64,
+) -> Result<(), authz::AuthzError> {
+    let authz_input = AuthzCheckInput {
+        principal_id,
+        resource: AuthzResource::Channel { channel_id },
+        action: AuthzAction::View,
+    };
+    if let Err(error) = state.authorizer.check(&authz_input).await {
+        state.authz_metrics.record_error(&error);
+        tracing::warn!(
+            decision = %error.decision(),
+            request_id = %request_id,
+            principal_id = principal_id.0,
+            channel_id,
+            error_class = %error.log_class(),
+            reason = %error.reason,
+            resource = "channel",
+            action = "view",
+            decision_source = "authorizer",
+            "WS authz rejected at DM frame operation"
+        );
+        return Err(error);
     }
+    state.authz_metrics.record_allow();
+    Ok(())
 }

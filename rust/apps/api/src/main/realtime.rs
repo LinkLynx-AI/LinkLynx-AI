@@ -1,22 +1,30 @@
 use std::collections::HashMap;
 
 use linklynx_message_api::MessageItemV1;
-use linklynx_protocol_ws::MessageEventFrameDataV1;
+use linklynx_protocol_ws::{DmMessageEventFrameDataV1, MessageEventFrameDataV1};
 use linklynx_shared::PrincipalId;
 use tokio::sync::{mpsc, Mutex};
 
 const MESSAGE_REALTIME_OUTBOUND_CAPACITY: usize = 64;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-struct MessageSubscriptionKey {
-    guild_id: i64,
-    channel_id: i64,
+enum MessageSubscriptionKey {
+    Guild { guild_id: i64, channel_id: i64 },
+    Dm { channel_id: i64 },
 }
 
 impl From<&GuildChannelSubscriptionTargetV1> for MessageSubscriptionKey {
     fn from(value: &GuildChannelSubscriptionTargetV1) -> Self {
-        Self {
+        Self::Guild {
             guild_id: value.guild_id,
+            channel_id: value.channel_id,
+        }
+    }
+}
+
+impl From<&DmChannelSubscriptionTargetV1> for MessageSubscriptionKey {
+    fn from(value: &DmChannelSubscriptionTargetV1) -> Self {
+        Self::Dm {
             channel_id: value.channel_id,
         }
     }
@@ -24,7 +32,7 @@ impl From<&GuildChannelSubscriptionTargetV1> for MessageSubscriptionKey {
 
 impl From<&MessageItemV1> for MessageSubscriptionKey {
     fn from(value: &MessageItemV1) -> Self {
-        Self {
+        Self::Guild {
             guild_id: value.guild_id,
             channel_id: value.channel_id,
         }
@@ -64,8 +72,46 @@ impl MessageRealtimeHub {
         target: &GuildChannelSubscriptionTargetV1,
         sender: mpsc::Sender<ServerMessageFrameV1>,
     ) {
+        self.subscribe_key(
+            session_id,
+            principal_id,
+            MessageSubscriptionKey::from(target),
+            sender,
+        )
+        .await;
+    }
+
+    /// セッションを DM 購読へ登録する。
+    /// @param session_id WS セッション識別子
+    /// @param principal_id 購読主体
+    /// @param target 購読対象 DM channel
+    /// @param sender セッション outbound sender
+    /// @returns なし
+    /// @throws なし
+    async fn subscribe_dm(
+        &self,
+        session_id: &str,
+        principal_id: PrincipalId,
+        target: &DmChannelSubscriptionTargetV1,
+        sender: mpsc::Sender<ServerMessageFrameV1>,
+    ) {
+        self.subscribe_key(
+            session_id,
+            principal_id,
+            MessageSubscriptionKey::from(target),
+            sender,
+        )
+        .await;
+    }
+
+    async fn subscribe_key(
+        &self,
+        session_id: &str,
+        principal_id: PrincipalId,
+        key: MessageSubscriptionKey,
+        sender: mpsc::Sender<ServerMessageFrameV1>,
+    ) {
         let mut state = self.state.lock().await;
-        let key = MessageSubscriptionKey::from(target);
         state.channel_subscribers.entry(key).or_default().insert(
             session_id.to_owned(),
             MessageRealtimeSubscriber {
@@ -86,6 +132,17 @@ impl MessageRealtimeHub {
     /// @returns なし
     /// @throws なし
     async fn unsubscribe(&self, session_id: &str, target: &GuildChannelSubscriptionTargetV1) {
+        let mut state = self.state.lock().await;
+        let key = MessageSubscriptionKey::from(target);
+        remove_subscription(&mut state, session_id, key);
+    }
+
+    /// セッションの DM 購読を解除する。
+    /// @param session_id WS セッション識別子
+    /// @param target 購読解除対象 DM channel
+    /// @returns なし
+    /// @throws なし
+    async fn unsubscribe_dm(&self, session_id: &str, target: &DmChannelSubscriptionTargetV1) {
         let mut state = self.state.lock().await;
         let key = MessageSubscriptionKey::from(target);
         remove_subscription(&mut state, session_id, key);
@@ -150,7 +207,16 @@ impl MessageRealtimeHub {
         message: MessageItemV1,
         frame: ServerMessageFrameV1,
     ) {
-        let key = MessageSubscriptionKey::from(&message);
+        self.publish_message_frame_for_key(app_state, MessageSubscriptionKey::from(&message), frame)
+            .await;
+    }
+
+    async fn publish_message_frame_for_key(
+        &self,
+        app_state: &AppState,
+        key: MessageSubscriptionKey,
+        frame: ServerMessageFrameV1,
+    ) {
         let subscribers = {
             let state = self.state.lock().await;
             state
@@ -173,6 +239,7 @@ impl MessageRealtimeHub {
         if subscribers.is_empty() {
             return;
         }
+
         let mut invalid_sessions = Vec::new();
         for (session_id, principal_id, sender) in subscribers {
             if !subscription_access_allowed(app_state, principal_id, &session_id, key).await {
@@ -183,12 +250,7 @@ impl MessageRealtimeHub {
             match sender.try_send(frame.clone()) {
                 Ok(()) => {}
                 Err(tokio::sync::mpsc::error::TrySendError::Full(_)) => {
-                    tracing::warn!(
-                        session_id = %session_id,
-                        guild_id = key.guild_id,
-                        channel_id = key.channel_id,
-                        "dropping realtime frame because outbound queue is full"
-                    );
+                    log_full_queue(&session_id, key);
                 }
                 Err(tokio::sync::mpsc::error::TrySendError::Closed(_)) => {
                     invalid_sessions.push(session_id);
@@ -247,6 +309,49 @@ impl MessageRealtimeHub {
         });
         self.publish_message_frame(app_state, message, frame).await;
     }
+
+    /// DM 購読中セッションへ dm.message.created を best-effort 送信する。
+    /// @param app_state アプリケーション状態
+    /// @param message fanout 対象 message snapshot
+    /// @returns なし
+    /// @throws なし
+    async fn publish_dm_message_created(&self, app_state: &AppState, message: MessageItemV1) {
+        let frame = ServerMessageFrameV1::DmCreated(DmMessageEventFrameDataV1 {
+            channel_id: message.channel_id,
+            message: message.clone(),
+        });
+        self.publish_message_frame_for_key(
+            app_state,
+            MessageSubscriptionKey::Dm {
+                channel_id: message.channel_id,
+            },
+            frame,
+        )
+        .await;
+    }
+}
+
+fn log_full_queue(session_id: &str, key: MessageSubscriptionKey) {
+    match key {
+        MessageSubscriptionKey::Guild {
+            guild_id,
+            channel_id,
+        } => {
+            tracing::warn!(
+                session_id = %session_id,
+                guild_id,
+                channel_id,
+                "dropping realtime frame because outbound queue is full"
+            );
+        }
+        MessageSubscriptionKey::Dm { channel_id } => {
+            tracing::warn!(
+                session_id = %session_id,
+                channel_id,
+                "dropping DM realtime frame because outbound queue is full"
+            );
+        }
+    }
 }
 
 async fn subscription_access_allowed(
@@ -262,13 +367,25 @@ async fn subscription_access_allowed(
         return false;
     }
 
-    let target = GuildChannelSubscriptionTargetV1 {
-        guild_id: key.guild_id,
-        channel_id: key.channel_id,
-    };
-    check_message_target_access_for_principal(app_state, principal_id, request_id, &target)
-        .await
-        .is_ok()
+    match key {
+        MessageSubscriptionKey::Guild {
+            guild_id,
+            channel_id,
+        } => {
+            let target = GuildChannelSubscriptionTargetV1 {
+                guild_id,
+                channel_id,
+            };
+            check_message_target_access_for_principal(app_state, principal_id, request_id, &target)
+                .await
+                .is_ok()
+        }
+        MessageSubscriptionKey::Dm { channel_id } => {
+            check_dm_target_access_for_principal(app_state, principal_id, request_id, channel_id)
+                .await
+                .is_ok()
+        }
+    }
 }
 
 fn remove_subscription(
@@ -317,6 +434,10 @@ mod realtime_tests {
         }
     }
 
+    fn sample_dm_target() -> DmChannelSubscriptionTargetV1 {
+        DmChannelSubscriptionTargetV1 { channel_id: 55 }
+    }
+
     fn sample_message() -> MessageItemV1 {
         MessageItemV1 {
             message_id: 100,
@@ -342,10 +463,27 @@ mod realtime_tests {
         let state = hub.state.lock().await;
         let subscriber = state
             .channel_subscribers
-            .get(&MessageSubscriptionKey {
+            .get(&MessageSubscriptionKey::Guild {
                 guild_id: 10,
                 channel_id: 20,
             })
+            .and_then(|subscribers| subscribers.get("session-1"))
+            .expect("subscriber should exist");
+        assert_eq!(subscriber.principal_id, PrincipalId(30));
+    }
+
+    #[tokio::test]
+    async fn subscribe_dm_stores_principal_and_delivery_metadata() {
+        let hub = MessageRealtimeHub::default();
+        let (sender, _receiver) = mpsc::channel(MESSAGE_REALTIME_OUTBOUND_CAPACITY);
+
+        hub.subscribe_dm("session-1", PrincipalId(30), &sample_dm_target(), sender)
+            .await;
+
+        let state = hub.state.lock().await;
+        let subscriber = state
+            .channel_subscribers
+            .get(&MessageSubscriptionKey::Dm { channel_id: 55 })
             .and_then(|subscribers| subscribers.get("session-1"))
             .expect("subscriber should exist");
         assert_eq!(subscriber.principal_id, PrincipalId(30));
@@ -387,16 +525,15 @@ mod realtime_tests {
     async fn full_queue_drops_frame_without_removing_subscription() {
         let hub = MessageRealtimeHub::default();
         let (sender, mut receiver) = mpsc::channel(1);
-        let key = MessageSubscriptionKey {
+        let key = MessageSubscriptionKey::Guild {
             guild_id: 10,
             channel_id: 20,
         };
-        let frame =
-            ServerMessageFrameV1::Created(MessageEventFrameDataV1 {
-                guild_id: 10,
-                channel_id: 20,
-                message: sample_message(),
-            });
+        let frame = ServerMessageFrameV1::Created(MessageEventFrameDataV1 {
+            guild_id: 10,
+            channel_id: 20,
+            message: sample_message(),
+        });
 
         hub.subscribe("session-1", PrincipalId(30), &sample_target(), sender)
             .await;

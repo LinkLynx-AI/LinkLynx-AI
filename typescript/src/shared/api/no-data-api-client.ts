@@ -77,7 +77,7 @@ function buildMyProfile(user: User): MyProfile {
     statusText: user.customStatus,
     avatarKey: null,
     bannerKey: null,
-    theme: useSettingsStore.getState().theme === "light" ? "light" : "dark",
+    theme: useSettingsStore.getState().theme,
   };
 }
 
@@ -227,8 +227,7 @@ export class NoDataAPIClient implements APIClient {
         input.statusText !== undefined
           ? (input.statusText?.trim() ?? null)
           : currentUser.customStatus;
-      const theme =
-        input.theme ?? (useSettingsStore.getState().theme === "light" ? "light" : "dark");
+      const theme = input.theme ?? useSettingsStore.getState().theme;
 
       const updatedUser: User = {
         ...currentUser,

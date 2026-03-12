@@ -1,8 +1,8 @@
 # Documentation.md (Status / audit log)
 
 ## Current status
-- Now: TypeScript 実装と回帰テストは完了。frontend 側の保存反映導線は通った。
-- Next: `make validate` の Python 環境依存失敗を切り分けたので、必要なら環境整備後に full validate を再実行する。
+- Now: `origin/main` を取り込み、`theme` 同期と avatar/banner 保存反映が両立するよう競合を解消した。
+- Next: review 証跡を更新し、PR #1182 の `DIRTY` 状態を解消した head を push する。
 
 ## Decisions
 - backend / DB の追加変更は入れず、`LIN-939` の契約を reuse する
@@ -19,9 +19,10 @@
   - `cd typescript && pnpm test -- src/shared/api/mutations/use-my-profile.test.ts src/app/providers/auth-bridge.test.tsx src/features/settings/ui/user/user-profile.test.tsx`
   - `cd typescript && pnpm typecheck`
 - 追加確認:
-  - `cd typescript && make validate` は `eslint` 実行まで進むが、この環境では完走確認前に停止した
-  - repo root の `make validate` は `python/Makefile` の `ensure-dev-tools` で `/usr/bin/python3: No module named pip` により失敗した
+  - repo root の `make validate` は TypeScript format/lint まで進む
+  - 同コマンド中の `cd python && make format` はローカル環境で `/bin/sh: 1: -m: not found` と `m: Command not found` により失敗する
+  - `pnpm test` 実行中の `act(...)` warning は既存テスト由来で、失敗にはなっていない
 
 ## Known issues / follow-ups
 - uploaded object cleanup API は未実装のため、PATCH 失敗後の orphan object cleanup は今回扱わない
-- root `make validate` はコード不備ではなくローカル Python 3.8 環境の `pip` / `ensurepip` / `distutils` 欠落でブロックされた
+- root `make validate` の Python 側失敗は今回の TypeScript 変更とは独立したローカル実行環境依存として扱う

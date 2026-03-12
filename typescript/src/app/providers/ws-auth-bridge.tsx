@@ -65,11 +65,25 @@ const WS_MESSAGE_DELETED_EVENT_SCHEMA = z.object({
     message: MESSAGE_ITEM_SCHEMA,
   }),
 });
+const WS_DM_MESSAGE_CREATED_EVENT_SCHEMA = z.object({
+  type: z.literal("dm.message.created"),
+  d: z.object({
+    channel_id: z.string().trim().min(1),
+    message: MESSAGE_ITEM_SCHEMA,
+  }),
+});
 
-type ActiveSubscriptionTarget = {
-  guildId: string;
-  channelId: string;
-};
+type ActiveSubscriptionTarget =
+  | {
+      kind: "guild";
+      guildId: string;
+      channelId: string;
+    }
+  | {
+      kind: "dm";
+      guildId?: undefined;
+      channelId: string;
+    };
 
 function resolveCurrentReturnToPath(): string | null {
   if (typeof window === "undefined") {
@@ -142,16 +156,24 @@ function createIdentifyMessage(ticket: string): string {
 }
 
 function createSubscribeMessage(target: ActiveSubscriptionTarget): string {
-  return `{"type":"message.subscribe","d":{"guild_id":${target.guildId},"channel_id":${target.channelId}}}`;
+  if (target.kind === "guild") {
+    return `{"type":"message.subscribe","d":{"guild_id":${target.guildId},"channel_id":${target.channelId}}}`;
+  }
+
+  return `{"type":"dm.subscribe","d":{"channel_id":${target.channelId}}}`;
 }
 
 function createUnsubscribeMessage(target: ActiveSubscriptionTarget): string {
-  return `{"type":"message.unsubscribe","d":{"guild_id":${target.guildId},"channel_id":${target.channelId}}}`;
+  if (target.kind === "guild") {
+    return `{"type":"message.unsubscribe","d":{"guild_id":${target.guildId},"channel_id":${target.channelId}}}`;
+  }
+
+  return `{"type":"dm.unsubscribe","d":{"channel_id":${target.channelId}}}`;
 }
 
 function applyRealtimeMessageToCache(
   queryClient: ReturnType<typeof useQueryClient>,
-  guildId: string,
+  guildId: string | null | undefined,
   channelId: string,
   rawMessage: z.infer<typeof MESSAGE_ITEM_SCHEMA>,
 ) {
@@ -162,32 +184,61 @@ function applyRealtimeMessageToCache(
   );
 }
 
+function safeDecodeRouteSegment(value: string): string | null {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return null;
+  }
+}
+
 function resolveActiveSubscriptionTarget(
+  pathname: string,
   guildId: string | null,
   channelId: string | null,
 ): ActiveSubscriptionTarget | null {
-  if (guildId === null || channelId === null) {
+  if (guildId !== null && channelId !== null) {
+    const normalizedGuildId = guildId.trim();
+    const normalizedChannelId = channelId.trim();
+    if (
+      normalizedGuildId.length > 0 &&
+      normalizedChannelId.length > 0 &&
+      isStrictDecimalString(normalizedGuildId) &&
+      isStrictDecimalString(normalizedChannelId) &&
+      normalizedGuildId !== "0" &&
+      normalizedChannelId !== "0"
+    ) {
+      return {
+        kind: "guild",
+        guildId: normalizedGuildId,
+        channelId: normalizedChannelId,
+      };
+    }
+  }
+
+  const normalizedPathname = pathname.trim().replace(/\/+$/, "");
+  if (!normalizedPathname.startsWith("/channels/me/")) {
     return null;
   }
 
-  const normalizedGuildId = guildId.trim();
-  const normalizedChannelId = channelId.trim();
-  if (normalizedGuildId.length === 0 || normalizedChannelId.length === 0) {
+  const routeSegments = normalizedPathname.slice("/channels/me/".length).split("/");
+  if (routeSegments.length !== 1) {
     return null;
   }
 
+  const normalizedDmChannelId = safeDecodeRouteSegment(routeSegments[0] ?? "");
   if (
-    !isStrictDecimalString(normalizedGuildId) ||
-    !isStrictDecimalString(normalizedChannelId) ||
-    normalizedGuildId === "0" ||
-    normalizedChannelId === "0"
+    normalizedDmChannelId === null ||
+    normalizedDmChannelId.trim().length === 0 ||
+    !isStrictDecimalString(normalizedDmChannelId) ||
+    normalizedDmChannelId === "0"
   ) {
     return null;
   }
 
   return {
-    guildId: normalizedGuildId,
-    channelId: normalizedChannelId,
+    kind: "dm",
+    channelId: normalizedDmChannelId,
   };
 }
 
@@ -204,10 +255,11 @@ export function WsAuthBridge() {
   const activeSubscriptionTarget = useMemo(
     () =>
       resolveActiveSubscriptionTarget(
+        pathname,
         guildChannelRoute?.guildId ?? null,
         guildChannelRoute?.channelId ?? null,
       ),
-    [guildChannelRoute],
+    [guildChannelRoute, pathname],
   );
 
   const shouldConnect = session.status === "authenticated" && routeAccessKind === "protected";
@@ -410,7 +462,7 @@ export function WsAuthBridge() {
 
     void queryClient.invalidateQueries({
       queryKey: buildMessagesQueryKey(
-        activeSubscriptionTarget.guildId,
+        activeSubscriptionTarget.kind === "guild" ? activeSubscriptionTarget.guildId : undefined,
         activeSubscriptionTarget.channelId,
       ),
     });
@@ -539,6 +591,17 @@ export function WsAuthBridge() {
               String(messageCreated.data.d.guild_id),
               String(messageCreated.data.d.channel_id),
               messageCreated.data.d.message,
+            );
+            return;
+          }
+
+          const dmMessageCreated = WS_DM_MESSAGE_CREATED_EVENT_SCHEMA.safeParse(payload);
+          if (dmMessageCreated.success) {
+            applyRealtimeMessageToCache(
+              queryClient,
+              undefined,
+              String(dmMessageCreated.data.d.channel_id),
+              dmMessageCreated.data.d.message,
             );
             return;
           }
@@ -695,6 +758,7 @@ export function WsAuthBridge() {
     if (
       previousTarget !== null &&
       (activeSubscriptionTarget === null ||
+        previousTarget.kind !== activeSubscriptionTarget.kind ||
         previousTarget.guildId !== activeSubscriptionTarget.guildId ||
         previousTarget.channelId !== activeSubscriptionTarget.channelId)
     ) {
@@ -708,6 +772,7 @@ export function WsAuthBridge() {
 
     if (
       previousTarget !== null &&
+      previousTarget.kind === activeSubscriptionTarget.kind &&
       previousTarget.guildId === activeSubscriptionTarget.guildId &&
       previousTarget.channelId === activeSubscriptionTarget.channelId
     ) {

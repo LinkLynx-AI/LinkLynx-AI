@@ -470,6 +470,37 @@ describe("WsAuthBridge", () => {
     });
   });
 
+  test("auth.ready 後に active DM channel を購読する", async () => {
+    usePathnameMock.mockReturnValue("/channels/me/55");
+
+    render(<WsAuthBridge />);
+
+    await waitFor(() => {
+      expect(FakeWebSocket.instances.length).toBe(1);
+    });
+
+    const socket = FakeWebSocket.instances[0];
+    if (socket === undefined) {
+      throw new Error("socket should exist");
+    }
+
+    act(() => {
+      socket.emitOpen();
+      socket.emitJsonMessage({ type: "auth.ready" });
+    });
+
+    await waitFor(() => {
+      expect(socket.send).toHaveBeenCalledTimes(2);
+    });
+
+    expect(JSON.parse(String(socket.send.mock.calls[1]?.[0]))).toEqual({
+      type: "dm.subscribe",
+      d: {
+        channel_id: 55,
+      },
+    });
+  });
+
   test("unsafe numeric-looking route param では購読しない", async () => {
     usePathnameMock.mockReturnValue("/channels/10e2/20");
 
@@ -585,6 +616,75 @@ describe("WsAuthBridge", () => {
         expect.objectContaining({
           id: "5001",
           content: "hello ws",
+          version: "1",
+          isDeleted: false,
+        }),
+      ]);
+    });
+  });
+
+  test("dm.message.created を受けると該当 DM cache を更新する", async () => {
+    usePathnameMock.mockReturnValue("/channels/me/55");
+
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    queryClient.setQueryData<InfiniteData<MessagePage, string | null>>(
+      buildMessagesQueryKey(undefined, "55"),
+      {
+        pageParams: [null],
+        pages: [
+          {
+            items: [],
+            nextBefore: null,
+            nextAfter: null,
+            hasMore: false,
+          },
+        ],
+      },
+    );
+
+    renderWithQueryClient(<WsAuthBridge />, queryClient);
+
+    await waitFor(() => {
+      expect(FakeWebSocket.instances.length).toBe(1);
+    });
+
+    const socket = FakeWebSocket.instances[0];
+    if (socket === undefined) {
+      throw new Error("socket should exist");
+    }
+
+    act(() => {
+      socket.emitOpen();
+      socket.emitJsonMessage({ type: "auth.ready" });
+      socket.emitJsonMessage({
+        type: "dm.message.created",
+        d: {
+          channel_id: 55,
+          message: {
+            message_id: 7001,
+            guild_id: 55,
+            channel_id: 55,
+            author_id: 9004,
+            content: "hello dm ws",
+            created_at: "2026-03-10T11:00:00Z",
+            version: 1,
+            edited_at: null,
+            is_deleted: false,
+          },
+        },
+      });
+    });
+
+    await waitFor(() => {
+      const cached = queryClient.getQueryData<InfiniteData<MessagePage, string | null>>(
+        buildMessagesQueryKey(undefined, "55"),
+      );
+      expect(cached?.pages[0]?.items).toEqual([
+        expect.objectContaining({
+          id: "7001",
+          content: "hello dm ws",
           version: "1",
           isDeleted: false,
         }),
@@ -929,6 +1029,53 @@ describe("WsAuthBridge", () => {
 
     expect(invalidateQueriesSpy).toHaveBeenCalledWith({
       queryKey: buildMessagesQueryKey("10", "20"),
+    });
+  });
+
+  test("再接続後の ready で active DM 履歴を再取得する", async () => {
+    vi.useFakeTimers();
+    usePathnameMock.mockReturnValue("/channels/me/55");
+
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const invalidateQueriesSpy = vi.spyOn(queryClient, "invalidateQueries");
+
+    renderWithQueryClient(<WsAuthBridge />, queryClient);
+
+    await flushMicrotasks();
+    expect(FakeWebSocket.instances.length).toBe(1);
+
+    const socket1 = FakeWebSocket.instances[0];
+    if (socket1 === undefined) {
+      throw new Error("socket1 should exist");
+    }
+
+    act(() => {
+      socket1.emitOpen();
+      socket1.emitJsonMessage({ type: "auth.ready" });
+      socket1.emitClose(1011, "AUTH_UNAVAILABLE");
+    });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000);
+      await flushMicrotasks();
+    });
+
+    expect(FakeWebSocket.instances.length).toBe(2);
+
+    const socket2 = FakeWebSocket.instances[1];
+    if (socket2 === undefined) {
+      throw new Error("socket2 should exist");
+    }
+
+    act(() => {
+      socket2.emitOpen();
+      socket2.emitJsonMessage({ type: "auth.ready" });
+    });
+
+    expect(invalidateQueriesSpy).toHaveBeenCalledWith({
+      queryKey: buildMessagesQueryKey(undefined, "55"),
     });
   });
 

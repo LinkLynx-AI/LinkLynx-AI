@@ -1,71 +1,132 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { toApiErrorText } from "@/shared/api/guild-channel-api-client";
+import { useUpdateMyProfile } from "@/shared/api/mutations";
+import { useMyProfile } from "@/shared/api/queries";
 import { cn } from "@/shared/lib/cn";
+import { useAuthStore } from "@/shared/model/stores/auth-store";
 import { Button } from "@/shared/ui/button";
 
-type Theme = "dark" | "light" | "ash" | "onyx";
-type MessageDisplay = "compact" | "cozy";
+type Theme = "dark" | "light";
 
 const themes: { id: Theme; label: string; bg: string; sidebar: string; text: string }[] = [
   { id: "dark", label: "ダーク", bg: "#313338", sidebar: "#2b2d31", text: "#dbdee1" },
   { id: "light", label: "ライト", bg: "#ffffff", sidebar: "#f2f3f5", text: "#313338" },
-  { id: "ash", label: "アッシュ", bg: "#3a3c41", sidebar: "#35373b", text: "#dbdee1" },
-  { id: "onyx", label: "オニキス", bg: "#1e1f22", sidebar: "#1a1b1e", text: "#dbdee1" },
 ];
 
 /**
  * ユーザー外観設定画面を表示する。
  */
 export function UserAppearance() {
+  const currentUser = useAuthStore((state) => state.currentUser);
+  const currentUserId = currentUser?.id ?? null;
+  const {
+    data: myProfile,
+    isLoading: isProfileLoading,
+    isError: isProfileError,
+    error: profileError,
+    refetch: refetchProfile,
+  } = useMyProfile(currentUserId);
+  const updateMyProfile = useUpdateMyProfile(currentUserId);
   const [theme, setTheme] = useState<Theme>("dark");
-  const [messageDisplay, setMessageDisplay] = useState<MessageDisplay>("cozy");
-  const [fontSize, setFontSize] = useState(16);
-  const [zoom, setZoom] = useState(100);
-  const [hasChanges, setHasChanges] = useState(false);
+  const [saveMessage, setSaveMessage] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
+  const hydratedUserIdRef = useRef<string | null>(null);
+  const hasHydratedProfileRef = useRef(false);
 
-  function handleThemeChange(t: Theme) {
-    setTheme(t);
-    setHasChanges(true);
-  }
+  useEffect(() => {
+    if (hydratedUserIdRef.current === currentUserId) {
+      return;
+    }
 
-  function handleDisplayChange(d: MessageDisplay) {
-    setMessageDisplay(d);
-    setHasChanges(true);
-  }
+    hydratedUserIdRef.current = currentUserId;
+    hasHydratedProfileRef.current = false;
+    setTheme("dark");
+    setSaveMessage(null);
+  }, [currentUserId]);
 
-  function handleFontSizeChange(v: number) {
-    setFontSize(v);
-    setHasChanges(true);
-  }
+  useEffect(() => {
+    if (!myProfile || hasHydratedProfileRef.current) {
+      return;
+    }
 
-  function handleZoomChange(v: number) {
-    setZoom(v);
-    setHasChanges(true);
+    hasHydratedProfileRef.current = true;
+    setTheme(myProfile.theme);
+  }, [myProfile]);
+
+  const persistedTheme = myProfile?.theme ?? "dark";
+  const hasPendingChanges = theme !== persistedTheme;
+  const canSave =
+    isProfileLoading === false && hasPendingChanges && updateMyProfile.isPending === false;
+
+  async function handleSave() {
+    if (!hasPendingChanges) {
+      return;
+    }
+
+    setSaveMessage(null);
+    try {
+      const updatedProfile = await updateMyProfile.mutateAsync({ theme });
+      setTheme(updatedProfile.theme);
+      setSaveMessage({
+        type: "success",
+        text: "外観設定を更新しました。",
+      });
+    } catch (error) {
+      setSaveMessage({
+        type: "error",
+        text: toApiErrorText(error, "外観設定の更新に失敗しました。"),
+      });
+    }
   }
 
   function handleReset() {
-    setTheme("dark");
-    setMessageDisplay("cozy");
-    setFontSize(16);
-    setZoom(100);
-    setHasChanges(false);
+    setTheme(persistedTheme);
+    setSaveMessage(null);
   }
 
   return (
     <div className="pb-20">
       <h2 className="mb-5 text-xl font-bold text-discord-header-primary">外観</h2>
 
-      {/* Theme selection */}
+      {isProfileError && (
+        <div className="mb-4 rounded bg-discord-bg-secondary px-3 py-2" role="alert">
+          <p className="text-sm text-discord-status-dnd">
+            {toApiErrorText(profileError, "外観設定の取得に失敗しました。")}
+          </p>
+          <Button
+            className="mt-2"
+            variant="link"
+            size="sm"
+            onClick={() => {
+              void refetchProfile();
+            }}
+          >
+            再試行
+          </Button>
+        </div>
+      )}
+
       <section className="mb-8">
         <h3 className="mb-3 text-xs font-bold uppercase text-discord-header-secondary">テーマ</h3>
-        <div className="grid grid-cols-4 gap-4" role="radiogroup" aria-label="テーマ">
+        <div
+          className="grid grid-cols-1 gap-4 sm:grid-cols-2"
+          role="radiogroup"
+          aria-label="テーマ"
+        >
           {themes.map((t) => (
             <button
+              type="button"
               key={t.id}
               role="radio"
               aria-checked={theme === t.id}
-              onClick={() => handleThemeChange(t.id)}
+              onClick={() => {
+                setTheme(t.id);
+                setSaveMessage(null);
+              }}
               className={cn(
                 "flex flex-col overflow-hidden rounded-lg border-2 transition-colors",
                 theme === t.id
@@ -105,109 +166,43 @@ export function UserAppearance() {
             </button>
           ))}
         </div>
+        <p className="mt-3 text-sm text-discord-text-muted">
+          保存すると保護画面全体に選択した light / dark が反映されます。
+        </p>
       </section>
 
-      {/* Message Display */}
-      <section className="mb-8">
-        <h3 className="mb-3 text-xs font-bold uppercase text-discord-header-secondary">
-          メッセージの表示
-        </h3>
-        <div className="flex gap-4" role="radiogroup" aria-label="メッセージの表示">
-          {[
-            { id: "cozy" as const, label: "心地よい" },
-            { id: "compact" as const, label: "コンパクト" },
-          ].map((d) => (
-            <button
-              key={d.id}
-              role="radio"
-              aria-checked={messageDisplay === d.id}
-              onClick={() => handleDisplayChange(d.id)}
-              className={cn(
-                "flex items-center gap-2 rounded-lg border-2 px-4 py-3 transition-colors",
-                messageDisplay === d.id
-                  ? "border-discord-brand-blurple"
-                  : "border-discord-interactive-muted hover:border-discord-interactive-normal",
-              )}
-            >
-              <span
-                className={cn(
-                  "flex h-5 w-5 items-center justify-center rounded-full border-2",
-                  messageDisplay === d.id
-                    ? "border-discord-brand-blurple"
-                    : "border-discord-interactive-normal",
-                )}
-              >
-                {messageDisplay === d.id && (
-                  <span className="h-2.5 w-2.5 rounded-full bg-discord-brand-blurple" />
-                )}
-              </span>
-              <span className="text-sm font-medium text-discord-text-normal">{d.label}</span>
-            </button>
-          ))}
-        </div>
-      </section>
-
-      {/* Font Size */}
-      <section className="mb-8">
-        <h3 className="mb-3 text-xs font-bold uppercase text-discord-header-secondary">
-          チャットのフォントサイズ
-        </h3>
-        <div className="flex items-center gap-4">
-          <span className="text-xs text-discord-text-muted">12px</span>
-          <input
-            type="range"
-            min={12}
-            max={20}
-            value={fontSize}
-            onChange={(e) => handleFontSizeChange(Number(e.target.value))}
-            className="flex-1 accent-discord-brand-blurple"
-            aria-label="フォントサイズ"
-          />
-          <span className="text-xs text-discord-text-muted">20px</span>
-          <span className="min-w-[40px] text-right text-sm text-discord-text-normal">
-            {fontSize}px
-          </span>
-        </div>
-      </section>
-
-      {/* Zoom */}
-      <section className="mb-8">
-        <h3 className="mb-3 text-xs font-bold uppercase text-discord-header-secondary">
-          ズームレベル
-        </h3>
-        <div className="flex items-center gap-4">
-          <span className="text-xs text-discord-text-muted">50%</span>
-          <input
-            type="range"
-            min={50}
-            max={200}
-            step={5}
-            value={zoom}
-            onChange={(e) => handleZoomChange(Number(e.target.value))}
-            className="flex-1 accent-discord-brand-blurple"
-            aria-label="ズームレベル"
-          />
-          <span className="text-xs text-discord-text-muted">200%</span>
-          <span className="min-w-[40px] text-right text-sm text-discord-text-normal">{zoom}%</span>
-        </div>
-      </section>
-
-      {/* Save bar */}
-      {hasChanges && (
+      {hasPendingChanges && (
         <div className="fixed bottom-0 left-0 right-0 z-50 flex items-center justify-between bg-discord-bg-tertiary px-6 py-3 shadow-lg">
-          <span className="text-sm text-discord-text-normal">
-            注意 -- 保存されていない変更があります！
-          </span>
+          <span className="text-sm text-discord-text-normal">保存されていない変更があります。</span>
           <div className="flex gap-3">
             <button
+              type="button"
               onClick={handleReset}
               className="text-sm font-medium text-discord-text-link hover:underline"
             >
               リセット
             </button>
-            <Button onClick={() => setHasChanges(false)}>変更を保存</Button>
+            <Button
+              onClick={() => {
+                void handleSave();
+              }}
+              disabled={!canSave}
+            >
+              {updateMyProfile.isPending ? "保存中..." : "変更を保存"}
+            </Button>
           </div>
         </div>
+      )}
+
+      {saveMessage?.type === "success" && (
+        <p role="status" className="text-sm text-discord-status-online">
+          {saveMessage.text}
+        </p>
+      )}
+      {saveMessage?.type === "error" && (
+        <p role="alert" className="text-sm text-discord-status-dnd">
+          {saveMessage.text}
+        </p>
       )}
     </div>
   );

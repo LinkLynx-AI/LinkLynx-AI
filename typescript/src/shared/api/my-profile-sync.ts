@@ -1,6 +1,7 @@
 import type { QueryClient } from "@tanstack/react-query";
 import type { MyProfile, Relationship } from "@/shared/api/api-client";
 import { useAuthStore } from "@/shared/model/stores/auth-store";
+import { useSettingsStore } from "@/shared/model/stores/settings-store";
 import type { GuildMember } from "@/shared/model/types/server";
 import type { User } from "@/shared/model/types/user";
 
@@ -66,6 +67,7 @@ export function syncMyProfileToAuthStore(
   avatarUrlOverride?: string | null,
 ): void {
   const { currentUser, setCurrentUser, setCustomStatus } = useAuthStore.getState();
+  useSettingsStore.getState().setTheme(profile.theme);
   if (currentUser === null) {
     return;
   }

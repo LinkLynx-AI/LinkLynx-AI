@@ -53,8 +53,8 @@ use linklynx_message_api::{
     EditGuildChannelMessageRequestV1, ListGuildChannelMessagesQueryV1,
 };
 use linklynx_protocol_ws::{
-    ClientMessageFrameV1, GuildChannelSubscriptionTargetV1, MessageSubscriptionStateV1,
-    ServerMessageFrameV1,
+    ClientMessageFrameV1, DmChannelSubscriptionTargetV1, DmMessageSubscriptionStateV1,
+    GuildChannelSubscriptionTargetV1, MessageSubscriptionStateV1, ServerMessageFrameV1,
 };
 use message::{
     build_runtime_message_service, message_error_response, MessageError, MessageService,
