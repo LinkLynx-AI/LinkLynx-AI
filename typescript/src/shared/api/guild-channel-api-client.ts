@@ -5,7 +5,9 @@ import type {
   DeleteMessageData,
   EditMessageData,
   Guild,
+  GuildMember,
   Message,
+  UserProfile,
 } from "@/shared/model/types";
 import { useAuthStore } from "@/shared/model/stores/auth-store";
 import type {
@@ -25,6 +27,7 @@ import type {
   ModerationReport,
   PermissionSnapshot,
   ProfileMediaTarget,
+  Role,
   SendMessageParams,
   UpdateGuildData,
   UpdateMyProfileInput,
@@ -133,6 +136,38 @@ const MY_PROFILE_SCHEMA = z.object({
 });
 const MY_PROFILE_RESPONSE_SCHEMA = z.object({
   profile: MY_PROFILE_SCHEMA,
+});
+const GUILD_MEMBER_SCHEMA = z.object({
+  user_id: z.number().int().positive(),
+  display_name: z.string().trim().min(1),
+  avatar_key: z.string().trim().min(1).nullable().optional(),
+  status_text: z.string().trim().min(1).nullable().optional(),
+  nickname: z.string().trim().min(1).nullable().optional(),
+  joined_at: z.string().trim().min(1),
+  role_keys: z.array(z.string().trim().min(1)),
+});
+const GUILD_MEMBERS_RESPONSE_SCHEMA = z.object({
+  members: z.array(GUILD_MEMBER_SCHEMA),
+});
+const GUILD_ROLE_SCHEMA = z.object({
+  role_key: z.string().trim().min(1),
+  name: z.string().trim().min(1),
+  priority: z.number().int(),
+  allow_manage: z.boolean(),
+  member_count: z.number().int().nonnegative(),
+});
+const GUILD_ROLES_RESPONSE_SCHEMA = z.object({
+  roles: z.array(GUILD_ROLE_SCHEMA),
+});
+const USER_PROFILE_RESPONSE_SCHEMA = z.object({
+  profile: z.object({
+    user_id: z.number().int().positive(),
+    display_name: z.string().trim().min(1),
+    status_text: z.string().trim().min(1).nullable().optional(),
+    avatar_key: z.string().trim().min(1).nullable().optional(),
+    banner_key: z.string().trim().min(1).nullable().optional(),
+    created_at: z.string().trim().min(1),
+  }),
 });
 const PROFILE_MEDIA_TARGET_SCHEMA = z.enum(["avatar", "banner"]);
 const PROFILE_MEDIA_UPLOAD_RESPONSE_SCHEMA = z.object({
@@ -258,6 +293,9 @@ type ChannelListResponse = z.infer<typeof CHANNEL_LIST_RESPONSE_SCHEMA>;
 type ChannelSummaryResponse = z.infer<typeof CHANNEL_SUMMARY_SCHEMA>;
 type DmChannelListResponse = z.infer<typeof DM_CHANNEL_LIST_RESPONSE_SCHEMA>;
 type MyProfileResponse = z.infer<typeof MY_PROFILE_RESPONSE_SCHEMA>;
+type GuildMembersResponse = z.infer<typeof GUILD_MEMBERS_RESPONSE_SCHEMA>;
+type GuildRolesResponse = z.infer<typeof GUILD_ROLES_RESPONSE_SCHEMA>;
+type UserProfileResponse = z.infer<typeof USER_PROFILE_RESPONSE_SCHEMA>;
 type ProfileMediaUploadResponse = z.infer<typeof PROFILE_MEDIA_UPLOAD_RESPONSE_SCHEMA>;
 type ProfileMediaDownloadResponse = z.infer<typeof PROFILE_MEDIA_DOWNLOAD_RESPONSE_SCHEMA>;
 type PermissionSnapshotResponse = z.infer<typeof PERMISSION_SNAPSHOT_RESPONSE_SCHEMA>;
@@ -664,6 +702,58 @@ function mapMyProfile(response: MyProfileResponse): MyProfile {
     avatarKey: response.profile.avatar_key,
     bannerKey: response.profile.banner_key,
     theme: response.profile.theme,
+  };
+}
+
+function mapGuildMember(entry: GuildMembersResponse["members"][number]): GuildMember {
+  const statusText = entry.status_text ?? null;
+
+  return {
+    user: {
+      id: String(entry.user_id),
+      username: entry.display_name,
+      displayName: entry.display_name,
+      avatar: null,
+      status: "offline",
+      customStatus: statusText,
+      bot: false,
+    },
+    nick: entry.nickname ?? null,
+    roles: entry.role_keys,
+    joinedAt: entry.joined_at,
+    avatar: null,
+  };
+}
+
+function mapRole(entry: GuildRolesResponse["roles"][number]): Role {
+  return {
+    id: entry.role_key,
+    name: entry.name,
+    color: "#99aab5",
+    position: entry.priority,
+    permissions: entry.allow_manage ? 1 : 0,
+    mentionable: false,
+    hoist: entry.priority > 100,
+    memberCount: entry.member_count,
+  };
+}
+
+function mapUserProfile(response: UserProfileResponse): UserProfile {
+  const statusText = response.profile.status_text ?? null;
+
+  return {
+    id: String(response.profile.user_id),
+    username: response.profile.display_name,
+    displayName: response.profile.display_name,
+    avatar: null,
+    status: "offline",
+    customStatus: statusText,
+    bot: false,
+    banner: null,
+    bio: statusText,
+    accentColor: null,
+    badges: [],
+    createdAt: response.profile.created_at,
   };
 }
 
@@ -1496,6 +1586,51 @@ export class GuildChannelAPIClient extends NoDataAPIClient {
     );
 
     return mapMessageItem(response.message);
+  }
+
+  async getMembers(serverId: string): Promise<GuildMember[]> {
+    const normalizedServerId = serverId.trim();
+    if (normalizedServerId.length === 0) {
+      return [];
+    }
+
+    const response = await this.getJson(
+      `/v1/guilds/${encodeURIComponent(normalizedServerId)}/members`,
+      GUILD_MEMBERS_RESPONSE_SCHEMA,
+    );
+
+    return response.members.map(mapGuildMember);
+  }
+
+  async getUserProfile(userId: string): Promise<UserProfile> {
+    const normalizedUserId = userId.trim();
+    if (normalizedUserId.length === 0) {
+      throw new GuildChannelApiError("User ID is required.", {
+        status: 400,
+        code: "VALIDATION_ERROR",
+      });
+    }
+
+    const response = await this.getJson(
+      `/v1/users/${encodeURIComponent(normalizedUserId)}/profile`,
+      USER_PROFILE_RESPONSE_SCHEMA,
+    );
+
+    return mapUserProfile(response);
+  }
+
+  async getRoles(serverId: string): Promise<Role[]> {
+    const normalizedServerId = serverId.trim();
+    if (normalizedServerId.length === 0) {
+      return [];
+    }
+
+    const response = await this.getJson(
+      `/v1/guilds/${encodeURIComponent(normalizedServerId)}/roles`,
+      GUILD_ROLES_RESPONSE_SCHEMA,
+    );
+
+    return response.roles.map(mapRole);
   }
 
   async getMyProfile(): Promise<MyProfile> {

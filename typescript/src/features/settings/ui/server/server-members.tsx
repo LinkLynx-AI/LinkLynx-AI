@@ -2,24 +2,20 @@
 
 import { useState } from "react";
 import { Search } from "lucide-react";
-import { cn } from "@/shared/lib/cn";
 import { Avatar } from "@/shared/ui/avatar";
 import { Button } from "@/shared/ui/button";
 import { useMembers } from "@/shared/api/queries/use-members";
+import { useRoles } from "@/shared/api/queries/use-roles";
 import type { GuildMember } from "@/shared/model/types/server";
 
 const mockMembers: GuildMember[] = [];
 
-const roleColors: Record<string, string> = {
-  Admin: "#e74c3c",
-  Moderator: "#3498db",
-  Member: "#95a5a6",
-};
-
 export function ServerMembers({ serverId }: { serverId: string }) {
   const [search, setSearch] = useState("");
   const { data: apiMembers } = useMembers(serverId);
+  const { data: roles = [] } = useRoles(serverId);
   const members = apiMembers ?? mockMembers;
+  const roleMap = new Map(roles.map((role) => [role.id, role]));
 
   const filtered = members.filter((m) => {
     const q = search.toLowerCase();
@@ -71,22 +67,28 @@ export function ServerMembers({ serverId }: { serverId: string }) {
                 </span>
               </div>
               <div className="flex items-center gap-1.5 mt-0.5">
-                {member.roles.map((role) => (
-                  <span
-                    key={role}
-                    className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium"
-                    style={{
-                      backgroundColor: `${roleColors[role] ?? "#95a5a6"}20`,
-                      color: roleColors[role] ?? "#95a5a6",
-                    }}
-                  >
+                {member.roles.map((role) => {
+                  const roleEntry = roleMap.get(role);
+                  const roleName = roleEntry?.name ?? role;
+                  const roleColor = "#95a5a6";
+
+                  return (
                     <span
-                      className="h-2 w-2 rounded-full"
-                      style={{ backgroundColor: roleColors[role] ?? "#95a5a6" }}
-                    />
-                    {role}
-                  </span>
-                ))}
+                      key={role}
+                      className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium"
+                      style={{
+                        backgroundColor: `${roleColor}20`,
+                        color: roleColor,
+                      }}
+                    >
+                      <span
+                        className="h-2 w-2 rounded-full"
+                        style={{ backgroundColor: roleColor }}
+                      />
+                      {roleName}
+                    </span>
+                  );
+                })}
               </div>
             </div>
             <span className="hidden text-xs text-discord-text-muted sm:block">
