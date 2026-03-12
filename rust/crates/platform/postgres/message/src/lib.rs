@@ -31,6 +31,21 @@ const SELECT_CHANNEL_CONTEXT_SQL: &str = "
       ON clm.channel_id = c.id
     WHERE c.id = $1
       AND c.type = 'guild_text'";
+const SELECT_DM_CHANNEL_CONTEXT_SQL: &str = "
+    SELECT
+      c.id AS channel_id,
+      c.id AS guild_id,
+      to_char(c.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS created_at,
+      clm.last_message_id,
+      CASE
+        WHEN clm.last_message_at IS NULL THEN NULL
+        ELSE to_char(clm.last_message_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"')
+      END AS last_message_at
+    FROM channels c
+    LEFT JOIN channel_last_message clm
+      ON clm.channel_id = c.id
+    WHERE c.id = $1
+      AND c.type = 'dm'";
 const UPSERT_LAST_MESSAGE_SQL: &str = "
     INSERT INTO channel_last_message (channel_id, last_message_id, last_message_at)
     VALUES ($1, $2, CAST($3 AS text)::timestamptz)
@@ -316,6 +331,31 @@ impl MessageMetadataRepository for PostgresMessageMetadataRepository {
             .transpose()
     }
 
+    /// DM channel context を取得する。
+    /// @param channel_id 対象 channel_id
+    /// @returns DM channel context。未存在時は `None`
+    /// @throws MessageUsecaseError 依存障害時
+    async fn get_dm_channel_context(
+        &self,
+        channel_id: i64,
+    ) -> Result<Option<GuildChannelContext>, MessageUsecaseError> {
+        let client = self.select_client().await?;
+        let row = match client
+            .query_opt(SELECT_DM_CHANNEL_CONTEXT_SQL, &[&channel_id])
+            .await
+        {
+            Ok(row) => row,
+            Err(error) => {
+                self.invalidate_pool().await;
+                return Err(MessageUsecaseError::dependency_unavailable(format!(
+                    "message_metadata_dm_context_query_failed:{error}"
+                )));
+            }
+        };
+        row.map(|value| self.map_channel_context_row(value))
+            .transpose()
+    }
+
     /// channel_last_message を monotonic に更新する。
     /// @param channel_id 対象 channel_id
     /// @param message_id 最新 message_id
@@ -446,13 +486,19 @@ impl MessageCreateIdempotencyRepository for PostgresMessageMetadataRepository {
 mod tests {
     use super::{
         MARK_CREATE_RESERVATION_COMPLETED_SQL, SELECT_CHANNEL_CONTEXT_SQL,
-        UPSERT_CREATE_RESERVATION_SQL, UPSERT_LAST_MESSAGE_SQL,
+        SELECT_DM_CHANNEL_CONTEXT_SQL, UPSERT_CREATE_RESERVATION_SQL, UPSERT_LAST_MESSAGE_SQL,
     };
 
     #[test]
     fn select_channel_context_sql_scopes_to_guild_text_channels() {
         assert!(SELECT_CHANNEL_CONTEXT_SQL.contains("c.type = 'guild_text'"));
         assert!(SELECT_CHANNEL_CONTEXT_SQL.contains("LEFT JOIN channel_last_message"));
+    }
+
+    #[test]
+    fn select_dm_channel_context_sql_scopes_to_dm_channels() {
+        assert!(SELECT_DM_CHANNEL_CONTEXT_SQL.contains("c.type = 'dm'"));
+        assert!(SELECT_DM_CHANNEL_CONTEXT_SQL.contains("c.id AS guild_id"));
     }
 
     #[test]
