@@ -3,6 +3,7 @@ import { createElement } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@/test/test-utils";
 import type { Relationship } from "@/shared/api/api-client";
+import { useSettingsStore } from "@/shared/model/stores/settings-store";
 import type { GuildMember } from "@/shared/model/types/server";
 import { useAuthStore } from "@/shared/model/stores/auth-store";
 import { useUpdateMyProfile } from "./use-my-profile";
@@ -35,6 +36,16 @@ describe("useUpdateMyProfile", () => {
       },
       status: "online",
       customStatus: "old-status",
+    });
+    useSettingsStore.setState({
+      theme: "dark",
+      compactMode: false,
+      fontSize: 16,
+      messageGroupSpacing: 16,
+      showTimestamps: true,
+      use24HourTime: false,
+      enableReducedMotion: false,
+      enableHighContrast: false,
     });
   });
 
@@ -82,6 +93,8 @@ describe("useUpdateMyProfile", () => {
       displayName: "New Name",
       statusText: "new-status",
       avatarKey: null,
+      bannerKey: null,
+      theme: "light",
     });
 
     const { result } = renderHook(() => useUpdateMyProfile("u-1"), { wrapper });
@@ -103,6 +116,8 @@ describe("useUpdateMyProfile", () => {
       displayName: "New Name",
       statusText: "new-status",
       avatarKey: null,
+      bannerKey: null,
+      theme: "light",
     });
     expect(queryClient.getQueryData(["friends"])).toEqual([
       {
@@ -141,5 +156,6 @@ describe("useUpdateMyProfile", () => {
       customStatus: "new-status",
     });
     expect(useAuthStore.getState().customStatus).toBe("new-status");
+    expect(useSettingsStore.getState().theme).toBe("light");
   });
 });

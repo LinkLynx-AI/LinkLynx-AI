@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-export type ThemeMode = "dark" | "light" | "system";
+export type ThemeMode = "dark" | "light";
 
 type SettingsState = {
   theme: ThemeMode;
