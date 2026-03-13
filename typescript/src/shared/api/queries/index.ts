@@ -4,6 +4,7 @@ export { useMessages, usePinnedMessages } from "./use-messages";
 export { useMembers } from "./use-members";
 export { useUserProfile } from "./use-user-profile";
 export { useMyProfile } from "./use-my-profile";
+export { useMyProfileMediaDownloadUrl } from "./use-my-profile-media-download-url";
 export { useFriends } from "./use-friends";
 export { useRoles } from "./use-roles";
 export { useInvites } from "./use-invites";
