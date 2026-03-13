@@ -2118,6 +2118,8 @@ async fn create_guild_invite(
         Err(error) => invite_error_response(&error, request_id),
 }
 
+}
+
 /// permission snapshot 監査ログの共通項目を返す。
 /// @param auth_context 認証文脈
 /// @param guild_id 対象guild_id
