@@ -34,6 +34,7 @@
 | PATCH | `/v1/guilds/:guild_id` | Protected | 必須 | 必須 | Guild管理 |
 | GET | `/guilds/:guild_id/channels` | Protected | 必須 | 必須 | Guild channel 一覧。category container を含みうる |
 | POST | `/guilds/:guild_id/channels` | Protected | 必須 | 必須 | Guild channel / category 作成 |
+| POST | `/v1/guilds/:guild_id/invites` | Protected | 必須 | 必須 | Invite作成 |
 | PATCH | `/channels/:channel_id` | Protected | 必須 | 必須 | Channel / category rename |
 | DELETE | `/channels/:channel_id` | Protected | 必須 | 必須 | Channel / category delete |
 | GET | `/v1/guilds/:guild_id/channels/:channel_id` | Protected | 必須 | 必須 | Channel参照 |
@@ -71,6 +72,7 @@
 - `PATCH /v1/guilds/:guild_id`
 - `GET /guilds/:guild_id/channels`
 - `POST /guilds/:guild_id/channels`
+- `POST /v1/guilds/:guild_id/invites`
 - `PATCH /channels/:channel_id`
 - `DELETE /channels/:channel_id`
 - `GET /v1/guilds/:guild_id/channels/:channel_id`
@@ -99,6 +101,7 @@
 | REST | `PATCH /v1/guilds/:guild_id` | AuthN済み `principal_id` | `AuthzResource::Guild { guild_id }` | `Manage` | deny=`403/AUTHZ_DENIED`, unavailable=`503/AUTHZ_UNAVAILABLE` |
 | REST | `GET /guilds/:guild_id/channels` | AuthN済み `principal_id` | `AuthzResource::Guild { guild_id }` | `View` | category container を含む一覧取得。deny=`403/AUTHZ_DENIED`, unavailable=`503/AUTHZ_UNAVAILABLE` |
 | REST | `POST /guilds/:guild_id/channels` | AuthN済み `principal_id` | `AuthzResource::Guild { guild_id }` | `Post` | create path は handler/service で `Manage` 境界を追加適用する |
+| REST | `POST /v1/guilds/:guild_id/invites` | AuthN済み `principal_id` | `AuthzResource::Guild { guild_id }` | `Manage` | invite create path。route と service の両方で guild manage を fail-close 適用する |
 | REST | `PATCH /channels/:channel_id` | AuthN済み `principal_id` | `AuthzResource::RestPath { path: "/channels/:channel_id" }` | `Manage` | route通過後、handler/service で category を含む channel manage 判定を fail-close 適用する |
 | REST | `DELETE /channels/:channel_id` | AuthN済み `principal_id` | `AuthzResource::RestPath { path: "/channels/:channel_id" }` | `Manage` | route通過後、handler/service で category cascade delete 可否を fail-close 適用する |
 | REST | `GET /v1/guilds/:guild_id/channels/:channel_id` | AuthN済み `principal_id` | `AuthzResource::GuildChannel { guild_id, channel_id }` | `View` | deny=`403/AUTHZ_DENIED`, unavailable=`503/AUTHZ_UNAVAILABLE` |
@@ -123,6 +126,9 @@
 | `GET` / `HEAD` | `View` |
 | `POST` | `Post` |
 | Other methods | `Manage` |
+
+補足:
+- `POST /v1/guilds/:guild_id/invites` は explicit path rule で `Manage` へ昇格する。
 
 ## 5. WS message inventory
 

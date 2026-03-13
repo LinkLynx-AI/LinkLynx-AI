@@ -67,6 +67,7 @@ export function ModalManager() {
       return (
         <CreateInviteModal
           onClose={closeModal}
+          serverId={modalProps.serverId as string | undefined}
           channelId={modalProps.channelId as string | undefined}
         />
       );

@@ -282,7 +282,7 @@ export type APIClient = {
   createGroupDM(recipientIds: string[]): Promise<Channel>;
 
   // Invites
-  createInvite(channelId: string, data: CreateInviteData): Promise<Invite>;
+  createInvite(serverId: string, channelId: string, data: CreateInviteData): Promise<Invite>;
   getInvites(serverId: string): Promise<Invite[]>;
   revokeInvite(inviteCode: string): Promise<void>;
 

@@ -42,9 +42,48 @@ pub struct InviteJoinResult {
     pub status: InviteJoinStatus,
 }
 
+/// 招待作成入力を表現する。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CreateInviteInput {
+    pub channel_id: i64,
+    pub max_age_seconds: Option<i64>,
+    pub max_uses: Option<i32>,
+}
+
+/// 招待に紐づくチャンネル最小情報を表現する。
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct InviteChannelSummary {
+    pub channel_id: i64,
+    pub name: String,
+}
+
+/// 招待作成結果を表現する。
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct CreatedInvite {
+    pub invite_code: String,
+    pub guild: PublicInviteGuild,
+    pub channel: InviteChannelSummary,
+    pub expires_at: Option<String>,
+    pub uses: i32,
+    pub max_uses: Option<i32>,
+}
+
 /// invite verify APIユースケース境界を表現する。
 #[async_trait]
 pub trait InviteService: Send + Sync {
+    /// 認証済みユーザーが guild 配下の招待を作成する。
+    /// @param principal_id 作成主体ID
+    /// @param guild_id 対象guild_id
+    /// @param input 招待作成入力
+    /// @returns 作成済み招待
+    /// @throws InviteError 入力不正、未存在、非権限、または依存障害時
+    async fn create_invite(
+        &self,
+        principal_id: PrincipalId,
+        guild_id: i64,
+        input: CreateInviteInput,
+    ) -> Result<CreatedInvite, InviteError>;
+
     /// 公開招待コードを検証する。
     /// @param invite_code 検証対象の招待コード
     /// @returns 検証結果
@@ -94,6 +133,21 @@ impl UnavailableInviteService {
 
 #[async_trait]
 impl InviteService for UnavailableInviteService {
+    /// 招待を作成する。
+    /// @param _principal_id 作成主体ID
+    /// @param _guild_id 対象guild_id
+    /// @param _input 招待作成入力
+    /// @returns なし
+    /// @throws InviteError 常に依存障害
+    async fn create_invite(
+        &self,
+        _principal_id: PrincipalId,
+        _guild_id: i64,
+        _input: CreateInviteInput,
+    ) -> Result<CreatedInvite, InviteError> {
+        Err(self.unavailable_error())
+    }
+
     /// 公開招待コードを検証する。
     /// @param _invite_code 検証対象の招待コード
     /// @returns なし
@@ -153,6 +207,47 @@ enum InviteJoinDecision {
 struct InviteJoinRecord {
     guild_id: i64,
     decision: InviteJoinDecision,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct CreatedInviteRecord {
+    guild: PublicInviteGuild,
+    channel: InviteChannelSummary,
+    expires_at: Option<String>,
+    uses: i32,
+    max_uses: Option<i32>,
+}
+
+/// 招待作成入力を検証する。
+/// @param input 生の招待作成入力
+/// @returns 検証済み入力
+/// @throws InviteError 入力不正時
+fn normalize_create_invite_input(input: CreateInviteInput) -> Result<CreateInviteInput, InviteError> {
+    if input.channel_id <= 0 {
+        return Err(InviteError::validation("channel_id_must_be_positive"));
+    }
+
+    let max_age_seconds = match input.max_age_seconds {
+        Some(value) if value <= 0 => {
+            return Err(InviteError::validation("max_age_seconds_must_be_positive"));
+        }
+        Some(value) => Some(value),
+        None => None,
+    };
+
+    let max_uses = match input.max_uses {
+        Some(value) if value <= 0 => {
+            return Err(InviteError::validation("max_uses_must_be_positive"));
+        }
+        Some(value) => Some(value),
+        None => None,
+    };
+
+    Ok(CreateInviteInput {
+        channel_id: input.channel_id,
+        max_age_seconds,
+        max_uses,
+    })
 }
 
 /// DB取得結果を公開招待レスポンスへ変換する。
@@ -224,4 +319,25 @@ fn build_invite_join_result(
         })
         | None => Err(InviteError::invalid_invite("invite_invalid")),
     }
+}
+
+/// 招待作成レコードをレスポンスへ変換する。
+/// @param invite_code 作成済み招待コード
+/// @param record 作成レコード
+/// @returns 招待作成レスポンス
+/// @throws InviteError 入力不正時
+fn build_created_invite(
+    invite_code: String,
+    record: CreatedInviteRecord,
+) -> Result<CreatedInvite, InviteError> {
+    let normalized_invite_code = normalize_invite_code(&invite_code)?;
+
+    Ok(CreatedInvite {
+        invite_code: normalized_invite_code,
+        guild: record.guild,
+        channel: record.channel,
+        expires_at: record.expires_at,
+        uses: record.uses,
+        max_uses: record.max_uses,
+    })
 }
