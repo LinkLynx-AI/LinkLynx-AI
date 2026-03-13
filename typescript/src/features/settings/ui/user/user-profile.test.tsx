@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { act, render, screen, userEvent, waitFor } from "@/test/test-utils";
+import { PROFILE_IMAGE_SIZE_LIMIT_BYTES } from "../../lib/profile-image";
 import { GuildChannelApiError } from "@/shared/api/guild-channel-api-client";
 import { useAuthStore } from "@/shared/model/stores/auth-store";
 
@@ -74,6 +75,14 @@ vi.mock("@/shared/ui/image-crop-modal", () => ({
 }));
 
 import { UserProfile } from "./user-profile";
+
+function setFileSize(file: File, size: number): File {
+  Object.defineProperty(file, "size", {
+    configurable: true,
+    value: size,
+  });
+  return file;
+}
 
 describe("UserProfile", () => {
   beforeEach(() => {
@@ -274,6 +283,26 @@ describe("UserProfile", () => {
 
     await user.click(screen.getByRole("button", { name: "再試行" }));
     expect(refetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  test("blocks oversized avatar selection before crop or save", async () => {
+    const user = userEvent.setup();
+
+    render(<UserProfile />);
+
+    const oversizedFile = setFileSize(
+      new File(["avatar"], "large-avatar.png", { type: "image/png" }),
+      PROFILE_IMAGE_SIZE_LIMIT_BYTES.avatar + 1,
+    );
+
+    await user.upload(screen.getByLabelText("アバター画像ファイル"), oversizedFile);
+
+    expect(
+      screen.getByText("アバター画像は 2MB 以下のファイルを選択してください。"),
+    ).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "適用" })).toBeNull();
+    expect(uploadProfileMediaFileMock).not.toHaveBeenCalled();
+    expect(mutateAsyncMock).not.toHaveBeenCalled();
   });
 
   test("uses persisted avatar storage URL when auth-store avatar is empty", () => {

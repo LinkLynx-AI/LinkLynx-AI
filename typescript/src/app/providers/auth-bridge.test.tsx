@@ -177,4 +177,36 @@ describe("AuthBridge", () => {
       expect(useAuthStore.getState().customStatus).toBeNull();
     });
   });
+
+  test("clears stale auth-store state when session is authenticated but user is null", async () => {
+    useAuthStore.setState({
+      currentUser: {
+        id: "u-stale",
+        username: "stale",
+        displayName: "Stale",
+        avatar: null,
+        status: "online",
+        customStatus: "stale-status",
+        bot: false,
+      },
+      currentPrincipalId: null,
+      status: "online",
+      customStatus: "stale-status",
+    });
+    useAuthSessionMock.mockReturnValue({
+      status: "authenticated",
+      user: null,
+      getIdToken: () => Promise.resolve("token-1"),
+    });
+    useMyProfileMock.mockReturnValue({
+      data: undefined,
+    });
+
+    render(<AuthBridge />);
+
+    await waitFor(() => {
+      expect(useAuthStore.getState().currentUser).toBeNull();
+      expect(useAuthStore.getState().customStatus).toBeNull();
+    });
+  });
 });
