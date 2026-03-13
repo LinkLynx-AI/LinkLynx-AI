@@ -1,8 +1,13 @@
 # Message v1 API/WS Contract Runbook
 
-- Status: Draft
-- Last updated: 2026-03-11
+- Status: Active with tracked v1 follow-up items
+- Last updated: 2026-03-13
 - Owner scope: v1 message contract baseline
+- v1 follow-up owner:
+  - Runtime/API: Backend team
+  - WS/Fanout: Realtime team
+  - Docs/Tracking: Platform docs owner
+- Next target date: 2026-04-15
 - References:
   - `docs/adr/ADR-001-event-schema-compatibility.md`
   - `docs/adr/ADR-002-class-ab-event-classification-and-delivery-boundary.md`
@@ -32,6 +37,37 @@ Out of scope:
 - Scylla persistence wiring
 - edit/delete command contract
 - durable event transport for edit/delete
+
+## 1.1 Delivery gate boundary
+
+This document contains both:
+
+- current v1 baseline that is required for the present delivery gate, and
+- tracked follow-up items that are explicitly excluded from blocking current v1 delivery.
+
+Current v1 delivery is considered satisfied when the create/list REST contract, current WS subscription/fanout baseline, and `message_create` durable event contract are implemented and validated.
+
+The following items are tracked as follow-up and are not blockers for current v1 delivery:
+
+- edit/delete REST command contract rollout
+- durable event transport for edit/delete
+- tombstone fanout hardening beyond the current snapshot compatibility baseline
+
+Promotion of any follow-up item into the delivery gate requires a separate issue update and traceability update.
+
+## 1.2 Tracked v1 follow-up items
+
+| item | current state | owner | next target date | entry condition |
+| --- | --- | --- | --- | --- |
+| Edit command contract rollout | tracked follow-up | Backend team | 2026-04-15 | optimistic concurrency and authz/audit impact review is assigned |
+| Delete/tombstone contract rollout | tracked follow-up | Backend team | 2026-04-15 | tombstone visibility and client compatibility review is assigned |
+| Durable event transport for edit/delete | tracked follow-up | Realtime team | 2026-04-15 | additive event catalog extension plan is approved |
+
+Security / audit notes for the follow-up items:
+
+- edited/deleted snapshots must preserve author ownership checks and fail-close authz behavior.
+- tombstone visibility must not leak content after delete; clients must render from `is_deleted` rather than stale content caches.
+- edit/delete event transport must remain additive under ADR-001 and keep class/delivery boundaries aligned with ADR-002.
 
 ## 2. REST contract baseline
 
@@ -238,3 +274,9 @@ Notes:
 5. `message.updated` / `message.deleted` fanout uses the same latest snapshot shape as list/edit/delete responses.
 6. Unknown future fields do not break deserialization.
 7. DM subscribe ACK and `dm.message.created` fanout are test-covered.
+
+## 7. Follow-up tracking notes
+
+- Current v1 delivery gate excludes the tracked follow-up items in section 1.2.
+- When a follow-up starts, update this runbook, `docs/V1_TRACEABILITY.md`, and the corresponding `docs/agent_runs/LIN-*` together.
+- Do not delete the follow-up rows until the replacement issue/PR and rollout evidence are linked.

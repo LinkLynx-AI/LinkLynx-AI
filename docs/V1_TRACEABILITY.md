@@ -29,6 +29,12 @@
 | `db.migration.0016.lin822` | `0016_lin822_minimal_moderation` | `LIN-822` / implementation run is tracked under `LIN-802` | active | もとは `0012`。2026-03-07 に改番。Linear 上の `LIN-822` 状態が `Backlog` でも、コード/DB上は実装済み。 |
 | `db.migration.0017.lin939` | `0017_lin939_profile_banner_key` | `LIN-939` | active | `users.banner_key` を追加し、profile media の key persistence 契約を有効化。 |
 
+## Current runbook follow-up mapping
+
+| Local artifact key | Current repo artifact | Original Linear anchor | Local state | Notes |
+| --- | --- | --- | --- | --- |
+| `runbook.message_v1.followup.lin981` | `docs/runbooks/message-v1-api-ws-contract-runbook.md` | `LIN-981` | active | edit/delete contract と durable event transport を current v1 delivery gate から分離し、tracked follow-up として維持。次回目標日は 2026-04-15。 |
+
 ## When Linear is reorganized
 
 1. 新しい親子関係や統合先 issue をこの台帳に追記する。
