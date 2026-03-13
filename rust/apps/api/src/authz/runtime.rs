@@ -1,4 +1,3 @@
-const DEFAULT_AUTHZ_PROVIDER: &str = "noop";
 const DEFAULT_ALLOW_ALL_UNTIL: &str = "2026-06-30";
 const DEFAULT_SPICEDB_ENDPOINT: &str = "http://localhost:50051";
 const DEFAULT_SPICEDB_CHECK_ENDPOINT: &str = "http://localhost:8443";
@@ -94,10 +93,17 @@ pub fn build_runtime_authorizer() -> Arc<dyn Authorizer> {
         AuthzAction::Post,
         AuthzAction::Manage,
     ];
-    let provider = env::var("AUTHZ_PROVIDER")
-        .unwrap_or_else(|_| DEFAULT_AUTHZ_PROVIDER.to_owned())
-        .trim()
-        .to_ascii_lowercase();
+    let provider = match parse_runtime_provider_from_env() {
+        Ok(provider) => provider,
+        Err(reason) => {
+            warn!(
+                reason = %reason,
+                supported_action_count = supported_actions.len(),
+                "AUTHZ_PROVIDER is missing or invalid; fail-close authorizer is active"
+            );
+            return Arc::new(FailClosedAuthorizer::new(reason));
+        }
+    };
 
     let allow_all_until = env::var("AUTHZ_ALLOW_ALL_UNTIL")
         .unwrap_or_else(|_| DEFAULT_ALLOW_ALL_UNTIL.to_owned())
@@ -106,6 +112,16 @@ pub fn build_runtime_authorizer() -> Arc<dyn Authorizer> {
 
     match provider.as_str() {
         "noop" => {
+            if let Err(reason) = validate_noop_allow_all_until(&allow_all_until) {
+                warn!(
+                    provider = "noop",
+                    allow_all_until = %allow_all_until,
+                    reason = %reason,
+                    supported_action_count = supported_actions.len(),
+                    "AuthZ noop allow-all is inactive; fail-close authorizer is active"
+                );
+                return Arc::new(FailClosedAuthorizer::new(reason));
+            }
             warn!(
                 provider = "noop",
                 allow_all_until = %allow_all_until,
@@ -216,6 +232,67 @@ pub fn build_runtime_authorizer() -> Arc<dyn Authorizer> {
             )))
         }
     }
+}
+
+/// 実行時の認可プロバイダー設定を読み取る。
+/// @param なし
+/// @returns 正規化済み provider 名
+/// @throws String 未設定または空文字列時
+fn parse_runtime_provider_from_env() -> Result<String, String> {
+    match env::var("AUTHZ_PROVIDER") {
+        Ok(value) => {
+            let trimmed = value.trim();
+            if trimmed.is_empty() {
+                return Err("authz_provider_empty".to_owned());
+            }
+            Ok(trimmed.to_ascii_lowercase())
+        }
+        Err(_) => Err("authz_provider_missing".to_owned()),
+    }
+}
+
+/// noop allow-all 例外の期限を検証する。
+/// @param allow_all_until `YYYY-MM-DD` 形式の UTC 日付
+/// @returns 期限内なら `Ok(())`
+/// @throws String 形式不正または期限切れ時
+fn validate_noop_allow_all_until(allow_all_until: &str) -> Result<(), String> {
+    let expiry_date = parse_utc_date(allow_all_until)
+        .map_err(|reason| format!("noop_allow_all_until_invalid:{reason}"))?;
+    let today = time::OffsetDateTime::now_utc().date();
+    if today > expiry_date {
+        return Err(format!("noop_allow_all_expired:{allow_all_until}"));
+    }
+    Ok(())
+}
+
+/// `YYYY-MM-DD` 形式の日付文字列を UTC 日付として解釈する。
+/// @param value 解析対象の日付文字列
+/// @returns 解析済み UTC 日付
+/// @throws String 形式または値が不正な場合
+fn parse_utc_date(value: &str) -> Result<time::Date, String> {
+    let mut parts = value.split('-');
+    let year = parts
+        .next()
+        .ok_or_else(|| "expected YYYY-MM-DD".to_owned())?
+        .parse::<i32>()
+        .map_err(|error| format!("invalid year ({error})"))?;
+    let month = parts
+        .next()
+        .ok_or_else(|| "expected YYYY-MM-DD".to_owned())?
+        .parse::<u8>()
+        .map_err(|error| format!("invalid month ({error})"))?;
+    let day = parts
+        .next()
+        .ok_or_else(|| "expected YYYY-MM-DD".to_owned())?
+        .parse::<u8>()
+        .map_err(|error| format!("invalid day ({error})"))?;
+    if parts.next().is_some() {
+        return Err("expected YYYY-MM-DD".to_owned());
+    }
+
+    let month = time::Month::try_from(month).map_err(|error| format!("invalid month ({error})"))?;
+    time::Date::from_calendar_date(year, month, day)
+        .map_err(|error| format!("invalid calendar date ({error})"))
 }
 
 /// 必須環境変数を非空文字列として読み取る。

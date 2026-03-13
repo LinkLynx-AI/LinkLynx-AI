@@ -111,11 +111,47 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn runtime_provider_default_uses_noop_allow() {
+    async fn runtime_provider_missing_is_fail_closed() {
         let _guard = env_lock().lock().await;
         let mut scoped = ScopedEnv::new();
         scoped.unset("AUTHZ_PROVIDER");
-        scoped.set("AUTHZ_ALLOW_ALL_UNTIL", "2026-06-30");
+
+        let authorizer = build_runtime_authorizer();
+        let input = AuthzCheckInput {
+            principal_id: PrincipalId(1001),
+            resource: AuthzResource::Session,
+            action: AuthzAction::Connect,
+        };
+
+        let error = authorizer.check(&input).await.unwrap_err();
+        assert_eq!(error.kind, AuthzErrorKind::DependencyUnavailable);
+        assert_eq!(error.reason, "authz_provider_missing");
+    }
+
+    #[tokio::test]
+    async fn runtime_provider_empty_is_fail_closed() {
+        let _guard = env_lock().lock().await;
+        let mut scoped = ScopedEnv::new();
+        scoped.set("AUTHZ_PROVIDER", "   ");
+
+        let authorizer = build_runtime_authorizer();
+        let input = AuthzCheckInput {
+            principal_id: PrincipalId(1001),
+            resource: AuthzResource::Session,
+            action: AuthzAction::Connect,
+        };
+
+        let error = authorizer.check(&input).await.unwrap_err();
+        assert_eq!(error.kind, AuthzErrorKind::DependencyUnavailable);
+        assert_eq!(error.reason, "authz_provider_empty");
+    }
+
+    #[tokio::test]
+    async fn runtime_provider_noop_allows_only_before_expiry() {
+        let _guard = env_lock().lock().await;
+        let mut scoped = ScopedEnv::new();
+        scoped.set("AUTHZ_PROVIDER", "noop");
+        scoped.set("AUTHZ_ALLOW_ALL_UNTIL", "2999-12-31");
 
         let authorizer = build_runtime_authorizer();
         let input = AuthzCheckInput {
@@ -125,6 +161,48 @@ mod tests {
         };
 
         assert!(authorizer.check(&input).await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn runtime_provider_noop_expired_is_fail_closed() {
+        let _guard = env_lock().lock().await;
+        let mut scoped = ScopedEnv::new();
+        scoped.set("AUTHZ_PROVIDER", "noop");
+        scoped.set("AUTHZ_ALLOW_ALL_UNTIL", "2026-03-12");
+
+        let authorizer = build_runtime_authorizer();
+        let input = AuthzCheckInput {
+            principal_id: PrincipalId(1001),
+            resource: AuthzResource::Session,
+            action: AuthzAction::Connect,
+        };
+
+        let error = authorizer.check(&input).await.unwrap_err();
+        assert_eq!(error.kind, AuthzErrorKind::DependencyUnavailable);
+        assert_eq!(error.reason, "noop_allow_all_expired:2026-03-12");
+    }
+
+    #[tokio::test]
+    async fn runtime_provider_noop_invalid_expiry_is_fail_closed() {
+        let _guard = env_lock().lock().await;
+        let mut scoped = ScopedEnv::new();
+        scoped.set("AUTHZ_PROVIDER", "noop");
+        scoped.set("AUTHZ_ALLOW_ALL_UNTIL", "2026/06/30");
+
+        let authorizer = build_runtime_authorizer();
+        let input = AuthzCheckInput {
+            principal_id: PrincipalId(1001),
+            resource: AuthzResource::Session,
+            action: AuthzAction::Connect,
+        };
+
+        let error = authorizer.check(&input).await.unwrap_err();
+        assert_eq!(error.kind, AuthzErrorKind::DependencyUnavailable);
+        assert!(
+            error.reason.starts_with("noop_allow_all_until_invalid:"),
+            "unexpected reason: {}",
+            error.reason
+        );
     }
 
     #[tokio::test]
@@ -175,6 +253,33 @@ mod tests {
         assert!(
             error.contains("SPICEDB_PRESHARED_KEY is required"),
             "unexpected error: {error}"
+        );
+    }
+
+    #[tokio::test]
+    async fn runtime_provider_spicedb_invalid_config_is_fail_closed() {
+        let _guard = env_lock().lock().await;
+        let mut scoped = ScopedEnv::new();
+        scoped.set("AUTHZ_PROVIDER", "spicedb");
+        scoped.set("SPICEDB_ENDPOINT", "http://localhost:50051");
+        scoped.set("SPICEDB_CHECK_ENDPOINT", "http://localhost:8443");
+        scoped.unset("SPICEDB_PRESHARED_KEY");
+
+        let authorizer = build_runtime_authorizer();
+        let input = AuthzCheckInput {
+            principal_id: PrincipalId(1001),
+            resource: AuthzResource::Session,
+            action: AuthzAction::Connect,
+        };
+
+        let error = authorizer.check(&input).await.unwrap_err();
+        assert_eq!(error.kind, AuthzErrorKind::DependencyUnavailable);
+        assert!(
+            error
+                .reason
+                .starts_with("spicedb_runtime_config_invalid:SPICEDB_PRESHARED_KEY is required"),
+            "unexpected reason: {}",
+            error.reason
         );
     }
 
