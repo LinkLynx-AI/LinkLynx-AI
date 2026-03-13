@@ -39,6 +39,7 @@ import type {
 } from "@/shared/model/types";
 import {
   mockCurrentUser,
+  mockMyProfileMedia,
   mockUsers,
   mockUserProfiles,
   mockServers,
@@ -69,6 +70,30 @@ export class MockAPIClient implements APIClient {
 
   private nowIsoString(): string {
     return new Date().toISOString();
+  }
+
+  private getCurrentMedia() {
+    return (
+      mockMyProfileMedia[mockCurrentUser.id] ?? {
+        avatarKey: null,
+        bannerKey: null,
+        avatarUrl: null,
+        bannerUrl: null,
+      }
+    );
+  }
+
+  private setCurrentMedia(next: {
+    avatarKey: string | null;
+    bannerKey: string | null;
+    avatarUrl: string | null;
+    bannerUrl: string | null;
+  }): void {
+    if (mockCurrentUser.id.length === 0) {
+      return;
+    }
+
+    mockMyProfileMedia[mockCurrentUser.id] = next;
   }
 
   // Auth
@@ -314,9 +339,10 @@ export class MockAPIClient implements APIClient {
     if (!profile) {
       const user = mockUsers.find((u) => u.id === userId);
       if (!user) throw new Error("User not found");
+      const media = mockMyProfileMedia[userId];
       return {
         ...user,
-        banner: null,
+        banner: media?.bannerUrl ?? null,
         bio: null,
         accentColor: null,
         badges: [],
@@ -333,11 +359,12 @@ export class MockAPIClient implements APIClient {
     }
 
     const profile = mockUserProfiles[mockCurrentUser.id];
+    const media = this.getCurrentMedia();
     return {
       displayName: profile?.displayName ?? mockCurrentUser.displayName,
       statusText: profile?.bio ?? mockCurrentUser.customStatus,
-      avatarKey: null,
-      bannerKey: null,
+      avatarKey: media.avatarKey,
+      bannerKey: media.bannerKey,
       theme: this.myProfileTheme,
     };
   }
@@ -359,11 +386,43 @@ export class MockAPIClient implements APIClient {
         ? (input.statusText?.trim() ?? null)
         : mockCurrentUser.customStatus;
     const theme = input.theme ?? this.myProfileTheme;
+    const currentMedia = this.getCurrentMedia();
+    const existingProfile = mockUserProfiles[mockCurrentUser.id];
+    const avatarKey = input.avatarKey !== undefined ? input.avatarKey : currentMedia.avatarKey;
+    const bannerKey = input.bannerKey !== undefined ? input.bannerKey : currentMedia.bannerKey;
+    const avatarUrl =
+      input.avatarKey !== undefined && input.avatarKey !== null
+        ? `https://storage.googleapis.com/profile-media/avatar-download/${encodeURIComponent(input.avatarKey)}`
+        : input.avatarKey === null
+          ? null
+          : currentMedia.avatarUrl;
+    const bannerUrl =
+      input.bannerKey !== undefined && input.bannerKey !== null
+        ? `https://storage.googleapis.com/profile-media/banner-download/${encodeURIComponent(input.bannerKey)}`
+        : input.bannerKey === null
+          ? null
+          : currentMedia.bannerUrl;
     mockCurrentUser.displayName = displayName;
     mockCurrentUser.customStatus = statusText;
+    mockCurrentUser.avatar = avatarUrl;
     this.myProfileTheme = theme;
+    this.setCurrentMedia({
+      avatarKey,
+      bannerKey,
+      avatarUrl,
+      bannerUrl,
+    });
 
-    const existingProfile = mockUserProfiles[mockCurrentUser.id];
+    const currentUserIndex = mockUsers.findIndex((user) => user.id === mockCurrentUser.id);
+    if (currentUserIndex >= 0) {
+      mockUsers[currentUserIndex] = {
+        ...mockUsers[currentUserIndex],
+        displayName,
+        customStatus: statusText,
+        avatar: avatarUrl,
+      };
+    }
+
     mockUserProfiles[mockCurrentUser.id] = {
       ...(existingProfile ?? {
         ...mockCurrentUser,
@@ -374,14 +433,16 @@ export class MockAPIClient implements APIClient {
         createdAt: "2022-01-01T00:00:00.000Z",
       }),
       displayName,
+      avatar: avatarUrl,
+      banner: bannerUrl,
       bio: statusText,
     };
 
     return {
       displayName,
       statusText,
-      avatarKey: null,
-      bannerKey: null,
+      avatarKey,
+      bannerKey,
       theme,
     };
   }
@@ -404,10 +465,15 @@ export class MockAPIClient implements APIClient {
 
   async getMyProfileMediaDownloadUrl(target: "avatar" | "banner"): Promise<MyProfileMediaDownload> {
     await this.simulateDelay();
+    const media = this.getCurrentMedia();
+    const objectKey = target === "avatar" ? media.avatarKey : media.bannerKey;
+    const downloadUrl = target === "avatar" ? media.avatarUrl : media.bannerUrl;
     return {
       target,
-      objectKey: `v0/tenant/default/user/${mockCurrentUser.id}/profile/${target}/asset/mock/file.png`,
-      downloadUrl: `https://storage.googleapis.com/profile-media/${target}-download`,
+      objectKey:
+        objectKey ??
+        `v0/tenant/default/user/${mockCurrentUser.id}/profile/${target}/asset/mock/file.png`,
+      downloadUrl: downloadUrl ?? `https://storage.googleapis.com/profile-media/${target}-download`,
       expiresAt: this.nowIsoString(),
     };
   }

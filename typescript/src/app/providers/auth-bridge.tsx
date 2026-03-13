@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { useAuthSession } from "@/entities/auth";
 import { syncMyProfileToAuthStore } from "@/shared/api/my-profile-sync";
-import { useMyProfile } from "@/shared/api/queries";
+import { useMyProfile, useMyProfileMediaDownloadUrl } from "@/shared/api/queries";
 import { useAuthStore } from "@/shared/model/stores/auth-store";
 import type { User } from "@/shared/model/types/user";
 
@@ -59,6 +59,7 @@ export function AuthBridge() {
   const clearCurrentUser = useAuthStore((s) => s.clearCurrentUser);
   const currentUserId = session.status === "authenticated" ? (session.user?.uid ?? null) : null;
   const { data: myProfile } = useMyProfile(currentUserId);
+  const { data: avatarUrl } = useMyProfileMediaDownloadUrl("avatar", myProfile?.avatarKey ?? null);
 
   useEffect(() => {
     if (session.status !== "authenticated" || session.user === null) {
@@ -83,9 +84,12 @@ export function AuthBridge() {
     if (session.status !== "authenticated" || session.user === null || myProfile === undefined) {
       return;
     }
+    if (myProfile.avatarKey !== null && avatarUrl === undefined) {
+      return;
+    }
 
-    syncMyProfileToAuthStore(myProfile);
-  }, [myProfile, session.status, session.user]);
+    syncMyProfileToAuthStore(myProfile, avatarUrl ?? null);
+  }, [avatarUrl, myProfile, session.status, session.user]);
 
   return null;
 }

@@ -2,7 +2,6 @@
 
 import { Modal, ModalHeader, ModalBody, ModalFooter } from "@/shared/ui/modal";
 import { Button } from "@/shared/ui/button";
-import { cn } from "@/shared/lib/cn";
 import { AlertTriangle, Pin } from "lucide-react";
 
 export function PinConfirmModal({
@@ -19,13 +18,8 @@ export function PinConfirmModal({
   onConfirm?: () => void;
 }) {
   const isPin = action === "pin";
-  const isNearLimit = currentPinCount >= 49;
+  const isNearLimit = currentPinCount >= 49 && currentPinCount < 50;
   const isAtLimit = currentPinCount >= 50;
-
-  const handleConfirm = () => {
-    onConfirm?.();
-    onClose();
-  };
 
   return (
     <Modal open onClose={onClose} className="max-w-[440px]">
@@ -33,19 +27,18 @@ export function PinConfirmModal({
         {isPin ? "このメッセージをピン留めしますか？" : "このメッセージのピン留めを解除しますか？"}
       </ModalHeader>
       <ModalBody>
-        {/* Message preview */}
-        <div className="rounded-md bg-discord-bg-secondary p-3">
+        <div className="rounded-md border border-discord-divider bg-discord-bg-secondary p-4">
           <div className="flex items-start gap-3">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-discord-brand-blurple text-xs font-bold text-white">
-              U
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-discord-bg-mod-hover text-discord-header-primary">
+              <Pin className="h-4 w-4" />
             </div>
             <div className="min-w-0 flex-1">
-              <div className="flex items-baseline gap-2">
-                <span className="text-sm font-medium text-discord-header-primary">ユーザー</span>
-                <span className="text-xs text-discord-text-muted">今日 12:00</span>
-              </div>
-              <p className="mt-1 text-sm text-discord-text-normal">
-                ピン留めされるメッセージのプレビュー
+              <p className="text-sm font-medium text-discord-header-primary">
+                ピン留め操作はまだ接続されていません
+              </p>
+              <p className="mt-1 text-sm leading-6 text-discord-text-muted">
+                `LIN-917` では pin persistence の完了済み状態と未接続 UI を整理しています。
+                {messageId ? ` 対象 message_id: ${messageId}` : ""}
               </p>
             </div>
           </div>
@@ -53,7 +46,7 @@ export function PinConfirmModal({
 
         {isPin && (
           <p className="mt-3 text-sm text-discord-text-muted">
-            このメッセージをこのチャンネルにピン留めします。チャンネルのメンバー全員がピン留めされたメッセージを確認できます。
+            一覧取得と pin/unpin 実行 API が未接続のため、この画面では状態確認のみを行います。
           </p>
         )}
 
@@ -73,17 +66,18 @@ export function PinConfirmModal({
       </ModalBody>
       <ModalFooter>
         <Button variant="link" onClick={onClose}>
-          キャンセル
+          閉じる
         </Button>
-        {isPin ? (
-          <Button onClick={handleConfirm} disabled={isAtLimit}>
-            ピン留め
-          </Button>
-        ) : (
-          <Button variant="danger" onClick={handleConfirm}>
-            解除
-          </Button>
-        )}
+        <Button
+          onClick={() => {
+            onConfirm?.();
+            onClose();
+          }}
+          disabled
+          variant={isPin ? "primary" : "danger"}
+        >
+          {isPin ? "未接続" : "未接続"}
+        </Button>
       </ModalFooter>
     </Modal>
   );

@@ -5,24 +5,65 @@ import { cn } from "@/shared/lib/cn";
 import { Modal, ModalHeader, ModalBody, ModalFooter } from "@/shared/ui/modal";
 import { Button } from "@/shared/ui/button";
 
+export type CroppedImageResult = {
+  file: File;
+  url: string;
+};
+
+function canvasToBlob(canvas: HTMLCanvasElement, type: string): Promise<Blob | null> {
+  if (typeof canvas.toBlob !== "function") {
+    return Promise.resolve(null);
+  }
+
+  return new Promise((resolve) => {
+    canvas.toBlob((blob) => resolve(blob), type);
+  });
+}
+
+function resolveCropMimeType(file: File): string {
+  return file.type.startsWith("image/") ? file.type : "image/png";
+}
+
+function resolveCropExtension(type: string): string {
+  switch (type) {
+    case "image/jpeg":
+      return "jpg";
+    case "image/webp":
+      return "webp";
+    case "image/gif":
+      return "gif";
+    default:
+      return "png";
+  }
+}
+
+function buildCroppedFileName(file: File, type: string): string {
+  const baseName = file.name.replace(/\.[^.]+$/, "");
+  return `${baseName || "image"}-cropped.${resolveCropExtension(type)}`;
+}
+
 export function ImageCropModal({
   imageUrl,
+  sourceFile,
   shape,
   aspectRatio,
   onCrop,
   onClose,
 }: {
   imageUrl: string;
+  sourceFile: File;
   shape: "circle" | "rectangle";
   aspectRatio?: number;
-  onCrop: (croppedUrl: string) => void;
+  onCrop: (result: CroppedImageResult) => void;
   onClose: () => void;
 }) {
   const [zoom, setZoom] = useState(100);
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [dragging, setDragging] = useState(false);
+  const [isApplying, setIsApplying] = useState(false);
   const dragStart = useRef({ x: 0, y: 0 });
   const posStart = useRef({ x: 0, y: 0 });
+  const imageRef = useRef<HTMLImageElement>(null);
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
@@ -50,10 +91,70 @@ export function ImageCropModal({
     setDragging(false);
   }, []);
 
-  const handleApply = () => {
-    // In a real implementation, this would use canvas to crop the image
-    // For now, pass through the original URL
-    onCrop(imageUrl);
+  const handleApply = async () => {
+    const image = imageRef.current;
+    if (image === null) {
+      onCrop({ file: sourceFile, url: imageUrl });
+      return;
+    }
+
+    setIsApplying(true);
+    try {
+      if (typeof image.decode === "function" && image.complete === false) {
+        try {
+          await image.decode();
+        } catch {
+          // decode failure falls back to current image dimensions.
+        }
+      }
+
+      if (image.naturalWidth <= 0 || image.naturalHeight <= 0) {
+        onCrop({ file: sourceFile, url: imageUrl });
+        return;
+      }
+
+      const cropWidth = shape === "circle" ? 200 : 300;
+      const cropHeight = aspectRatio ? cropWidth / aspectRatio : cropWidth;
+      const outputScale = Math.max(1, window.devicePixelRatio || 1);
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.round(cropWidth * outputScale);
+      canvas.height = Math.round(cropHeight * outputScale);
+      const context = canvas.getContext("2d");
+
+      if (context === null) {
+        onCrop({ file: sourceFile, url: imageUrl });
+        return;
+      }
+
+      const baseScale = Math.max(cropWidth / image.naturalWidth, cropHeight / image.naturalHeight);
+      const drawWidth = image.naturalWidth * baseScale;
+      const drawHeight = image.naturalHeight * baseScale;
+      const drawX = (cropWidth - drawWidth) / 2;
+      const drawY = (cropHeight - drawHeight) / 2;
+
+      context.scale(outputScale, outputScale);
+      context.translate(position.x, position.y);
+      context.translate(cropWidth / 2, cropHeight / 2);
+      context.scale(zoom / 100, zoom / 100);
+      context.translate(-cropWidth / 2, -cropHeight / 2);
+      context.drawImage(image, drawX, drawY, drawWidth, drawHeight);
+
+      const mimeType = resolveCropMimeType(sourceFile);
+      const blob = await canvasToBlob(canvas, mimeType);
+      if (blob === null) {
+        onCrop({ file: sourceFile, url: imageUrl });
+        return;
+      }
+
+      onCrop({
+        file: new File([blob], buildCroppedFileName(sourceFile, mimeType), {
+          type: mimeType,
+        }),
+        url: URL.createObjectURL(blob),
+      });
+    } finally {
+      setIsApplying(false);
+    }
   };
 
   const cropSize = shape === "circle" ? 200 : 300;
@@ -74,6 +175,7 @@ export function ImageCropModal({
         >
           {/* Image */}
           <img
+            ref={imageRef}
             src={imageUrl}
             alt="Crop preview"
             className="absolute select-none"
@@ -128,8 +230,8 @@ export function ImageCropModal({
         <Button variant="link" onClick={onClose}>
           キャンセル
         </Button>
-        <Button variant="primary" onClick={handleApply}>
-          適用
+        <Button variant="primary" onClick={() => void handleApply()} disabled={isApplying}>
+          {isApplying ? "適用中..." : "適用"}
         </Button>
       </ModalFooter>
     </Modal>

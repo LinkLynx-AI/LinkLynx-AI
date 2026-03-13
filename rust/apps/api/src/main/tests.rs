@@ -85,6 +85,7 @@ mod tests {
     const MAX_RESPONSE_BYTES: usize = 16 * 1024;
 
     struct StaticTokenVerifier;
+    struct UnavailableTokenVerifier;
     struct StaticAllowAllAuthorizer;
     struct StaticDenyAuthorizer;
     struct StaticUnavailableAuthorizer;
@@ -140,6 +141,15 @@ mod tests {
                 display_name: Some(uid.to_owned()),
                 expires_at_epoch: exp,
             })
+        }
+    }
+
+    #[async_trait]
+    impl TokenVerifier for UnavailableTokenVerifier {
+        async fn verify(&self, _token: &str) -> Result<VerifiedToken, TokenVerifyError> {
+            Err(TokenVerifyError::DependencyUnavailable(
+                "test_auth_dependency_unavailable".to_owned(),
+            ))
         }
     }
 
@@ -1874,11 +1884,38 @@ mod tests {
         app_with_state(state)
     }
 
+    async fn app_for_test_with_authorizer_and_token_verifier(
+        authorizer: Arc<dyn Authorizer>,
+        verifier: Arc<dyn TokenVerifier>,
+    ) -> Router {
+        let state = state_for_test_with_authorizer_and_token_verifier(authorizer, verifier).await;
+        app_with_state(state)
+    }
+
     async fn state_for_test_with_authorizer(authorizer: Arc<dyn Authorizer>) -> AppState {
         state_for_test_with_authorizer_and_profile_and_invite(
             authorizer,
             Arc::new(StaticProfileService),
             Arc::new(StaticInviteService),
+        )
+        .await
+    }
+
+    async fn state_for_test_with_authorizer_and_token_verifier(
+        authorizer: Arc<dyn Authorizer>,
+        verifier: Arc<dyn TokenVerifier>,
+    ) -> AppState {
+        state_for_test_with_authorizer_token_verifier_profile_invite_scylla_message_and_guild_channel(
+            authorizer,
+            verifier,
+            Arc::new(StaticProfileService),
+            Arc::new(StaticProfileMediaService),
+            Arc::new(StaticInviteService),
+            Arc::new(StaticScyllaHealthReporter {
+                report: ScyllaHealthReport::ready(),
+            }),
+            Arc::new(StaticMessageService),
+            Arc::new(StaticGuildChannelService),
         )
         .await
     }
@@ -2128,6 +2165,21 @@ mod tests {
         (address, server)
     }
 
+    fn ws_upgrade_request(path: &str, authorization: Option<&str>) -> Request<Body> {
+        let mut builder = Request::builder()
+            .method("GET")
+            .uri(path)
+            .header("host", "localhost")
+            .header("connection", "Upgrade")
+            .header("upgrade", "websocket")
+            .header("sec-websocket-version", "13")
+            .header("sec-websocket-key", "dGhlIHNhbXBsZSBub25jZQ==")
+            .header(ORIGIN, "http://localhost:3000");
+        if let Some(authorization) = authorization {
+            builder = builder.header(AUTHORIZATION, authorization);
+        }
+        builder.body(Body::empty()).unwrap()
+    }
     async fn connect_test_ws_with_authorization(
         address: SocketAddr,
         authorization: Option<&str>,
@@ -4860,6 +4912,85 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn ws_handshake_invalid_bearer_token_keeps_ws_upgrade_path_in_oneshot() {
+        let app = app_for_test_with_authorizer(Arc::new(StaticAllowAllAuthorizer)).await;
+
+        let response = app
+            .oneshot(ws_upgrade_request("/ws", Some("Bearer invalid-token")))
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::UPGRADE_REQUIRED);
+    }
+
+    #[tokio::test]
+    async fn ws_handshake_auth_dependency_unavailable_keeps_ws_upgrade_path_in_oneshot() {
+        let app = app_for_test_with_authorizer_and_token_verifier(
+            Arc::new(StaticAllowAllAuthorizer),
+            Arc::new(UnavailableTokenVerifier),
+        )
+        .await;
+
+        let response = app
+            .oneshot(ws_upgrade_request("/ws", Some("Bearer any-token")))
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::UPGRADE_REQUIRED);
+    }
+
+    #[tokio::test]
+    #[ignore = "requires TCP bind; sandbox denies listeners"]
+    async fn ws_handshake_invalid_bearer_token_closes_with_1008() {
+        let app = app_for_test_with_authorizer(Arc::new(StaticAllowAllAuthorizer)).await;
+        let (address, server) = spawn_test_server(app).await;
+        let mut socket =
+            connect_test_ws_with_authorization(address, Some("Bearer invalid-token")).await;
+
+        let response = timeout(Duration::from_secs(2), socket.next())
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
+        match response {
+            WsClientMessage::Close(Some(frame)) => {
+                assert_eq!(frame.code, CloseCode::Policy);
+                assert_eq!(frame.reason, "AUTH_INVALID_TOKEN");
+            }
+            other => panic!("expected close frame for invalid WS auth, got {other:?}"),
+        }
+
+        server.abort();
+    }
+
+    #[tokio::test]
+    #[ignore = "requires TCP bind; sandbox denies listeners"]
+    async fn ws_handshake_auth_dependency_unavailable_closes_with_1011() {
+        let app = app_for_test_with_authorizer_and_token_verifier(
+            Arc::new(StaticAllowAllAuthorizer),
+            Arc::new(UnavailableTokenVerifier),
+        )
+        .await;
+        let (address, server) = spawn_test_server(app).await;
+        let mut socket = connect_test_ws_with_authorization(address, Some("Bearer any-token")).await;
+
+        let response = timeout(Duration::from_secs(2), socket.next())
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
+        match response {
+            WsClientMessage::Close(Some(frame)) => {
+                assert_eq!(frame.code, CloseCode::Error);
+                assert_eq!(frame.reason, "AUTH_UNAVAILABLE");
+            }
+            other => panic!("expected close frame for unavailable WS auth, got {other:?}"),
+        }
+
+        server.abort();
+    }
+
+    #[tokio::test]
     #[ignore = "requires TCP bind; sandbox denies listeners"]
     async fn ws_text_message_echoes_for_authorized_principal() {
         let (mut socket, server) = connect_test_ws(Arc::new(StaticAllowAllAuthorizer)).await;
@@ -4880,6 +5011,29 @@ mod tests {
         }
 
         let _ = socket.close(None).await;
+        server.abort();
+    }
+
+    #[tokio::test]
+    #[ignore = "requires TCP bind; sandbox denies listeners"]
+    async fn ws_handshake_invalid_authorization_header_closes_with_1008() {
+        let app = app_for_test_with_authorizer(Arc::new(StaticAllowAllAuthorizer)).await;
+        let (address, server) = spawn_test_server(app).await;
+        let mut socket = connect_test_ws_with_authorization(address, Some("Basic bad-token")).await;
+
+        let response = timeout(Duration::from_secs(2), socket.next())
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
+        match response {
+            WsClientMessage::Close(Some(frame)) => {
+                assert_eq!(frame.code, CloseCode::Policy);
+                assert_eq!(frame.reason, "AUTH_INVALID_TOKEN");
+            }
+            other => panic!("expected close frame for invalid WS auth header, got {other:?}"),
+        }
+
         server.abort();
     }
 

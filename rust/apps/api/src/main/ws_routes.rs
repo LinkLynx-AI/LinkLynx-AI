@@ -115,7 +115,7 @@ async fn ws_handler(
                     reason = %error.reason,
                     "WS auth rejected at header parsing"
                 );
-                return auth_error_response(&error, request_id);
+                return ws_upgrade_with_auth_error(ws, &error);
             }
         }
     } else {
@@ -142,7 +142,7 @@ async fn ws_handler(
                     reason = %error.reason,
                     "WS auth rejected at handshake"
                 );
-                return auth_error_response(&error, request_id);
+                return ws_upgrade_with_auth_error(ws, &error);
             }
         };
 
@@ -810,6 +810,15 @@ fn ws_upgrade_with_close(ws: WebSocketUpgrade, code: u16, reason: &'static str) 
         let _ = close_socket(&mut socket, code, reason).await;
     })
     .into_response()
+}
+
+/// 認証エラーをWS close codeへ写像したアップグレード応答を返す。
+/// @param ws WSアップグレード
+/// @param error 認証エラー
+/// @returns アップグレード応答
+/// @throws なし
+fn ws_upgrade_with_auth_error(ws: WebSocketUpgrade, error: &auth::AuthError) -> Response {
+    ws_upgrade_with_close(ws, error.ws_close_code(), error.app_code())
 }
 
 fn ws_handshake_error_response(

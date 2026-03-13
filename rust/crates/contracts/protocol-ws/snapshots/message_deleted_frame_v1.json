@@ -1,0 +1,18 @@
+{
+  "type": "message.deleted",
+  "d": {
+    "guild_id": 10,
+    "channel_id": 20,
+    "message": {
+      "message_id": 100,
+      "guild_id": 10,
+      "channel_id": 20,
+      "author_id": 30,
+      "content": "",
+      "created_at": "2026-03-07T10:00:00Z",
+      "version": 2,
+      "edited_at": "2026-03-07T10:05:00Z",
+      "is_deleted": true
+    }
+  }
+}

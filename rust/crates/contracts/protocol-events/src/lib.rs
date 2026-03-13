@@ -84,6 +84,17 @@ mod tests {
     }
 
     #[test]
+    fn event_snapshot_matches_contract_fixture() {
+        let event = MessageCreateEventV1::new("evt-1", "2026-03-07T10:00:01Z", sample_message());
+        let serialized = serde_json::to_string_pretty(&event).unwrap();
+
+        assert_eq!(
+            serialized,
+            include_str!("../snapshots/message_create_event_v1.json").trim_end()
+        );
+    }
+
+    #[test]
     fn event_serialization_keeps_message_snapshot() {
         let event = MessageCreateEventV1::new("evt-1", "2026-03-07T10:00:01Z", sample_message());
 

@@ -120,4 +120,16 @@ describe("Message", () => {
     expect(screen.queryByTitle("編集")).toBeNull();
     expect(screen.queryByTitle("削除")).toBeNull();
   });
+
+  test("未接続のリアクション追加と返信で info toast を積む", () => {
+    const { container } = render(<Message message={buildMessage()} isGrouped={false} />);
+
+    fireEvent.mouseEnter(container.firstChild as Element);
+    fireEvent.click(screen.getByTitle("リアクションを追加"));
+    fireEvent.click(screen.getByTitle("返信"));
+
+    const messages = useUIStore.getState().toasts.map((toast) => toast.message);
+    expect(messages).toContain("リアクション追加は v1 では未接続です。");
+    expect(messages).toContain("返信送信は v1 では未接続です。");
+  });
 });

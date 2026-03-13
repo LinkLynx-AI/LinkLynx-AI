@@ -1,10 +1,9 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useRef } from "react";
 import { SmilePlus, Reply, Pencil, MessageSquare, MoreHorizontal, Trash2 } from "lucide-react";
 import { cn } from "@/shared/lib/cn";
 import { useUIStore } from "@/shared/model/stores/ui-store";
-import { EmojiPicker } from "@/features/pickers";
 import { PublishButton } from "./publish-button";
 import type { Message } from "@/shared/model/types";
 
@@ -21,13 +20,16 @@ export function MessageActions({
   onDelete?: () => void;
   isAnnouncement?: boolean;
 }) {
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const moreButtonRef = useRef<HTMLButtonElement>(null);
   const showContextMenu = useUIStore((s) => s.showContextMenu);
   const addToast = useUIStore((s) => s.addToast);
 
-  const handleReactionSelect = (emoji: string) => {
-    setShowEmojiPicker(false);
+  const handleReaction = () => {
+    addToast({ message: "リアクション追加は v1 では未接続です。", type: "info" });
+  };
+
+  const handleReply = () => {
+    addToast({ message: "返信送信は v1 では未接続です。", type: "info" });
   };
 
   const handleThread = () => {
@@ -49,28 +51,17 @@ export function MessageActions({
       )}
     >
       {/* Reaction button */}
-      <div className="relative">
-        <button
-          title="リアクションを追加"
-          onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-          className={cn(
-            "p-1.5 text-discord-interactive-normal",
-            "hover:bg-discord-bg-mod-hover hover:text-discord-interactive-hover",
-            "rounded transition-colors",
-          )}
-        >
-          <SmilePlus className="h-4 w-4" />
-        </button>
-        {showEmojiPicker && (
-          <div className="absolute bottom-full right-0 mb-1">
-            <EmojiPicker
-              mode="reaction"
-              onSelect={handleReactionSelect}
-              onClose={() => setShowEmojiPicker(false)}
-            />
-          </div>
+      <button
+        title="リアクションを追加"
+        onClick={handleReaction}
+        className={cn(
+          "p-1.5 text-discord-interactive-normal",
+          "hover:bg-discord-bg-mod-hover hover:text-discord-interactive-hover",
+          "rounded transition-colors",
         )}
-      </div>
+      >
+        <SmilePlus className="h-4 w-4" />
+      </button>
 
       {/* Edit button */}
       {onEdit && (
@@ -104,6 +95,7 @@ export function MessageActions({
       {/* Reply button */}
       <button
         title="返信"
+        onClick={handleReply}
         className={cn(
           "p-1.5 text-discord-interactive-normal",
           "hover:bg-discord-bg-mod-hover hover:text-discord-interactive-hover",
