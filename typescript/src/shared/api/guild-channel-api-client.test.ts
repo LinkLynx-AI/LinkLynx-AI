@@ -1252,6 +1252,29 @@ describe("GuildChannelAPIClient", () => {
     expect(init.body).toBe(JSON.stringify({ expected_version: 2 }));
   });
 
+  test("unavailable pin and reaction methods return v1 placeholder contracts", async () => {
+    const client = new GuildChannelAPIClient();
+
+    await expect(client.getPinnedMessages("3001")).resolves.toEqual([]);
+
+    await expect(client.addReaction("3001", "5001", "👍")).rejects.toMatchObject({
+      code: "FEATURE_UNAVAILABLE",
+      status: 501,
+    });
+    await expect(client.removeReaction("3001", "5001", "👍")).rejects.toMatchObject({
+      code: "FEATURE_UNAVAILABLE",
+      status: 501,
+    });
+    await expect(client.pinMessage("3001", "5001")).rejects.toMatchObject({
+      code: "FEATURE_UNAVAILABLE",
+      status: 501,
+    });
+    await expect(client.unpinMessage("3001", "5001")).rejects.toMatchObject({
+      code: "FEATURE_UNAVAILABLE",
+      status: 501,
+    });
+  });
+
   test("toUpdateActionErrorText maps message conflict", () => {
     const error = new GuildChannelApiError("conflict", {
       code: "MESSAGE_CONFLICT",

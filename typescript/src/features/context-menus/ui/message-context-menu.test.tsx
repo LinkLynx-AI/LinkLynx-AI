@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, render, screen } from "@/test/test-utils";
+import { act, fireEvent, render, screen } from "@/test/test-utils";
 import { useAuthStore } from "@/shared/model/stores/auth-store";
 import { useUIStore } from "@/shared/model/stores/ui-store";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
@@ -142,5 +142,47 @@ describe("MessageContextMenu", () => {
     expect(screen.queryByRole("menuitem", { name: "メッセージを編集" })).toBeNull();
     expect(screen.queryByRole("menuitem", { name: "メッセージを削除" })).toBeNull();
     expect(screen.queryByRole("menuitem", { name: "メッセージを報告" })).toBeNull();
+  });
+
+  test("未接続の返信とピン留めで info toast を積む", () => {
+    render(
+      <MessageContextMenu
+        data={{
+          message: {
+            id: "5001",
+            channelId: "3001",
+            author: {
+              id: "9003",
+              username: "alice",
+              displayName: "Alice",
+              avatar: null,
+              status: "online",
+              customStatus: null,
+              bot: false,
+            },
+            content: "hello",
+            timestamp: "2026-03-10T10:00:00Z",
+            version: "1",
+            editedTimestamp: null,
+            isDeleted: false,
+            type: 0,
+            pinned: false,
+            mentionEveryone: false,
+            mentions: [],
+            attachments: [],
+            embeds: [],
+            reactions: [],
+            referencedMessage: null,
+          },
+        }}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("menuitem", { name: "返信" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "ピン留め" }));
+
+    const messages = useUIStore.getState().toasts.map((toast) => toast.message);
+    expect(messages).toContain("返信送信は v1 では未接続です。");
+    expect(messages).toContain("ピン留め操作は v1 では未接続です。");
   });
 });
