@@ -217,6 +217,21 @@ mod tests {
     }
 
     #[test]
+    fn created_frame_snapshot_matches_contract_fixture() {
+        let frame = ServerMessageFrameV1::Created(MessageEventFrameDataV1 {
+            guild_id: 10,
+            channel_id: 20,
+            message: sample_message(),
+        });
+        let serialized = serde_json::to_string_pretty(&frame).unwrap();
+
+        assert_eq!(
+            serialized,
+            include_str!("../snapshots/message_created_frame_v1.json").trim_end()
+        );
+    }
+
+    #[test]
     fn created_frame_keeps_message_snapshot() {
         let frame = ServerMessageFrameV1::Created(MessageEventFrameDataV1 {
             guild_id: 10,
@@ -259,6 +274,41 @@ mod tests {
         assert_eq!(value["type"], "message.deleted");
         assert_eq!(value["d"]["message"]["is_deleted"], true);
         assert_eq!(value["d"]["message"]["content"], "");
+    }
+
+    #[test]
+    fn deleted_frame_matches_snapshot() {
+        let frame = ServerMessageFrameV1::Deleted(MessageEventFrameDataV1 {
+            guild_id: 10,
+            channel_id: 20,
+            message: MessageItemV1 {
+                content: String::new(),
+                version: 2,
+                edited_at: Some("2026-03-07T10:05:00Z".to_owned()),
+                is_deleted: true,
+                ..sample_message()
+            },
+        });
+        let serialized = serde_json::to_string_pretty(&frame).unwrap();
+
+        assert_eq!(
+            serialized,
+            include_str!("../snapshots/message_deleted_frame_v1.json").trim_end()
+        );
+    }
+
+    #[test]
+    fn dm_created_frame_snapshot_matches_contract_fixture() {
+        let frame = ServerMessageFrameV1::DmCreated(DmMessageEventFrameDataV1 {
+            channel_id: 20,
+            message: sample_message(),
+        });
+        let serialized = serde_json::to_string_pretty(&frame).unwrap();
+
+        assert_eq!(
+            serialized,
+            include_str!("../snapshots/dm_message_created_frame_v1.json").trim_end()
+        );
     }
 
     #[test]

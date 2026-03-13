@@ -307,7 +307,7 @@ impl MessageService for RuntimeMessageService {
         query: ListGuildChannelMessagesQueryV1,
     ) -> Result<ListGuildChannelMessagesResponseV1, MessageError> {
         self.usecase
-            .list_guild_channel_messages(channel_id, channel_id, query)
+            .list_dm_channel_messages(channel_id, query)
             .await
             .map_err(MessageError::from)
     }
@@ -330,7 +330,7 @@ impl MessageService for RuntimeMessageService {
         let idempotency = self.build_idempotency(idempotency_key, &request)?;
         let result = self
             .usecase
-            .create_guild_channel_message(CreateGuildChannelMessageCommand {
+            .create_dm_channel_message(CreateGuildChannelMessageCommand {
                 guild_id: channel_id,
                 channel_id,
                 author_id: principal_id.0,
@@ -567,6 +567,7 @@ mod tests {
     #[derive(Default)]
     struct RecordingMessageUsecase {
         created: Mutex<Vec<CreateGuildChannelMessageCommand>>,
+        dm_created: Mutex<Vec<CreateGuildChannelMessageCommand>>,
     }
 
     #[async_trait]
@@ -582,9 +583,33 @@ mod tests {
             })
         }
 
+        async fn create_dm_channel_message(
+            &self,
+            command: CreateGuildChannelMessageCommand,
+        ) -> Result<linklynx_message_domain::CreateGuildChannelMessageResult, MessageUsecaseError> {
+            self.dm_created.lock().await.push(command.clone());
+            Ok(linklynx_message_domain::CreateGuildChannelMessageResult {
+                message: command.to_message_item(&command.proposed_identity),
+                should_publish: true,
+            })
+        }
+
         async fn list_guild_channel_messages(
             &self,
             _guild_id: i64,
+            _channel_id: i64,
+            _query: ListGuildChannelMessagesQueryV1,
+        ) -> Result<ListGuildChannelMessagesResponseV1, MessageUsecaseError> {
+            Ok(ListGuildChannelMessagesResponseV1 {
+                items: vec![],
+                next_before: None,
+                next_after: None,
+                has_more: false,
+            })
+        }
+
+        async fn list_dm_channel_messages(
+            &self,
             _channel_id: i64,
             _query: ListGuildChannelMessagesQueryV1,
         ) -> Result<ListGuildChannelMessagesResponseV1, MessageUsecaseError> {
@@ -654,9 +679,29 @@ mod tests {
             })
         }
 
+        async fn create_dm_channel_message(
+            &self,
+            command: CreateGuildChannelMessageCommand,
+        ) -> Result<linklynx_message_domain::CreateGuildChannelMessageResult, MessageUsecaseError> {
+            self.create_guild_channel_message(command).await
+        }
+
         async fn list_guild_channel_messages(
             &self,
             _guild_id: i64,
+            _channel_id: i64,
+            _query: ListGuildChannelMessagesQueryV1,
+        ) -> Result<ListGuildChannelMessagesResponseV1, MessageUsecaseError> {
+            Ok(ListGuildChannelMessagesResponseV1 {
+                items: vec![],
+                next_before: None,
+                next_after: None,
+                has_more: false,
+            })
+        }
+
+        async fn list_dm_channel_messages(
+            &self,
             _channel_id: i64,
             _query: ListGuildChannelMessagesQueryV1,
         ) -> Result<ListGuildChannelMessagesResponseV1, MessageUsecaseError> {
@@ -723,6 +768,30 @@ mod tests {
             created[0].proposed_identity.message_id,
             created[1].proposed_identity.message_id
         );
+    }
+
+    #[tokio::test]
+    async fn create_dm_message_uses_dm_usecase_path() {
+        let usecase = Arc::new(RecordingMessageUsecase::default());
+        let service = RuntimeMessageService::new_for_test(usecase.clone());
+
+        let execution = service
+            .create_dm_channel_message(
+                PrincipalId(9003),
+                55,
+                None,
+                CreateGuildChannelMessageRequestV1 {
+                    content: "hello dm".to_owned(),
+                },
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(execution.response.message.channel_id, 55);
+        assert_eq!(usecase.created.lock().await.len(), 0);
+        let dm_created = usecase.dm_created.lock().await;
+        assert_eq!(dm_created.len(), 1);
+        assert_eq!(dm_created[0].channel_id, 55);
     }
 
     #[tokio::test]

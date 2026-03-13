@@ -68,6 +68,15 @@ pub trait MessageMetadataRepository: Send + Sync {
         channel_id: i64,
     ) -> Result<Option<GuildChannelContext>, MessageUsecaseError>;
 
+    /// DM channel context を取得する。
+    /// @param channel_id 対象 channel_id
+    /// @returns DM channel context。未存在時は `None`
+    /// @throws MessageUsecaseError 依存障害時
+    async fn get_dm_channel_context(
+        &self,
+        channel_id: i64,
+    ) -> Result<Option<GuildChannelContext>, MessageUsecaseError>;
+
     /// channel_last_message を monotonic に更新する。
     /// @param channel_id 対象 channel_id
     /// @param message_id 最新 message_id

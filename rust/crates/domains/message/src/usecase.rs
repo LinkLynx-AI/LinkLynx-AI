@@ -25,6 +25,15 @@ pub trait MessageUsecase: Send + Sync {
         command: CreateGuildChannelMessageCommand,
     ) -> Result<CreateGuildChannelMessageResult, MessageUsecaseError>;
 
+    /// DM message を create する。
+    /// @param command create command
+    /// @returns 保存済み message snapshot と publish 判定
+    /// @throws MessageUsecaseError validation / not found / dependency unavailable 時
+    async fn create_dm_channel_message(
+        &self,
+        command: CreateGuildChannelMessageCommand,
+    ) -> Result<CreateGuildChannelMessageResult, MessageUsecaseError>;
+
     /// guild channel message を edit する。
     /// @param command edit command
     /// @returns 更新済み message snapshot
@@ -52,6 +61,17 @@ pub trait MessageUsecase: Send + Sync {
     async fn list_guild_channel_messages(
         &self,
         guild_id: i64,
+        channel_id: i64,
+        query: ListGuildChannelMessagesQueryV1,
+    ) -> Result<ListGuildChannelMessagesResponseV1, MessageUsecaseError>;
+
+    /// DM message history を list する。
+    /// @param channel_id 対象 channel_id
+    /// @param query list query
+    /// @returns list response
+    /// @throws MessageUsecaseError validation / not found / dependency unavailable 時
+    async fn list_dm_channel_messages(
+        &self,
         channel_id: i64,
         query: ListGuildChannelMessagesQueryV1,
     ) -> Result<ListGuildChannelMessagesResponseV1, MessageUsecaseError>;
@@ -108,6 +128,20 @@ impl LiveMessageUsecase {
             ));
         }
         Ok(context)
+    }
+
+    /// DM channel context を取得する。
+    /// @param channel_id 対象 channel_id
+    /// @returns channel context
+    /// @throws MessageUsecaseError channel 未存在時
+    async fn load_dm_channel_context(
+        &self,
+        channel_id: i64,
+    ) -> Result<GuildChannelContext, MessageUsecaseError> {
+        self.metadata_repository
+            .get_dm_channel_context(channel_id)
+            .await?
+            .ok_or_else(|| MessageUsecaseError::channel_not_found("message_channel_not_found"))
     }
 
     async fn append_message(
@@ -188,52 +222,20 @@ impl MessageUsecase for LiveMessageUsecase {
         let context = self
             .load_channel_context(command.guild_id, command.channel_id)
             .await?;
-        let Some(idempotency) = command.idempotency.as_ref() else {
-            let message = self
-                .append_message(context.channel_id, &command.proposed_identity, &command)
-                .await?;
-            return Ok(CreateGuildChannelMessageResult {
-                message,
-                should_publish: true,
-            });
-        };
+        create_message_with_context(self, context, command).await
+    }
 
-        let reservation = self
-            .idempotency_repository
-            .reserve_guild_channel_message_create(
-                command.author_id,
-                context.channel_id,
-                idempotency,
-                &command.proposed_identity,
-            )
-            .await?;
-        match reservation {
-            MessageCreateReserveResult::PayloadMismatch => Err(MessageUsecaseError::validation(
-                "message_idempotency_payload_mismatch",
-            )),
-            MessageCreateReserveResult::Reserved(reservation) => {
-                if reservation.state == MessageCreateReservationState::Completed {
-                    return Ok(CreateGuildChannelMessageResult {
-                        message: command.to_message_item(&reservation.identity),
-                        should_publish: false,
-                    });
-                }
-                let message = self
-                    .append_message(context.channel_id, &reservation.identity, &command)
-                    .await?;
-                self.idempotency_repository
-                    .mark_guild_channel_message_create_completed(
-                        command.author_id,
-                        context.channel_id,
-                        &idempotency.key,
-                    )
-                    .await?;
-                Ok(CreateGuildChannelMessageResult {
-                    message,
-                    should_publish: true,
-                })
-            }
-        }
+    /// DM message を create する。
+    /// @param command create command
+    /// @returns 保存済み message snapshot と publish 判定
+    /// @throws MessageUsecaseError validation / not found / dependency unavailable 時
+    async fn create_dm_channel_message(
+        &self,
+        command: CreateGuildChannelMessageCommand,
+    ) -> Result<CreateGuildChannelMessageResult, MessageUsecaseError> {
+        validate_create_request(&command.to_create_request())?;
+        let context = self.load_dm_channel_context(command.channel_id).await?;
+        create_message_with_context(self, context, command).await
     }
 
     /// guild channel message を edit する。
@@ -339,6 +341,83 @@ impl MessageUsecase for LiveMessageUsecase {
             .list_guild_channel_messages(&context, &normalized)
             .await
     }
+
+    /// DM message history を list する。
+    /// @param channel_id 対象 channel_id
+    /// @param query list query
+    /// @returns list response
+    /// @throws MessageUsecaseError validation / not found / dependency unavailable 時
+    async fn list_dm_channel_messages(
+        &self,
+        channel_id: i64,
+        query: ListGuildChannelMessagesQueryV1,
+    ) -> Result<ListGuildChannelMessagesResponseV1, MessageUsecaseError> {
+        let normalized = normalize_list_query(&query)?;
+        let context = self.load_dm_channel_context(channel_id).await?;
+        self.body_store
+            .list_guild_channel_messages(&context, &normalized)
+            .await
+    }
+}
+
+/// 解決済み channel context で message create を実行する。
+/// @param usecase live usecase
+/// @param context 解決済み channel context
+/// @param command create command
+/// @returns 保存済み message snapshot と publish 判定
+/// @throws MessageUsecaseError validation / dependency unavailable 時
+async fn create_message_with_context(
+    usecase: &LiveMessageUsecase,
+    context: GuildChannelContext,
+    command: CreateGuildChannelMessageCommand,
+) -> Result<CreateGuildChannelMessageResult, MessageUsecaseError> {
+    let Some(idempotency) = command.idempotency.as_ref() else {
+        let message = usecase
+            .append_message(context.channel_id, &command.proposed_identity, &command)
+            .await?;
+        return Ok(CreateGuildChannelMessageResult {
+            message,
+            should_publish: true,
+        });
+    };
+
+    let reservation = usecase
+        .idempotency_repository
+        .reserve_guild_channel_message_create(
+            command.author_id,
+            context.channel_id,
+            idempotency,
+            &command.proposed_identity,
+        )
+        .await?;
+    match reservation {
+        MessageCreateReserveResult::PayloadMismatch => Err(MessageUsecaseError::validation(
+            "message_idempotency_payload_mismatch",
+        )),
+        MessageCreateReserveResult::Reserved(reservation) => {
+            if reservation.state == MessageCreateReservationState::Completed {
+                return Ok(CreateGuildChannelMessageResult {
+                    message: command.to_message_item(&reservation.identity),
+                    should_publish: false,
+                });
+            }
+            let message = usecase
+                .append_message(context.channel_id, &reservation.identity, &command)
+                .await?;
+            usecase
+                .idempotency_repository
+                .mark_guild_channel_message_create_completed(
+                    command.author_id,
+                    context.channel_id,
+                    &idempotency.key,
+                )
+                .await?;
+            Ok(CreateGuildChannelMessageResult {
+                message,
+                should_publish: true,
+            })
+        }
+    }
 }
 
 /// fail-close な unavailable message usecase を表現する。
@@ -380,6 +459,13 @@ impl MessageUsecase for UnavailableMessageUsecase {
     /// @param _command edit command
     /// @returns なし
     /// @throws MessageUsecaseError 常に unavailable
+    async fn create_dm_channel_message(
+        &self,
+        _command: CreateGuildChannelMessageCommand,
+    ) -> Result<CreateGuildChannelMessageResult, MessageUsecaseError> {
+        Err(self.unavailable_error())
+    }
+
     async fn edit_guild_channel_message(
         &self,
         _command: EditGuildChannelMessageCommand,
@@ -407,6 +493,14 @@ impl MessageUsecase for UnavailableMessageUsecase {
     async fn list_guild_channel_messages(
         &self,
         _guild_id: i64,
+        _channel_id: i64,
+        _query: ListGuildChannelMessagesQueryV1,
+    ) -> Result<ListGuildChannelMessagesResponseV1, MessageUsecaseError> {
+        Err(self.unavailable_error())
+    }
+
+    async fn list_dm_channel_messages(
+        &self,
         _channel_id: i64,
         _query: ListGuildChannelMessagesQueryV1,
     ) -> Result<ListGuildChannelMessagesResponseV1, MessageUsecaseError> {
@@ -511,6 +605,13 @@ mod tests {
     #[async_trait]
     impl MessageMetadataRepository for FakeMetadataRepository {
         async fn get_guild_channel_context(
+            &self,
+            _channel_id: i64,
+        ) -> Result<Option<GuildChannelContext>, MessageUsecaseError> {
+            Ok(self.context.clone())
+        }
+
+        async fn get_dm_channel_context(
             &self,
             _channel_id: i64,
         ) -> Result<Option<GuildChannelContext>, MessageUsecaseError> {
@@ -667,6 +768,77 @@ mod tests {
             &[(20, 120_111, "2026-03-08T10:00:00Z".to_owned())]
         );
         assert!(idempotency.completions.lock().await.is_empty());
+    }
+
+    #[tokio::test]
+    async fn create_dm_uses_dm_channel_context() {
+        let body_store = Arc::new(FakeBodyStore::default());
+        let metadata = Arc::new(FakeMetadataRepository {
+            context: Some(GuildChannelContext {
+                channel_id: 55,
+                guild_id: 55,
+                created_at: "2026-03-01T00:00:00Z".to_owned(),
+                last_message_id: None,
+                last_message_at: None,
+            }),
+            upserts: Mutex::new(vec![]),
+        });
+        let usecase = LiveMessageUsecase::new(
+            body_store.clone(),
+            metadata.clone(),
+            Arc::new(FakeIdempotencyRepository::default()),
+        );
+
+        let stored = usecase
+            .create_dm_channel_message(CreateGuildChannelMessageCommand {
+                guild_id: 55,
+                channel_id: 55,
+                author_id: 30,
+                content: "hello dm".to_owned(),
+                proposed_identity: MessageIdentity {
+                    message_id: 120_444,
+                    created_at: "2026-03-08T13:00:00Z".to_owned(),
+                },
+                idempotency: None,
+            })
+            .await
+            .unwrap();
+
+        assert_eq!(stored.message.guild_id, 55);
+        assert_eq!(stored.message.channel_id, 55);
+        assert_eq!(body_store.appended.lock().await[0].channel_id, 55);
+        assert_eq!(
+            metadata.upserts.lock().await.as_slice(),
+            &[(55, 120_444, "2026-03-08T13:00:00Z".to_owned())]
+        );
+    }
+
+    #[tokio::test]
+    async fn list_dm_uses_dm_channel_context() {
+        let body_store = Arc::new(FakeBodyStore::default());
+        let usecase = LiveMessageUsecase::new(
+            body_store.clone(),
+            Arc::new(FakeMetadataRepository {
+                context: Some(GuildChannelContext {
+                    channel_id: 55,
+                    guild_id: 55,
+                    created_at: "2026-03-01T00:00:00Z".to_owned(),
+                    last_message_id: None,
+                    last_message_at: None,
+                }),
+                upserts: Mutex::new(vec![]),
+            }),
+            Arc::new(FakeIdempotencyRepository::default()),
+        );
+
+        let _ = usecase
+            .list_dm_channel_messages(55, ListGuildChannelMessagesQueryV1::default())
+            .await
+            .unwrap();
+
+        let listed_queries = body_store.listed_queries.lock().await;
+        assert_eq!(listed_queries.len(), 1);
+        assert_eq!(listed_queries[0].limit, Some(50));
     }
 
     #[tokio::test]
