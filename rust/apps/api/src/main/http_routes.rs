@@ -2872,6 +2872,7 @@ async fn rest_auth_middleware(
     let request_id = request_id_from_headers(request.headers());
     let request_method = request.method().clone();
     let request_path = request.uri().path().to_owned();
+    let request_scope = rest_request_scope_from_path(&request_path);
 
     let token = match bearer_token_from_headers(request.headers()) {
         Ok(token) => token,
@@ -2939,6 +2940,8 @@ async fn rest_auth_middleware(
                 principal_id = authenticated.principal_id.0,
                 error_class = error_class,
                 reason = reason,
+                guild_id = request_scope.guild_id,
+                channel_id = request_scope.channel_id,
                 resource = %request_path,
                 action = decision.action().label(),
                 operation_class = ?decision.operation_class(),
@@ -2975,6 +2978,8 @@ async fn rest_auth_middleware(
             principal_id = authenticated.principal_id.0,
             error_class = %error.log_class(),
             reason = %error.reason,
+            guild_id = request_scope.guild_id,
+            channel_id = request_scope.channel_id,
             resource = %request_path,
             action = action_label,
             decision_source = "authorizer",
@@ -3050,6 +3055,54 @@ fn rest_authz_resource_from_path(path: &str) -> AuthzResource {
     }
     AuthzResource::RestPath {
         path: path.to_owned(),
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct RestRequestScope {
+    guild_id: Option<i64>,
+    channel_id: Option<i64>,
+}
+
+/// RESTパスから監査用の scope 情報を抽出する。
+/// @param path リクエストパス
+/// @returns guild/channel scope
+/// @throws なし
+fn rest_request_scope_from_path(path: &str) -> RestRequestScope {
+    if let Some((guild_id, channel_id)) = parse_guild_channel_path(path) {
+        return RestRequestScope {
+            guild_id: Some(guild_id),
+            channel_id: Some(channel_id),
+        };
+    }
+    if let Some(channel_id) = parse_dm_channel_path(path) {
+        return RestRequestScope {
+            guild_id: None,
+            channel_id: Some(channel_id),
+        };
+    }
+    if let Some(guild_id) = parse_guild_invite_path(path) {
+        return RestRequestScope {
+            guild_id: Some(guild_id),
+            channel_id: None,
+        };
+    }
+    if let Some(guild_id) = parse_moderation_guild_path(path) {
+        return RestRequestScope {
+            guild_id: Some(guild_id),
+            channel_id: None,
+        };
+    }
+    if let Some(guild_id) = parse_guild_path(path) {
+        return RestRequestScope {
+            guild_id: Some(guild_id),
+            channel_id: None,
+        };
+    }
+
+    RestRequestScope {
+        guild_id: None,
+        channel_id: None,
     }
 }
 
