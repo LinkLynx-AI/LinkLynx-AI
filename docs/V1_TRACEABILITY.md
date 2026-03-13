@@ -44,3 +44,11 @@
 2. 実装済み判定は `Local artifact key` と現物ファイルで行う。
 3. 過去の `docs/agent_runs/LIN-*` は履歴として残し、必要なら「現在の対応先」を追記する。
 4. migration 番号変更が必要になった場合は、変更理由と旧番号を必ずここに残す。
+
+## Current boundary notes
+
+- `GET /guilds/{guild_id}/permission-snapshot` は `LIN-925` / `LIN-980` 時点で non-`v1` path を正とする。
+- cutover 条件:
+  - backend に等価な `v1` alias が追加されても AuthN/AuthZ/監査ログ契約が不変であること
+  - frontend / client query が新 path へ移行済みであること
+  - 運用 runbook と監査ダッシュボードが新旧 path 混在を不要と判断できること

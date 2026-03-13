@@ -239,6 +239,8 @@ v0 での認可関連 SoR:
 
 - FE が v1 で必要な `can_*` 判定を 1 リクエストで取得する最小契約として、`GET /guilds/{guild_id}/permission-snapshot` を追加する。
 - route 自体は `rest_auth_middleware` 配下に置き、`AuthzResource::Guild { guild_id } + View` を通過条件とする。
+- 現行フェーズでは guild API の既存 surface に合わせて non-`v1` path を正とし、`v1` alias への cutover は別 issue で扱う。
+- 監査ログでは snapshot 取得主体/対象を追跡できるよう、少なくとも `request_id`、`principal_id`、`guild_id`、`channel_id`（指定時）を残す。
 - 成功レスポンス shape は以下で固定する。
 
 ```json

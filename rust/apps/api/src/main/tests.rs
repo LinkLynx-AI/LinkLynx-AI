@@ -3735,6 +3735,38 @@ mod tests {
         assert_eq!(json["request_id"], "permission-snapshot-unavailable");
     }
 
+    #[test]
+    fn permission_snapshot_audit_fields_include_principal_guild_and_channel_scope() {
+        let auth_context = AuthContext {
+            request_id: "req-permission".to_owned(),
+            principal_id: PrincipalId(1001),
+            firebase_uid: "u-member".to_owned(),
+        };
+
+        assert_eq!(
+            permission_snapshot_audit_fields(&auth_context, 2001, Some(3001)),
+            PermissionSnapshotAuditFields {
+                principal_id: 1001,
+                guild_id: 2001,
+                channel_id: Some(3001),
+                action: "view",
+                resource: "permission_snapshot",
+                decision_source: "permission_snapshot_handler",
+            }
+        );
+        assert_eq!(
+            permission_snapshot_audit_fields(&auth_context, 2001, None),
+            PermissionSnapshotAuditFields {
+                principal_id: 1001,
+                guild_id: 2001,
+                channel_id: None,
+                action: "view",
+                resource: "permission_snapshot",
+                decision_source: "permission_snapshot_handler",
+            }
+        );
+    }
+
     #[tokio::test]
     async fn list_guild_channels_returns_forbidden_for_non_member() {
         let app = app_for_test().await;
