@@ -57,6 +57,10 @@ mod tests {
         ProfileService, ProfileSettings,
     };
     use scylla_health::{ScyllaHealthReport, ScyllaHealthReporter};
+    use user_directory::{
+        GuildMemberDirectoryEntry, GuildRoleDirectoryEntry, UserDirectoryError,
+        UserDirectoryService, UserProfileDirectoryEntry,
+    };
     use std::{
         collections::{HashMap, HashSet},
         net::SocketAddr,
@@ -108,6 +112,7 @@ mod tests {
     struct StaticInviteService;
     struct StaticUnavailableInviteService;
     struct RoleScenarioAuthorizer;
+    struct StaticUserDirectoryService;
     struct StaticScyllaHealthReporter {
         report: ScyllaHealthReport,
     }
@@ -1365,6 +1370,99 @@ mod tests {
     }
 
     #[async_trait]
+    impl UserDirectoryService for StaticUserDirectoryService {
+        async fn list_guild_members(
+            &self,
+            principal_id: PrincipalId,
+            guild_id: i64,
+        ) -> Result<Vec<GuildMemberDirectoryEntry>, UserDirectoryError> {
+            if guild_id != 2001 {
+                return Err(UserDirectoryError::guild_not_found("guild_not_found"));
+            }
+            if principal_id.0 != 1001 && principal_id.0 != 1003 {
+                return Err(UserDirectoryError::forbidden("guild_membership_required"));
+            }
+
+            Ok(vec![
+                GuildMemberDirectoryEntry {
+                    user_id: 1001,
+                    display_name: "Alice".to_owned(),
+                    avatar_key: None,
+                    status_text: Some("Ready".to_owned()),
+                    nickname: Some("alice-owner".to_owned()),
+                    joined_at: "2026-03-01T00:00:00Z".to_owned(),
+                    role_keys: vec!["owner".to_owned()],
+                },
+                GuildMemberDirectoryEntry {
+                    user_id: 1003,
+                    display_name: "Carol".to_owned(),
+                    avatar_key: None,
+                    status_text: Some("Reviewing".to_owned()),
+                    nickname: None,
+                    joined_at: "2026-03-02T00:00:00Z".to_owned(),
+                    role_keys: vec!["member".to_owned()],
+                },
+            ])
+        }
+
+        async fn list_guild_roles(
+            &self,
+            principal_id: PrincipalId,
+            guild_id: i64,
+        ) -> Result<Vec<GuildRoleDirectoryEntry>, UserDirectoryError> {
+            if guild_id != 2001 {
+                return Err(UserDirectoryError::guild_not_found("guild_not_found"));
+            }
+            if principal_id.0 != 1001 && principal_id.0 != 1003 {
+                return Err(UserDirectoryError::forbidden("guild_membership_required"));
+            }
+
+            Ok(vec![
+                GuildRoleDirectoryEntry {
+                    role_key: "owner".to_owned(),
+                    name: "Owner".to_owned(),
+                    priority: 300,
+                    allow_manage: true,
+                    member_count: 1,
+                },
+                GuildRoleDirectoryEntry {
+                    role_key: "member".to_owned(),
+                    name: "Member".to_owned(),
+                    priority: 100,
+                    allow_manage: false,
+                    member_count: 1,
+                },
+            ])
+        }
+
+        async fn get_user_profile(
+            &self,
+            principal_id: PrincipalId,
+            user_id: i64,
+        ) -> Result<UserProfileDirectoryEntry, UserDirectoryError> {
+            if user_id == 9999 {
+                return Err(UserDirectoryError::user_not_found("user_not_found"));
+            }
+            if principal_id.0 != user_id && principal_id.0 != 1001 && principal_id.0 != 1003 {
+                return Err(UserDirectoryError::forbidden("shared_guild_required"));
+            }
+
+            Ok(UserProfileDirectoryEntry {
+                user_id,
+                display_name: if user_id == 1003 {
+                    "Carol".to_owned()
+                } else {
+                    "Alice".to_owned()
+                },
+                status_text: Some("Ready".to_owned()),
+                avatar_key: None,
+                banner_key: None,
+                created_at: "2026-03-01T00:00:00Z".to_owned(),
+            })
+        }
+    }
+
+    #[async_trait]
     impl ProfileService for StaticUnavailableProfileService {
         async fn get_profile(
             &self,
@@ -1946,6 +2044,7 @@ mod tests {
             moderation_service: Arc::new(StaticModerationService),
             profile_service,
             profile_media_service,
+            user_directory_service: Arc::new(StaticUserDirectoryService),
             scylla_health_reporter,
             ws_reauth_grace: Duration::from_secs(30),
             ws_ticket_ttl: Duration::from_secs(60),
@@ -2081,7 +2180,6 @@ mod tests {
         }
         builder.body(Body::empty()).unwrap()
     }
-
     async fn connect_test_ws_with_authorization(
         address: SocketAddr,
         authorization: Option<&str>,
@@ -5686,6 +5784,129 @@ mod tests {
         let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
         assert_eq!(json["code"], "PROFILE_UNAVAILABLE");
         assert_eq!(json["request_id"], "profile-unavailable-test");
+    }
+
+    #[tokio::test]
+    async fn get_guild_members_returns_directory_entries() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/v1/guilds/2001/members")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["members"][0]["user_id"], 1001);
+        assert_eq!(json["members"][0]["display_name"], "Alice");
+        assert_eq!(json["members"][0]["role_keys"][0], "owner");
+        assert_eq!(json["members"][1]["user_id"], 1003);
+    }
+
+    #[tokio::test]
+    async fn get_guild_members_returns_forbidden_for_non_member() {
+        let app = app_for_test().await;
+        let token = format!("u-owner:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/v1/guilds/2001/members")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("x-request-id", "guild-members-denied")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "AUTHZ_DENIED");
+        assert_eq!(json["request_id"], "guild-members-denied");
+    }
+
+    #[tokio::test]
+    async fn get_guild_roles_returns_directory_entries() {
+        let app = app_for_test().await;
+        let token = format!("u-3:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/v1/guilds/2001/roles")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["roles"][0]["role_key"], "owner");
+        assert_eq!(json["roles"][0]["member_count"], 1);
+        assert_eq!(json["roles"][1]["role_key"], "member");
+    }
+
+    #[tokio::test]
+    async fn get_user_profile_returns_profile_for_shared_guild_user() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/v1/users/1003/profile")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["profile"]["user_id"], 1003);
+        assert_eq!(json["profile"]["display_name"], "Carol");
+    }
+
+    #[tokio::test]
+    async fn get_user_profile_returns_forbidden_without_shared_guild() {
+        let app = app_for_test().await;
+        let token = format!("u-owner:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/v1/users/1003/profile")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "AUTHZ_DENIED");
     }
 
     #[tokio::test]

@@ -1,18 +1,31 @@
 "use client";
 
 import { useState } from "react";
+import { useMembers, useRoles, useUserProfile } from "@/shared/api/queries";
+import type { Role as ApiRole } from "@/shared/api/api-client";
 import { Modal } from "@/shared/ui/modal";
 import { Tabs } from "@/shared/ui/tabs-simple";
 import { Avatar } from "@/shared/ui/avatar";
 import { ProfileBadges } from "./profile-badges";
 import { RolePills } from "./role-pills";
-import { useUserProfile } from "@/shared/api/queries/use-user-profile";
 import { useGuildStore } from "@/shared/model/stores/guild-store";
-import { mockRoles, mockMembers } from "@/shared/api/mock/data/servers";
 import type { Role } from "@/shared/model/types/server";
 
 function numberToHex(color: number): string {
   return `#${color.toString(16).padStart(6, "0")}`;
+}
+
+function toServerRole(role: ApiRole): Role {
+  return {
+    id: role.id,
+    name: role.name,
+    color: 0,
+    position: role.position,
+    permissions: String(role.permissions),
+    mentionable: role.mentionable,
+    hoist: role.hoist,
+    memberCount: role.memberCount,
+  };
 }
 
 const profileTabs = [
@@ -36,15 +49,15 @@ const mockMutualFriends: {
 export function ProfileModal({ userId, onClose }: { userId: string; onClose: () => void }) {
   const { data: profile } = useUserProfile(userId);
   const serverId = useGuildStore((s) => s.activeServerId);
+  const { data: roles = [] } = useRoles(serverId ?? "");
+  const { data: members = [] } = useMembers(serverId ?? "");
   const [activeTab, setActiveTab] = useState("profile");
   const [note, setNote] = useState("");
 
   if (!profile) return null;
 
-  const serverRoles = serverId ? (mockRoles[serverId] ?? []) : [];
-  const memberData = serverId
-    ? (mockMembers[serverId] ?? []).find((m) => m.user.id === userId)
-    : null;
+  const serverRoles = roles.map(toServerRole);
+  const memberData = members.find((member) => member.user.id === userId) ?? null;
   const memberRoleIds = memberData?.roles ?? [];
   const memberRoles: Role[] = serverRoles.filter((r) => memberRoleIds.includes(r.id));
 

@@ -4,14 +4,27 @@ import { useState, useEffect, useRef } from "react";
 import { Avatar } from "@/shared/ui/avatar";
 import { useUIStore } from "@/shared/model/stores/ui-store";
 import { useGuildStore } from "@/shared/model/stores/guild-store";
-import { useUserProfile } from "@/shared/api/queries/use-user-profile";
+import { useMembers, useRoles, useUserProfile } from "@/shared/api/queries";
+import type { Role as ApiRole } from "@/shared/api/api-client";
 import { ProfileBadges } from "./profile-badges";
 import { RolePills } from "./role-pills";
-import { mockRoles, mockMembers } from "@/shared/api/mock/data/servers";
 import type { Role } from "@/shared/model/types/server";
 
 function numberToHex(color: number): string {
   return `#${color.toString(16).padStart(6, "0")}`;
+}
+
+function toServerRole(role: ApiRole): Role {
+  return {
+    id: role.id,
+    name: role.name,
+    color: 0,
+    position: role.position,
+    permissions: String(role.permissions),
+    mentionable: role.mentionable,
+    hoist: role.hoist,
+    memberCount: role.memberCount,
+  };
 }
 
 export function ProfilePopout() {
@@ -19,6 +32,8 @@ export function ProfilePopout() {
   const hideProfilePopout = useUIStore((s) => s.hideProfilePopout);
   const serverId = useGuildStore((s) => s.activeServerId);
   const { data: profile } = useUserProfile(popout?.userId ?? null);
+  const { data: roles = [] } = useRoles(serverId ?? "");
+  const { data: members = [] } = useMembers(serverId ?? "");
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -44,11 +59,8 @@ export function ProfilePopout() {
 
   if (!popout || !profile) return null;
 
-  // Get member roles for this server
-  const serverRoles = serverId ? (mockRoles[serverId] ?? []) : [];
-  const memberData = serverId
-    ? (mockMembers[serverId] ?? []).find((m) => m.user.id === popout.userId)
-    : null;
+  const serverRoles = roles.map(toServerRole);
+  const memberData = members.find((member) => member.user.id === popout.userId) ?? null;
   const memberRoleIds = memberData?.roles ?? [];
   const memberRoles: Role[] = serverRoles.filter((r) => memberRoleIds.includes(r.id));
 
