@@ -33,6 +33,21 @@ export function MessageContextMenu({ data }: { data: { message: Message } }) {
     hideContextMenu();
   };
 
+  const handleReply = () => {
+    addToast({ message: "返信送信は v1 では未接続です。", type: "info" });
+    hideContextMenu();
+  };
+
+  const handleCreateThread = () => {
+    addToast({ message: "スレッド作成は準備中です", type: "info" });
+    hideContextMenu();
+  };
+
+  const handlePin = () => {
+    addToast({ message: "ピン留め操作は v1 では未接続です。", type: "info" });
+    hideContextMenu();
+  };
+
   const handleDelete = () => {
     hideContextMenu();
     deleteMessage.mutate(
@@ -54,15 +69,13 @@ export function MessageContextMenu({ data }: { data: { message: Message } }) {
 
   return (
     <ContextMenu>
-      <MenuItem onClick={hideContextMenu}>返信</MenuItem>
-      <MenuItem onClick={hideContextMenu}>スレッドを作成</MenuItem>
+      <MenuItem onClick={handleReply}>返信</MenuItem>
+      <MenuItem onClick={handleCreateThread}>スレッドを作成</MenuItem>
       <MenuSeparator />
       <MenuItem onClick={handleCopyText}>テキストをコピー</MenuItem>
       <MenuItem onClick={handleCopyLink}>メッセージリンクをコピー</MenuItem>
       <MenuSeparator />
-      <MenuItem onClick={hideContextMenu}>
-        {data.message.pinned ? "ピン留め解除" : "ピン留め"}
-      </MenuItem>
+      <MenuItem onClick={handlePin}>{data.message.pinned ? "ピン留め解除" : "ピン留め"}</MenuItem>
       <MenuSeparator />
       {canMutateMessage ? (
         <>

@@ -387,6 +387,7 @@ export class MockAPIClient implements APIClient {
         : mockCurrentUser.customStatus;
     const theme = input.theme ?? this.myProfileTheme;
     const currentMedia = this.getCurrentMedia();
+    const existingProfile = mockUserProfiles[mockCurrentUser.id];
     const avatarKey = input.avatarKey !== undefined ? input.avatarKey : currentMedia.avatarKey;
     const bannerKey = input.bannerKey !== undefined ? input.bannerKey : currentMedia.bannerKey;
     const avatarUrl =
@@ -422,7 +423,6 @@ export class MockAPIClient implements APIClient {
       };
     }
 
-    const existingProfile = mockUserProfiles[mockCurrentUser.id];
     mockUserProfiles[mockCurrentUser.id] = {
       ...(existingProfile ?? {
         ...mockCurrentUser,
