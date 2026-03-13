@@ -1,6 +1,6 @@
 # DATABASE.md
 
-最終更新: 2026-03-08
+最終更新: 2026-03-13
 
 このドキュメントは、リポジトリ内の定義ファイルを基準にした「現在のDB状態」をまとめたものです。
 実行中のDBインスタンスを直接参照したスナップショットではありません。
@@ -39,9 +39,10 @@
 15. `0015_lin803_server_channel_minimal_contract`
 16. `0016_lin822_minimal_moderation`
 17. `0017_lin939_profile_banner_key`
-18. `0017_lin941_channel_category_contract`
-19. `0017_lin948_message_create_idempotency`
-20. `0018_lin941_channel_category_constraints`
+18. `0018_lin941_channel_category_contract`
+19. `0019_lin948_message_create_idempotency`
+20. `0020_lin941_channel_category_constraints`
+21. `0021_adhoc_invites_id_sequence_for_issuance`
 
 ### 2.1 型（ENUM）
 
@@ -82,7 +83,7 @@
 
 - `guilds.owner_id -> users.id`
 - `users.id` は `users_id_seq` デフォルト採番により初回認証時プロビジョニングを許容
-- `guilds.id` と `channels.id` はデフォルト採番（`guilds_id_seq` / `channels_id_seq`）を許容
+- `guilds.id` / `channels.id` / `invites.id` はデフォルト採番（`guilds_id_seq` / `channels_id_seq` / `invites_id_seq`）を許容
 - `auth_identities(provider, provider_subject)` は外部認証主体（例: Firebase UID）を一意化し、`principal_id -> users.id` へ正規化
 - `guild_members(guild_id, user_id)` は `guilds/users` への多対多
 - `channels` は `channel_type` でギルドテキストチャネル/カテゴリコンテナ/DM を表現

@@ -1,6 +1,6 @@
 # V1 Traceability Ledger
 
-最終更新: 2026-03-08
+最終更新: 2026-03-13
 
 この文書は、`Linear` の親子構造や issue 状態を後で整理し直しても、現在の実装アーティファクトとタスクの対応を失わないためのローカル台帳です。
 
@@ -28,6 +28,9 @@
 | `db.migration.0015.lin803` | `0015_lin803_server_channel_minimal_contract` | `LIN-803` | active | もとは `0008` だったが、2026-03-07 に `sqlx` version collision 解消のため `0015` へ改番。 |
 | `db.migration.0016.lin822` | `0016_lin822_minimal_moderation` | `LIN-822` / implementation run is tracked under `LIN-802` | active | もとは `0012`。2026-03-07 に改番。Linear 上の `LIN-822` 状態が `Backlog` でも、コード/DB上は実装済み。 |
 | `db.migration.0017.lin939` | `0017_lin939_profile_banner_key` | `LIN-939` | active | `users.banner_key` を追加し、profile media の key persistence 契約を有効化。 |
+| `db.migration.0018.lin941` | `0018_lin941_channel_category_contract` | `LIN-941` | active | もとは `0017`。2026-03-13 に `0017` 重複 collision を解消するため `0018` へ改番。 |
+| `db.migration.0019.lin948` | `0019_lin948_message_create_idempotency` | `LIN-948` | active | もとは `0017`。2026-03-13 に `sqlx` migration version collision 解消のため `0019` へ改番。 |
+| `db.migration.0020.lin941` | `0020_lin941_channel_category_constraints` | `LIN-941` | active | もとは `0018`。2026-03-13 に `0017` 重複 collision 解消のため `0020` へ改番。 |
 
 ## When Linear is reorganized
 
