@@ -32,6 +32,12 @@
 | `db.migration.0019.lin948` | `0019_lin948_message_create_idempotency` | `LIN-948` | active | もとは `0017`。2026-03-13 に `sqlx` migration version collision 解消のため `0019` へ改番。 |
 | `db.migration.0020.lin941` | `0020_lin941_channel_category_constraints` | `LIN-941` | active | もとは `0018`。2026-03-13 に `0017` 重複 collision 解消のため `0020` へ改番。 |
 
+## Current runbook follow-up mapping
+
+| Local artifact key | Current repo artifact | Original Linear anchor | Local state | Notes |
+| --- | --- | --- | --- | --- |
+| `runbook.message_v1.followup.lin981` | `docs/runbooks/message-v1-api-ws-contract-runbook.md` | `LIN-981` | active | edit/delete contract と durable event transport を current v1 delivery gate から分離し、tracked follow-up として維持。次回目標日は 2026-04-15。 |
+
 ## When Linear is reorganized
 
 1. 新しい親子関係や統合先 issue をこの台帳に追記する。
