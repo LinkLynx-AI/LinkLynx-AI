@@ -15,9 +15,11 @@ import type {
   ChannelPermissionSnapshot,
   CreateChannelData,
   CreateGuildData,
+  CreateInviteData,
   CreateModerationMuteData,
   CreateModerationReportData,
   GuildPermissionSnapshot,
+  Invite,
   MyProfileMediaDownload,
   MyProfileMediaUpload,
   MessagePage,
@@ -241,6 +243,7 @@ const CREATE_ERROR_MESSAGES = {
   authzDenied: "この操作を行う権限がありません。",
   authzUnavailable: "認可サービスが一時的に利用できません。しばらくしてから再試行してください。",
   guildNotFound: "対象のサーバーが見つかりません。",
+  channelNotFound: "対象のチャンネルが見つかりません。",
   authRequired: "ログイン状態を確認してから再試行してください。",
   network: "ネットワーク接続を確認してから再試行してください。",
 } as const;
@@ -285,6 +288,26 @@ const MESSAGE_DELETE_ERROR_MESSAGES = {
 } as const;
 const MESSAGE_UPDATE_RESPONSE_SCHEMA = MESSAGE_CREATE_RESPONSE_SCHEMA;
 const MESSAGE_DELETE_RESPONSE_SCHEMA = MESSAGE_CREATE_RESPONSE_SCHEMA;
+const INVITE_GUILD_SCHEMA = z.object({
+  guild_id: z.number().int().positive(),
+  name: z.string().trim().min(1),
+  icon_key: z.string().trim().min(1).nullable().optional(),
+});
+const INVITE_CHANNEL_SCHEMA = z.object({
+  channel_id: z.number().int().positive(),
+  name: z.string().trim().min(1),
+});
+const INVITE_SCHEMA = z.object({
+  invite_code: z.string().trim().min(1),
+  guild: INVITE_GUILD_SCHEMA,
+  channel: INVITE_CHANNEL_SCHEMA,
+  expires_at: z.string().trim().min(1).nullable().optional(),
+  uses: z.number().int().nonnegative(),
+  max_uses: z.number().int().positive().nullable().optional(),
+});
+const INVITE_CREATE_RESPONSE_SCHEMA = z.object({
+  invite: INVITE_SCHEMA,
+});
 
 type GuildListResponse = z.infer<typeof GUILD_LIST_RESPONSE_SCHEMA>;
 type GuildCreateResponse = z.infer<typeof GUILD_CREATE_RESPONSE_SCHEMA>;
@@ -302,6 +325,7 @@ type PermissionSnapshotResponse = z.infer<typeof PERMISSION_SNAPSHOT_RESPONSE_SC
 type SupportedChannelType = (typeof SUPPORTED_CHANNEL_TYPES)[number];
 type ModerationReportApi = z.infer<typeof MODERATION_REPORT_SCHEMA>;
 type ModerationMuteApi = z.infer<typeof MODERATION_MUTE_SCHEMA>;
+type InviteCreateResponse = z.infer<typeof INVITE_CREATE_RESPONSE_SCHEMA>;
 
 type GuildChannelApiErrorParams = {
   status: number | null;
@@ -392,6 +416,9 @@ export function toCreateActionErrorText(error: unknown, fallbackMessage: string)
   }
   if (error.code === "GUILD_NOT_FOUND") {
     return attachRequestId(CREATE_ERROR_MESSAGES.guildNotFound, error.requestId);
+  }
+  if (error.code === "CHANNEL_NOT_FOUND") {
+    return attachRequestId(CREATE_ERROR_MESSAGES.channelNotFound, error.requestId);
   }
   if (error.code === "unauthenticated" || error.code === "token-unavailable") {
     return attachRequestId(CREATE_ERROR_MESSAGES.authRequired, error.requestId);
@@ -809,6 +836,30 @@ function mapPermissionSnapshot(response: PermissionSnapshotResponse): Permission
     channelId: response.snapshot.channel_id === null ? null : String(response.snapshot.channel_id),
     guild: mapGuildPermissionSnapshot(response.snapshot.guild),
     channel: mapChannelPermissionSnapshot(response.snapshot.channel),
+  };
+}
+
+function mapInvite(response: InviteCreateResponse["invite"]): Invite {
+  return {
+    code: response.invite_code,
+    guild: {
+      ...DEFAULT_GUILD_VALUES,
+      id: String(response.guild.guild_id),
+      name: response.guild.name,
+      icon: response.guild.icon_key ?? null,
+    },
+    channel: {
+      ...DEFAULT_CHANNEL_VALUES,
+      id: String(response.channel.channel_id),
+      guildId: String(response.guild.guild_id),
+      type: 0,
+      name: response.channel.name,
+      position: 0,
+      parentId: null,
+    },
+    expiresAt: response.expires_at ?? null,
+    uses: response.uses,
+    maxUses: response.max_uses ?? 0,
   };
 }
 
@@ -1886,6 +1937,54 @@ export class GuildChannelAPIClient extends NoDataAPIClient {
     this.channelIndex.set(channel.id, channel);
 
     return channel;
+  }
+
+  async createInvite(serverId: string, channelId: string, data: CreateInviteData): Promise<Invite> {
+    const normalizedServerId = serverId.trim();
+    if (normalizedServerId.length === 0) {
+      throw new GuildChannelApiError(CREATE_ERROR_MESSAGES.guildNotFound, {
+        status: 404,
+        code: "GUILD_NOT_FOUND",
+      });
+    }
+
+    const normalizedChannelId = channelId.trim();
+    const parsedChannelId = Number.parseInt(normalizedChannelId, 10);
+    if (!Number.isInteger(parsedChannelId) || parsedChannelId <= 0) {
+      throw new GuildChannelApiError(CREATE_ERROR_MESSAGES.validation, {
+        status: 400,
+        code: "VALIDATION_ERROR",
+      });
+    }
+
+    const body: Record<string, unknown> = {
+      channel_id: parsedChannelId,
+    };
+    if (data.maxAge !== undefined) {
+      if (!Number.isInteger(data.maxAge) || data.maxAge <= 0) {
+        throw new GuildChannelApiError(CREATE_ERROR_MESSAGES.validation, {
+          status: 400,
+          code: "VALIDATION_ERROR",
+        });
+      }
+      body.max_age_seconds = data.maxAge;
+    }
+    if (data.maxUses !== undefined) {
+      if (!Number.isInteger(data.maxUses) || data.maxUses <= 0) {
+        throw new GuildChannelApiError(CREATE_ERROR_MESSAGES.validation, {
+          status: 400,
+          code: "VALIDATION_ERROR",
+        });
+      }
+      body.max_uses = data.maxUses;
+    }
+
+    const response = await this.postJson(
+      `/v1/guilds/${encodeURIComponent(normalizedServerId)}/invites`,
+      body,
+      INVITE_CREATE_RESPONSE_SCHEMA,
+    );
+    return mapInvite(response.invite);
   }
 
   async getDMChannels(): Promise<Channel[]> {

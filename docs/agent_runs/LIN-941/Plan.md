@@ -16,7 +16,7 @@
 ### M2: DB / API / AuthZ 契約の実装
 - Acceptance criteria:
   - [x] `guild_category` を含む DB 契約差分を追加
-  - [x] `0017_lin941_channel_category_contract` migration と `schema.sql` の整合を取る
+  - [x] `0018_lin941_channel_category_contract` migration と `schema.sql` の整合を取る
   - [x] AuthZ docs と API inventory が category 前提へ更新されている
 - Validation:
   - `make db-migrate`

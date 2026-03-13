@@ -2,6 +2,9 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InviteErrorKind {
     Validation,
+    NotFound,
+    ChannelNotFound,
+    Forbidden,
     InvalidInvite,
     ExpiredInvite,
     DependencyUnavailable,
@@ -22,6 +25,39 @@ impl InviteError {
     pub fn validation(reason: impl Into<String>) -> Self {
         Self {
             kind: InviteErrorKind::Validation,
+            reason: reason.into(),
+        }
+    }
+
+    /// リソース未存在エラーを生成する。
+    /// @param reason 失敗理由
+    /// @returns 未存在エラー
+    /// @throws なし
+    pub fn not_found(reason: impl Into<String>) -> Self {
+        Self {
+            kind: InviteErrorKind::NotFound,
+            reason: reason.into(),
+        }
+    }
+
+    /// channel未存在エラーを生成する。
+    /// @param reason 失敗理由
+    /// @returns channel未存在エラー
+    /// @throws なし
+    pub fn channel_not_found(reason: impl Into<String>) -> Self {
+        Self {
+            kind: InviteErrorKind::ChannelNotFound,
+            reason: reason.into(),
+        }
+    }
+
+    /// 権限拒否エラーを生成する。
+    /// @param reason 失敗理由
+    /// @returns 権限拒否エラー
+    /// @throws なし
+    pub fn forbidden(reason: impl Into<String>) -> Self {
+        Self {
+            kind: InviteErrorKind::Forbidden,
             reason: reason.into(),
         }
     }
@@ -66,6 +102,9 @@ impl InviteError {
     pub fn status_code(&self) -> StatusCode {
         match self.kind {
             InviteErrorKind::Validation => StatusCode::BAD_REQUEST,
+            InviteErrorKind::NotFound => StatusCode::NOT_FOUND,
+            InviteErrorKind::ChannelNotFound => StatusCode::NOT_FOUND,
+            InviteErrorKind::Forbidden => StatusCode::FORBIDDEN,
             InviteErrorKind::InvalidInvite | InviteErrorKind::ExpiredInvite => StatusCode::CONFLICT,
             InviteErrorKind::DependencyUnavailable => StatusCode::SERVICE_UNAVAILABLE,
         }
@@ -78,6 +117,9 @@ impl InviteError {
     pub fn app_code(&self) -> &'static str {
         match self.kind {
             InviteErrorKind::Validation => "VALIDATION_ERROR",
+            InviteErrorKind::NotFound => "GUILD_NOT_FOUND",
+            InviteErrorKind::ChannelNotFound => "CHANNEL_NOT_FOUND",
+            InviteErrorKind::Forbidden => "AUTHZ_DENIED",
             InviteErrorKind::InvalidInvite => "INVITE_INVALID",
             InviteErrorKind::ExpiredInvite => "INVITE_EXPIRED",
             InviteErrorKind::DependencyUnavailable => "INVITE_UNAVAILABLE",
@@ -91,6 +133,9 @@ impl InviteError {
     pub fn public_message(&self) -> &'static str {
         match self.kind {
             InviteErrorKind::Validation => "request payload is invalid",
+            InviteErrorKind::NotFound => "guild resource was not found",
+            InviteErrorKind::ChannelNotFound => "channel resource was not found",
+            InviteErrorKind::Forbidden => "access is denied by authorization policy",
             InviteErrorKind::InvalidInvite => "invite is invalid",
             InviteErrorKind::ExpiredInvite => "invite is expired",
             InviteErrorKind::DependencyUnavailable => "invite dependency is unavailable",

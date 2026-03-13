@@ -293,7 +293,7 @@ export class NoDataAPIClient implements APIClient {
     return unsupportedPromise("createGroupDM");
   }
 
-  createInvite(_channelId: string, _data: CreateInviteData): Promise<Invite> {
+  createInvite(_serverId: string, _channelId: string, _data: CreateInviteData): Promise<Invite> {
     return unsupportedPromise("createInvite");
   }
 

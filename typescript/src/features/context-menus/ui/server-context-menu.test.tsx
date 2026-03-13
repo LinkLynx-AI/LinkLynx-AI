@@ -138,6 +138,44 @@ describe("ServerContextMenu", () => {
     expect(state.contextMenu).toBeNull();
   });
 
+  test("opens create-invite modal with selected server id", async () => {
+    useUIStore.setState({
+      activeModal: null,
+      modalProps: {},
+      contextMenu: {
+        type: "server",
+        position: { x: 0, y: 0 },
+        data: {},
+      },
+    });
+
+    render(
+      <ServerContextMenu
+        data={{
+          server: {
+            id: "2001",
+            name: "LinkLynx Developers",
+            icon: null,
+            banner: null,
+            ownerId: "1001",
+            memberCount: 1,
+            boostLevel: 0,
+            boostCount: 0,
+            features: [],
+            description: null,
+          },
+        }}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("menuitem", { name: "招待を作成" }));
+
+    const state = useUIStore.getState();
+    expect(state.activeModal).toBe("create-invite");
+    expect(state.modalProps).toMatchObject({ serverId: "2001" });
+    expect(state.contextMenu).toBeNull();
+  });
+
   test("disables guarded actions when permission is missing", async () => {
     useActionGuardMock.mockImplementation(() => ({
       status: "forbidden",

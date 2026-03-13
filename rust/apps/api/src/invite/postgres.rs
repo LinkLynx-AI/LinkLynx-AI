@@ -11,6 +11,83 @@ pub struct PostgresInviteService {
 impl PostgresInviteService {
     const DEFAULT_POOL_SIZE: usize = 4;
     const MAX_POOL_SIZE: usize = 100;
+    const CREATE_INVITE_SQL: &str = "WITH manageable AS (
+                    SELECT gm.guild_id
+                    FROM guild_members gm
+                    WHERE gm.guild_id = $1
+                      AND gm.user_id = $3
+                      AND (
+                        EXISTS (
+                          SELECT 1
+                          FROM guilds g
+                          WHERE g.id = gm.guild_id
+                            AND g.owner_id = $3
+                        )
+                        OR EXISTS (
+                          SELECT 1
+                          FROM guild_member_roles_v2 gmr
+                          JOIN guild_roles_v2 gr
+                            ON gr.guild_id = gmr.guild_id
+                           AND gr.role_key = gmr.role_key
+                          WHERE gmr.guild_id = gm.guild_id
+                            AND gmr.user_id = $3
+                            AND gr.allow_manage = TRUE
+                        )
+                      )
+                    FOR KEY SHARE
+                 ),
+                 target_channel AS (
+                    SELECT
+                      c.id AS channel_id,
+                      c.guild_id,
+                      c.name
+                    FROM channels c
+                    JOIN manageable m
+                      ON m.guild_id = c.guild_id
+                    WHERE c.id = $2
+                      AND c.guild_id = $1
+                      AND c.type = 'guild_text'
+                 ),
+                 inserted_invite AS (
+                    INSERT INTO invites (
+                      guild_id,
+                      created_by,
+                      code,
+                      expires_at,
+                      max_uses
+                    )
+                    SELECT
+                      tc.guild_id,
+                      $3,
+                      $4,
+                      CASE
+                        WHEN $5::bigint IS NULL THEN NULL
+                        ELSE now() + ($5::bigint * interval '1 second')
+                      END,
+                      $6
+                    FROM target_channel tc
+                    RETURNING
+                      code AS invite_code,
+                      guild_id,
+                      to_char(expires_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS expires_at_text,
+                      uses,
+                      max_uses
+                 )
+                 SELECT
+                    ii.invite_code,
+                    g.id AS guild_id,
+                    g.name AS guild_name,
+                    g.icon_key,
+                    tc.channel_id,
+                    tc.name AS channel_name,
+                    ii.expires_at_text,
+                    ii.uses,
+                    ii.max_uses
+                 FROM inserted_invite ii
+                 JOIN guilds g
+                   ON g.id = ii.guild_id
+                 JOIN target_channel tc
+                   ON tc.guild_id = ii.guild_id";
     const VERIFY_PUBLIC_INVITE_SQL: &str = "SELECT
                     i.code AS invite_code,
                     CASE
@@ -258,6 +335,175 @@ impl PostgresInviteService {
         InviteError::dependency_unavailable(format!("{context}:{error}"))
     }
 
+    /// 書き込み系DBエラーをAPIエラーへ変換する。
+    /// @param context エラー文脈
+    /// @param error Postgresエラー
+    /// @returns APIエラー
+    /// @throws なし
+    async fn map_write_error(&self, context: &str, error: tokio_postgres::Error) -> InviteError {
+        if Self::should_invalidate_pool_for_error(&error) {
+            self.invalidate_pool().await;
+        }
+
+        if let Some(db_error) = error.as_db_error() {
+            if db_error.code() == &tokio_postgres::error::SqlState::CHECK_VIOLATION {
+                return InviteError::validation("invite_payload_invalid");
+            }
+            if db_error.code() == &tokio_postgres::error::SqlState::FOREIGN_KEY_VIOLATION
+                && db_error.constraint() == Some("invites_guild_id_fkey")
+            {
+                return InviteError::not_found("guild_not_found");
+            }
+        }
+
+        InviteError::dependency_unavailable(format!("{context}:{error}"))
+    }
+
+    /// guild存在を確認する。
+    /// @param client Postgresクライアント
+    /// @param guild_id 対象guild_id
+    /// @returns guildが存在する場合は `true`
+    /// @throws InviteError 依存障害時
+    async fn has_guild(
+        &self,
+        client: &tokio_postgres::Client,
+        guild_id: i64,
+    ) -> Result<bool, InviteError> {
+        match client
+            .query_opt("SELECT 1 FROM guilds WHERE id = $1", &[&guild_id])
+            .await
+        {
+            Ok(row) => Ok(row.is_some()),
+            Err(error) => Err(self.map_database_error("guild_lookup_failed", error).await),
+        }
+    }
+
+    /// guildメンバー所属を確認する。
+    /// @param client Postgresクライアント
+    /// @param guild_id 対象guild_id
+    /// @param user_id 対象user_id
+    /// @returns メンバー所属がある場合は `true`
+    /// @throws InviteError 依存障害時
+    async fn has_guild_membership(
+        &self,
+        client: &tokio_postgres::Client,
+        guild_id: i64,
+        user_id: i64,
+    ) -> Result<bool, InviteError> {
+        match client
+            .query_opt(
+                "SELECT 1
+                 FROM guild_members
+                 WHERE guild_id = $1
+                   AND user_id = $2",
+                &[&guild_id, &user_id],
+            )
+            .await
+        {
+            Ok(row) => Ok(row.is_some()),
+            Err(error) => Err(
+                self.map_database_error("guild_membership_lookup_failed", error)
+                    .await,
+            ),
+        }
+    }
+
+    /// guildの管理権限を確認する。
+    /// @param client Postgresクライアント
+    /// @param principal_id 認証済みprincipal_id
+    /// @param guild_id 対象guild_id
+    /// @returns 管理権限がある場合は `true`
+    /// @throws InviteError 依存障害時
+    async fn has_manage_permission(
+        &self,
+        client: &tokio_postgres::Client,
+        principal_id: PrincipalId,
+        guild_id: i64,
+    ) -> Result<bool, InviteError> {
+        match client
+            .query_opt(
+                "SELECT 1
+                 FROM guilds g
+                 WHERE g.id = $1
+                   AND g.owner_id = $2
+                 UNION ALL
+                 SELECT 1
+                 FROM guild_member_roles_v2 gmr
+                 JOIN guild_roles_v2 gr
+                   ON gr.guild_id = gmr.guild_id
+                  AND gr.role_key = gmr.role_key
+                 WHERE gmr.guild_id = $1
+                   AND gmr.user_id = $2
+                   AND gr.allow_manage = TRUE
+                 LIMIT 1",
+                &[&guild_id, &principal_id.0],
+            )
+            .await
+        {
+            Ok(row) => Ok(row.is_some()),
+            Err(error) => Err(
+                self.map_database_error("guild_manage_permission_lookup_failed", error)
+                    .await,
+            ),
+        }
+    }
+
+    /// channelの所属guildと種別を取得する。
+    /// @param client Postgresクライアント
+    /// @param channel_id 対象channel_id
+    /// @returns channelが存在する場合は `Some((guild_id, channel_type))`
+    /// @throws InviteError 依存障害時
+    async fn find_channel_scope(
+        &self,
+        client: &tokio_postgres::Client,
+        channel_id: i64,
+    ) -> Result<Option<(i64, String)>, InviteError> {
+        match client
+            .query_opt(
+                "SELECT guild_id, type::text AS channel_type
+                 FROM channels
+                 WHERE id = $1
+                   AND guild_id IS NOT NULL",
+                &[&channel_id],
+            )
+            .await
+        {
+            Ok(Some(row)) => Ok(Some((
+                row.get::<&str, i64>("guild_id"),
+                row.get::<&str, String>("channel_type"),
+            ))),
+            Ok(None) => Ok(None),
+            Err(error) => Err(self.map_database_error("channel_scope_lookup_failed", error).await),
+        }
+    }
+
+    /// 重複しにくい招待コードを生成する。
+    /// @param なし
+    /// @returns 招待コード
+    /// @throws なし
+    fn generate_invite_code() -> String {
+        uuid::Uuid::new_v4()
+            .simple()
+            .to_string()
+            .chars()
+            .take(10)
+            .collect::<String>()
+            .to_ascii_uppercase()
+    }
+
+    /// 招待コード一意制約違反かを判定する。
+    /// @param error Postgresエラー
+    /// @returns 招待コード unique 衝突なら `true`
+    /// @throws なし
+    fn is_invite_code_conflict(error: &tokio_postgres::Error) -> bool {
+        let Some(db_error) = error.as_db_error() else {
+            return false;
+        };
+
+        db_error.code() == &tokio_postgres::error::SqlState::UNIQUE_VIOLATION
+            && db_error.constraint() == Some("invites_code_key")
+    }
+
     /// 読み取り系DBエラーでプール破棄が必要か判定する。
     /// @param error Postgresエラー
     /// @returns 接続断系エラーの場合は `true`
@@ -275,6 +521,103 @@ impl PostgresInviteService {
 
 #[async_trait]
 impl InviteService for PostgresInviteService {
+    /// 認証済みユーザーが guild 配下の招待を作成する。
+    /// @param principal_id 作成主体ID
+    /// @param guild_id 対象guild_id
+    /// @param input 招待作成入力
+    /// @returns 作成済み招待
+    /// @throws InviteError 入力不正、未存在、非権限、または依存障害時
+    async fn create_invite(
+        &self,
+        principal_id: PrincipalId,
+        guild_id: i64,
+        input: CreateInviteInput,
+    ) -> Result<CreatedInvite, InviteError> {
+        if guild_id <= 0 {
+            return Err(InviteError::validation("guild_id_must_be_positive"));
+        }
+
+        let normalized_input = normalize_create_invite_input(input)?;
+        let client = self.select_client().await?;
+
+        for _ in 0..3 {
+            let invite_code = Self::generate_invite_code();
+            let row = match client
+                .query_opt(
+                    Self::CREATE_INVITE_SQL,
+                    &[
+                        &guild_id,
+                        &normalized_input.channel_id,
+                        &principal_id.0,
+                        &invite_code,
+                        &normalized_input.max_age_seconds,
+                        &normalized_input.max_uses,
+                    ],
+                )
+                .await
+            {
+                Ok(Some(row)) => row,
+                Ok(None) => {
+                    if !self.has_guild(&client, guild_id).await? {
+                        return Err(InviteError::not_found("guild_not_found"));
+                    }
+                    if !self
+                        .has_guild_membership(&client, guild_id, principal_id.0)
+                        .await?
+                    {
+                        return Err(InviteError::forbidden("guild_membership_required"));
+                    }
+                    if !self.has_manage_permission(&client, principal_id, guild_id).await? {
+                        return Err(InviteError::forbidden("invite_manage_permission_required"));
+                    }
+
+                    let Some((channel_guild_id, channel_type)) =
+                        self.find_channel_scope(&client, normalized_input.channel_id).await?
+                    else {
+                        return Err(InviteError::channel_not_found("invite_channel_not_found"));
+                    };
+                    if channel_guild_id != guild_id {
+                        return Err(InviteError::validation("invite_channel_cross_guild"));
+                    }
+                    if channel_type != "guild_text" {
+                        return Err(InviteError::validation("invite_channel_must_be_guild_text"));
+                    }
+
+                    return Err(InviteError::dependency_unavailable(
+                        "invite_create_rejected_without_reason",
+                    ));
+                }
+                Err(error) => {
+                    if Self::is_invite_code_conflict(&error) {
+                        continue;
+                    }
+                    return Err(self.map_write_error("invite_create_insert_failed", error).await);
+                }
+            };
+
+            let record = CreatedInviteRecord {
+                guild: PublicInviteGuild {
+                    guild_id: row.get::<&str, i64>("guild_id"),
+                    name: row.get::<&str, String>("guild_name"),
+                    icon_key: row.get::<&str, Option<String>>("icon_key"),
+                },
+                channel: InviteChannelSummary {
+                    channel_id: row.get::<&str, i64>("channel_id"),
+                    name: row.get::<&str, String>("channel_name"),
+                },
+                expires_at: row.get::<&str, Option<String>>("expires_at_text"),
+                uses: row.get::<&str, i32>("uses"),
+                max_uses: row.get::<&str, Option<i32>>("max_uses"),
+            };
+
+            return build_created_invite(row.get::<&str, String>("invite_code"), record);
+        }
+
+        Err(InviteError::dependency_unavailable(
+            "invite_code_generation_exhausted",
+        ))
+    }
+
     /// 公開招待コードを検証する。
     /// @param invite_code 検証対象の招待コード
     /// @returns 検証結果

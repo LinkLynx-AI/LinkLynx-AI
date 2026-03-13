@@ -31,8 +31,9 @@ mod tests {
         GuildChannelService, GuildPatchInput, GuildSummary, PostgresGuildChannelService,
     };
     use invite::{
-        InviteError, InviteJoinResult, InviteJoinStatus, InviteService, PublicInviteGuild,
-        PublicInviteLookup, PublicInviteStatus,
+        CreateInviteInput, CreatedInvite, InviteChannelSummary, InviteError, InviteJoinResult,
+        InviteJoinStatus, InviteService, PublicInviteGuild, PublicInviteLookup,
+        PublicInviteStatus,
     };
     use linklynx_message_api::{
         CreateGuildChannelMessageRequestV1, CreateGuildChannelMessageResponseV1,
@@ -1752,6 +1753,39 @@ mod tests {
 
     #[async_trait]
     impl InviteService for StaticInviteService {
+        async fn create_invite(
+            &self,
+            _principal_id: PrincipalId,
+            guild_id: i64,
+            input: CreateInviteInput,
+        ) -> Result<CreatedInvite, InviteError> {
+            if guild_id != 2001 {
+                return Err(InviteError::not_found("guild_not_found"));
+            }
+            if input.channel_id != 3001 {
+                return Err(InviteError::channel_not_found("invite_channel_not_found"));
+            }
+            if input.max_age_seconds == Some(0) || input.max_uses == Some(0) {
+                return Err(InviteError::validation("invite_limits_invalid"));
+            }
+
+            Ok(CreatedInvite {
+                invite_code: "DEVCREATE2026".to_owned(),
+                guild: PublicInviteGuild {
+                    guild_id,
+                    name: "LinkLynx Guild".to_owned(),
+                    icon_key: None,
+                },
+                channel: InviteChannelSummary {
+                    channel_id: input.channel_id,
+                    name: "general".to_owned(),
+                },
+                expires_at: Some("2026-03-21T00:00:00Z".to_owned()),
+                uses: 0,
+                max_uses: input.max_uses,
+            })
+        }
+
         async fn verify_public_invite(
             &self,
             invite_code: String,
@@ -1832,6 +1866,17 @@ mod tests {
 
     #[async_trait]
     impl InviteService for StaticUnavailableInviteService {
+        async fn create_invite(
+            &self,
+            _principal_id: PrincipalId,
+            _guild_id: i64,
+            _input: CreateInviteInput,
+        ) -> Result<CreatedInvite, InviteError> {
+            Err(InviteError::dependency_unavailable(
+                "invite_store_unconfigured",
+            ))
+        }
+
         async fn verify_public_invite(
             &self,
             _invite_code: String,
@@ -2565,6 +2610,88 @@ mod tests {
         let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
         assert_eq!(json["code"], "INVITE_UNAVAILABLE");
         assert_eq!(json["request_id"], "invite-unavailable-test");
+    }
+
+    #[tokio::test]
+    async fn create_guild_invite_returns_created_for_valid_request() {
+        let app = app_for_test().await;
+        let token = format!("u-admin:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method(Method::POST)
+                    .uri("/v1/guilds/2001/invites")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        r#"{"channel_id":3001,"max_age_seconds":3600,"max_uses":5}"#,
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::CREATED);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["invite"]["invite_code"], "DEVCREATE2026");
+        assert_eq!(json["invite"]["guild"]["guild_id"], 2001);
+        assert_eq!(json["invite"]["channel"]["channel_id"], 3001);
+        assert_eq!(json["invite"]["max_uses"], 5);
+    }
+
+    #[tokio::test]
+    async fn create_guild_invite_rejects_malformed_json() {
+        let app = app_for_test().await;
+        let token = format!("u-admin:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method(Method::POST)
+                    .uri("/v1/guilds/2001/invites")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"channel_id":"oops"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "VALIDATION_ERROR");
+    }
+
+    #[tokio::test]
+    async fn create_guild_invite_returns_service_unavailable_when_invite_service_fails() {
+        let app = app_for_test_with_invite_service(Arc::new(StaticUnavailableInviteService)).await;
+        let token = format!("u-admin:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method(Method::POST)
+                    .uri("/v1/guilds/2001/invites")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("x-request-id", "invite-create-unavailable-test")
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"channel_id":3001}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "INVITE_UNAVAILABLE");
+        assert_eq!(json["request_id"], "invite-create-unavailable-test");
     }
 
     #[tokio::test]
@@ -7294,6 +7421,11 @@ mod tests {
 
     #[test]
     fn rest_authz_resource_maps_invite_dm_and_moderation_paths() {
+        match rest_authz_resource_from_path("/v1/guilds/10/invites") {
+            AuthzResource::Guild { guild_id } => assert_eq!(guild_id, 10),
+            _ => panic!("invite collection path should map to guild resource"),
+        }
+
         match rest_authz_resource_from_path("/v1/guilds/10/invites/invite-abc") {
             AuthzResource::Guild { guild_id } => assert_eq!(guild_id, 10),
             _ => panic!("invite path should map to guild resource"),
@@ -7325,6 +7457,10 @@ mod tests {
         assert!(matches!(
             rest_authz_action_for_request(&Method::POST, "/internal/authz/cache/invalidate"),
             AuthzAction::View
+        ));
+        assert!(matches!(
+            rest_authz_action_for_request(&Method::POST, "/v1/guilds/10/invites"),
+            AuthzAction::Manage
         ));
         assert!(matches!(
             rest_authz_action_for_request(&Method::POST, "/v1/dms/55/messages"),

@@ -67,6 +67,26 @@ describe("ChannelItem", () => {
     });
   });
 
+  test("opens create-invite modal when invite shortcut is clicked", async () => {
+    render(
+      <ChannelItem
+        channel={createChannel()}
+        serverId="2001"
+        isActive={false}
+        isUnread={false}
+        isMuted={false}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "招待を作成" }));
+
+    expect(useUIStore.getState().activeModal).toBe("create-invite");
+    expect(useUIStore.getState().modalProps).toMatchObject({
+      serverId: "2001",
+      channelId: "3001",
+    });
+  });
+
   test("keeps edit shortcut disabled while permission is unresolved", () => {
     useActionGuardMock.mockImplementation(() => ({
       status: "loading",

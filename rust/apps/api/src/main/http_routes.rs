@@ -67,6 +67,7 @@ fn app_with_state(state: AppState) -> Router {
         .route("/v1/guilds/{guild_id}", axum::routing::patch(update_guild))
         .route("/v1/guilds/{guild_id}/members", get(get_guild_members))
         .route("/v1/guilds/{guild_id}/roles", get(get_guild_roles))
+        .route("/v1/guilds/{guild_id}/invites", post(create_guild_invite))
         .route(
             "/v1/guilds/{guild_id}/invites/{invite_code}",
             get(get_guild_invite),
@@ -179,6 +180,13 @@ struct GuildInviteResponse {
     principal_id: i64,
     guild_id: i64,
     invite_code: String,
+}
+
+#[derive(Debug, Serialize)]
+struct CreateInviteResponse {
+    ok: bool,
+    request_id: String,
+    invite: invite::CreatedInvite,
 }
 
 #[derive(Debug, Serialize)]
@@ -1299,6 +1307,16 @@ struct InviteVerifyPathParams {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CreateInviteRequest {
+    channel_id: i64,
+    #[serde(default)]
+    max_age_seconds: Option<i64>,
+    #[serde(default)]
+    max_uses: Option<i32>,
+}
+
+#[derive(Debug, Deserialize)]
 struct PermissionSnapshotQuery {
     channel_id: Option<String>,
 }
@@ -1550,6 +1568,18 @@ fn parse_json_payload<T>(payload: Result<Json<T>, JsonRejection>) -> Result<T, G
     payload
         .map(|Json(value)| value)
         .map_err(|_| GuildChannelError::validation("request_body_invalid"))
+}
+
+/// invite create 向けJSON payloadを検証する。
+/// @param payload JSON抽出結果
+/// @returns 検証済みpayload
+/// @throws InviteError JSON形式不正時
+fn parse_invite_json_payload<T>(
+    payload: Result<Json<T>, JsonRejection>,
+) -> Result<T, invite::InviteError> {
+    payload
+        .map(|Json(value)| value)
+        .map_err(|_| invite::InviteError::validation("request_body_invalid"))
 }
 
 /// Query入力を検証して message 一覧クエリを取得する。
@@ -1926,6 +1956,57 @@ async fn get_permission_snapshot(
         },
     })
     .into_response()
+}
+
+/// guild配下へinviteを作成する。
+/// @param state アプリケーション状態
+/// @param auth_context 認証文脈
+/// @param params パスパラメータ
+/// @param payload 作成入力
+/// @returns 作成結果レスポンス
+/// @throws なし
+async fn create_guild_invite(
+    State(state): State<AppState>,
+    Extension(auth_context): Extension<AuthContext>,
+    Path(params): Path<GuildPathParams>,
+    payload: Result<Json<CreateInviteRequest>, JsonRejection>,
+) -> Response {
+    let request_id = auth_context.request_id.clone();
+    let guild_id = match parse_guild_id(&params.guild_id) {
+        Ok(value) => value,
+        Err(error) => {
+            return invite_error_response(
+                &invite::InviteError::validation(error.reason),
+                request_id,
+            )
+        }
+    };
+    let payload = match parse_invite_json_payload(payload) {
+        Ok(value) => value,
+        Err(error) => return invite_error_response(&error, request_id),
+    };
+
+    match state
+        .invite_service
+        .create_invite(
+            auth_context.principal_id,
+            guild_id,
+            invite::CreateInviteInput {
+                channel_id: payload.channel_id,
+                max_age_seconds: payload.max_age_seconds,
+                max_uses: payload.max_uses,
+            },
+        )
+        .await
+    {
+        Ok(invite) => (StatusCode::CREATED, Json(CreateInviteResponse {
+            ok: true,
+            request_id,
+            invite,
+        }))
+            .into_response(),
+        Err(error) => invite_error_response(&error, request_id),
+    }
 }
 
 /// permission boolean を解決する。
@@ -2866,6 +2947,9 @@ fn rest_authz_action_for_request(method: &axum::http::Method, path: &str) -> Aut
     if path == "/internal/authz/cache/invalidate" {
         return AuthzAction::View;
     }
+    if *method == axum::http::Method::POST && is_guild_invite_create_path(path) {
+        return AuthzAction::Manage;
+    }
     if is_message_command_path(path)
         && (*method == axum::http::Method::PATCH || *method == axum::http::Method::DELETE)
     {
@@ -2955,13 +3039,16 @@ fn parse_guild_channel_path(path: &str) -> Option<(i64, i64)> {
 /// @throws なし
 fn parse_guild_invite_path(path: &str) -> Option<i64> {
     let segments = path.trim_matches('/').split('/').collect::<Vec<_>>();
-    if segments.len() != 5 {
-        return None;
+    match segments.as_slice() {
+        ["v1", "guilds", guild_id, "invites"]
+        | ["v1", "guilds", guild_id, "invites", _] => guild_id.parse::<i64>().ok(),
+        _ => None,
     }
-    if segments[0] != "v1" || segments[1] != "guilds" || segments[3] != "invites" {
-        return None;
-    }
-    segments[2].parse::<i64>().ok()
+}
+
+fn is_guild_invite_create_path(path: &str) -> bool {
+    let segments = path.trim_matches('/').split('/').collect::<Vec<_>>();
+    matches!(segments.as_slice(), ["v1", "guilds", _, "invites"])
 }
 
 /// DMパスから channel_id を抽出する。

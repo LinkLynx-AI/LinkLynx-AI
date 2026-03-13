@@ -88,6 +88,25 @@ describe("ChannelContextMenu", () => {
     });
   });
 
+  test("opens create-invite modal from text channel context menu", async () => {
+    render(
+      <ChannelContextMenu
+        data={{
+          channel: createChannel(),
+          serverId: "2001",
+        }}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("menuitem", { name: "招待を作成" }));
+
+    expect(useUIStore.getState().activeModal).toBe("create-invite");
+    expect(useUIStore.getState().modalProps).toMatchObject({
+      serverId: "2001",
+      channelId: "3001",
+    });
+  });
+
   test("disables edit and delete when channel manage permission is missing", async () => {
     useActionGuardMock.mockImplementation(() => ({
       status: "forbidden",

@@ -545,12 +545,21 @@ export class MockAPIClient implements APIClient {
   }
 
   // Invites
-  async createInvite(channelId: string, _data: CreateInviteData): Promise<Invite> {
+  async createInvite(
+    serverId: string,
+    channelId: string,
+    _data: CreateInviteData,
+  ): Promise<Invite> {
     await this.simulateDelay();
+    const guild = mockServers.find((candidate) => candidate.id === serverId) ?? mockServers[0];
+    const channel =
+      (mockChannels[serverId] ?? []).find((candidate) => candidate.id === channelId) ??
+      (mockChannels[guild.id] ?? [])[0] ??
+      ({} as Channel);
     return {
       code: "abc123",
-      guild: mockServers[0],
-      channel: (mockChannels[mockServers[0].id] ?? [])[0] ?? ({} as Channel),
+      guild,
+      channel,
       expiresAt: null,
       uses: 0,
       maxUses: 0,

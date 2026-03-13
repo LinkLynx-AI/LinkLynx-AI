@@ -224,6 +224,7 @@ v0 での認可関連 SoR:
 
 - Invite/DM/Moderation 系 REST を `rest_auth_middleware` 保護配下に追加し、既存の `error.code/message/details/requestId` 契約を維持する。
 - path->resource の追加写像（current baseline）は以下で固定する。
+  - `/v1/guilds/{guild_id}/invites` -> `AuthzResource::Guild { guild_id }`
   - `/v1/guilds/{guild_id}/invites/{invite_code}` -> `AuthzResource::Guild { guild_id }`
   - `/v1/dms/{channel_id}` / `/v1/dms/{channel_id}/messages` -> `AuthzResource::Channel { channel_id }`
   - `/v1/moderation/guilds/{guild_id}/...` -> `AuthzResource::Guild { guild_id }`
@@ -283,7 +284,8 @@ v0 での認可関連 SoR:
   - `unavailable`: page は `RouteGuardScreen(kind="service-unavailable")`、個別操作は disabled
 - v1 の requirement と UI 対応は以下で固定する。
   - `guild:create-channel` -> server context menu の create channel / create-channel modal
+  - `guild:create-invite` -> server context menu / channel context menu / channel item shortcut / create-invite modal
   - `guild:manage-settings` -> server settings modal
   - `guild:moderate` -> moderation queue / moderation report detail / resolve / reopen / mute
   - `channel:manage` -> channel context menu の edit/delete / channel item settings shortcut / channel edit overview / channel delete modal
-- invite 作成は real API/client が未実装のため、`LIN-926` では導線を disabled にして停止し、`CreateInviteModal` も fail-close placeholder に固定する。
+- invite 作成は real API/client 実装済み。invite 一覧/取消は引き続き mock 実装のため別 issue で扱う。

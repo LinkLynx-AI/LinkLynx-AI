@@ -6,6 +6,7 @@ import { usePermissionSnapshot } from "./use-permission-snapshot";
 
 export type ActionGuardRequirement =
   | "guild:create-channel"
+  | "guild:create-invite"
   | "guild:manage-settings"
   | "guild:moderate"
   | "channel:manage";
@@ -27,6 +28,8 @@ function resolvePermission(
   switch (requirement) {
     case "guild:create-channel":
       return snapshot.guild.canCreateChannel;
+    case "guild:create-invite":
+      return snapshot.guild.canCreateInvite;
     case "guild:manage-settings":
       return snapshot.guild.canManageSettings;
     case "guild:moderate":

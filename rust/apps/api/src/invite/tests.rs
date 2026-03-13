@@ -15,6 +15,13 @@ mod tests {
         }
     }
 
+    fn sample_channel() -> InviteChannelSummary {
+        InviteChannelSummary {
+            channel_id: 3001,
+            name: "general".to_owned(),
+        }
+    }
+
     fn next_test_id_block(width: i64) -> i64 {
         NEXT_TEST_ID.fetch_add(width, Ordering::Relaxed)
     }
@@ -102,6 +109,14 @@ mod tests {
     }
 
     #[test]
+    fn invite_error_channel_not_found_maps_to_not_found() {
+        let error = InviteError::channel_not_found("invite_channel_not_found");
+
+        assert_eq!(error.status_code(), axum::http::StatusCode::NOT_FOUND);
+        assert_eq!(error.app_code(), "CHANNEL_NOT_FOUND");
+    }
+
+    #[test]
     fn invite_error_expired_maps_to_conflict() {
         let error = InviteError::expired_invite("invite_expired");
 
@@ -127,6 +142,52 @@ mod tests {
         let result = normalize_invite_code("  DEVJOIN2026  ").unwrap();
 
         assert_eq!(result, "DEVJOIN2026");
+    }
+
+    #[test]
+    fn normalize_create_invite_input_rejects_non_positive_channel_id() {
+        let result = normalize_create_invite_input(CreateInviteInput {
+            channel_id: 0,
+            max_age_seconds: None,
+            max_uses: None,
+        });
+
+        assert!(matches!(
+            result,
+            Err(InviteError {
+                kind: InviteErrorKind::Validation,
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn normalize_create_invite_input_rejects_non_positive_limits() {
+        let result = normalize_create_invite_input(CreateInviteInput {
+            channel_id: 3001,
+            max_age_seconds: Some(0),
+            max_uses: Some(5),
+        });
+        assert!(matches!(
+            result,
+            Err(InviteError {
+                kind: InviteErrorKind::Validation,
+                ..
+            })
+        ));
+
+        let result = normalize_create_invite_input(CreateInviteInput {
+            channel_id: 3001,
+            max_age_seconds: Some(60),
+            max_uses: Some(0),
+        });
+        assert!(matches!(
+            result,
+            Err(InviteError {
+                kind: InviteErrorKind::Validation,
+                ..
+            })
+        ));
     }
 
     #[test]
@@ -208,6 +269,38 @@ mod tests {
     }
 
     #[test]
+    fn build_created_invite_preserves_guild_channel_and_limits() {
+        let invite = build_created_invite(
+            "  NEWJOIN2026  ".to_owned(),
+            CreatedInviteRecord {
+                guild: sample_guild(),
+                channel: sample_channel(),
+                expires_at: Some("2026-03-21T00:00:00Z".to_owned()),
+                uses: 0,
+                max_uses: Some(5),
+            },
+        )
+        .unwrap();
+
+        assert_eq!(invite.invite_code, "NEWJOIN2026");
+        assert_eq!(invite.guild.guild_id, 2001);
+        assert_eq!(invite.channel.channel_id, 3001);
+        assert_eq!(invite.max_uses, Some(5));
+    }
+
+    #[test]
+    fn create_invite_sql_inserts_manageable_guild_text_channel_invite() {
+        let sql = PostgresInviteService::CREATE_INVITE_SQL;
+
+        assert!(sql.contains("FROM guild_members gm"));
+        assert!(sql.contains("JOIN manageable m"));
+        assert!(sql.contains("c.type = 'guild_text'"));
+        assert!(sql.contains("INSERT INTO invites"));
+        assert!(sql.contains("now() + ($5::bigint * interval '1 second')"));
+        assert!(sql.contains("ii.invite_code"));
+    }
+
+    #[test]
     fn verify_public_invite_sql_reads_invite_and_guild_state() {
         let sql = PostgresInviteService::VERIFY_PUBLIC_INVITE_SQL;
 
@@ -258,6 +351,79 @@ mod tests {
 
         assert!(already_member_index < invalid_index);
         assert!(invalid_index < expired_index);
+    }
+
+    #[tokio::test]
+    async fn postgres_create_invite_integration_returns_created_invite() {
+        let Some((database_url, client)) = connect_integration_database().await else {
+            return;
+        };
+
+        let base_id = next_test_id_block(10);
+        let owner_id = base_id;
+        let guild_id = base_id + 1;
+        let channel_id = base_id + 2;
+
+        seed_user(&client, owner_id, "invite-create-owner").await;
+        client
+            .execute(
+                "INSERT INTO guilds (id, name, owner_id)
+                 VALUES ($1, $2, $3)",
+                &[&guild_id, &format!("Guild {guild_id}"), &owner_id],
+            )
+            .await
+            .expect("failed to seed guild");
+        client
+            .execute(
+                "INSERT INTO guild_members (guild_id, user_id)
+                 VALUES ($1, $2)",
+                &[&guild_id, &owner_id],
+            )
+            .await
+            .expect("failed to seed guild membership");
+        client
+            .execute(
+                "INSERT INTO channels (id, type, guild_id, name, created_by)
+                 VALUES ($1, 'guild_text', $2, 'general', $3)",
+                &[&channel_id, &guild_id, &owner_id],
+            )
+            .await
+            .expect("failed to seed channel");
+
+        let service = PostgresInviteService::new(database_url, true);
+        let created = service
+            .create_invite(
+                PrincipalId(owner_id),
+                guild_id,
+                CreateInviteInput {
+                    channel_id,
+                    max_age_seconds: Some(3600),
+                    max_uses: Some(5),
+                },
+            )
+            .await
+            .expect("invite create should succeed");
+
+        assert_eq!(created.guild.guild_id, guild_id);
+        assert_eq!(created.channel.channel_id, channel_id);
+        assert_eq!(created.channel.name, "general");
+        assert_eq!(created.uses, 0);
+        assert_eq!(created.max_uses, Some(5));
+        assert_eq!(created.invite_code.len(), 10);
+
+        let row = client
+            .query_one(
+                "SELECT guild_id, created_by, max_uses, uses
+                 FROM invites
+                 WHERE code = $1",
+                &[&created.invite_code],
+            )
+            .await
+            .expect("failed to read created invite");
+        assert_eq!(row.get::<usize, i64>(0), guild_id);
+        assert_eq!(row.get::<usize, Option<i64>>(1), Some(owner_id));
+        assert_eq!(row.get::<usize, Option<i32>>(2), Some(5));
+        assert_eq!(row.get::<usize, i32>(3), 0);
     }
 
     #[tokio::test]
