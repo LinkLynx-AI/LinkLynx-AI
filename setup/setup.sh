@@ -14,6 +14,9 @@ NC='\033[0m'
 CHECK='✅'
 CROSS='❌'
 ARROW='➜'
+MIN_CARGO_VERSION="1.85.0"
+MIN_NODE_MAJOR="20"
+MIN_ELIXIR_VERSION="1.16.0"
 
 echo -e "${BLUE}"
 echo "╔══════════════════════════════════════════╗"
@@ -47,21 +50,84 @@ command_exists() {
     command -v "$1" >/dev/null 2>&1
 }
 
+version_ge() {
+    local current=$1
+    local required=$2
+    [[ "$(printf '%s\n%s\n' "$required" "$current" | sort -V | tail -n1)" == "$current" ]]
+}
+
+cargo_version_number() {
+    local cargo_cmd=$1
+    "$cargo_cmd" --version 2>/dev/null | awk '{print $2}'
+}
+
+node_version_number() {
+    local node_cmd=$1
+    "$node_cmd" --version 2>/dev/null | sed 's/^v//'
+}
+
+node_major_version() {
+    local node_cmd=$1
+    node_version_number "$node_cmd" | cut -d. -f1
+}
+
+elixir_version_number() {
+    local elixir_cmd=$1
+    "$elixir_cmd" --version 2>/dev/null | awk '/Elixir/ {print $2; exit}'
+}
+
+load_rust_env() {
+    if [[ -f "$HOME/.cargo/env" ]]; then
+        # shellcheck disable=SC1090
+        source "$HOME/.cargo/env"
+    fi
+
+    case ":$PATH:" in
+        *":$HOME/.cargo/bin:"*) ;;
+        *) export PATH="$HOME/.cargo/bin:$PATH" ;;
+    esac
+}
+
 # Pythonのバージョン判定
+python_major_version() {
+    local python_cmd=$1
+    "$python_cmd" -c 'import sys; print(sys.version_info.major)' 2>/dev/null
+}
+
 python_minor_version() {
     local python_cmd=$1
     "$python_cmd" -c 'import sys; print(sys.version_info.minor)' 2>/dev/null
 }
 
-# プロジェクトで利用可能なPython(3.13以下)を選択
+python_supports_project() {
+    local python_cmd=$1
+    local major minor
+    major=$(python_major_version "$python_cmd")
+    minor=$(python_minor_version "$python_cmd")
+    [[ "$major" == "3" && -n "$minor" && "$minor" -ge 10 && "$minor" -le 13 ]]
+}
+
+python_has_module() {
+    local python_cmd=$1
+    local module_name=$2
+    "$python_cmd" -c "import ${module_name}" >/dev/null 2>&1
+}
+
+docker_compose_available() {
+    docker compose version >/dev/null 2>&1
+}
+
+docker_daemon_available() {
+    docker info >/dev/null 2>&1
+}
+
+# プロジェクトで利用可能なPython(3.10-3.13)を選択
 select_python_for_project() {
     local candidates=(python3.13 python3.12 python3.11 python3.10 python3)
 
     for python_cmd in "${candidates[@]}"; do
         if command_exists "$python_cmd"; then
-            local minor
-            minor=$(python_minor_version "$python_cmd")
-            if [[ -n "$minor" ]] && [[ "$minor" -le 13 ]]; then
+            if python_supports_project "$python_cmd"; then
                 echo "$python_cmd"
                 return 0
             fi
@@ -81,44 +147,104 @@ install_homebrew() {
 
 # Dockerのインストール
 install_docker() {
+    local has_docker=0
+    local has_compose=0
+
     if command_exists docker; then
-        echo -e "${CHECK} Docker インストール済み"
+        has_docker=1
+    fi
+
+    if [[ "$has_docker" -eq 1 ]] && docker_compose_available; then
+        has_compose=1
+    fi
+
+    if [[ "$has_docker" -eq 1 ]] && [[ "$has_compose" -eq 1 ]]; then
+        echo -e "${CHECK} Docker インストール済み ($(docker --version | cut -d',' -f1))"
+    else
+        echo -e "${YELLOW}Dockerをインストール中...${NC}"
+        case $OS in
+            macos)
+                brew install --cask docker
+                echo -e "${YELLOW}Docker Desktopを起動してインストールを完了してください${NC}"
+                ;;
+            debian)
+                sudo apt-get update
+                sudo apt-get install -y docker.io docker-compose-plugin
+                sudo systemctl enable docker
+                sudo systemctl start docker
+                sudo usermod -aG docker $USER
+                ;;
+            fedora)
+                sudo dnf install -y docker docker-compose-plugin
+                sudo systemctl enable docker
+                sudo systemctl start docker
+                sudo usermod -aG docker $USER
+                ;;
+            arch)
+                sudo pacman -S --noconfirm docker docker-compose
+                sudo systemctl enable docker
+                sudo systemctl start docker
+                sudo usermod -aG docker $USER
+                ;;
+        esac
+    fi
+
+    if ! command_exists docker; then
+        echo -e "${CROSS} docker コマンドを確認できませんでした${NC}"
+        return 1
+    fi
+
+    if ! docker_compose_available; then
+        echo -e "${CROSS} 'docker compose' が利用できません${NC}"
+        return 1
+    fi
+
+    if docker_daemon_available; then
+        echo -e "${CHECK} Docker daemon は利用可能です"
+        if [[ "$OS" == "debian" || "$OS" == "fedora" || "$OS" == "arch" ]]; then
+            echo -e "${YELLOW}注意: docker グループ追加直後は再ログインまたは 'newgrp docker' が必要な場合があります${NC}"
+        fi
         return
     fi
 
-    echo -e "${YELLOW}Dockerをインストール中...${NC}"
     case $OS in
+        debian|fedora|arch)
+            echo -e "${YELLOW}Docker daemon を起動中...${NC}"
+            sudo systemctl enable docker
+            sudo systemctl start docker
+            ;;
         macos)
-            brew install --cask docker
-            echo -e "${YELLOW}Docker Desktopを起動してインストールを完了してください${NC}"
-            ;;
-        debian)
-            sudo apt-get update
-            sudo apt-get install -y docker.io docker-compose-plugin
-            sudo systemctl enable docker
-            sudo systemctl start docker
-            sudo usermod -aG docker $USER
-            ;;
-        fedora)
-            sudo dnf install -y docker docker-compose-plugin
-            sudo systemctl enable docker
-            sudo systemctl start docker
-            sudo usermod -aG docker $USER
-            ;;
-        arch)
-            sudo pacman -S --noconfirm docker docker-compose
-            sudo systemctl enable docker
-            sudo systemctl start docker
-            sudo usermod -aG docker $USER
+            echo -e "${YELLOW}Docker Desktop を起動して初期セットアップを完了してください${NC}"
             ;;
     esac
+
+    if docker_daemon_available; then
+        echo -e "${CHECK} Docker daemon は利用可能です"
+        if [[ "$OS" == "debian" || "$OS" == "fedora" || "$OS" == "arch" ]]; then
+            echo -e "${YELLOW}注意: docker グループ追加直後は再ログインまたは 'newgrp docker' が必要な場合があります${NC}"
+        fi
+        return
+    fi
+
+    if [[ "$OS" == "macos" ]]; then
+        echo -e "${YELLOW}Docker daemon に接続できません。Docker Desktop を起動して初期セットアップを完了してください${NC}"
+    else
+        echo -e "${YELLOW}Docker daemon に接続できません。Linux では再ログインまたは 'newgrp docker' が必要な場合があります${NC}"
+    fi
 }
 
 # Node.jsのインストール
 install_nodejs() {
+    local node_version=""
+    local node_major=""
+
     if command_exists node; then
-        echo -e "${CHECK} Node.js インストール済み ($(node --version))"
-        return
+        node_version=$(node_version_number node)
+        node_major=$(node_major_version node)
+        if [[ -n "$node_major" ]] && [[ "$node_major" -ge "$MIN_NODE_MAJOR" ]] && command_exists npm; then
+            echo -e "${CHECK} Node.js インストール済み (v${node_version})"
+            return
+        fi
     fi
 
     echo -e "${YELLOW}Node.jsをインストール中...${NC}"
@@ -137,6 +263,15 @@ install_nodejs() {
             sudo pacman -S --noconfirm nodejs npm
             ;;
     esac
+
+    node_version=$(node_version_number node)
+    node_major=$(node_major_version node)
+    if [[ -z "$node_major" ]] || [[ "$node_major" -lt "$MIN_NODE_MAJOR" ]] || ! command_exists npm; then
+        echo -e "${CROSS} Node.js ${MIN_NODE_MAJOR} 以上と npm が必要ですが、現在は v${node_version:-unknown} です${NC}"
+        return 1
+    fi
+
+    echo -e "${CHECK} Node.js インストール済み (v${node_version})"
 }
 
 # pnpmの有効化
@@ -154,25 +289,75 @@ install_pnpm() {
         echo -e "${YELLOW}corepackが見つからないためnpm経由でpnpmをインストールします...${NC}"
         npm install -g pnpm
     fi
+
+    if ! command_exists pnpm; then
+        echo -e "${CROSS} pnpm のセットアップに失敗しました${NC}"
+        return 1
+    fi
+
+    echo -e "${CHECK} pnpm インストール済み ($(pnpm --version))"
 }
 
 # Rustのインストール
 install_rust() {
-    if command_exists rustc; then
-        echo -e "${CHECK} Rust インストール済み ($(rustc --version | cut -d' ' -f2))"
-        return
+    load_rust_env
+
+    local needs_rustup=0
+    local cargo_version=""
+
+    if ! command_exists rustup; then
+        needs_rustup=1
     fi
 
-    echo -e "${YELLOW}Rustをインストール中...${NC}"
-    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-    source "$HOME/.cargo/env"
+    if command_exists cargo; then
+        cargo_version=$(cargo_version_number cargo)
+        if [[ -z "$cargo_version" ]] || ! version_ge "$cargo_version" "$MIN_CARGO_VERSION"; then
+            needs_rustup=1
+        fi
+    else
+        needs_rustup=1
+    fi
+
+    if [[ "$needs_rustup" -eq 1 ]]; then
+        echo -e "${YELLOW}Rustup と最新 stable Rust をセットアップ中...${NC}"
+        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+        load_rust_env
+    fi
+
+    if ! command_exists rustup; then
+        echo -e "${CROSS} rustup のセットアップに失敗しました${NC}"
+        return 1
+    fi
+
+    echo -e "${YELLOW}Rust stable toolchain を更新中...${NC}"
+    rustup toolchain install stable --profile default
+    rustup default stable
+    rustup component add rustfmt clippy
+    hash -r
+
+    cargo_version=$(cargo_version_number cargo)
+    if [[ -z "$cargo_version" ]] || ! version_ge "$cargo_version" "$MIN_CARGO_VERSION"; then
+        echo -e "${CROSS} cargo ${MIN_CARGO_VERSION} 以上が必要ですが、現在は ${cargo_version:-unknown} です${NC}"
+        return 1
+    fi
+
+    echo -e "${CHECK} Rust インストール済み ($(rustc --version | cut -d' ' -f2), cargo ${cargo_version})"
 }
 
 # Pythonのインストール
 install_python() {
-    if command_exists python3; then
-        echo -e "${CHECK} Python インストール済み ($(python3 --version | cut -d' ' -f2))"
-        return
+    local python_cmd=""
+    python_cmd=$(select_python_for_project || true)
+
+    if [[ -n "$python_cmd" ]]; then
+        if ! python_has_module "$python_cmd" venv; then
+            echo -e "${YELLOW}${python_cmd} に venv がないため、補助パッケージを確認します...${NC}"
+        elif ! python_has_module "$python_cmd" pip; then
+            echo -e "${YELLOW}${python_cmd} に pip がないため、補助パッケージを確認します...${NC}"
+        else
+            echo -e "${CHECK} Python インストール済み ($($python_cmd --version | cut -d' ' -f2))"
+            return
+        fi
     fi
 
     echo -e "${YELLOW}Pythonをインストール中...${NC}"
@@ -181,6 +366,7 @@ install_python() {
             brew install python@3.13
             ;;
         debian)
+            sudo apt-get update
             sudo apt-get install -y python3 python3-pip python3-venv
             ;;
         fedora)
@@ -190,13 +376,40 @@ install_python() {
             sudo pacman -S --noconfirm python python-pip
             ;;
     esac
+
+    python_cmd=$(select_python_for_project || true)
+    if [[ -z "$python_cmd" ]]; then
+        echo -e "${CROSS} Python 3.10 から 3.13 を確認できませんでした${NC}"
+        return 1
+    fi
+
+    if ! python_has_module "$python_cmd" venv; then
+        echo -e "${CROSS}${python_cmd} で venv が利用できません${NC}"
+        return 1
+    fi
+
+    if ! python_has_module "$python_cmd" pip; then
+        "$python_cmd" -m ensurepip --upgrade >/dev/null 2>&1 || true
+    fi
+
+    if ! python_has_module "$python_cmd" pip; then
+        echo -e "${CROSS}${python_cmd} で pip が利用できません${NC}"
+        return 1
+    fi
+
+    echo -e "${CHECK} Python インストール済み ($($python_cmd --version | cut -d' ' -f2))"
 }
 
 # Elixirのインストール
 install_elixir() {
-    if command_exists elixir; then
-        echo -e "${CHECK} Elixir インストール済み ($(elixir --version | grep Elixir | cut -d' ' -f2))"
-        return
+    local elixir_version=""
+
+    if command_exists elixir && command_exists mix; then
+        elixir_version=$(elixir_version_number elixir)
+        if [[ -n "$elixir_version" ]] && version_ge "$elixir_version" "$MIN_ELIXIR_VERSION"; then
+            echo -e "${CHECK} Elixir インストール済み (${elixir_version})"
+            return
+        fi
     fi
 
     echo -e "${YELLOW}Elixirをインストール中...${NC}"
@@ -214,6 +427,19 @@ install_elixir() {
             sudo pacman -S --noconfirm elixir
             ;;
     esac
+
+    if ! command_exists elixir || ! command_exists mix; then
+        echo -e "${CROSS} Elixir または mix を確認できませんでした${NC}"
+        return 1
+    fi
+
+    elixir_version=$(elixir_version_number elixir)
+    if [[ -z "$elixir_version" ]] || ! version_ge "$elixir_version" "$MIN_ELIXIR_VERSION"; then
+        echo -e "${CROSS} Elixir ${MIN_ELIXIR_VERSION} 以上が必要ですが、現在は ${elixir_version:-unknown} です${NC}"
+        return 1
+    fi
+
+    echo -e "${CHECK} Elixir インストール済み (${elixir_version})"
 }
 
 # TypeScriptプロジェクトのセットアップ
@@ -247,16 +473,16 @@ setup_python() {
         python_cmd=$(select_python_for_project || true)
 
         if [[ -z "$python_cmd" ]]; then
-            echo -e "${CROSS} Python 3.13以下が見つかりません"
+            echo -e "${CROSS} Python 3.10 から 3.13 が見つかりません"
             echo -e "${YELLOW}Python 3.13をインストールして再実行してください（例: macOSは 'brew install python@3.13'）${NC}"
             return 1
         fi
 
         if [[ -x .venv/bin/python ]]; then
-            local venv_minor
-            venv_minor=$(.venv/bin/python -c 'import sys; print(sys.version_info.minor)' 2>/dev/null || true)
-            if [[ -n "$venv_minor" ]] && [[ "$venv_minor" -gt 13 ]]; then
-                echo -e "${YELLOW}既存の .venv はPython 3.${venv_minor} のため再作成します${NC}"
+            if ! python_supports_project .venv/bin/python; then
+                local venv_version
+                venv_version=$(.venv/bin/python --version 2>/dev/null | cut -d' ' -f2)
+                echo -e "${YELLOW}既存の .venv は未対応バージョン (${venv_version:-unknown}) のため再作成します${NC}"
                 rm -rf .venv
             fi
         fi
@@ -264,7 +490,7 @@ setup_python() {
         "$python_cmd" -m venv .venv
         source .venv/bin/activate
         pip install --upgrade pip
-        pip install -r requirements.txt
+        pip install -r requirements.txt -r requirements-dev.txt
         deactivate
         echo -e "${CHECK} Python 依存パッケージをインストールしました"
     fi
@@ -282,6 +508,11 @@ setup_elixir() {
         echo -e "${CHECK} Elixir 依存パッケージをインストールしました"
     fi
     cd ..
+}
+
+setup_db_tools() {
+    echo -e "\n${BLUE}DB 開発ツールをセットアップ中...${NC}"
+    make setup-db-tools
 }
 
 # .envファイルの作成
@@ -325,6 +556,7 @@ main() {
     setup_rust
     setup_python
     setup_elixir
+    setup_db_tools
 
     echo -e "\n${GREEN}╔══════════════════════════════════════════╗${NC}"
     echo -e "${GREEN}║        セットアップ完了！ 🎉             ║${NC}"
@@ -333,6 +565,12 @@ main() {
     echo -e "${YELLOW}make setup-check${NC} で環境構築状況を確認できます"
     echo -e "${YELLOW}make up${NC} で全サービスをDockerで起動できます"
     echo -e "${YELLOW}make dev${NC} で開発モードを起動できます"
+    if [[ "$OS" == "macos" ]]; then
+        echo -e "${YELLOW}Docker Desktop をまだ起動していない場合は、一度起動して初期セットアップを完了してください${NC}"
+    fi
+    if [[ "$OS" == "debian" || "$OS" == "fedora" || "$OS" == "arch" ]]; then
+        echo -e "${YELLOW}Docker 権限が反映されない場合は、再ログインまたは 'newgrp docker' を実行してください${NC}"
+    fi
 }
 
 main "$@"

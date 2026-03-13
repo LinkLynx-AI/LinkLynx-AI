@@ -99,7 +99,7 @@ setup-db-tools: ## DB開発ツール(sqlx/tbls)をセットアップ
 			exit 1; \
 		fi; \
 		echo "$(BLUE)sqlx-cli をインストール中...$(NC)"; \
-		cargo install sqlx-cli --no-default-features --features rustls,postgres; \
+		cargo install sqlx-cli --locked --no-default-features --features rustls,postgres; \
 	fi
 	@if command -v tbls >/dev/null 2>&1; then \
 		echo "$(GREEN)tbls はインストール済みです: $$(tbls version)$(NC)"; \
