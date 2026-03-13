@@ -7321,6 +7321,31 @@ mod tests {
     }
 
     #[test]
+    fn rest_request_scope_maps_moderation_permission_snapshot_and_dm_paths() {
+        assert_eq!(
+            rest_request_scope_from_path("/v1/moderation/guilds/10/members/9003"),
+            RestRequestScope {
+                guild_id: Some(10),
+                channel_id: None,
+            }
+        );
+        assert_eq!(
+            rest_request_scope_from_path("/guilds/10/permission-snapshot"),
+            RestRequestScope {
+                guild_id: Some(10),
+                channel_id: None,
+            }
+        );
+        assert_eq!(
+            rest_request_scope_from_path("/v1/dms/55/messages"),
+            RestRequestScope {
+                guild_id: None,
+                channel_id: Some(55),
+            }
+        );
+    }
+
+    #[test]
     fn rest_authz_action_maps_internal_cache_invalidation_post_to_view() {
         assert!(matches!(
             rest_authz_action_for_request(&Method::POST, "/internal/authz/cache/invalidate"),

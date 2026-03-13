@@ -46,6 +46,16 @@ Out of scope:
 | `POST /v1/guilds/{guild_id}/channels/{channel_id}/messages` | `core write path` | degraded fail-open (L1 only) |
 | `POST /v1/dms/{channel_id}/messages` | `core write path` | degraded fail-open (L1 only) |
 
+## 3.1 Implementation alignment
+
+| route surface | rate-limit action | deny / limited reason | required reject log fields |
+| --- | --- | --- | --- |
+| `GET /v1/guilds/{guild_id}/invites/{invite_code}` | `InviteAccess` | `rate_limit_exceeded` / `dragonfly_degraded_fail_close` | `request_id`, `reason`, `principal_id?`, `guild_id`, `resource`, `action`, `decision_source` |
+| `POST /v1/invites/{invite_code}/join` | `InviteAccess` | `rate_limit_exceeded` / `dragonfly_degraded_fail_close` | `request_id`, `reason`, `principal_id`, `resource`, `action`, `decision_source` |
+| `PATCH /v1/moderation/guilds/{guild_id}/members/{member_id}` | `ModerationAction` | `rate_limit_exceeded` / `dragonfly_degraded_fail_close` | `request_id`, `reason`, `principal_id`, `guild_id`, `resource`, `action`, `decision_source` |
+| `POST /v1/guilds/{guild_id}/channels/{channel_id}/messages` | `MessageCreate` | `rate_limit_exceeded` only after L1 exhaustion | `request_id`, `reason`, `principal_id`, `guild_id`, `channel_id`, `resource`, `action`, `decision_source` |
+| `POST /v1/dms/{channel_id}/messages` | `MessageCreate` | `rate_limit_exceeded` only after L1 exhaustion | `request_id`, `reason`, `principal_id`, `channel_id`, `resource`, `action`, `decision_source` |
+
 ## 4. Exposure boundary
 
 - No public or protected REST endpoint is exposed to mutate degraded state.
