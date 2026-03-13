@@ -57,6 +57,10 @@ mod tests {
         ProfileService, ProfileSettings,
     };
     use scylla_health::{ScyllaHealthReport, ScyllaHealthReporter};
+    use user_directory::{
+        GuildMemberDirectoryEntry, GuildRoleDirectoryEntry, UserDirectoryError,
+        UserDirectoryService, UserProfileDirectoryEntry,
+    };
     use std::{
         collections::{HashMap, HashSet},
         net::SocketAddr,
@@ -81,6 +85,7 @@ mod tests {
     const MAX_RESPONSE_BYTES: usize = 16 * 1024;
 
     struct StaticTokenVerifier;
+    struct UnavailableTokenVerifier;
     struct StaticAllowAllAuthorizer;
     struct StaticDenyAuthorizer;
     struct StaticUnavailableAuthorizer;
@@ -107,6 +112,7 @@ mod tests {
     struct StaticInviteService;
     struct StaticUnavailableInviteService;
     struct RoleScenarioAuthorizer;
+    struct StaticUserDirectoryService;
     struct StaticScyllaHealthReporter {
         report: ScyllaHealthReport,
     }
@@ -135,6 +141,15 @@ mod tests {
                 display_name: Some(uid.to_owned()),
                 expires_at_epoch: exp,
             })
+        }
+    }
+
+    #[async_trait]
+    impl TokenVerifier for UnavailableTokenVerifier {
+        async fn verify(&self, _token: &str) -> Result<VerifiedToken, TokenVerifyError> {
+            Err(TokenVerifyError::DependencyUnavailable(
+                "test_auth_dependency_unavailable".to_owned(),
+            ))
         }
     }
 
@@ -1355,6 +1370,99 @@ mod tests {
     }
 
     #[async_trait]
+    impl UserDirectoryService for StaticUserDirectoryService {
+        async fn list_guild_members(
+            &self,
+            principal_id: PrincipalId,
+            guild_id: i64,
+        ) -> Result<Vec<GuildMemberDirectoryEntry>, UserDirectoryError> {
+            if guild_id != 2001 {
+                return Err(UserDirectoryError::guild_not_found("guild_not_found"));
+            }
+            if principal_id.0 != 1001 && principal_id.0 != 1003 {
+                return Err(UserDirectoryError::forbidden("guild_membership_required"));
+            }
+
+            Ok(vec![
+                GuildMemberDirectoryEntry {
+                    user_id: 1001,
+                    display_name: "Alice".to_owned(),
+                    avatar_key: None,
+                    status_text: Some("Ready".to_owned()),
+                    nickname: Some("alice-owner".to_owned()),
+                    joined_at: "2026-03-01T00:00:00Z".to_owned(),
+                    role_keys: vec!["owner".to_owned()],
+                },
+                GuildMemberDirectoryEntry {
+                    user_id: 1003,
+                    display_name: "Carol".to_owned(),
+                    avatar_key: None,
+                    status_text: Some("Reviewing".to_owned()),
+                    nickname: None,
+                    joined_at: "2026-03-02T00:00:00Z".to_owned(),
+                    role_keys: vec!["member".to_owned()],
+                },
+            ])
+        }
+
+        async fn list_guild_roles(
+            &self,
+            principal_id: PrincipalId,
+            guild_id: i64,
+        ) -> Result<Vec<GuildRoleDirectoryEntry>, UserDirectoryError> {
+            if guild_id != 2001 {
+                return Err(UserDirectoryError::guild_not_found("guild_not_found"));
+            }
+            if principal_id.0 != 1001 && principal_id.0 != 1003 {
+                return Err(UserDirectoryError::forbidden("guild_membership_required"));
+            }
+
+            Ok(vec![
+                GuildRoleDirectoryEntry {
+                    role_key: "owner".to_owned(),
+                    name: "Owner".to_owned(),
+                    priority: 300,
+                    allow_manage: true,
+                    member_count: 1,
+                },
+                GuildRoleDirectoryEntry {
+                    role_key: "member".to_owned(),
+                    name: "Member".to_owned(),
+                    priority: 100,
+                    allow_manage: false,
+                    member_count: 1,
+                },
+            ])
+        }
+
+        async fn get_user_profile(
+            &self,
+            principal_id: PrincipalId,
+            user_id: i64,
+        ) -> Result<UserProfileDirectoryEntry, UserDirectoryError> {
+            if user_id == 9999 {
+                return Err(UserDirectoryError::user_not_found("user_not_found"));
+            }
+            if principal_id.0 != user_id && principal_id.0 != 1001 && principal_id.0 != 1003 {
+                return Err(UserDirectoryError::forbidden("shared_guild_required"));
+            }
+
+            Ok(UserProfileDirectoryEntry {
+                user_id,
+                display_name: if user_id == 1003 {
+                    "Carol".to_owned()
+                } else {
+                    "Alice".to_owned()
+                },
+                status_text: Some("Ready".to_owned()),
+                avatar_key: None,
+                banner_key: None,
+                created_at: "2026-03-01T00:00:00Z".to_owned(),
+            })
+        }
+    }
+
+    #[async_trait]
     impl ProfileService for StaticUnavailableProfileService {
         async fn get_profile(
             &self,
@@ -1776,11 +1884,38 @@ mod tests {
         app_with_state(state)
     }
 
+    async fn app_for_test_with_authorizer_and_token_verifier(
+        authorizer: Arc<dyn Authorizer>,
+        verifier: Arc<dyn TokenVerifier>,
+    ) -> Router {
+        let state = state_for_test_with_authorizer_and_token_verifier(authorizer, verifier).await;
+        app_with_state(state)
+    }
+
     async fn state_for_test_with_authorizer(authorizer: Arc<dyn Authorizer>) -> AppState {
         state_for_test_with_authorizer_and_profile_and_invite(
             authorizer,
             Arc::new(StaticProfileService),
             Arc::new(StaticInviteService),
+        )
+        .await
+    }
+
+    async fn state_for_test_with_authorizer_and_token_verifier(
+        authorizer: Arc<dyn Authorizer>,
+        verifier: Arc<dyn TokenVerifier>,
+    ) -> AppState {
+        state_for_test_with_authorizer_token_verifier_profile_invite_scylla_message_and_guild_channel(
+            authorizer,
+            verifier,
+            Arc::new(StaticProfileService),
+            Arc::new(StaticProfileMediaService),
+            Arc::new(StaticInviteService),
+            Arc::new(StaticScyllaHealthReporter {
+                report: ScyllaHealthReport::ready(),
+            }),
+            Arc::new(StaticMessageService),
+            Arc::new(StaticGuildChannelService),
         )
         .await
     }
@@ -1850,8 +1985,31 @@ mod tests {
         message_service: Arc<dyn MessageService>,
         guild_channel_service: Arc<dyn GuildChannelService>,
     ) -> AppState {
+        state_for_test_with_authorizer_token_verifier_profile_invite_scylla_message_and_guild_channel(
+            authorizer,
+            Arc::new(StaticTokenVerifier),
+            profile_service,
+            profile_media_service,
+            invite_service,
+            scylla_health_reporter,
+            message_service,
+            guild_channel_service,
+        )
+        .await
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    async fn state_for_test_with_authorizer_token_verifier_profile_invite_scylla_message_and_guild_channel(
+        authorizer: Arc<dyn Authorizer>,
+        verifier: Arc<dyn TokenVerifier>,
+        profile_service: Arc<dyn ProfileService>,
+        profile_media_service: Arc<dyn ProfileMediaService>,
+        invite_service: Arc<dyn InviteService>,
+        scylla_health_reporter: Arc<dyn ScyllaHealthReporter>,
+        message_service: Arc<dyn MessageService>,
+        guild_channel_service: Arc<dyn GuildChannelService>,
+    ) -> AppState {
         let metrics = Arc::new(AuthMetrics::default());
-        let verifier: Arc<dyn TokenVerifier> = Arc::new(StaticTokenVerifier);
 
         let store = Arc::new(InMemoryPrincipalStore::default());
         store.insert("firebase", "u-1", PrincipalId(1001)).await;
@@ -1886,6 +2044,7 @@ mod tests {
             moderation_service: Arc::new(StaticModerationService),
             profile_service,
             profile_media_service,
+            user_directory_service: Arc::new(StaticUserDirectoryService),
             scylla_health_reporter,
             ws_reauth_grace: Duration::from_secs(30),
             ws_ticket_ttl: Duration::from_secs(60),
@@ -2006,18 +2165,42 @@ mod tests {
         (address, server)
     }
 
-    async fn connect_test_ws_at(address: SocketAddr, uid: &str) -> TestWsStream {
-        let token = format!("{uid}:{}", unix_timestamp_seconds() + 300);
+    fn ws_upgrade_request(path: &str, authorization: Option<&str>) -> Request<Body> {
+        let mut builder = Request::builder()
+            .method("GET")
+            .uri(path)
+            .header("host", "localhost")
+            .header("connection", "Upgrade")
+            .header("upgrade", "websocket")
+            .header("sec-websocket-version", "13")
+            .header("sec-websocket-key", "dGhlIHNhbXBsZSBub25jZQ==")
+            .header(ORIGIN, "http://localhost:3000");
+        if let Some(authorization) = authorization {
+            builder = builder.header(AUTHORIZATION, authorization);
+        }
+        builder.body(Body::empty()).unwrap()
+    }
+    async fn connect_test_ws_with_authorization(
+        address: SocketAddr,
+        authorization: Option<&str>,
+    ) -> TestWsStream {
         let mut request = format!("ws://{address}/ws").into_client_request().unwrap();
         request
             .headers_mut()
             .insert(ORIGIN, "http://localhost:3000".parse().unwrap());
-        request
-            .headers_mut()
-            .insert(AUTHORIZATION, format!("Bearer {token}").parse().unwrap());
+        if let Some(authorization) = authorization {
+            request
+                .headers_mut()
+                .insert(AUTHORIZATION, authorization.parse().unwrap());
+        }
 
         let (socket, _) = connect_async(request).await.unwrap();
         socket
+    }
+
+    async fn connect_test_ws_at(address: SocketAddr, uid: &str) -> TestWsStream {
+        let token = format!("{uid}:{}", unix_timestamp_seconds() + 300);
+        connect_test_ws_with_authorization(address, Some(&format!("Bearer {token}"))).await
     }
 
     async fn subscribe_test_channel(
@@ -4729,6 +4912,85 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn ws_handshake_invalid_bearer_token_keeps_ws_upgrade_path_in_oneshot() {
+        let app = app_for_test_with_authorizer(Arc::new(StaticAllowAllAuthorizer)).await;
+
+        let response = app
+            .oneshot(ws_upgrade_request("/ws", Some("Bearer invalid-token")))
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::UPGRADE_REQUIRED);
+    }
+
+    #[tokio::test]
+    async fn ws_handshake_auth_dependency_unavailable_keeps_ws_upgrade_path_in_oneshot() {
+        let app = app_for_test_with_authorizer_and_token_verifier(
+            Arc::new(StaticAllowAllAuthorizer),
+            Arc::new(UnavailableTokenVerifier),
+        )
+        .await;
+
+        let response = app
+            .oneshot(ws_upgrade_request("/ws", Some("Bearer any-token")))
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::UPGRADE_REQUIRED);
+    }
+
+    #[tokio::test]
+    #[ignore = "requires TCP bind; sandbox denies listeners"]
+    async fn ws_handshake_invalid_bearer_token_closes_with_1008() {
+        let app = app_for_test_with_authorizer(Arc::new(StaticAllowAllAuthorizer)).await;
+        let (address, server) = spawn_test_server(app).await;
+        let mut socket =
+            connect_test_ws_with_authorization(address, Some("Bearer invalid-token")).await;
+
+        let response = timeout(Duration::from_secs(2), socket.next())
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
+        match response {
+            WsClientMessage::Close(Some(frame)) => {
+                assert_eq!(frame.code, CloseCode::Policy);
+                assert_eq!(frame.reason, "AUTH_INVALID_TOKEN");
+            }
+            other => panic!("expected close frame for invalid WS auth, got {other:?}"),
+        }
+
+        server.abort();
+    }
+
+    #[tokio::test]
+    #[ignore = "requires TCP bind; sandbox denies listeners"]
+    async fn ws_handshake_auth_dependency_unavailable_closes_with_1011() {
+        let app = app_for_test_with_authorizer_and_token_verifier(
+            Arc::new(StaticAllowAllAuthorizer),
+            Arc::new(UnavailableTokenVerifier),
+        )
+        .await;
+        let (address, server) = spawn_test_server(app).await;
+        let mut socket = connect_test_ws_with_authorization(address, Some("Bearer any-token")).await;
+
+        let response = timeout(Duration::from_secs(2), socket.next())
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
+        match response {
+            WsClientMessage::Close(Some(frame)) => {
+                assert_eq!(frame.code, CloseCode::Error);
+                assert_eq!(frame.reason, "AUTH_UNAVAILABLE");
+            }
+            other => panic!("expected close frame for unavailable WS auth, got {other:?}"),
+        }
+
+        server.abort();
+    }
+
+    #[tokio::test]
     #[ignore = "requires TCP bind; sandbox denies listeners"]
     async fn ws_text_message_echoes_for_authorized_principal() {
         let (mut socket, server) = connect_test_ws(Arc::new(StaticAllowAllAuthorizer)).await;
@@ -4749,6 +5011,29 @@ mod tests {
         }
 
         let _ = socket.close(None).await;
+        server.abort();
+    }
+
+    #[tokio::test]
+    #[ignore = "requires TCP bind; sandbox denies listeners"]
+    async fn ws_handshake_invalid_authorization_header_closes_with_1008() {
+        let app = app_for_test_with_authorizer(Arc::new(StaticAllowAllAuthorizer)).await;
+        let (address, server) = spawn_test_server(app).await;
+        let mut socket = connect_test_ws_with_authorization(address, Some("Basic bad-token")).await;
+
+        let response = timeout(Duration::from_secs(2), socket.next())
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
+        match response {
+            WsClientMessage::Close(Some(frame)) => {
+                assert_eq!(frame.code, CloseCode::Policy);
+                assert_eq!(frame.reason, "AUTH_INVALID_TOKEN");
+            }
+            other => panic!("expected close frame for invalid WS auth header, got {other:?}"),
+        }
+
         server.abort();
     }
 
@@ -5499,6 +5784,129 @@ mod tests {
         let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
         assert_eq!(json["code"], "PROFILE_UNAVAILABLE");
         assert_eq!(json["request_id"], "profile-unavailable-test");
+    }
+
+    #[tokio::test]
+    async fn get_guild_members_returns_directory_entries() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/v1/guilds/2001/members")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["members"][0]["user_id"], 1001);
+        assert_eq!(json["members"][0]["display_name"], "Alice");
+        assert_eq!(json["members"][0]["role_keys"][0], "owner");
+        assert_eq!(json["members"][1]["user_id"], 1003);
+    }
+
+    #[tokio::test]
+    async fn get_guild_members_returns_forbidden_for_non_member() {
+        let app = app_for_test().await;
+        let token = format!("u-owner:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/v1/guilds/2001/members")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("x-request-id", "guild-members-denied")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "AUTHZ_DENIED");
+        assert_eq!(json["request_id"], "guild-members-denied");
+    }
+
+    #[tokio::test]
+    async fn get_guild_roles_returns_directory_entries() {
+        let app = app_for_test().await;
+        let token = format!("u-3:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/v1/guilds/2001/roles")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["roles"][0]["role_key"], "owner");
+        assert_eq!(json["roles"][0]["member_count"], 1);
+        assert_eq!(json["roles"][1]["role_key"], "member");
+    }
+
+    #[tokio::test]
+    async fn get_user_profile_returns_profile_for_shared_guild_user() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/v1/users/1003/profile")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["profile"]["user_id"], 1003);
+        assert_eq!(json["profile"]["display_name"], "Carol");
+    }
+
+    #[tokio::test]
+    async fn get_user_profile_returns_forbidden_without_shared_guild() {
+        let app = app_for_test().await;
+        let token = format!("u-owner:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/v1/users/1003/profile")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "AUTHZ_DENIED");
     }
 
     #[tokio::test]

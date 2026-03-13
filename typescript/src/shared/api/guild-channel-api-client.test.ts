@@ -557,6 +557,129 @@ describe("GuildChannelAPIClient", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  test("getMembers maps guild member directory response", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          members: [
+            {
+              user_id: 1001,
+              display_name: "Alice",
+              avatar_key: null,
+              status_text: "Ready",
+              nickname: "alice-owner",
+              joined_at: "2026-03-03T00:00:00Z",
+              role_keys: ["owner"],
+            },
+          ],
+        }),
+        { status: 200 },
+      ),
+    );
+
+    const client = new GuildChannelAPIClient();
+    const members = await client.getMembers("2001");
+
+    expect(members).toEqual([
+      {
+        user: {
+          id: "1001",
+          username: "Alice",
+          displayName: "Alice",
+          avatar: null,
+          status: "offline",
+          customStatus: "Ready",
+          bot: false,
+        },
+        nick: "alice-owner",
+        roles: ["owner"],
+        joinedAt: "2026-03-03T00:00:00Z",
+        avatar: null,
+      },
+    ]);
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("http://localhost:8080/v1/guilds/2001/members");
+    expect(init.method).toBe("GET");
+  });
+
+  test("getRoles maps guild role directory response", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          roles: [
+            {
+              role_key: "admin",
+              name: "Admin",
+              priority: 200,
+              allow_manage: true,
+              member_count: 3,
+            },
+          ],
+        }),
+        { status: 200 },
+      ),
+    );
+
+    const client = new GuildChannelAPIClient();
+    const roles = await client.getRoles("2001");
+
+    expect(roles).toEqual([
+      {
+        id: "admin",
+        name: "Admin",
+        color: "#99aab5",
+        position: 200,
+        permissions: 1,
+        mentionable: false,
+        hoist: true,
+        memberCount: 3,
+      },
+    ]);
+
+    const [url] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("http://localhost:8080/v1/guilds/2001/roles");
+  });
+
+  test("getUserProfile maps shared user profile response", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          profile: {
+            user_id: 1003,
+            display_name: "Carol",
+            status_text: "Reviewing",
+            avatar_key: null,
+            banner_key: null,
+            created_at: "2026-03-03T00:00:00Z",
+          },
+        }),
+        { status: 200 },
+      ),
+    );
+
+    const client = new GuildChannelAPIClient();
+    const profile = await client.getUserProfile("1003");
+
+    expect(profile).toEqual({
+      id: "1003",
+      username: "Carol",
+      displayName: "Carol",
+      avatar: null,
+      status: "offline",
+      customStatus: "Reviewing",
+      bot: false,
+      banner: null,
+      bio: "Reviewing",
+      accentColor: null,
+      badges: [],
+      createdAt: "2026-03-03T00:00:00Z",
+    });
+
+    const [url] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("http://localhost:8080/v1/users/1003/profile");
+  });
+
   test("updateChannel sends patch request and updates cached channel", async () => {
     fetchMock
       .mockResolvedValueOnce(
@@ -1250,6 +1373,29 @@ describe("GuildChannelAPIClient", () => {
     expect(url).toBe("http://localhost:8080/v1/guilds/2001/channels/3001/messages/5001");
     expect(init.method).toBe("DELETE");
     expect(init.body).toBe(JSON.stringify({ expected_version: 2 }));
+  });
+
+  test("unavailable pin and reaction methods return v1 placeholder contracts", async () => {
+    const client = new GuildChannelAPIClient();
+
+    await expect(client.getPinnedMessages("3001")).resolves.toEqual([]);
+
+    await expect(client.addReaction("3001", "5001", "👍")).rejects.toMatchObject({
+      code: "FEATURE_UNAVAILABLE",
+      status: 501,
+    });
+    await expect(client.removeReaction("3001", "5001", "👍")).rejects.toMatchObject({
+      code: "FEATURE_UNAVAILABLE",
+      status: 501,
+    });
+    await expect(client.pinMessage("3001", "5001")).rejects.toMatchObject({
+      code: "FEATURE_UNAVAILABLE",
+      status: 501,
+    });
+    await expect(client.unpinMessage("3001", "5001")).rejects.toMatchObject({
+      code: "FEATURE_UNAVAILABLE",
+      status: 501,
+    });
   });
 
   test("toUpdateActionErrorText maps message conflict", () => {

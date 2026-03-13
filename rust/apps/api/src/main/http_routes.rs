@@ -62,8 +62,11 @@ fn app_with_state(state: AppState) -> Router {
             "/users/me/profile/media/{target}/download-url",
             get(get_my_profile_media_download_url),
         )
+        .route("/v1/users/{user_id}/profile", get(get_user_profile))
         .route("/v1/guilds/{guild_id}", get(get_guild))
         .route("/v1/guilds/{guild_id}", axum::routing::patch(update_guild))
+        .route("/v1/guilds/{guild_id}/members", get(get_guild_members))
+        .route("/v1/guilds/{guild_id}/roles", get(get_guild_roles))
         .route(
             "/v1/guilds/{guild_id}/invites/{invite_code}",
             get(get_guild_invite),
@@ -1371,6 +1374,21 @@ struct ProfileResponse {
     profile: profile::ProfileSettings,
 }
 
+#[derive(Debug, Serialize)]
+struct UserProfileResponse {
+    profile: user_directory::UserProfileDirectoryEntry,
+}
+
+#[derive(Debug, Serialize)]
+struct GuildMembersResponse {
+    members: Vec<user_directory::GuildMemberDirectoryEntry>,
+}
+
+#[derive(Debug, Serialize)]
+struct GuildRolesResponse {
+    roles: Vec<user_directory::GuildRoleDirectoryEntry>,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct ProfileMediaUploadUrlRequest {
@@ -1397,6 +1415,11 @@ struct ProfileMediaDownloadUrlResponse {
 #[derive(Debug, Deserialize)]
 struct ModerationGuildPathParams {
     guild_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct UserPathParams {
+    user_id: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1449,6 +1472,21 @@ fn parse_guild_id(raw_guild_id: &str) -> Result<i64, GuildChannelError> {
     Ok(parsed)
 }
 
+/// user directory 向けguild_idパスパラメータを検証する。
+/// @param raw_guild_id 生のguild_id文字列
+/// @returns 検証済みguild_id
+/// @throws UserDirectoryError パラメータ不正時
+fn parse_user_directory_guild_id(raw_guild_id: &str) -> Result<i64, UserDirectoryError> {
+    let parsed = raw_guild_id
+        .parse::<i64>()
+        .map_err(|_| UserDirectoryError::validation("guild_id_invalid"))?;
+    if parsed <= 0 {
+        return Err(UserDirectoryError::validation("guild_id_must_be_positive"));
+    }
+
+    Ok(parsed)
+}
+
 /// channel_idパスパラメータを検証する。
 /// @param raw_channel_id 生のchannel_id文字列
 /// @returns 検証済みchannel_id
@@ -1474,6 +1512,21 @@ fn parse_message_id(raw_message_id: &str) -> Result<i64, MessageError> {
         .map_err(|_| MessageError::validation("message_id_invalid"))?;
     if parsed <= 0 {
         return Err(MessageError::validation("message_id_must_be_positive"));
+    }
+
+    Ok(parsed)
+}
+
+/// user_idパスパラメータを検証する。
+/// @param raw_user_id 生のuser_id文字列
+/// @returns 検証済みuser_id
+/// @throws UserDirectoryError パラメータ不正時
+fn parse_user_id(raw_user_id: &str) -> Result<i64, UserDirectoryError> {
+    let parsed = raw_user_id
+        .parse::<i64>()
+        .map_err(|_| UserDirectoryError::validation("user_id_invalid"))?;
+    if parsed <= 0 {
+        return Err(UserDirectoryError::validation("user_id_must_be_positive"));
     }
 
     Ok(parsed)
@@ -2585,6 +2638,87 @@ async fn get_my_profile_media_download_url(
     {
         Ok(media) => Json(ProfileMediaDownloadUrlResponse { media }).into_response(),
         Err(error) => profile_error_response(&error, request_id),
+    }
+}
+
+/// 他ユーザープロフィールを返す。
+/// @param state アプリケーション状態
+/// @param auth_context 認証文脈
+/// @param params user_id を含むパスパラメータ
+/// @returns user profile レスポンス
+/// @throws なし
+async fn get_user_profile(
+    State(state): State<AppState>,
+    Extension(auth_context): Extension<AuthContext>,
+    Path(params): Path<UserPathParams>,
+) -> Response {
+    let request_id = auth_context.request_id.clone();
+    let user_id = match parse_user_id(&params.user_id) {
+        Ok(value) => value,
+        Err(error) => return user_directory_error_response(&error, request_id),
+    };
+
+    match state
+        .user_directory_service
+        .get_user_profile(auth_context.principal_id, user_id)
+        .await
+    {
+        Ok(profile) => Json(UserProfileResponse { profile }).into_response(),
+        Err(error) => user_directory_error_response(&error, request_id),
+    }
+}
+
+/// guild member 一覧を返す。
+/// @param state アプリケーション状態
+/// @param auth_context 認証文脈
+/// @param params guild_id を含むパスパラメータ
+/// @returns guild member 一覧レスポンス
+/// @throws なし
+async fn get_guild_members(
+    State(state): State<AppState>,
+    Extension(auth_context): Extension<AuthContext>,
+    Path(params): Path<GuildPathParams>,
+) -> Response {
+    let request_id = auth_context.request_id.clone();
+    let guild_id = match parse_user_directory_guild_id(&params.guild_id) {
+        Ok(value) => value,
+        Err(error) => return user_directory_error_response(&error, request_id),
+    };
+
+    match state
+        .user_directory_service
+        .list_guild_members(auth_context.principal_id, guild_id)
+        .await
+    {
+        Ok(members) => Json(GuildMembersResponse { members }).into_response(),
+        Err(error) => user_directory_error_response(&error, request_id),
+    }
+}
+
+/// guild role 一覧を返す。
+/// @param state アプリケーション状態
+/// @param auth_context 認証文脈
+/// @param params guild_id を含むパスパラメータ
+/// @returns guild role 一覧レスポンス
+/// @throws なし
+async fn get_guild_roles(
+    State(state): State<AppState>,
+    Extension(auth_context): Extension<AuthContext>,
+    Path(params): Path<GuildPathParams>,
+) -> Response {
+    let request_id = auth_context.request_id.clone();
+    let guild_id = match parse_user_directory_guild_id(&params.guild_id) {
+        Ok(value) => value,
+        Err(error) => return user_directory_error_response(&error, request_id),
+    };
+
+    match state
+        .user_directory_service
+        .list_guild_roles(auth_context.principal_id, guild_id)
+        .await
+    {
+        Ok(roles) => Json(GuildRolesResponse { roles }).into_response(),
+        Err(error) => user_directory_error_response(&error, request_id),
     }
 }
 

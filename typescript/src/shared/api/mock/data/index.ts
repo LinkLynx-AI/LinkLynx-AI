@@ -1,4 +1,4 @@
-export { mockCurrentUser, mockUsers, mockUserProfiles } from "./users";
+export { mockCurrentUser, mockUsers, mockUserProfiles, mockMyProfileMedia } from "./users";
 export { mockServers, mockRoles, mockMembers } from "./servers";
 export { mockChannels, mockDMChannels } from "./channels";
 export { mockMessages } from "./messages";

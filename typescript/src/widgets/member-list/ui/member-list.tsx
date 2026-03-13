@@ -1,12 +1,12 @@
 "use client";
 
 import { useMemo } from "react";
-import { useMembers } from "@/shared/api/queries";
+import { useMembers, useRoles } from "@/shared/api/queries";
+import type { Role as ApiRole } from "@/shared/api/api-client";
 import { useGuildStore } from "@/shared/model/stores/guild-store";
 import { MemberCategory } from "./member-category";
 import { MemberItem } from "./member-item";
 import type { GuildMember, Role } from "@/shared/model/types/server";
-import { mockRoles } from "@/shared/api/mock/data/servers";
 
 function numberToHex(color: number): string {
   if (color === 0) return "";
@@ -17,6 +17,19 @@ type MemberGroup = {
   role: Role;
   members: GuildMember[];
 };
+
+function toServerRole(role: ApiRole): Role {
+  return {
+    id: role.id,
+    name: role.name,
+    color: 0,
+    position: role.position,
+    permissions: String(role.permissions),
+    mentionable: role.mentionable,
+    hoist: role.hoist,
+    memberCount: role.memberCount,
+  };
+}
 
 function groupMembersByRole(members: GuildMember[], roles: Role[]): MemberGroup[] {
   const roleMap = new Map(roles.map((r) => [r.id, r]));
@@ -65,7 +78,8 @@ function groupMembersByRole(members: GuildMember[], roles: Role[]): MemberGroup[
 export function MemberList() {
   const serverId = useGuildStore((s) => s.activeServerId);
   const { data: members } = useMembers(serverId ?? "");
-  const roles = serverId ? (mockRoles[serverId] ?? []) : [];
+  const { data: apiRoles = [] } = useRoles(serverId ?? "");
+  const roles = useMemo(() => apiRoles.map(toServerRole), [apiRoles]);
 
   const groups = useMemo(() => {
     if (!members) return [];

@@ -8,6 +8,7 @@ mod moderation;
 mod profile;
 mod ratelimit;
 mod scylla_health;
+mod user_directory;
 
 use std::{
     collections::HashSet,
@@ -74,6 +75,10 @@ use scylla_health::{build_runtime_scylla_health_reporter, ScyllaHealthReporter};
 use serde::{Deserialize, Serialize};
 use tower_http::cors::{Any, CorsLayer};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+use user_directory::{
+    build_runtime_user_directory_service, user_directory_error_response, UserDirectoryError,
+    UserDirectoryService,
+};
 
 #[derive(Clone)]
 pub(crate) struct AppState {
@@ -88,6 +93,7 @@ pub(crate) struct AppState {
     moderation_service: Arc<dyn ModerationService>,
     profile_service: Arc<dyn ProfileService>,
     profile_media_service: Arc<dyn ProfileMediaService>,
+    user_directory_service: Arc<dyn UserDirectoryService>,
     scylla_health_reporter: Arc<dyn ScyllaHealthReporter>,
     ws_reauth_grace: Duration,
     ws_ticket_ttl: Duration,
@@ -151,6 +157,7 @@ async fn build_runtime_state() -> AppState {
     let moderation_service = build_runtime_moderation_service();
     let profile_service = build_runtime_profile_service();
     let profile_media_service = build_runtime_profile_media_service(Arc::clone(&profile_service));
+    let user_directory_service = build_runtime_user_directory_service();
     let scylla_health_reporter = build_runtime_scylla_health_reporter().await;
     let ws_reauth_grace = Duration::from_secs(
         env::var("WS_REAUTH_GRACE_SECONDS")
@@ -178,6 +185,7 @@ async fn build_runtime_state() -> AppState {
         moderation_service,
         profile_service,
         profile_media_service,
+        user_directory_service,
         scylla_health_reporter,
         ws_reauth_grace,
         ws_ticket_ttl,
