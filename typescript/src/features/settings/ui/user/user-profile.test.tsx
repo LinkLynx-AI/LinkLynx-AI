@@ -126,23 +126,27 @@ describe("UserProfile", () => {
 
   test("uploads avatar and banner selections before saving profile", async () => {
     const user = userEvent.setup();
-    createMyProfileMediaUploadUrlMock.mockImplementation(async ({ target, filename, contentType }) => ({
-      target,
-      objectKey: `${target}/${filename}`,
-      uploadUrl: `https://upload.example/${target}`,
-      expiresAt: "2026-03-12T12:00:00Z",
-      method: "PUT",
-      requiredHeaders: {
-        "content-type": contentType,
-      },
-    }));
-    getMyProfileMediaDownloadUrlMock.mockImplementation(async (target) => ({
-      target,
-      objectKey: target === "avatar" ? "avatar/avatar.png" : "banner/banner.png",
-      downloadUrl:
-        target === "avatar" ? "https://cdn.example/avatar.png" : "https://cdn.example/banner.png",
-      expiresAt: "2026-03-12T12:00:00Z",
-    }));
+    createMyProfileMediaUploadUrlMock.mockImplementation(({ target, filename, contentType }) =>
+      Promise.resolve({
+        target,
+        objectKey: `${target}/${filename}`,
+        uploadUrl: `https://upload.example/${target}`,
+        expiresAt: "2026-03-12T12:00:00Z",
+        method: "PUT",
+        requiredHeaders: {
+          "content-type": contentType,
+        },
+      }),
+    );
+    getMyProfileMediaDownloadUrlMock.mockImplementation((target) =>
+      Promise.resolve({
+        target,
+        objectKey: target === "avatar" ? "avatar/avatar.png" : "banner/banner.png",
+        downloadUrl:
+          target === "avatar" ? "https://cdn.example/avatar.png" : "https://cdn.example/banner.png",
+        expiresAt: "2026-03-12T12:00:00Z",
+      }),
+    );
     mutateAsyncMock.mockResolvedValueOnce({
       displayName: "new-name",
       statusText: "new-status",
