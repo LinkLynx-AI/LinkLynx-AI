@@ -1,7 +1,7 @@
 # AuthZ noop allow-all Exception and SpiceDB Handoff Runbook
 
 - Status: Draft
-- Last updated: 2026-03-04
+- Last updated: 2026-03-13
 - Owner scope: v1 pre-release AuthZ exception management and SpiceDB cutover handoff
 - References:
   - [ADR-004 AuthZ Fail-Close Policy and Cache Strategy](../adr/ADR-004-authz-fail-close-and-cache-strategy.md)
@@ -27,16 +27,19 @@ Out of scope:
 
 ### 2.1 Runtime defaults
 
-- `AUTHZ_PROVIDER=noop` (default)
-- `AUTHZ_ALLOW_ALL_UNTIL=2026-06-30` (UTC date baseline)
+- `AUTHZ_PROVIDER` unset / empty / unknown => fail-close (`AUTHZ_UNAVAILABLE`)
+- `AUTHZ_PROVIDER=noop` enables the temporary allow-all exception only when explicitly set
+- `AUTHZ_ALLOW_ALL_UNTIL=2026-06-30` (UTC date baseline for explicit `noop`)
 - `AUTHZ_PROVIDER=spicedb` uses active SpiceDB authorizer path and fail-close semantics.
 - implicit fallback from `spicedb` to `noop allow-all` is prohibited.
+- if `AUTHZ_PROVIDER=noop` and `AUTHZ_ALLOW_ALL_UNTIL` is invalid or earlier than the current UTC date, runtime must fail-close.
 
 ### 2.2 Risk statement
 
 - `noop allow-all` is a fail-open exception against ADR-004 fail-close baseline.
 - This exception is permitted only in v1 non-release period.
 - Production release with allow-all active is prohibited.
+- Runtime expiry enforcement is mandatory; on and after **2026-07-01 UTC**, the baseline `2026-06-30` date must no longer activate `noop` unless a dated extension is recorded.
 
 ### 2.3 Required TODO and code boundary
 

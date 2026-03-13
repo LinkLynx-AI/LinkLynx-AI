@@ -147,6 +147,8 @@ v0 での認可関連 SoR:
 
 - `noop allow-all` は `LIN-602` で導入する「v1非リリース期間限定の実装例外」であり、恒久契約ではない。
 - 本例外は `AUTHZ_ALLOW_ALL_UNTIL` で期限管理し、撤去条件は `LIN-629` のRunbookで固定する。
+- `AUTHZ_PROVIDER` 未設定 / 空文字 / 不明値は temporary exception に含めず、fail-close（`503` / `AUTHZ_UNAVAILABLE`）とする。
+- `AUTHZ_PROVIDER=noop` は明示指定時にのみ一時例外として有効化し、`AUTHZ_ALLOW_ALL_UNTIL` が不正または期限切れなら fail-close とする。
 - SpiceDB移植後は本節の例外は削除対象であり、fail-close契約（4.1/4.2/4.3）を唯一の運用基準とする。
 - 運用手順の詳細は `docs/runbooks/authz-noop-allow-all-spicedb-handoff-runbook.md` を参照する。
 
@@ -156,7 +158,7 @@ v0 での認可関連 SoR:
 - `Authorizer` 境界を1箇所に集約して導入する。
 - REST保護ルートとWS（接続/再認証）に同じ境界を挿入する。
 - `AUTHZ_PROVIDER=noop|spicedb` を導入する。
-- 初期は noop allow-all を有効化し、関数内部に TODO で移植先を明記する。
+- runtime default は fail-close とし、noop allow-all は明示設定された非リリース例外としてのみ有効化する。
 - deny/unavailable のマッピングをテストで固定する。
 
 ## 6. Compatibility note
