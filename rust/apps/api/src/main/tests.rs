@@ -50,6 +50,7 @@ mod tests {
     use moderation::{
         CreateModerationMuteInput, CreateModerationReportInput, ModerationError, ModerationReport,
         ModerationReportStatus, ModerationService, ModerationTargetType,
+        UnavailableModerationService,
     };
     use profile::ProfileTheme;
     use profile::{
@@ -1606,12 +1607,20 @@ mod tests {
             if input.guild_id != 2001 {
                 return Err(ModerationError::not_found("guild_not_found"));
             }
-            if principal_id.0 != 1001 {
+            if principal_id.0 != 1001 && principal_id.0 != 9001 && principal_id.0 != 9002 {
                 return Err(ModerationError::forbidden("moderation_role_required"));
             }
             if input.target_user_id <= 0 {
                 return Err(ModerationError::validation(
                     "target_user_id_must_be_positive",
+                ));
+            }
+            if input.target_user_id == 4040 {
+                return Err(ModerationError::not_found("member_not_found"));
+            }
+            if input.target_user_id == 5003 {
+                return Err(ModerationError::dependency_unavailable(
+                    "moderation_store_temporarily_unavailable",
                 ));
             }
             let reason = input.reason.trim();
@@ -1902,6 +1911,7 @@ mod tests {
             Arc::new(StaticAllowAllAuthorizer),
             Arc::new(StaticProfileService),
             Arc::new(StaticInviteService),
+            Arc::new(StaticModerationService),
         )
         .await;
         app_with_state(state)
@@ -1914,6 +1924,7 @@ mod tests {
             Arc::new(StaticProfileMediaService),
             Arc::new(StaticInviteService),
             Arc::new(StaticScyllaHealthReporter { report }),
+            Arc::new(StaticModerationService),
         )
         .await;
         app_with_state(state)
@@ -1924,6 +1935,21 @@ mod tests {
             authorizer,
             Arc::new(StaticProfileService),
             Arc::new(StaticInviteService),
+            Arc::new(StaticModerationService),
+        )
+        .await;
+        app_with_state(state)
+    }
+
+    async fn app_for_test_with_authorizer_and_moderation_service(
+        authorizer: Arc<dyn Authorizer>,
+        moderation_service: Arc<dyn ModerationService>,
+    ) -> Router {
+        let state = state_for_test_with_authorizer_and_profile_and_invite(
+            authorizer,
+            Arc::new(StaticProfileService),
+            Arc::new(StaticInviteService),
+            moderation_service,
         )
         .await;
         app_with_state(state)
@@ -1942,6 +1968,7 @@ mod tests {
             authorizer,
             Arc::new(StaticProfileService),
             Arc::new(StaticInviteService),
+            Arc::new(StaticModerationService),
         )
         .await
     }
@@ -1961,6 +1988,7 @@ mod tests {
             }),
             Arc::new(StaticMessageService),
             Arc::new(StaticGuildChannelService),
+            Arc::new(StaticModerationService),
         )
         .await
     }
@@ -1969,6 +1997,7 @@ mod tests {
         authorizer: Arc<dyn Authorizer>,
         profile_service: Arc<dyn ProfileService>,
         invite_service: Arc<dyn InviteService>,
+        moderation_service: Arc<dyn ModerationService>,
     ) -> AppState {
         state_for_test_with_authorizer_profile_media_invite_scylla_and_message(
             authorizer,
@@ -1979,6 +2008,7 @@ mod tests {
                 report: ScyllaHealthReport::ready(),
             }),
             Arc::new(StaticMessageService),
+            moderation_service,
         )
         .await
     }
@@ -1989,6 +2019,7 @@ mod tests {
         profile_media_service: Arc<dyn ProfileMediaService>,
         invite_service: Arc<dyn InviteService>,
         scylla_health_reporter: Arc<dyn ScyllaHealthReporter>,
+        moderation_service: Arc<dyn ModerationService>,
     ) -> AppState {
         state_for_test_with_authorizer_profile_media_invite_scylla_and_message(
             authorizer,
@@ -1997,6 +2028,7 @@ mod tests {
             invite_service,
             scylla_health_reporter,
             Arc::new(StaticMessageService),
+            moderation_service,
         )
         .await
     }
@@ -2008,6 +2040,7 @@ mod tests {
         invite_service: Arc<dyn InviteService>,
         scylla_health_reporter: Arc<dyn ScyllaHealthReporter>,
         message_service: Arc<dyn MessageService>,
+        moderation_service: Arc<dyn ModerationService>,
     ) -> AppState {
         state_for_test_with_authorizer_profile_invite_scylla_message_and_guild_channel(
             authorizer,
@@ -2017,10 +2050,12 @@ mod tests {
             scylla_health_reporter,
             message_service,
             Arc::new(StaticGuildChannelService),
+            moderation_service,
         )
         .await
     }
 
+    #[allow(clippy::too_many_arguments)]
     async fn state_for_test_with_authorizer_profile_invite_scylla_message_and_guild_channel(
         authorizer: Arc<dyn Authorizer>,
         profile_service: Arc<dyn ProfileService>,
@@ -2029,6 +2064,7 @@ mod tests {
         scylla_health_reporter: Arc<dyn ScyllaHealthReporter>,
         message_service: Arc<dyn MessageService>,
         guild_channel_service: Arc<dyn GuildChannelService>,
+        moderation_service: Arc<dyn ModerationService>,
     ) -> AppState {
         state_for_test_with_authorizer_token_verifier_profile_invite_scylla_message_and_guild_channel(
             authorizer,
@@ -2039,6 +2075,7 @@ mod tests {
             scylla_health_reporter,
             message_service,
             guild_channel_service,
+            moderation_service,
         )
         .await
     }
@@ -2053,6 +2090,7 @@ mod tests {
         scylla_health_reporter: Arc<dyn ScyllaHealthReporter>,
         message_service: Arc<dyn MessageService>,
         guild_channel_service: Arc<dyn GuildChannelService>,
+        moderation_service: Arc<dyn ModerationService>,
     ) -> AppState {
         let metrics = Arc::new(AuthMetrics::default());
 
@@ -2086,7 +2124,7 @@ mod tests {
             invite_service,
             message_service,
             message_realtime_hub: Arc::new(MessageRealtimeHub::default()),
-            moderation_service: Arc::new(StaticModerationService),
+            moderation_service,
             profile_service,
             profile_media_service,
             user_directory_service: Arc::new(StaticUserDirectoryService),
@@ -2121,6 +2159,7 @@ mod tests {
             authorizer,
             profile_service,
             Arc::new(StaticInviteService),
+            Arc::new(StaticModerationService),
         )
         .await;
         app_with_state(state)
@@ -2139,6 +2178,7 @@ mod tests {
                 report: ScyllaHealthReport::ready(),
             }),
             message_service,
+            Arc::new(StaticModerationService),
         )
         .await;
         app_with_state(state)
@@ -2159,6 +2199,7 @@ mod tests {
             }),
             message_service,
             guild_channel_service,
+            Arc::new(StaticModerationService),
         )
         .await;
         app_with_state(state)
@@ -2177,6 +2218,7 @@ mod tests {
             Arc::new(StaticScyllaHealthReporter {
                 report: ScyllaHealthReport::ready(),
             }),
+            Arc::new(StaticModerationService),
         )
         .await;
         app_with_state(state)
@@ -2187,6 +2229,7 @@ mod tests {
             Arc::new(StaticAllowAllAuthorizer),
             Arc::new(StaticProfileService),
             invite_service,
+            Arc::new(StaticModerationService),
         )
         .await;
         app_with_state(state)
@@ -4811,6 +4854,91 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn patch_moderation_member_returns_updated_mute() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("PATCH")
+                    .uri("/v1/moderation/guilds/2001/members/1002")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        r#"{"reason":"abuse","expires_at":"2026-04-01T00:00:00Z"}"#,
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["mute"]["mute_id"], 5001);
+        assert_eq!(json["mute"]["target_user_id"], 1002);
+        assert_eq!(json["mute"]["created_by"], 1001);
+    }
+
+    #[tokio::test]
+    async fn patch_moderation_member_returns_not_found_for_unknown_member() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("PATCH")
+                    .uri("/v1/moderation/guilds/2001/members/4040")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"reason":"abuse"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "MODERATION_NOT_FOUND");
+    }
+
+    #[tokio::test]
+    async fn patch_moderation_member_returns_unavailable_when_service_fails_close() {
+        let app = app_for_test_with_authorizer_and_moderation_service(
+            Arc::new(StaticAllowAllAuthorizer),
+            Arc::new(UnavailableModerationService::new(
+                "moderation_store_temporarily_unavailable",
+            )),
+        )
+        .await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("PATCH")
+                    .uri("/v1/moderation/guilds/2001/members/1002")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"reason":"abuse"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "AUTHZ_UNAVAILABLE");
+    }
+
+    #[tokio::test]
     async fn ws_ticket_endpoint_returns_ticket_for_authenticated_request() {
         let app = app_for_test().await;
         let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
@@ -6090,7 +6218,8 @@ mod tests {
                     .method("PATCH")
                     .uri("/v1/moderation/guilds/10/members/9003")
                     .header("authorization", format!("Bearer {member_token}"))
-                    .body(Body::empty())
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"reason":"abuse"}"#))
                     .unwrap(),
             )
             .await
@@ -6102,9 +6231,10 @@ mod tests {
             .oneshot(
                 Request::builder()
                     .method("PATCH")
-                    .uri("/v1/moderation/guilds/10/members/9003")
+                    .uri("/v1/moderation/guilds/2001/members/1002")
                     .header("authorization", format!("Bearer {admin_token}"))
-                    .body(Body::empty())
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"reason":"abuse"}"#))
                     .unwrap(),
             )
             .await
@@ -7286,7 +7416,8 @@ mod tests {
                     .uri("/v1/moderation/guilds/10/members/9003")
                     .header("authorization", format!("Bearer {token}"))
                     .header("x-request-id", "moderation-authz-unavailable-test")
-                    .body(Body::empty())
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"reason":"abuse"}"#))
                     .unwrap(),
             )
             .await
@@ -7349,7 +7480,8 @@ mod tests {
                     .method("PATCH")
                     .uri("/v1/moderation/guilds/10/members/9003")
                     .header("authorization", format!("Bearer {token}"))
-                    .body(Body::empty())
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"reason":"abuse"}"#))
                     .unwrap(),
             )
             .await

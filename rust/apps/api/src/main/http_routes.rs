@@ -218,16 +218,6 @@ struct OpenOrCreateDmRequest {
     recipient_id: i64,
 }
 
-#[derive(Debug, Serialize)]
-struct ModerationActionResponse {
-    ok: bool,
-    request_id: String,
-    principal_id: i64,
-    guild_id: i64,
-    member_id: i64,
-    action: String,
-}
-
 /// 認証済みエンドポイントの疎通応答を返す。
 /// @param auth_context 認証文脈
 /// @returns 認証済み応答
@@ -966,23 +956,82 @@ async fn open_or_create_dm(
     }
 }
 
-/// モデレーション操作の最小応答を返す。
+/// モデレーション対象メンバーへミュート操作を適用する。
+/// @param state アプリケーション状態
 /// @param path guild_id と member_id を含むパス
 /// @param auth_context 認証文脈
-/// @returns モデレーション最小応答
+/// @param payload ミュート入力
+/// @returns モデレーション結果レスポンス
 /// @throws なし
 async fn moderate_guild_member(
+    State(state): State<AppState>,
     axum::extract::Path((guild_id, member_id)): axum::extract::Path<(i64, i64)>,
     Extension(auth_context): Extension<AuthContext>,
-) -> Json<ModerationActionResponse> {
-    Json(ModerationActionResponse {
-        ok: true,
-        request_id: auth_context.request_id,
-        principal_id: auth_context.principal_id.0,
-        guild_id,
+    payload: Result<Json<PatchModerationMemberRequest>, JsonRejection>,
+) -> Response {
+    let request_id = auth_context.request_id.clone();
+    let guild_id = match parse_moderation_guild_id(&guild_id.to_string()) {
+        Ok(value) => value,
+        Err(error) => return moderation_error_response(&error, request_id),
+    };
+    let target_user_id = match moderation::normalize_positive_id(
         member_id,
-        action: "moderate_member".to_owned(),
-    })
+        "target_user_id_must_be_positive",
+    ) {
+        Ok(value) => value,
+        Err(error) => return moderation_error_response(&error, request_id),
+    };
+    let payload = match parse_moderation_json_payload(payload) {
+        Ok(value) => value,
+        Err(error) => return moderation_error_response(&error, request_id),
+    };
+
+    tracing::info!(
+        request_id = %auth_context.request_id,
+        principal_id = auth_context.principal_id.0,
+        guild_id,
+        member_id = target_user_id,
+        action = "mute",
+        "moderation member patch request accepted"
+    );
+
+    let input = moderation::CreateModerationMuteInput {
+        guild_id,
+        target_user_id,
+        reason: payload.reason,
+        expires_at: payload.expires_at,
+    };
+
+    match state
+        .moderation_service
+        .create_mute(auth_context.principal_id, input)
+        .await
+    {
+        Ok(mute) => {
+            tracing::info!(
+                request_id = %auth_context.request_id,
+                principal_id = auth_context.principal_id.0,
+                guild_id,
+                member_id = target_user_id,
+                action = "mute",
+                "moderation member patch completed"
+            );
+            (StatusCode::OK, Json(ModerationMuteResponse { mute })).into_response()
+        }
+        Err(error) => {
+            tracing::warn!(
+                request_id = %auth_context.request_id,
+                principal_id = auth_context.principal_id.0,
+                guild_id,
+                member_id = target_user_id,
+                action = "mute",
+                error_kind = ?error.kind,
+                reason = %error.reason,
+                "moderation member patch failed"
+            );
+            moderation_error_response(&error, request_id)
+        }
+    }
 }
 
 /// 認証メトリクスを返す。
@@ -1456,6 +1505,12 @@ struct CreateModerationReportRequest {
 #[derive(Debug, Deserialize)]
 struct CreateModerationMuteRequest {
     target_user_id: i64,
+    reason: String,
+    expires_at: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct PatchModerationMemberRequest {
     reason: String,
     expires_at: Option<String>,
 }
