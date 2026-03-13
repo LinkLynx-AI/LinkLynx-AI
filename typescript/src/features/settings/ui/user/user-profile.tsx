@@ -13,6 +13,7 @@ import { Textarea } from "@/shared/ui/textarea";
 import { useAuthStore } from "@/shared/model/stores/auth-store";
 import { cn } from "@/shared/lib/cn";
 import { uploadProfileMediaFile } from "@/features/settings/model/profile-media";
+import { getProfileImageSizeHint, validateProfileImageFile } from "../../lib/profile-image";
 
 const BIO_MAX = 190;
 const BIO_WARN = 180;
@@ -71,6 +72,10 @@ export function UserProfile() {
   const [themeColor, setThemeColor] = useState("#5865F2");
   const [saveMessage, setSaveMessage] = useState<{
     type: "success" | "error";
+    text: string;
+  } | null>(null);
+  const [selectionMessage, setSelectionMessage] = useState<{
+    type: "error";
     text: string;
   } | null>(null);
   const [cropImage, setCropImage] = useState<CropImageState | null>(null);
@@ -157,7 +162,17 @@ export function UserProfile() {
   }, [myProfile?.bannerKey, pendingBannerFile, resolvedBannerUrl]);
 
   const handleFileSelect = (file: File, target: "avatar" | "banner") => {
+    const validationError = validateProfileImageFile(target, file);
+    if (validationError !== null) {
+      setSelectionMessage({
+        type: "error",
+        text: validationError,
+      });
+      return;
+    }
+
     const url = URL.createObjectURL(file);
+    setSelectionMessage(null);
     setCropImage((currentValue) => {
       if (currentValue !== null) {
         revokeObjectUrlIfNeeded(currentValue.url);
@@ -177,6 +192,22 @@ export function UserProfile() {
       return;
     }
 
+    const validationError = validateProfileImageFile(cropImage.target, croppedImage.file);
+    if (validationError !== null) {
+      setSelectionMessage({
+        type: "error",
+        text: validationError,
+      });
+      revokeObjectUrlIfNeeded(croppedImage.url);
+      setCropImage((currentValue) => {
+        if (currentValue !== null) {
+          revokeObjectUrlIfNeeded(currentValue.url);
+        }
+        return null;
+      });
+      return;
+    }
+
     if (cropImage.target === "avatar") {
       setPendingAvatarFile(croppedImage.file);
       replaceObjectUrl(setAvatarPreviewUrl, croppedImage.url);
@@ -185,6 +216,7 @@ export function UserProfile() {
       replaceObjectUrl(setBannerPreviewUrl, croppedImage.url);
     }
 
+    setSelectionMessage(null);
     setSaveMessage(null);
     setCropImage((currentValue) => {
       if (currentValue !== null) {
@@ -287,6 +319,9 @@ export function UserProfile() {
             <Button variant="secondary" size="sm" onClick={() => avatarInputRef.current?.click()}>
               アバターを変更
             </Button>
+            <p className="mt-2 text-xs text-discord-text-muted">
+              {getProfileImageSizeHint("avatar")}
+            </p>
             <input
               ref={avatarInputRef}
               type="file"
@@ -310,6 +345,9 @@ export function UserProfile() {
             <Button variant="secondary" size="sm" onClick={() => bannerInputRef.current?.click()}>
               バナーを変更
             </Button>
+            <p className="mt-2 text-xs text-discord-text-muted">
+              {getProfileImageSizeHint("banner")}
+            </p>
             <input
               ref={bannerInputRef}
               type="file"
@@ -367,6 +405,12 @@ export function UserProfile() {
               className="h-10 w-16 cursor-pointer rounded border-none bg-transparent"
             />
           </div>
+
+          {selectionMessage?.type === "error" && (
+            <div role="alert" className="rounded bg-discord-bg-tertiary px-3 py-2">
+              <p className="text-sm text-discord-status-dnd">{selectionMessage.text}</p>
+            </div>
+          )}
 
           <div className="space-y-2">
             <Button
