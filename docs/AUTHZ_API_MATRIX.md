@@ -40,7 +40,7 @@
 | GET | `/v1/guilds/:guild_id/channels/:channel_id` | Protected | 必須 | 必須 | Channel参照 |
 | GET | `/v1/guilds/:guild_id/channels/:channel_id/messages` | Protected | 必須 | 必須 | Message一覧参照 |
 | POST | `/v1/guilds/:guild_id/channels/:channel_id/messages` | Protected | 必須 | 必須 | Message投稿 |
-| GET | `/guilds/:guild_id/permission-snapshot` | Protected | 必須 | 必須 | FE 向け permission snapshot |
+| GET | `/guilds/:guild_id/permission-snapshot` | Protected | 必須 | 必須 | FE 向け permission snapshot。現行は non-`v1` path を正とし、cutover 条件を満たすまで legacy surface として維持 |
 | GET | `/v1/guilds/:guild_id/invites/:invite_code` | Protected | 必須 | 必須 | Invite参照 |
 | GET | `/v1/dms/:channel_id` | Protected | 必須 | 必須 | DM channel参照 |
 | GET | `/v1/dms/:channel_id/messages` | Protected | 必須 | 必須 | DM message一覧参照 |
@@ -107,7 +107,7 @@
 | REST | `GET /v1/guilds/:guild_id/channels/:channel_id` | AuthN済み `principal_id` | `AuthzResource::GuildChannel { guild_id, channel_id }` | `View` | deny=`403/AUTHZ_DENIED`, unavailable=`503/AUTHZ_UNAVAILABLE` |
 | REST | `GET /v1/guilds/:guild_id/channels/:channel_id/messages` | AuthN済み `principal_id` | `AuthzResource::GuildChannel { guild_id, channel_id }` | `View` | `guild_text` のみ対象。`guild_category` は deterministic deny |
 | REST | `POST /v1/guilds/:guild_id/channels/:channel_id/messages` | AuthN済み `principal_id` | `AuthzResource::GuildChannel { guild_id, channel_id }` | `Post` | `guild_text` のみ対象。`guild_category` は deterministic deny |
-| REST | `GET /guilds/:guild_id/permission-snapshot` | AuthN済み `principal_id` | `AuthzResource::Guild { guild_id }` | `View` | route許可後、handler 内で `Manage` と channel `View/Post/Manage` を boolean snapshot へ写像。unavailable は `503/AUTHZ_UNAVAILABLE` |
+| REST | `GET /guilds/:guild_id/permission-snapshot` | AuthN済み `principal_id` | `AuthzResource::Guild { guild_id }` | `View` | route許可後、handler 内で `Manage` と channel `View/Post/Manage` を boolean snapshot へ写像。unavailable は `503/AUTHZ_UNAVAILABLE`。監査ログは `principal_id` / `guild_id` / `channel_id?` を残す |
 | REST | `GET /v1/guilds/:guild_id/invites/:invite_code` | AuthN済み `principal_id` | `AuthzResource::Guild { guild_id }` | `View` | deny=`403/AUTHZ_DENIED`, unavailable=`503/AUTHZ_UNAVAILABLE` |
 | REST | `GET /v1/dms/:channel_id` | AuthN済み `principal_id` | `AuthzResource::Channel { channel_id }` | `View` | deny=`403/AUTHZ_DENIED`, unavailable=`503/AUTHZ_UNAVAILABLE` |
 | REST | `GET /v1/dms/:channel_id/messages` | AuthN済み `principal_id` | `AuthzResource::Channel { channel_id }` | `View` | deny=`403/AUTHZ_DENIED`, unavailable=`503/AUTHZ_UNAVAILABLE` |
@@ -147,3 +147,7 @@
 - `LIN-862` 以降は本マトリクスを入力に SpiceDB スキーマ・Tuple写像を設計する。
 - `LIN-868` では本マトリクスの allow/deny/unavailable 回帰をCIで検知できるよう統合テストを維持する。
 - `LIN-979` で moderation high-risk route の拒否/制限ログへ `reason`、`principal_id`、`guild_id`（必要に応じて `channel_id`）を残す実装へ再整合した。
+- `LIN-980` 時点では permission snapshot の公開 surface は non-`v1` path のまま維持する。cutover 条件は以下:
+  - backend に等価な `v1` alias を追加しても AuthN/AuthZ/監査ログ契約が変わらないこと
+  - FE / client query が `v1` alias へ移行済みであること
+  - 監査ダッシュボード / runbook が新旧 path の混在を不要と判断できること

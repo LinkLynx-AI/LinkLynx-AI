@@ -29,9 +29,7 @@ export function ChannelView({ guildId, channelId }: { guildId: string; channelId
 
     const nextChannel = findFirstTextChannel(guildChannels ?? []);
     const nextRoute =
-      nextChannel === null
-        ? buildGuildRoute(guildId)
-        : buildChannelRoute(guildId, nextChannel.id);
+      nextChannel === null ? buildGuildRoute(guildId) : buildChannelRoute(guildId, nextChannel.id);
     router.replace(nextRoute);
   }, [guildChannels, guildId, isCategoryRoute, isGuildChannelsSuccess, router]);
 

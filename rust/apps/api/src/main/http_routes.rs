@@ -1370,6 +1370,16 @@ struct PermissionSnapshotQuery {
     channel_id: Option<String>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct PermissionSnapshotAuditFields {
+    principal_id: i64,
+    guild_id: i64,
+    channel_id: Option<i64>,
+    action: &'static str,
+    resource: &'static str,
+    decision_source: &'static str,
+}
+
 #[derive(Debug, Serialize)]
 struct PermissionSnapshotResponse {
     request_id: String,
@@ -1974,8 +1984,25 @@ async fn get_permission_snapshot(
     };
     let channel_id = match parse_optional_channel_id(query.channel_id.as_deref()) {
         Ok(value) => value,
-        Err(error) => return guild_channel_error_response(&error, request_id),
+        Err(error) => {
+            let audit = permission_snapshot_audit_fields(&auth_context, guild_id, None);
+            tracing::warn!(
+                decision = "deny",
+                request_id = %request_id,
+                principal_id = audit.principal_id,
+                guild_id = audit.guild_id,
+                channel_id = audit.channel_id,
+                error_class = "validation_invalid_input",
+                reason = %error.reason,
+                action = audit.action,
+                resource = audit.resource,
+                decision_source = "request_validation",
+                "permission snapshot rejected at request validation"
+            );
+            return guild_channel_error_response(&error, request_id);
+        }
     };
+    let audit = permission_snapshot_audit_fields(&auth_context, guild_id, channel_id);
 
     let guild_manage_future = resolve_permission_flag(
         Arc::clone(&state.authorizer),
@@ -1992,8 +2019,36 @@ async fn get_permission_snapshot(
 
     let (guild_manage, channel) = match tokio::try_join!(guild_manage_future, channel_future) {
         Ok(values) => values,
-        Err(error) => return authz_error_response(&error, request_id),
+        Err(error) => {
+            tracing::warn!(
+                decision = %error.decision(),
+                request_id = %request_id,
+                principal_id = audit.principal_id,
+                guild_id = audit.guild_id,
+                channel_id = audit.channel_id,
+                error_class = %error.log_class(),
+                reason = %error.reason,
+                action = audit.action,
+                resource = audit.resource,
+                decision_source = audit.decision_source,
+                "permission snapshot rejected"
+            );
+            return authz_error_response(&error, request_id);
+        }
     };
+
+    tracing::info!(
+        decision = "allow",
+        request_id = %request_id,
+        principal_id = audit.principal_id,
+        guild_id = audit.guild_id,
+        channel_id = audit.channel_id,
+        error_class = "none",
+        action = audit.action,
+        resource = audit.resource,
+        decision_source = audit.decision_source,
+        "permission snapshot returned"
+    );
 
     Json(PermissionSnapshotResponse {
         request_id,
@@ -2061,6 +2116,28 @@ async fn create_guild_invite(
         }))
             .into_response(),
         Err(error) => invite_error_response(&error, request_id),
+}
+
+}
+
+/// permission snapshot 監査ログの共通項目を返す。
+/// @param auth_context 認証文脈
+/// @param guild_id 対象guild_id
+/// @param channel_id 対象channel_id
+/// @returns 監査ログ項目
+/// @throws なし
+fn permission_snapshot_audit_fields(
+    auth_context: &AuthContext,
+    guild_id: i64,
+    channel_id: Option<i64>,
+) -> PermissionSnapshotAuditFields {
+    PermissionSnapshotAuditFields {
+        principal_id: auth_context.principal_id.0,
+        guild_id,
+        channel_id,
+        action: "view",
+        resource: "permission_snapshot",
+        decision_source: "permission_snapshot_handler",
     }
 }
 
