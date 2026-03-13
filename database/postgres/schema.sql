@@ -568,6 +568,19 @@ CREATE TABLE public.invites (
 
 
 
+CREATE SEQUENCE public.invites_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+
+ALTER SEQUENCE public.invites_id_seq OWNED BY public.invites.id;
+
+
+
 CREATE TABLE public.message_attachments_v2 (
     message_id bigint NOT NULL,
     channel_id bigint NOT NULL,
@@ -744,6 +757,10 @@ ALTER TABLE ONLY public.channels ALTER COLUMN id SET DEFAULT nextval('public.cha
 
 
 ALTER TABLE ONLY public.guilds ALTER COLUMN id SET DEFAULT nextval('public.guilds_id_seq'::regclass);
+
+
+
+ALTER TABLE ONLY public.invites ALTER COLUMN id SET DEFAULT nextval('public.invites_id_seq'::regclass);
 
 
 
