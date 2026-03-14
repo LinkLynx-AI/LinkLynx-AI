@@ -34,6 +34,11 @@
 - 代替として既存 API プロセスへ `curl -i http://127.0.0.1:8080/health` を実行し `200 OK` を確認した。
 - invite route registration の live 疎通として `curl -i http://127.0.0.1:8080/v1/guilds/10/invites` を実行し、未認証で `401 AUTH_MISSING_TOKEN` を確認した。
 
+## PR
+- URL: https://github.com/LinkLynx-AI/LinkLynx-AI/pull/1233
+- Base branch: `main`
+- Merge policy: `main` 向けのため human review required。auto-merge は有効化しない。
+
 ## Known issues / follow-ups
 - reviewer は `ServerInvites` の成功時エラーバナー表示回帰を 1 件検出し、同 turn で修正済み。
 - 修正後に reviewer quick re-review を実施し、open finding なしを確認した。
