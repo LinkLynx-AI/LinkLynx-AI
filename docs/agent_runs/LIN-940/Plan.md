@@ -25,8 +25,8 @@
 
 ### M3: main 向け PR を作成する
 - Acceptance criteria:
-  - [ ] PR title / body を日本語で作成する
-  - [ ] `main` base なので human review required 状態で止める
-  - [ ] Linear / run memory の最終状態を更新する
+  - [x] PR title / body を日本語で作成する
+  - [x] `main` base なので human review required 状態で止める
+  - [x] Linear / run memory の最終状態を更新する
 - Validation:
-  - `gh pr view <number>`
+  - `gh pr view 1246`
