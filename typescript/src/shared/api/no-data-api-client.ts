@@ -17,6 +17,7 @@ import type {
   UpdateGuildData,
   CreateInviteData,
   Invite,
+  InviteListItem,
   ModerationMute,
   ModerationReport,
   MyProfile,
@@ -297,11 +298,11 @@ export class NoDataAPIClient implements APIClient {
     return unsupportedPromise("createInvite");
   }
 
-  getInvites(_serverId: string): Promise<Invite[]> {
+  getInvites(_serverId: string): Promise<InviteListItem[]> {
     return Promise.resolve([]);
   }
 
-  revokeInvite(_inviteCode: string): Promise<void> {
+  revokeInvite(_serverId: string, _inviteCode: string): Promise<void> {
     return unsupportedPromise("revokeInvite");
   }
 

@@ -156,6 +156,7 @@ export function ModalManager() {
           channelId={modalProps.channelId as string | undefined}
           channelName={modalProps.channelName as string | undefined}
           channelType={modalProps.channelType as number | undefined}
+          serverId={modalProps.serverId as string | undefined}
         />
       );
     case "onboarding":

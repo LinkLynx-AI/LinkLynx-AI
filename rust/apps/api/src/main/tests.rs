@@ -31,9 +31,9 @@ mod tests {
         GuildChannelService, GuildPatchInput, GuildSummary, PostgresGuildChannelService,
     };
     use invite::{
-        CreateInviteInput, CreatedInvite, InviteChannelSummary, InviteError, InviteJoinResult,
-        InviteJoinStatus, InviteService, PublicInviteGuild, PublicInviteLookup,
-        PublicInviteStatus,
+        CreateInviteInput, CreatedInvite, GuildInviteSummary, InviteChannelSummary,
+        InviteCreatorSummary, InviteError, InviteJoinResult, InviteJoinStatus, InviteService,
+        PublicInviteGuild, PublicInviteLookup, PublicInviteStatus,
     };
     use linklynx_message_api::{
         CreateGuildChannelMessageRequestV1, CreateGuildChannelMessageResponseV1,
@@ -1762,6 +1762,38 @@ mod tests {
 
     #[async_trait]
     impl InviteService for StaticInviteService {
+        async fn list_invites(
+            &self,
+            _principal_id: PrincipalId,
+            guild_id: i64,
+        ) -> Result<Vec<GuildInviteSummary>, InviteError> {
+            if guild_id != 2001 {
+                return Err(InviteError::not_found("guild_not_found"));
+            }
+
+            Ok(vec![
+                GuildInviteSummary {
+                    invite_code: "DEVJOIN2026".to_owned(),
+                    creator: Some(InviteCreatorSummary {
+                        user_id: 1001,
+                        display_name: "Alice".to_owned(),
+                    }),
+                    expires_at: Some("2026-03-21T00:00:00Z".to_owned()),
+                    uses: 3,
+                    max_uses: Some(100),
+                    created_at: "2026-03-14T00:00:00Z".to_owned(),
+                },
+                GuildInviteSummary {
+                    invite_code: "OPENJOIN2026".to_owned(),
+                    creator: None,
+                    expires_at: None,
+                    uses: 0,
+                    max_uses: None,
+                    created_at: "2026-03-13T00:00:00Z".to_owned(),
+                },
+            ])
+        }
+
         async fn create_invite(
             &self,
             _principal_id: PrincipalId,
@@ -1871,10 +1903,37 @@ mod tests {
                 _ => Err(InviteError::invalid_invite("invite_invalid")),
             }
         }
+
+        async fn revoke_invite(
+            &self,
+            _principal_id: PrincipalId,
+            guild_id: i64,
+            invite_code: String,
+        ) -> Result<(), InviteError> {
+            if guild_id != 2001 {
+                return Err(InviteError::not_found("guild_not_found"));
+            }
+
+            match invite_code.trim() {
+                "DEVJOIN2026" => Ok(()),
+                "DISABLED2026" => Err(InviteError::invalid_invite("invite_invalid")),
+                _ => Err(InviteError::invite_not_found("invite_not_found")),
+            }
+        }
     }
 
     #[async_trait]
     impl InviteService for StaticUnavailableInviteService {
+        async fn list_invites(
+            &self,
+            _principal_id: PrincipalId,
+            _guild_id: i64,
+        ) -> Result<Vec<GuildInviteSummary>, InviteError> {
+            Err(InviteError::dependency_unavailable(
+                "invite_store_unconfigured",
+            ))
+        }
+
         async fn create_invite(
             &self,
             _principal_id: PrincipalId,
@@ -1900,6 +1959,17 @@ mod tests {
             _principal_id: PrincipalId,
             _invite_code: String,
         ) -> Result<InviteJoinResult, InviteError> {
+            Err(InviteError::dependency_unavailable(
+                "invite_store_unconfigured",
+            ))
+        }
+
+        async fn revoke_invite(
+            &self,
+            _principal_id: PrincipalId,
+            _guild_id: i64,
+            _invite_code: String,
+        ) -> Result<(), InviteError> {
             Err(InviteError::dependency_unavailable(
                 "invite_store_unconfigured",
             ))
@@ -2656,6 +2726,88 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn list_guild_invites_returns_active_invites_for_valid_request() {
+        let app = app_for_test().await;
+        let token = format!("u-admin:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/v1/guilds/2001/invites")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["invites"][0]["invite_code"], "DEVJOIN2026");
+        assert_eq!(json["invites"][0]["creator"]["display_name"], "Alice");
+        assert_eq!(json["invites"][1]["creator"], serde_json::Value::Null);
+    }
+
+    #[tokio::test]
+    async fn list_guild_invites_returns_service_unavailable_when_invite_service_fails() {
+        let app = app_for_test_with_invite_service(Arc::new(StaticUnavailableInviteService)).await;
+        let token = format!("u-admin:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/v1/guilds/2001/invites")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("x-request-id", "invite-list-unavailable-test")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "INVITE_UNAVAILABLE");
+        assert_eq!(json["request_id"], "invite-list-unavailable-test");
+    }
+
+    #[tokio::test]
+    async fn list_guild_invites_returns_retry_after_when_rate_limited() {
+        let app = app_for_test().await;
+        let token = format!("u-admin:{}", unix_timestamp_seconds() + 300);
+        let mut last_response = None;
+
+        for _ in 0..11 {
+            last_response = Some(
+                app.clone()
+                    .oneshot(
+                        Request::builder()
+                            .uri("/v1/guilds/2001/invites")
+                            .header("authorization", format!("Bearer {token}"))
+                            .body(Body::empty())
+                            .unwrap(),
+                    )
+                    .await
+                    .unwrap(),
+            );
+        }
+
+        let response = last_response.unwrap();
+        assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
+        assert_eq!(
+            response
+                .headers()
+                .get(RETRY_AFTER)
+                .and_then(|value| value.to_str().ok()),
+            Some("60")
+        );
+    }
+
+    #[tokio::test]
     async fn create_guild_invite_returns_created_for_valid_request() {
         let app = app_for_test().await;
         let token = format!("u-admin:{}", unix_timestamp_seconds() + 300);
@@ -2735,6 +2887,131 @@ mod tests {
         let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
         assert_eq!(json["code"], "INVITE_UNAVAILABLE");
         assert_eq!(json["request_id"], "invite-create-unavailable-test");
+    }
+
+    #[tokio::test]
+    async fn revoke_guild_invite_returns_no_content_for_valid_request() {
+        let app = app_for_test().await;
+        let token = format!("u-admin:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method(Method::DELETE)
+                    .uri("/v1/guilds/2001/invites/DEVJOIN2026")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::NO_CONTENT);
+    }
+
+    #[tokio::test]
+    async fn revoke_guild_invite_returns_not_found_for_missing_invite() {
+        let app = app_for_test().await;
+        let token = format!("u-admin:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method(Method::DELETE)
+                    .uri("/v1/guilds/2001/invites/UNKNOWN2026")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "INVITE_NOT_FOUND");
+    }
+
+    #[tokio::test]
+    async fn revoke_guild_invite_returns_conflict_for_invalid_invite() {
+        let app = app_for_test().await;
+        let token = format!("u-admin:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method(Method::DELETE)
+                    .uri("/v1/guilds/2001/invites/DISABLED2026")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::CONFLICT);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "INVITE_INVALID");
+    }
+
+    #[tokio::test]
+    async fn revoke_guild_invite_returns_service_unavailable_when_invite_service_fails() {
+        let app = app_for_test_with_invite_service(Arc::new(StaticUnavailableInviteService)).await;
+        let token = format!("u-admin:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method(Method::DELETE)
+                    .uri("/v1/guilds/2001/invites/DEVJOIN2026")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("x-request-id", "invite-revoke-unavailable-test")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "INVITE_UNAVAILABLE");
+        assert_eq!(json["request_id"], "invite-revoke-unavailable-test");
+    }
+
+    #[tokio::test]
+    async fn revoke_guild_invite_fail_closes_when_ratelimit_degraded() {
+        let state = state_for_test_with_authorizer(Arc::new(StaticAllowAllAuthorizer)).await;
+        state
+            .rest_rate_limit_service
+            .set_degraded_for_test(true)
+            .await;
+        let app = app_with_state(state);
+        let token = format!("u-admin:{}", unix_timestamp_seconds() + 300);
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method(Method::DELETE)
+                    .uri("/v1/guilds/2001/invites/DEVJOIN2026")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
+        assert_eq!(
+            response
+                .headers()
+                .get(RETRY_AFTER)
+                .and_then(|value| value.to_str().ok()),
+            Some("60")
+        );
     }
 
     #[tokio::test]

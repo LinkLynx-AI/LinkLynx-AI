@@ -1,0 +1,68 @@
+// @vitest-environment jsdom
+import { describe, expect, test, vi } from "vitest";
+import { render, screen, userEvent } from "@/test/test-utils";
+import { ChannelEditInvites } from "./channel-edit-invites";
+
+const useInvitesMock = vi.hoisted(() => vi.fn());
+const useRevokeInviteMock = vi.hoisted(() => vi.fn());
+
+vi.mock("@/shared/api/queries/use-invites", () => ({
+  useInvites: useInvitesMock,
+}));
+
+vi.mock("@/shared/api/mutations", () => ({
+  useRevokeInvite: useRevokeInviteMock,
+}));
+
+describe("ChannelEditInvites", () => {
+  test("shows guild-scoped note and revokes invite with server id", async () => {
+    const mutateAsync = vi.fn().mockResolvedValue(undefined);
+    useInvitesMock.mockReturnValue({
+      data: [
+        {
+          code: "DEVJOIN2026",
+          creator: { id: "1001", displayName: "Alice" },
+          expiresAt: null,
+          uses: 2,
+          maxUses: null,
+          createdAt: "2026-03-14T00:00:00Z",
+        },
+      ],
+      isPending: false,
+      error: null,
+    });
+    useRevokeInviteMock.mockReturnValue({
+      mutateAsync,
+      isPending: false,
+      variables: undefined,
+    });
+
+    render(<ChannelEditInvites serverId="2001" channelId="3001" />);
+
+    expect(screen.getByText(/サーバー単位で管理/)).not.toBeNull();
+
+    await userEvent.click(screen.getByRole("button", { name: "招待を取り消す" }));
+
+    expect(mutateAsync).toHaveBeenCalledWith({
+      serverId: "2001",
+      inviteCode: "DEVJOIN2026",
+    });
+  });
+
+  test("renders empty state when invite list is empty", () => {
+    useInvitesMock.mockReturnValue({
+      data: [],
+      isPending: false,
+      error: null,
+    });
+    useRevokeInviteMock.mockReturnValue({
+      mutateAsync: vi.fn(),
+      isPending: false,
+      variables: undefined,
+    });
+
+    render(<ChannelEditInvites serverId="2001" channelId="3001" />);
+
+    expect(screen.getByText("招待がありません")).not.toBeNull();
+  });
+});

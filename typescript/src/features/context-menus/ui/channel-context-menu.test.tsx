@@ -107,6 +107,27 @@ describe("ChannelContextMenu", () => {
     });
   });
 
+  test("opens channel edit modal with guild scope", async () => {
+    render(
+      <ChannelContextMenu
+        data={{
+          channel: createChannel(),
+          serverId: "2001",
+        }}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("menuitem", { name: "チャンネルを編集" }));
+
+    expect(useUIStore.getState().activeModal).toBe("channel-edit");
+    expect(useUIStore.getState().modalProps).toMatchObject({
+      channelId: "3001",
+      channelName: "general",
+      channelType: 0,
+      serverId: "2001",
+    });
+  });
+
   test("disables edit and delete when channel manage permission is missing", async () => {
     useActionGuardMock.mockImplementation(() => ({
       status: "forbidden",

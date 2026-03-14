@@ -47,7 +47,7 @@ describe("CreateInviteModal", () => {
       },
       expiresAt: null,
       uses: 0,
-      maxUses: 0,
+      maxUses: null,
     });
     useCreateInviteMock.mockReturnValue({
       mutateAsync,

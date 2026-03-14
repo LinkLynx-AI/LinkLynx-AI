@@ -64,6 +64,7 @@ describe("ChannelItem", () => {
     expect(useUIStore.getState().modalProps).toMatchObject({
       channelId: "3001",
       channelName: "general",
+      serverId: "2001",
     });
   });
 
