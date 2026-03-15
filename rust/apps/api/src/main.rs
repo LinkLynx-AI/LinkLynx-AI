@@ -102,6 +102,7 @@ pub(crate) struct AppState {
     ws_ticket_rate_limiter: Arc<FixedWindowRateLimiter>,
     ws_identify_rate_limiter: Arc<FixedWindowRateLimiter>,
     ws_origin_allowlist: Arc<WsOriginAllowlist>,
+    public_invite_trusted_proxy_shared_secret: Option<String>,
     rest_rate_limit_service: Arc<RestRateLimitService>,
 }
 
@@ -200,6 +201,8 @@ async fn build_runtime_state() -> AppState {
             Duration::from_secs(60),
         )),
         ws_origin_allowlist: Arc::new(build_runtime_ws_origin_allowlist()),
+        public_invite_trusted_proxy_shared_secret:
+            build_runtime_public_invite_trusted_proxy_shared_secret(),
         rest_rate_limit_service: Arc::new(build_runtime_rest_rate_limit_service()),
     }
 }
