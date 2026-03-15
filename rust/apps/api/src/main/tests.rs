@@ -85,6 +85,7 @@ mod tests {
     use tower::ServiceExt;
 
     const MAX_RESPONSE_BYTES: usize = 16 * 1024;
+    const TEST_INTERNAL_OPS_SECRET: &str = "test-internal-secret";
 
     struct StaticTokenVerifier;
     struct UnavailableTokenVerifier;
@@ -2119,6 +2120,9 @@ mod tests {
             auth_service,
             authorizer,
             authz_metrics: Arc::new(AuthzMetrics::default()),
+            internal_ops_guard: Arc::new(InternalOpsGuard::with_shared_secret(
+                TEST_INTERNAL_OPS_SECRET,
+            )),
             guild_channel_service,
             dm_service: Arc::new(StaticDmService),
             invite_service,
@@ -3173,7 +3177,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn auth_metrics_endpoint_rejects_missing_token() {
+    async fn auth_metrics_endpoint_rejects_missing_internal_secret() {
         let app = app_for_test().await;
         let response = app
             .oneshot(
@@ -3185,46 +3189,11 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
     }
 
     #[tokio::test]
-    async fn auth_metrics_endpoint_rejects_invalid_token() {
-        let app = app_for_test().await;
-        let response = app
-            .oneshot(
-                Request::builder()
-                    .uri("/internal/auth/metrics")
-                    .header("authorization", "Bearer invalid-token")
-                    .body(Body::empty())
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-
-        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
-    }
-
-    #[tokio::test]
-    async fn auth_metrics_endpoint_rejects_expired_token() {
-        let app = app_for_test().await;
-        let token = format!("u-1:{}", unix_timestamp_seconds().saturating_sub(1));
-        let response = app
-            .oneshot(
-                Request::builder()
-                    .uri("/internal/auth/metrics")
-                    .header("authorization", format!("Bearer {token}"))
-                    .body(Body::empty())
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-
-        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
-    }
-
-    #[tokio::test]
-    async fn auth_metrics_endpoint_accepts_valid_token() {
+    async fn auth_metrics_endpoint_rejects_bearer_token_without_internal_secret() {
         let app = app_for_test().await;
         let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
         let response = app
@@ -3232,6 +3201,31 @@ mod tests {
                 Request::builder()
                     .uri("/internal/auth/metrics")
                     .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "INTERNAL_OPS_FORBIDDEN");
+    }
+
+    #[tokio::test]
+    async fn auth_metrics_endpoint_accepts_valid_internal_secret() {
+        let app = app_for_test().await;
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/internal/auth/metrics")
+                    .header(
+                        INTERNAL_OPS_SHARED_SECRET_HEADER,
+                        TEST_INTERNAL_OPS_SECRET,
+                    )
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -3248,7 +3242,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn internal_authz_metrics_endpoint_rejects_missing_token() {
+    async fn internal_authz_metrics_endpoint_rejects_missing_internal_secret() {
         let app = app_for_test().await;
         let response = app
             .oneshot(
@@ -3260,18 +3254,20 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
     }
 
     #[tokio::test]
-    async fn internal_authz_metrics_endpoint_accepts_valid_token() {
+    async fn internal_authz_metrics_endpoint_accepts_valid_internal_secret() {
         let app = app_for_test().await;
-        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
         let response = app
             .oneshot(
                 Request::builder()
                     .uri("/internal/authz/metrics")
-                    .header("authorization", format!("Bearer {token}"))
+                    .header(
+                        INTERNAL_OPS_SHARED_SECRET_HEADER,
+                        TEST_INTERNAL_OPS_SECRET,
+                    )
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -3289,16 +3285,71 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn internal_authz_metrics_endpoint_returns_forbidden_when_authz_denied() {
+    async fn internal_authz_metrics_endpoint_ignores_rest_authz_denied() {
         let app = app_for_test_with_authorizer(Arc::new(StaticDenyAuthorizer)).await;
-        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
         let response = app
             .oneshot(
                 Request::builder()
                     .uri("/internal/authz/metrics")
-                    .header("authorization", format!("Bearer {token}"))
-                    .header("x-request-id", "internal-authz-metrics-denied")
+                    .header(
+                        INTERNAL_OPS_SHARED_SECRET_HEADER,
+                        TEST_INTERNAL_OPS_SECRET,
+                    )
+                    .header("x-request-id", "internal-authz-metrics-ops")
                     .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert!(json.get("allow_total").is_some());
+    }
+
+    #[tokio::test]
+    async fn internal_authz_metrics_endpoint_ignores_rest_authz_unavailable() {
+        let app = app_for_test_with_authorizer(Arc::new(StaticUnavailableAuthorizer)).await;
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/internal/authz/metrics")
+                    .header(
+                        INTERNAL_OPS_SHARED_SECRET_HEADER,
+                        TEST_INTERNAL_OPS_SECRET,
+                    )
+                    .header("x-request-id", "internal-authz-metrics-ops")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert!(json.get("unavailable_total").is_some());
+    }
+
+    #[tokio::test]
+    async fn internal_authz_cache_invalidate_rejects_bearer_token_without_internal_secret() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method(Method::POST)
+                    .uri("/internal/authz/cache/invalidate")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        r#"{"kind":"guild_role_changed","guild_id":10}"#,
+                    ))
                     .unwrap(),
             )
             .await
@@ -3309,33 +3360,36 @@ mod tests {
             .await
             .unwrap();
         let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
-        assert_eq!(json["code"], "AUTHZ_DENIED");
-        assert_eq!(json["request_id"], "internal-authz-metrics-denied");
+        assert_eq!(json["code"], "INTERNAL_OPS_FORBIDDEN");
     }
 
     #[tokio::test]
-    async fn internal_authz_metrics_endpoint_returns_unavailable_when_authz_unavailable() {
-        let app = app_for_test_with_authorizer(Arc::new(StaticUnavailableAuthorizer)).await;
-        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+    async fn internal_authz_cache_invalidate_accepts_valid_internal_secret() {
+        let app = app_for_test_with_authorizer(Arc::new(StaticDenyAuthorizer)).await;
         let response = app
             .oneshot(
                 Request::builder()
-                    .uri("/internal/authz/metrics")
-                    .header("authorization", format!("Bearer {token}"))
-                    .header("x-request-id", "internal-authz-metrics-unavailable")
-                    .body(Body::empty())
+                    .method(Method::POST)
+                    .uri("/internal/authz/cache/invalidate")
+                    .header(
+                        INTERNAL_OPS_SHARED_SECRET_HEADER,
+                        TEST_INTERNAL_OPS_SECRET,
+                    )
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        r#"{"kind":"guild_role_changed","guild_id":10}"#,
+                    ))
                     .unwrap(),
             )
             .await
             .unwrap();
 
-        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        assert_eq!(response.status(), StatusCode::OK);
         let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
             .await
             .unwrap();
         let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
-        assert_eq!(json["code"], "AUTHZ_UNAVAILABLE");
-        assert_eq!(json["request_id"], "internal-authz-metrics-unavailable");
+        assert_eq!(json["evictedKeys"], 0);
     }
 
     #[tokio::test]
@@ -7696,11 +7750,7 @@ mod tests {
     }
 
     #[test]
-    fn rest_authz_action_maps_internal_cache_invalidation_post_to_view() {
-        assert!(matches!(
-            rest_authz_action_for_request(&Method::POST, "/internal/authz/cache/invalidate"),
-            AuthzAction::View
-        ));
+    fn rest_authz_action_maps_invite_and_message_commands() {
         assert!(matches!(
             rest_authz_action_for_request(&Method::POST, "/v1/guilds/10/invites"),
             AuthzAction::Manage

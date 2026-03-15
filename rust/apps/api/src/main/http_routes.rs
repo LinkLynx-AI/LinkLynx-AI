@@ -8,15 +8,21 @@ fn app_with_state(state: AppState) -> Router {
         .allow_methods(Any)
         .allow_headers(Any);
 
-    let protected_routes = Router::new()
-        .route("/protected/ping", get(protected_ping))
-        .route("/v1/protected/ping", get(protected_ping))
+    let internal_routes = Router::new()
         .route("/internal/auth/metrics", get(auth_metrics_handler))
         .route("/internal/authz/metrics", get(authz_metrics_handler))
         .route(
             "/internal/authz/cache/invalidate",
             post(authz_cache_invalidate_handler),
         )
+        .route_layer(middleware::from_fn_with_state(
+            state.clone(),
+            internal_ops_middleware,
+        ));
+
+    let protected_routes = Router::new()
+        .route("/protected/ping", get(protected_ping))
+        .route("/v1/protected/ping", get(protected_ping))
         .route("/guilds", get(list_guilds).post(create_guild))
         .route(
             "/guilds/{guild_id}",
@@ -119,9 +125,184 @@ fn app_with_state(state: AppState) -> Router {
         .route("/internal/scylla/health", get(scylla_health_check))
         .route("/ws", get(ws_handler))
         .route("/auth/ws-ticket", post(issue_ws_ticket))
+        .merge(internal_routes)
         .merge(protected_routes)
         .with_state(state)
         .layer(cors)
+}
+
+const INTERNAL_OPS_SHARED_SECRET_ENV: &str = "INTERNAL_OPS_SHARED_SECRET";
+const INTERNAL_OPS_SHARED_SECRET_HEADER: &str = "x-linklynx-internal-shared-secret";
+
+#[derive(Debug, Clone)]
+struct InternalOpsGuard {
+    shared_secret: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct InternalOpsAccess {
+    caller_boundary: &'static str,
+}
+
+#[derive(Debug, Clone)]
+struct InternalRequestContext {
+    request_id: String,
+    caller_boundary: &'static str,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum InternalOpsGuardError {
+    MissingConfiguration,
+    MissingOrInvalidSecret,
+}
+
+impl InternalOpsGuard {
+    fn with_shared_secret(shared_secret: impl Into<String>) -> Self {
+        Self {
+            shared_secret: Some(shared_secret.into()),
+        }
+    }
+
+    fn authorize(&self, headers: &HeaderMap) -> Result<InternalOpsAccess, InternalOpsGuardError> {
+        let expected = self
+            .shared_secret
+            .as_deref()
+            .ok_or(InternalOpsGuardError::MissingConfiguration)?;
+        let provided = headers
+            .get(INTERNAL_OPS_SHARED_SECRET_HEADER)
+            .and_then(|value| value.to_str().ok());
+        if provided == Some(expected) {
+            return Ok(InternalOpsAccess {
+                caller_boundary: "internal_shared_secret",
+            });
+        }
+        Err(InternalOpsGuardError::MissingOrInvalidSecret)
+    }
+}
+
+impl InternalOpsGuardError {
+    fn code(self) -> &'static str {
+        match self {
+            Self::MissingConfiguration => "INTERNAL_OPS_UNAVAILABLE",
+            Self::MissingOrInvalidSecret => "INTERNAL_OPS_FORBIDDEN",
+        }
+    }
+
+    fn message(self) -> &'static str {
+        match self {
+            Self::MissingConfiguration => "internal operations guard is unavailable",
+            Self::MissingOrInvalidSecret => "internal operations access is forbidden",
+        }
+    }
+
+    fn status(self) -> StatusCode {
+        match self {
+            Self::MissingConfiguration => StatusCode::SERVICE_UNAVAILABLE,
+            Self::MissingOrInvalidSecret => StatusCode::FORBIDDEN,
+        }
+    }
+
+    fn log_class(self) -> &'static str {
+        match self {
+            Self::MissingConfiguration => "internal_ops_guard_unavailable",
+            Self::MissingOrInvalidSecret => "internal_ops_guard_denied",
+        }
+    }
+
+    fn reason(self) -> &'static str {
+        match self {
+            Self::MissingConfiguration => "internal_shared_secret_missing",
+            Self::MissingOrInvalidSecret => "internal_shared_secret_invalid",
+        }
+    }
+
+    fn caller_boundary(self) -> &'static str {
+        match self {
+            Self::MissingConfiguration => "internal_guard_unconfigured",
+            Self::MissingOrInvalidSecret => "external_request",
+        }
+    }
+}
+
+/// 実行時 internal operations guard を構築する。
+/// @param なし
+/// @returns internal operations guard
+/// @throws なし
+fn build_runtime_internal_ops_guard() -> InternalOpsGuard {
+    match env::var(INTERNAL_OPS_SHARED_SECRET_ENV) {
+        Ok(shared_secret) if shared_secret.trim().is_empty() => {
+            tracing::warn!(
+                env_var = INTERNAL_OPS_SHARED_SECRET_ENV,
+                "blank internal ops shared secret is invalid; internal routes will fail-close"
+            );
+            InternalOpsGuard {
+                shared_secret: None,
+            }
+        }
+        Ok(shared_secret) => InternalOpsGuard::with_shared_secret(shared_secret),
+        Err(_) => {
+            tracing::warn!(
+                env_var = INTERNAL_OPS_SHARED_SECRET_ENV,
+                "internal ops shared secret is not configured; internal routes will fail-close"
+            );
+            InternalOpsGuard {
+                shared_secret: None,
+            }
+        }
+    }
+}
+
+/// internal route 専用 guard を適用する。
+/// @param state アプリケーション状態
+/// @param request HTTP リクエスト
+/// @param next 次のハンドラ
+/// @returns internal route 応答
+/// @throws なし
+async fn internal_ops_middleware(
+    State(state): State<AppState>,
+    mut request: Request<Body>,
+    next: Next,
+) -> Response {
+    let request_id = request_id_from_headers(request.headers());
+    let resource = request.uri().path().to_owned();
+    match state.internal_ops_guard.authorize(request.headers()) {
+        Ok(context) => {
+            let context = InternalRequestContext {
+                request_id: request_id.clone(),
+                caller_boundary: context.caller_boundary,
+            };
+            tracing::info!(
+                decision = "allow",
+                request_id = %request_id,
+                caller_boundary = context.caller_boundary,
+                outcome = "allow",
+                resource = %resource,
+                decision_source = "internal_ops_guard",
+                "internal route access allowed"
+            );
+            request.extensions_mut().insert(context);
+            next.run(request).await
+        }
+        Err(error) => {
+            tracing::warn!(
+                decision = "deny",
+                request_id = %request_id,
+                caller_boundary = error.caller_boundary(),
+                outcome = "deny",
+                resource = %resource,
+                error_class = error.log_class(),
+                reason = error.reason(),
+                decision_source = "internal_ops_guard",
+                "internal route access rejected"
+            );
+            let body = ApiErrorResponse {
+                code: error.code(),
+                message: error.message(),
+                request_id,
+            };
+            (error.status(), Json(body)).into_response()
+        }
+    }
 }
 
 /// ルート疎通応答を返す。
@@ -1038,7 +1219,17 @@ async fn moderate_guild_member(
 /// @param state アプリケーション状態
 /// @returns 認証メトリクス
 /// @throws なし
-async fn auth_metrics_handler(State(state): State<AppState>) -> Json<AuthMetricsSnapshot> {
+async fn auth_metrics_handler(
+    State(state): State<AppState>,
+    Extension(context): Extension<InternalRequestContext>,
+) -> Json<AuthMetricsSnapshot> {
+    tracing::info!(
+        request_id = %context.request_id,
+        caller_boundary = context.caller_boundary,
+        outcome = "auth_metrics_returned",
+        resource = "/internal/auth/metrics",
+        "internal auth metrics returned"
+    );
     Json(state.auth_service.metrics().snapshot())
 }
 
@@ -1046,7 +1237,17 @@ async fn auth_metrics_handler(State(state): State<AppState>) -> Json<AuthMetrics
 /// @param state アプリケーション状態
 /// @returns 認可メトリクス
 /// @throws なし
-async fn authz_metrics_handler(State(state): State<AppState>) -> Json<AuthzMetricsSnapshot> {
+async fn authz_metrics_handler(
+    State(state): State<AppState>,
+    Extension(context): Extension<InternalRequestContext>,
+) -> Json<AuthzMetricsSnapshot> {
+    tracing::info!(
+        request_id = %context.request_id,
+        caller_boundary = context.caller_boundary,
+        outcome = "authz_metrics_returned",
+        resource = "/internal/authz/metrics",
+        "internal authz metrics returned"
+    );
     Json(state.authz_metrics.snapshot())
 }
 
@@ -1079,17 +1280,26 @@ struct AuthzCacheInvalidationResponse {
 /// @throws なし
 async fn authz_cache_invalidate_handler(
     State(state): State<AppState>,
-    Extension(auth_context): Extension<AuthContext>,
+    Extension(context): Extension<InternalRequestContext>,
     payload: Result<Json<AuthzCacheInvalidationRequest>, JsonRejection>,
 ) -> Response {
-    let request_id = auth_context.request_id;
+    let request_id = context.request_id.clone();
     let payload = match payload {
         Ok(Json(value)) => value,
         Err(_) => {
+            tracing::warn!(
+                request_id = %request_id,
+                caller_boundary = context.caller_boundary,
+                outcome = "invalid_payload",
+                resource = "/internal/authz/cache/invalidate",
+                error_class = "internal_ops_invalid_payload",
+                reason = "json_rejection",
+                "internal authz cache invalidation rejected"
+            );
             let body = ApiErrorResponse {
                 code: "AUTHZ_CACHE_INVALIDATION_INVALID",
                 message: "invalidation payload is invalid",
-                request_id,
+                request_id: request_id.clone(),
             };
             return (StatusCode::BAD_REQUEST, Json(body)).into_response();
         }
@@ -1098,10 +1308,19 @@ async fn authz_cache_invalidate_handler(
     let event = match build_authz_cache_invalidation_event(payload) {
         Ok(value) => value,
         Err(reason) => {
+            tracing::warn!(
+                request_id = %request_id,
+                caller_boundary = context.caller_boundary,
+                outcome = "invalid_payload",
+                resource = "/internal/authz/cache/invalidate",
+                error_class = "internal_ops_invalid_payload",
+                reason = reason,
+                "internal authz cache invalidation rejected"
+            );
             let body = ApiErrorResponse {
                 code: "AUTHZ_CACHE_INVALIDATION_INVALID",
                 message: reason,
-                request_id,
+                request_id: request_id.clone(),
             };
             return (StatusCode::BAD_REQUEST, Json(body)).into_response();
         }
@@ -1109,6 +1328,15 @@ async fn authz_cache_invalidate_handler(
 
     let report = state.authorizer.invalidate_cache(&event).await;
     let metrics = state.authorizer.cache_invalidation_metrics();
+    tracing::info!(
+        request_id = %request_id,
+        caller_boundary = context.caller_boundary,
+        outcome = "cache_invalidated",
+        resource = "/internal/authz/cache/invalidate",
+        evicted_keys = report.evicted_keys,
+        lag_ms = report.lag_ms,
+        "internal authz cache invalidation applied"
+    );
 
     Json(AuthzCacheInvalidationResponse {
         evicted_keys: report.evicted_keys,
@@ -3081,9 +3309,6 @@ async fn rest_auth_middleware(
 /// @returns AuthZ action
 /// @throws なし
 fn rest_authz_action_for_request(method: &axum::http::Method, path: &str) -> AuthzAction {
-    if path == "/internal/authz/cache/invalidate" {
-        return AuthzAction::View;
-    }
     if *method == axum::http::Method::POST && is_guild_invite_create_path(path) {
         return AuthzAction::Manage;
     }
