@@ -71,6 +71,8 @@
 - `POST /internal/authz/cache/invalidate`
 - Requirement:
   `x-linklynx-internal-shared-secret` を満たすこと。一般 bearer token や `AUTHZ_PROVIDER=noop` では通過させない
+- Browser CORS:
+  browser 向け permissive CORS からは切り離し、custom header preflight を公開しない
 
 ### Protected (AuthZ required)
 - `GET /v1/protected/ping`

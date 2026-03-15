@@ -113,7 +113,7 @@ fn app_with_state(state: AppState) -> Router {
             rest_auth_middleware,
         ));
 
-    Router::new()
+    let browser_routes = Router::new()
         .route("/", get(root))
         .route("/health", get(health_check))
         .route(
@@ -125,10 +125,13 @@ fn app_with_state(state: AppState) -> Router {
         .route("/internal/scylla/health", get(scylla_health_check))
         .route("/ws", get(ws_handler))
         .route("/auth/ws-ticket", post(issue_ws_ticket))
-        .merge(internal_routes)
         .merge(protected_routes)
+        .layer(cors);
+
+    Router::new()
+        .merge(browser_routes)
+        .merge(internal_routes)
         .with_state(state)
-        .layer(cors)
 }
 
 const INTERNAL_OPS_SHARED_SECRET_ENV: &str = "INTERNAL_OPS_SHARED_SECRET";

@@ -20,7 +20,10 @@ mod tests {
     use axum::{
         body::to_bytes,
         http::{
-            header::{AUTHORIZATION, ORIGIN, RETRY_AFTER},
+            header::{
+                ACCESS_CONTROL_REQUEST_HEADERS, ACCESS_CONTROL_REQUEST_METHOD, AUTHORIZATION,
+                ORIGIN, RETRY_AFTER,
+            },
             Method, StatusCode,
         },
     };
@@ -1942,6 +1945,15 @@ mod tests {
         app_with_state(state)
     }
 
+    async fn app_for_test_with_authorizer_and_internal_ops_guard(
+        authorizer: Arc<dyn Authorizer>,
+        internal_ops_guard: InternalOpsGuard,
+    ) -> Router {
+        let mut state = state_for_test_with_authorizer(authorizer).await;
+        state.internal_ops_guard = Arc::new(internal_ops_guard);
+        app_with_state(state)
+    }
+
     async fn app_for_test_with_authorizer_and_moderation_service(
         authorizer: Arc<dyn Authorizer>,
         moderation_service: Arc<dyn ModerationService>,
@@ -3242,6 +3254,33 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn auth_metrics_endpoint_returns_unavailable_when_internal_secret_is_unconfigured() {
+        let app = app_for_test_with_authorizer_and_internal_ops_guard(
+            Arc::new(StaticAllowAllAuthorizer),
+            InternalOpsGuard {
+                shared_secret: None,
+            },
+        )
+        .await;
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/internal/auth/metrics")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "INTERNAL_OPS_UNAVAILABLE");
+    }
+
+    #[tokio::test]
     async fn internal_authz_metrics_endpoint_rejects_missing_internal_secret() {
         let app = app_for_test().await;
         let response = app
@@ -3282,6 +3321,34 @@ mod tests {
         assert!(json.get("allow_total").is_some());
         assert!(json.get("deny_total").is_some());
         assert!(json.get("unavailable_total").is_some());
+    }
+
+    #[tokio::test]
+    async fn internal_authz_metrics_endpoint_returns_unavailable_when_internal_secret_is_unconfigured(
+    ) {
+        let app = app_for_test_with_authorizer_and_internal_ops_guard(
+            Arc::new(StaticAllowAllAuthorizer),
+            InternalOpsGuard {
+                shared_secret: None,
+            },
+        )
+        .await;
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/internal/authz/metrics")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "INTERNAL_OPS_UNAVAILABLE");
     }
 
     #[tokio::test]
@@ -3390,6 +3457,111 @@ mod tests {
             .unwrap();
         let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
         assert_eq!(json["evictedKeys"], 0);
+    }
+
+    #[tokio::test]
+    async fn internal_authz_cache_invalidate_rejects_malformed_json() {
+        let app = app_for_test().await;
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method(Method::POST)
+                    .uri("/internal/authz/cache/invalidate")
+                    .header(
+                        INTERNAL_OPS_SHARED_SECRET_HEADER,
+                        TEST_INTERNAL_OPS_SECRET,
+                    )
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"kind":"guild_role_changed""#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "AUTHZ_CACHE_INVALIDATION_INVALID");
+    }
+
+    #[tokio::test]
+    async fn internal_authz_cache_invalidate_rejects_unknown_kind() {
+        let app = app_for_test().await;
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method(Method::POST)
+                    .uri("/internal/authz/cache/invalidate")
+                    .header(
+                        INTERNAL_OPS_SHARED_SECRET_HEADER,
+                        TEST_INTERNAL_OPS_SECRET,
+                    )
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"kind":"unexpected_kind","guild_id":10}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "AUTHZ_CACHE_INVALIDATION_INVALID");
+    }
+
+    #[tokio::test]
+    async fn internal_authz_cache_invalidate_rejects_missing_required_field() {
+        let app = app_for_test().await;
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method(Method::POST)
+                    .uri("/internal/authz/cache/invalidate")
+                    .header(
+                        INTERNAL_OPS_SHARED_SECRET_HEADER,
+                        TEST_INTERNAL_OPS_SECRET,
+                    )
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"kind":"guild_role_changed"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "AUTHZ_CACHE_INVALIDATION_INVALID");
+    }
+
+    #[tokio::test]
+    async fn internal_authz_metrics_preflight_does_not_expose_browser_cors_headers() {
+        let app = app_for_test().await;
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method(Method::OPTIONS)
+                    .uri("/internal/authz/metrics")
+                    .header(ORIGIN, "https://evil.example")
+                    .header(ACCESS_CONTROL_REQUEST_METHOD, "GET")
+                    .header(
+                        ACCESS_CONTROL_REQUEST_HEADERS,
+                        INTERNAL_OPS_SHARED_SECRET_HEADER,
+                    )
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert!(!response.headers().contains_key("access-control-allow-origin"));
+        assert!(!response.headers().contains_key("access-control-allow-headers"));
     }
 
     #[tokio::test]
