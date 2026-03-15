@@ -40,7 +40,12 @@
   - `tsc` が見つからず停止。`node_modules` 未配置の環境起因
 
 ## Review gate
-- pending
+- `reviewer_simple`
+  - pass
+  - actionable findings: none
+- `reviewer_ui_guard`
+  - skipped
+  - rationale: frontend UI 変更なし
 
 ## Runtime smoke
 - pass
