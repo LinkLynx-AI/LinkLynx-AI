@@ -41,7 +41,9 @@ Out of scope:
 
 | route surface | class | degraded behavior |
 | --- | --- | --- |
+| `GET /v1/guilds/{guild_id}/invites` | `high-risk abuse surface` | fail-close |
 | `GET /v1/guilds/{guild_id}/invites/{invite_code}` | `high-risk abuse surface` | fail-close |
+| `DELETE /v1/guilds/{guild_id}/invites/{invite_code}` | `high-risk abuse surface` | fail-close |
 | `PATCH /v1/moderation/guilds/{guild_id}/members/{member_id}` | `high-risk abuse surface` | fail-close |
 | `POST /v1/guilds/{guild_id}/channels/{channel_id}/messages` | `core write path` | degraded fail-open (L1 only) |
 | `POST /v1/dms/{channel_id}/messages` | `core write path` | degraded fail-open (L1 only) |
@@ -50,7 +52,9 @@ Out of scope:
 
 | route surface | rate-limit action | deny / limited reason | required reject log fields |
 | --- | --- | --- | --- |
+| `GET /v1/guilds/{guild_id}/invites` | `InviteAccess` | `rate_limit_exceeded` / `dragonfly_degraded_fail_close` | `request_id`, `reason`, `principal_id`, `guild_id`, `resource`, `action`, `decision_source` |
 | `GET /v1/guilds/{guild_id}/invites/{invite_code}` | `InviteAccess` | `rate_limit_exceeded` / `dragonfly_degraded_fail_close` | `request_id`, `reason`, `principal_id?`, `guild_id`, `resource`, `action`, `decision_source` |
+| `DELETE /v1/guilds/{guild_id}/invites/{invite_code}` | `InviteAccess` | `rate_limit_exceeded` / `dragonfly_degraded_fail_close` | `request_id`, `reason`, `principal_id`, `guild_id`, `resource`, `action`, `decision_source` |
 | `POST /v1/invites/{invite_code}/join` | `InviteAccess` | `rate_limit_exceeded` / `dragonfly_degraded_fail_close` | `request_id`, `reason`, `principal_id`, `resource`, `action`, `decision_source` |
 | `PATCH /v1/moderation/guilds/{guild_id}/members/{member_id}` | `ModerationAction` | `rate_limit_exceeded` / `dragonfly_degraded_fail_close` | `request_id`, `reason`, `principal_id`, `guild_id`, `resource`, `action`, `decision_source` |
 | `POST /v1/guilds/{guild_id}/channels/{channel_id}/messages` | `MessageCreate` | `rate_limit_exceeded` only after L1 exhaustion | `request_id`, `reason`, `principal_id`, `guild_id`, `channel_id`, `resource`, `action`, `decision_source` |

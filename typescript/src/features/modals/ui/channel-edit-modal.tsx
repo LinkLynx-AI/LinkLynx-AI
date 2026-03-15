@@ -20,11 +20,13 @@ export function ChannelEditModal({
   channelId,
   channelName,
   channelType,
+  serverId,
 }: {
   onClose: () => void;
   channelId?: string;
   channelName?: string;
   channelType?: number;
+  serverId?: string;
 }) {
   const [activeTab, setActiveTab] = useState("overview");
   const title =
@@ -45,7 +47,9 @@ export function ChannelEditModal({
           <ChannelEditOverview channelId={channelId} onSaved={onClose} />
         )}
         {activeTab === "permissions" && <ChannelEditPermissions channelId={channelId} />}
-        {activeTab === "invites" && <ChannelEditInvites channelId={channelId} />}
+        {activeTab === "invites" && (
+          <ChannelEditInvites serverId={serverId} channelId={channelId} />
+        )}
         {activeTab === "integrations" && <ChannelEditIntegrations channelId={channelId} />}
       </ModalBody>
     </Modal>

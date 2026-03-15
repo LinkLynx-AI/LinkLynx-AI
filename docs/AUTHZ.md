@@ -292,4 +292,4 @@ v0 での認可関連 SoR:
   - `guild:manage-settings` -> server settings modal
   - `guild:moderate` -> moderation queue / moderation report detail / resolve / reopen / mute
   - `channel:manage` -> channel context menu の edit/delete / channel item settings shortcut / channel edit overview / channel delete modal
-- invite 作成は real API/client 実装済み。invite 一覧/取消は引き続き mock 実装のため別 issue で扱う。
+- invite 作成に加えて、invite 一覧/取消も real API/client 実装済み。invite は引き続き guild-scope 管理とし、channel 固有 list は持たない。

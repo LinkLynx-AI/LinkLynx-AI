@@ -1,12 +1,3 @@
-export type Invite = {
-  code: string;
-  channelName: string;
-  creatorUsername: string;
-  creatorAvatar: string | null;
-  uses: number;
-  maxUses: number | null;
-  expiresAt: string | null;
-  createdAt: string;
-};
+import type { InviteListItem } from "../../api-client";
 
-export const mockInvites: Invite[] = [];
+export const mockInvites: InviteListItem[] = [];

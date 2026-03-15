@@ -115,7 +115,19 @@ export type Invite = {
   channel: Channel;
   expiresAt: string | null;
   uses: number;
-  maxUses: number;
+  maxUses: number | null;
+};
+
+export type InviteListItem = {
+  code: string;
+  creator: {
+    id: string;
+    displayName: string;
+  } | null;
+  expiresAt: string | null;
+  uses: number;
+  maxUses: number | null;
+  createdAt: string;
 };
 
 export type Role = {
@@ -283,8 +295,8 @@ export type APIClient = {
 
   // Invites
   createInvite(serverId: string, channelId: string, data: CreateInviteData): Promise<Invite>;
-  getInvites(serverId: string): Promise<Invite[]>;
-  revokeInvite(inviteCode: string): Promise<void>;
+  getInvites(serverId: string): Promise<InviteListItem[]>;
+  revokeInvite(serverId: string, inviteCode: string): Promise<void>;
 
   // Roles
   getRoles(serverId: string): Promise<Role[]>;

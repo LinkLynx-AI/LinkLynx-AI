@@ -4,6 +4,7 @@ pub enum InviteErrorKind {
     Validation,
     NotFound,
     ChannelNotFound,
+    InviteNotFound,
     Forbidden,
     InvalidInvite,
     ExpiredInvite,
@@ -47,6 +48,17 @@ impl InviteError {
     pub fn channel_not_found(reason: impl Into<String>) -> Self {
         Self {
             kind: InviteErrorKind::ChannelNotFound,
+            reason: reason.into(),
+        }
+    }
+
+    /// invite未存在エラーを生成する。
+    /// @param reason 失敗理由
+    /// @returns invite未存在エラー
+    /// @throws なし
+    pub fn invite_not_found(reason: impl Into<String>) -> Self {
+        Self {
+            kind: InviteErrorKind::InviteNotFound,
             reason: reason.into(),
         }
     }
@@ -104,6 +116,7 @@ impl InviteError {
             InviteErrorKind::Validation => StatusCode::BAD_REQUEST,
             InviteErrorKind::NotFound => StatusCode::NOT_FOUND,
             InviteErrorKind::ChannelNotFound => StatusCode::NOT_FOUND,
+            InviteErrorKind::InviteNotFound => StatusCode::NOT_FOUND,
             InviteErrorKind::Forbidden => StatusCode::FORBIDDEN,
             InviteErrorKind::InvalidInvite | InviteErrorKind::ExpiredInvite => StatusCode::CONFLICT,
             InviteErrorKind::DependencyUnavailable => StatusCode::SERVICE_UNAVAILABLE,
@@ -119,6 +132,7 @@ impl InviteError {
             InviteErrorKind::Validation => "VALIDATION_ERROR",
             InviteErrorKind::NotFound => "GUILD_NOT_FOUND",
             InviteErrorKind::ChannelNotFound => "CHANNEL_NOT_FOUND",
+            InviteErrorKind::InviteNotFound => "INVITE_NOT_FOUND",
             InviteErrorKind::Forbidden => "AUTHZ_DENIED",
             InviteErrorKind::InvalidInvite => "INVITE_INVALID",
             InviteErrorKind::ExpiredInvite => "INVITE_EXPIRED",
@@ -135,6 +149,7 @@ impl InviteError {
             InviteErrorKind::Validation => "request payload is invalid",
             InviteErrorKind::NotFound => "guild resource was not found",
             InviteErrorKind::ChannelNotFound => "channel resource was not found",
+            InviteErrorKind::InviteNotFound => "invite resource was not found",
             InviteErrorKind::Forbidden => "access is denied by authorization policy",
             InviteErrorKind::InvalidInvite => "invite is invalid",
             InviteErrorKind::ExpiredInvite => "invite is expired",
