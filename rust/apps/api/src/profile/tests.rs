@@ -290,6 +290,18 @@ mod tests {
     }
 
     #[test]
+    fn normalize_profile_media_content_type_rejects_unallowed_svg() {
+        let result = normalize_profile_media_content_type("image/svg+xml");
+        assert!(matches!(
+            result,
+            Err(ProfileError {
+                kind: ProfileErrorKind::Validation,
+                reason,
+            }) if reason == "profile_media_content_type_not_allowed"
+        ));
+    }
+
+    #[test]
     fn validate_profile_media_content_type_filename_match_rejects_known_mismatch() {
         let result = validate_profile_media_content_type_filename_match("image/png", "avatar.jpg");
         assert!(matches!(
@@ -303,9 +315,35 @@ mod tests {
 
     #[test]
     fn validate_profile_media_content_type_filename_match_allows_unknown_extension() {
-        let result =
-            validate_profile_media_content_type_filename_match("image/svg+xml", "avatar.svg");
+        let result = validate_profile_media_content_type_filename_match("image/png", "avatar.bin");
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn validate_profile_media_size_bytes_rejects_oversized_avatar() {
+        let result = validate_profile_media_size_bytes(
+            ProfileMediaTarget::Avatar,
+            PROFILE_MEDIA_AVATAR_MAX_SIZE_BYTES + 1,
+        );
+        assert!(matches!(
+            result,
+            Err(ProfileError {
+                kind: ProfileErrorKind::Validation,
+                reason,
+            }) if reason == "profile_media_size_too_large"
+        ));
+    }
+
+    #[test]
+    fn validate_profile_media_size_bytes_rejects_zero_size() {
+        let result = validate_profile_media_size_bytes(ProfileMediaTarget::Banner, 0);
+        assert!(matches!(
+            result,
+            Err(ProfileError {
+                kind: ProfileErrorKind::Validation,
+                reason,
+            }) if reason == "profile_media_size_invalid"
+        ));
     }
 
     #[test]
@@ -360,11 +398,27 @@ iYQwLAtAPWEfPJcpkZ60iaDeUtuTrckLBIMfINHXC6+ltIfxFa4VdNTyLkKen9Tt
                     target: ProfileMediaTarget::Banner,
                     filename: "banner image.png".to_owned(),
                     content_type: "image/png".to_owned(),
+                    size_bytes: 1_048_576,
                 },
             ))
             .unwrap();
         assert!(upload.object_key.contains("/profile/banner/asset/"));
         assert!(upload.upload_url.contains("X-Goog-Signature="));
+        assert!(
+            upload.upload_url.contains("X%2DGoog%2DSignedHeaders="),
+            "{}",
+            upload.upload_url
+        );
+        assert!(
+            upload.upload_url.contains("content%2Dlength"),
+            "{}",
+            upload.upload_url
+        );
+        assert!(
+            upload.upload_url.contains("content%2Dtype"),
+            "{}",
+            upload.upload_url
+        );
         assert!(upload.required_headers.contains_key("content-type"));
     }
 }

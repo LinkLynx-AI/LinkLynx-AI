@@ -58,6 +58,7 @@ v0/tenant/default/user/{user_id}/profile/{avatar|banner}/asset/{asset_id}/{filen
 3. `POST /users/me/profile/media/upload-url` issues a key and signed upload URL, but does not persist the key.
 4. `PATCH /users/me/profile` is the only API that persists `avatar_key` / `banner_key`.
 5. `GET /users/me/profile/media/{target}/download-url` resolves the currently persisted key for the caller and issues a short-lived download URL.
+6. An uploaded object that never reaches a successful `PATCH /users/me/profile` is treated as an orphan candidate and must be cleaned up via the profile media runbook while preserving LIN-590 recoverability.
 
 ## 4. Signed URL policy
 
@@ -70,8 +71,16 @@ v0/tenant/default/user/{user_id}/profile/{avatar|banner}/asset/{asset_id}/{filen
 
 1. Upload uses direct `PUT`.
 2. Signed URLs are generated on demand and are never reused after expiration.
-3. Public-read fallback is prohibited.
-4. If bucket configuration or signer credentials are unavailable, the API must fail closed with service-unavailable semantics.
+3. Upload signed URL binds the requested `content_type` and exact `content_length` (`size_bytes`) to the issued contract.
+4. Public-read fallback is prohibited.
+5. If bucket configuration or signer credentials are unavailable, the API must fail closed with service-unavailable semantics.
+
+### 4.3 Allowed MIME and size limits
+
+| target | allowed MIME types | max upload size |
+| --- | --- | --- |
+| `avatar` | `image/png`, `image/jpeg`, `image/gif`, `image/webp`, `image/avif` | `2 MiB` |
+| `banner` | `image/png`, `image/jpeg`, `image/gif`, `image/webp`, `image/avif` | `6 MiB` |
 
 ## 5. API contract summary
 
@@ -82,7 +91,10 @@ v0/tenant/default/user/{user_id}/profile/{avatar|banner}/asset/{asset_id}/{filen
   - `target`
   - `filename`
   - `content_type`
+  - `size_bytes`
   - known image extensions must stay consistent with the requested `content_type`
+  - `content_type` must stay within the fixed allowlist; `image/svg+xml` and other non-allowlisted formats are rejected before URL issuance
+  - `size_bytes` must stay within the target-specific maximum
 - Response:
   - `object_key`
   - `upload_url`
@@ -101,7 +113,7 @@ v0/tenant/default/user/{user_id}/profile/{avatar|banner}/asset/{asset_id}/{filen
 ## 6. Error contract
 
 - `VALIDATION_ERROR`
-  - invalid `target`, `filename`, `content_type`, or invalid persisted object key format
+  - invalid `target`, `filename`, `content_type`, `size_bytes`, or invalid persisted object key format
 - `PROFILE_MEDIA_NOT_FOUND`
   - caller has no persisted key for the requested target
 - `PROFILE_MEDIA_UNAVAILABLE`

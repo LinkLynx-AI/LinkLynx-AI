@@ -3,6 +3,8 @@ const PROFILE_MEDIA_TENANT_SEGMENT: &str = "default";
 const PROFILE_MEDIA_SIGNED_URL_TTL_SECONDS: i64 = 300;
 const PROFILE_MEDIA_MAX_FILENAME_CHARS: usize = 255;
 const PROFILE_MEDIA_MAX_CONTENT_TYPE_CHARS: usize = 255;
+const PROFILE_MEDIA_AVATAR_MAX_SIZE_BYTES: u64 = 2 * 1024 * 1024;
+const PROFILE_MEDIA_BANNER_MAX_SIZE_BYTES: u64 = 6 * 1024 * 1024;
 const GCS_SIGNED_URL_HOST: &str = "storage.googleapis.com";
 const GCP_METADATA_EMAIL_URL: &str =
     "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/email";
@@ -50,6 +52,7 @@ pub struct ProfileMediaUploadInput {
     pub target: ProfileMediaTarget,
     pub filename: String,
     pub content_type: String,
+    pub size_bytes: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -277,10 +280,16 @@ impl GcsSignedUrlSigner {
     ) -> Result<ProfileMediaUpload, ProfileError> {
         let normalized_filename = sanitize_profile_media_filename(&input.filename)?;
         let normalized_content_type = normalize_profile_media_content_type(&input.content_type)?;
+        validate_profile_media_size_bytes(input.target, input.size_bytes)?;
         validate_profile_media_content_type_filename_match(
             &normalized_content_type,
             &normalized_filename,
         )?;
+        let content_length = input.size_bytes.to_string();
+        let signed_headers = [
+            ("content-length", content_length.as_str()),
+            ("content-type", normalized_content_type.as_str()),
+        ];
         let asset_id = uuid::Uuid::new_v4().to_string();
         let object_key = format!(
             "v0/tenant/{}/user/{}/profile/{}/asset/{}/{}",
@@ -291,11 +300,7 @@ impl GcsSignedUrlSigner {
             normalized_filename,
         );
         let signed = self
-            .signed_url(
-            "PUT",
-            &object_key,
-            Some(("content-type", normalized_content_type.as_str())),
-            )
+            .signed_url("PUT", &object_key, &signed_headers)
             .await?;
 
         let mut required_headers = std::collections::BTreeMap::new();
@@ -321,7 +326,7 @@ impl GcsSignedUrlSigner {
         target: ProfileMediaTarget,
         object_key: String,
     ) -> Result<ProfileMediaDownload, ProfileError> {
-        let signed = self.signed_url("GET", &object_key, None).await?;
+        let signed = self.signed_url("GET", &object_key, &[]).await?;
         Ok(ProfileMediaDownload {
             target,
             object_key,
@@ -340,7 +345,7 @@ impl GcsSignedUrlSigner {
         &self,
         method: &str,
         object_key: &str,
-        content_type: Option<(&str, &str)>,
+        signed_headers: &[(&str, &str)],
     ) -> Result<SignedUrlArtifact, ProfileError> {
         let now = time::OffsetDateTime::now_utc();
         let datestamp = format!(
@@ -381,7 +386,7 @@ impl GcsSignedUrlSigner {
         ];
 
         let mut canonical_headers = vec![("host".to_owned(), GCS_SIGNED_URL_HOST.to_owned())];
-        if let Some((header_name, header_value)) = content_type {
+        for &(header_name, header_value) in signed_headers {
             canonical_headers.push((header_name.to_owned(), header_value.to_owned()));
         }
         canonical_headers.sort_by(|left, right| left.0.cmp(&right.0));
@@ -525,6 +530,12 @@ fn normalize_profile_media_content_type(raw_content_type: &str) -> Result<String
     {
         return Err(ProfileError::validation("profile_media_content_type_invalid"));
     }
+    if !matches!(
+        normalized.as_str(),
+        "image/png" | "image/jpeg" | "image/gif" | "image/webp" | "image/avif"
+    ) {
+        return Err(ProfileError::validation("profile_media_content_type_not_allowed"));
+    }
 
     Ok(normalized)
 }
@@ -560,6 +571,36 @@ fn validate_profile_media_content_type_filename_match(
     }
 
     Ok(())
+}
+
+/// profile media size を target ごとの上限で検証する。
+/// @param target 画像種別
+/// @param size_bytes 要求サイズ(bytes)
+/// @returns 上限内なら `Ok(())`
+/// @throws ProfileError サイズ未設定または上限超過時
+fn validate_profile_media_size_bytes(
+    target: ProfileMediaTarget,
+    size_bytes: u64,
+) -> Result<(), ProfileError> {
+    if size_bytes == 0 {
+        return Err(ProfileError::validation("profile_media_size_invalid"));
+    }
+    if size_bytes > profile_media_max_size_bytes(target) {
+        return Err(ProfileError::validation("profile_media_size_too_large"));
+    }
+
+    Ok(())
+}
+
+/// profile media target ごとのサイズ上限を返す。
+/// @param target 画像種別
+/// @returns 最大サイズ(bytes)
+/// @throws なし
+fn profile_media_max_size_bytes(target: ProfileMediaTarget) -> u64 {
+    match target {
+        ProfileMediaTarget::Avatar => PROFILE_MEDIA_AVATAR_MAX_SIZE_BYTES,
+        ProfileMediaTarget::Banner => PROFILE_MEDIA_BANNER_MAX_SIZE_BYTES,
+    }
 }
 
 #[derive(Deserialize)]
