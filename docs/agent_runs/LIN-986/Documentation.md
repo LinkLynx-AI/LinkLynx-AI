@@ -1,8 +1,8 @@
 # Documentation.md (Status / audit log)
 
 ## Current status
-- Now: 実装・targeted tests・repo gate・docs 更新まで完了し、PR 作成直前。
-- Next: PR を作成して `LIN-986` を `In Review` へ進める。
+- Now: PR `#1249` を作成し、`LIN-986` を review へ進める段階。
+- Next: Linear を `In Review` へ更新し、human review 待ちにする。
 
 ## Decisions
 - identify rate-limit key は active ws-ticket から principal を引ける場合は principal 単位、引けない場合は session 単位へフォールバックする方針で進める。
@@ -28,6 +28,11 @@
 ## Review / UI gate
 - `reviewer_ui_guard`: pass, UI review not required because the diff touched Rust backend and docs only.
 - `reviewer`: no blocking finding reported. Manual spot check confirmed the diff stayed within LIN-986 scope.
+
+## PR
+- URL: https://github.com/LinkLynx-AI/LinkLynx-AI/pull/1249
+- Base branch: `main`
+- Merge policy: `main` 向けのため auto-merge は設定せず human review 待ち
 
 ## Known issues / follow-ups
 - handshake 前段の接続数 cap や message/frame size cap は別 issue (`LIN-992`, `LIN-993`) で対応する。
