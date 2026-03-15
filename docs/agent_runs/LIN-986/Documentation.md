@@ -1,8 +1,8 @@
 # Documentation.md (Status / audit log)
 
 ## Current status
-- Now: `auth.identify` の rate-limit key を origin 共有から principal/session scoped へ切り替え、targeted tests と docs 更新まで完了。
-- Next: lint / review / PR 作成と Linear の review 遷移を行う。
+- Now: 実装・targeted tests・repo gate・docs 更新まで完了し、PR 作成直前。
+- Next: PR を作成して `LIN-986` を `In Review` へ進める。
 
 ## Decisions
 - identify rate-limit key は active ws-ticket から principal を引ける場合は principal 単位、引けない場合は session 単位へフォールバックする方針で進める。
@@ -20,6 +20,14 @@
 ## Validation log
 - 2026-03-15: `cd rust && cargo test -p linklynx_backend identify_rate_limit_key_ -- --nocapture` pass
 - 2026-03-15: `cd rust && cargo test -p linklynx_backend ws_identify_rate_limit_ -- --ignored --nocapture` pass
+- 2026-03-15: `make rust-lint` pass
+- 2026-03-15: `git diff --check` pass
+- 2026-03-15: `make validate` failed because `typescript/node_modules` was absent and `prettier` was not installed in this worktree
+- 2026-03-15: `cd typescript && npm run typecheck` failed because `typescript/node_modules` was absent and `tsc` was not installed in this worktree
+
+## Review / UI gate
+- `reviewer_ui_guard`: pass, UI review not required because the diff touched Rust backend and docs only.
+- `reviewer`: no blocking finding reported. Manual spot check confirmed the diff stayed within LIN-986 scope.
 
 ## Known issues / follow-ups
 - handshake 前段の接続数 cap や message/frame size cap は別 issue (`LIN-992`, `LIN-993`) で対応する。
