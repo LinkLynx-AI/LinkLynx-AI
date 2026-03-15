@@ -2011,6 +2011,18 @@ mod tests {
         app_with_state(state)
     }
 
+    async fn app_for_test_with_authorizer_and_ws_identify_limit(
+        authorizer: Arc<dyn Authorizer>,
+        max_requests: u32,
+    ) -> Router {
+        let mut state = state_for_test_with_authorizer(authorizer).await;
+        state.ws_identify_rate_limiter = Arc::new(FixedWindowRateLimiter::new(
+            max_requests,
+            Duration::from_secs(60),
+        ));
+        app_with_state(state)
+    }
+
     async fn app_for_test_with_authorizer_and_moderation_service(
         authorizer: Arc<dyn Authorizer>,
         moderation_service: Arc<dyn ModerationService>,
@@ -2356,9 +2368,81 @@ mod tests {
         socket
     }
 
+    async fn connect_test_ws_without_authorization(
+        address: SocketAddr,
+        origin: Option<&str>,
+    ) -> TestWsStream {
+        let mut request = format!("ws://{address}/ws").into_client_request().unwrap();
+        if let Some(origin) = origin {
+            request
+                .headers_mut()
+                .insert(ORIGIN, origin.parse().unwrap());
+        }
+
+        let (socket, _) = connect_async(request).await.unwrap();
+        socket
+    }
+
     async fn connect_test_ws_at(address: SocketAddr, uid: &str) -> TestWsStream {
         let token = format!("{uid}:{}", unix_timestamp_seconds() + 300);
         connect_test_ws_with_authorization(address, Some(&format!("Bearer {token}"))).await
+    }
+
+    async fn issue_test_ws_ticket(address: SocketAddr, uid: &str) -> String {
+        let token = format!("{uid}:{}", unix_timestamp_seconds() + 300);
+        let response = reqwest::Client::new()
+            .post(format!("http://{address}/auth/ws-ticket"))
+            .header("authorization", format!("Bearer {token}"))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status(), reqwest::StatusCode::OK);
+        let json = response.json::<serde_json::Value>().await.unwrap();
+        json["ticket"].as_str().unwrap().to_owned()
+    }
+
+    async fn send_identify_ticket(socket: &mut TestWsStream, ticket: &str) {
+        let payload = serde_json::json!({
+            "type": "auth.identify",
+            "d": {
+                "method": "ticket",
+                "ticket": ticket,
+            }
+        })
+        .to_string();
+        socket
+            .send(WsClientMessage::Text(payload.into()))
+            .await
+            .unwrap();
+    }
+
+    async fn expect_ws_json_message(socket: &mut TestWsStream) -> serde_json::Value {
+        loop {
+            let response = timeout(Duration::from_secs(2), socket.next())
+                .await
+                .unwrap()
+                .unwrap()
+                .unwrap();
+            match response {
+                WsClientMessage::Text(text) => {
+                    return serde_json::from_str::<serde_json::Value>(&text).unwrap();
+                }
+                WsClientMessage::Ping(_) | WsClientMessage::Pong(_) => continue,
+                other => panic!("expected text frame, got {other:?}"),
+            }
+        }
+    }
+
+    async fn expect_ws_close_reason(socket: &mut TestWsStream) -> (CloseCode, String) {
+        let response = timeout(Duration::from_secs(2), socket.next())
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
+        match response {
+            WsClientMessage::Close(Some(frame)) => (frame.code, frame.reason.to_string()),
+            other => panic!("expected close frame, got {other:?}"),
+        }
     }
 
     async fn subscribe_test_channel(
@@ -5347,6 +5431,114 @@ mod tests {
             .unwrap();
 
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn identify_rate_limit_key_uses_ticket_principal_when_ticket_is_active() {
+        let state = state_for_test_with_authorizer(Arc::new(StaticAllowAllAuthorizer)).await;
+        let principal = AuthenticatedPrincipal {
+            principal_id: PrincipalId(4321),
+            firebase_uid: "u-identify".to_owned(),
+            expires_at_epoch: unix_timestamp_seconds() + 300,
+        };
+        let issued = state
+            .ws_ticket_store
+            .issue_ticket(principal, Duration::from_secs(60))
+            .await;
+
+        let key = identify_rate_limit_key(&state, "session-1", &issued.ticket).await;
+
+        assert_eq!(key.value, "identify:principal:4321");
+        assert_eq!(key.source, "ticket_principal");
+        assert_eq!(key.scope, "principal:4321");
+    }
+
+    #[tokio::test]
+    async fn identify_rate_limit_key_falls_back_to_session_when_ticket_is_unknown() {
+        let state = state_for_test_with_authorizer(Arc::new(StaticAllowAllAuthorizer)).await;
+
+        let key = identify_rate_limit_key(&state, "session-xyz", "unknown-ticket").await;
+
+        assert_eq!(key.value, "identify:session:session-xyz");
+        assert_eq!(key.source, "session_id_fallback");
+        assert_eq!(key.scope, "session:session-xyz");
+    }
+
+    #[tokio::test]
+    #[ignore = "requires TCP bind; sandbox denies listeners"]
+    async fn ws_identify_rate_limit_scopes_by_principal_for_same_origin() {
+        let app = app_for_test_with_authorizer_and_ws_identify_limit(
+            Arc::new(StaticAllowAllAuthorizer),
+            2,
+        )
+        .await;
+        let (address, server) = spawn_test_server(app).await;
+        let first_user_ticket_1 = issue_test_ws_ticket(address, "u-1").await;
+        let first_user_ticket_2 = issue_test_ws_ticket(address, "u-1").await;
+        let first_user_ticket_3 = issue_test_ws_ticket(address, "u-1").await;
+        let second_user_ticket = issue_test_ws_ticket(address, "u-3").await;
+
+        let mut first_socket =
+            connect_test_ws_without_authorization(address, Some("http://localhost:3000")).await;
+        send_identify_ticket(&mut first_socket, &first_user_ticket_1).await;
+        let first_ready = expect_ws_json_message(&mut first_socket).await;
+        assert_eq!(first_ready["type"], "auth.ready");
+        assert_eq!(first_ready["d"]["principalId"], 1001);
+
+        let mut second_socket =
+            connect_test_ws_without_authorization(address, Some("http://localhost:3000")).await;
+        send_identify_ticket(&mut second_socket, &first_user_ticket_2).await;
+        let second_ready = expect_ws_json_message(&mut second_socket).await;
+        assert_eq!(second_ready["type"], "auth.ready");
+        assert_eq!(second_ready["d"]["principalId"], 1001);
+
+        let mut blocked_socket =
+            connect_test_ws_without_authorization(address, Some("http://localhost:3000")).await;
+        send_identify_ticket(&mut blocked_socket, &first_user_ticket_3).await;
+        let (blocked_code, blocked_reason) = expect_ws_close_reason(&mut blocked_socket).await;
+        assert_eq!(blocked_code, CloseCode::Policy);
+        assert_eq!(blocked_reason, "identify_rate_limited");
+
+        let mut unaffected_socket =
+            connect_test_ws_without_authorization(address, Some("http://localhost:3000")).await;
+        send_identify_ticket(&mut unaffected_socket, &second_user_ticket).await;
+        let unaffected_ready = expect_ws_json_message(&mut unaffected_socket).await;
+        assert_eq!(unaffected_ready["type"], "auth.ready");
+        assert_eq!(unaffected_ready["d"]["principalId"], 1003);
+
+        let _ = first_socket.close(None).await;
+        let _ = second_socket.close(None).await;
+        let _ = unaffected_socket.close(None).await;
+        server.abort();
+    }
+
+    #[tokio::test]
+    #[ignore = "requires TCP bind; sandbox denies listeners"]
+    async fn ws_identify_rate_limit_scopes_by_session_when_origin_is_missing() {
+        let app = app_for_test_with_authorizer_and_ws_identify_limit(
+            Arc::new(StaticAllowAllAuthorizer),
+            1,
+        )
+        .await;
+        let (address, server) = spawn_test_server(app).await;
+        let first_ticket = issue_test_ws_ticket(address, "u-1").await;
+        let second_ticket = issue_test_ws_ticket(address, "u-3").await;
+
+        let mut first_socket = connect_test_ws_without_authorization(address, None).await;
+        send_identify_ticket(&mut first_socket, &first_ticket).await;
+        let first_ready = expect_ws_json_message(&mut first_socket).await;
+        assert_eq!(first_ready["type"], "auth.ready");
+        assert_eq!(first_ready["d"]["principalId"], 1001);
+
+        let mut second_socket = connect_test_ws_without_authorization(address, None).await;
+        send_identify_ticket(&mut second_socket, &second_ticket).await;
+        let second_ready = expect_ws_json_message(&mut second_socket).await;
+        assert_eq!(second_ready["type"], "auth.ready");
+        assert_eq!(second_ready["d"]["principalId"], 1003);
+
+        let _ = first_socket.close(None).await;
+        let _ = second_socket.close(None).await;
+        server.abort();
     }
 
     #[tokio::test]
