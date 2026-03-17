@@ -1525,6 +1525,7 @@ struct ProfileMediaUploadUrlRequest {
     target: String,
     filename: String,
     content_type: String,
+    size_bytes: u64,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1848,6 +1849,7 @@ fn parse_profile_media_upload_payload(
         target: profile::ProfileMediaTarget::parse(payload.target.as_str())?,
         filename: payload.filename,
         content_type: payload.content_type,
+        size_bytes: payload.size_bytes,
     })
 }
 
@@ -2900,13 +2902,26 @@ async fn issue_my_profile_media_upload_url(
         Ok(value) => value,
         Err(error) => return profile_error_response(&error, request_id),
     };
+    let requested_size_bytes = input.size_bytes;
+    let requested_content_type = input.content_type.clone();
 
     match state
         .profile_media_service
         .issue_upload_url(auth_context.principal_id, input)
         .await
     {
-        Ok(upload) => Json(ProfileMediaUploadUrlResponse { upload }).into_response(),
+        Ok(upload) => {
+            tracing::info!(
+                request_id = %request_id,
+                principal_id = auth_context.principal_id.0,
+                target = %upload.target.as_key_segment(),
+                object_key = %upload.object_key,
+                content_type = %requested_content_type,
+                size_bytes = requested_size_bytes,
+                "profile media upload url issued"
+            );
+            Json(ProfileMediaUploadUrlResponse { upload }).into_response()
+        }
         Err(error) => profile_error_response(&error, request_id),
     }
 }
@@ -2933,7 +2948,16 @@ async fn get_my_profile_media_download_url(
         .issue_download_url(auth_context.principal_id, target)
         .await
     {
-        Ok(media) => Json(ProfileMediaDownloadUrlResponse { media }).into_response(),
+        Ok(media) => {
+            tracing::info!(
+                request_id = %request_id,
+                principal_id = auth_context.principal_id.0,
+                target = %media.target.as_key_segment(),
+                object_key = %media.object_key,
+                "profile media download url issued"
+            );
+            Json(ProfileMediaDownloadUrlResponse { media }).into_response()
+        }
         Err(error) => profile_error_response(&error, request_id),
     }
 }

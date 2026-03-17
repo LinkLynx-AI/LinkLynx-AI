@@ -6444,7 +6444,7 @@ mod tests {
                     .header("authorization", format!("Bearer {token}"))
                     .header("content-type", "application/json")
                     .body(Body::from(
-                        r#"{"target":"avatar","filename":"avatar.png","content_type":"image/png"}"#,
+                        r#"{"target":"avatar","filename":"avatar.png","content_type":"image/png","size_bytes":1048576}"#,
                     ))
                     .unwrap(),
             )

@@ -69,6 +69,7 @@ export type CreateMyProfileMediaUploadUrlInput = {
   target: ProfileMediaTarget;
   filename: string;
   contentType: string;
+  sizeBytes: number;
 };
 
 export type MyProfileMediaUpload = {

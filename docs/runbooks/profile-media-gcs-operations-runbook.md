@@ -1,7 +1,7 @@
 # Profile Media GCS Operations Runbook
 
 - Status: Draft
-- Last updated: 2026-03-08
+- Last updated: 2026-03-15
 - Owner scope: v0 profile avatar/banner binary operations baseline
 - References:
   - `database/contracts/lin939_profile_media_gcs_contract.md`
@@ -38,6 +38,9 @@ Out of scope:
 | Object key pattern | `v0/tenant/default/user/{user_id}/profile/{avatar\|banner}/asset/{asset_id}/{filename}` |
 | Upload method | `PUT` |
 | Object visibility | private only |
+| Allowed MIME | `image/png`, `image/jpeg`, `image/gif`, `image/webp`, `image/avif` |
+| Avatar max upload size | `2 MiB` |
+| Banner max upload size | `6 MiB` |
 
 ## 3. Environment prerequisites
 
@@ -73,13 +76,13 @@ Out of scope:
 
 - Authenticated user exists.
 - Runtime env is configured.
-- Requested `target`, `filename`, and `content_type` pass validation.
+- Requested `target`, `filename`, `content_type`, and `size_bytes` pass validation.
 
 ### 4.2 Steps
 
-1. Call `POST /users/me/profile/media/upload-url`.
+1. Call `POST /users/me/profile/media/upload-url` with `target`, `filename`, `content_type`, and `size_bytes`.
 2. Confirm response contains `object_key`, `upload_url`, `method=PUT`, `required_headers`, and `expires_at`.
-3. Upload the binary via signed `PUT`.
+3. Upload the binary via signed `PUT` with the same `content_type` and byte size used at issuance.
 4. Persist the returned `object_key` through `PATCH /users/me/profile`.
 5. Call `GET /users/me/profile/media/{target}/download-url`.
 6. Confirm the returned `object_key` matches the persisted key.
@@ -89,6 +92,7 @@ Out of scope:
 - Object upload succeeds.
 - Persisted key matches the downloaded target.
 - Download URL is reissued on demand and remains short-lived.
+- Upload request stays within the MIME allowlist and target-specific size limit.
 
 ## 5. Procedure B: Missing key triage
 
@@ -129,8 +133,27 @@ Out of scope:
 3. Do not attempt to reuse the expired URL.
 4. If expiration repeats abnormally, inspect client clock skew and retry timing.
 
-## 8. Change management notes
+## 8. Procedure E: Orphan upload cleanup
+
+### 8.1 Trigger
+
+- Signed `PUT` succeeded, but `PATCH /users/me/profile` failed or was abandoned and the uploaded `object_key` was never persisted.
+
+### 8.2 Steps
+
+1. Use the upload issuance `request_id`, `principal_id`, `target`, and `object_key` from API logs to identify the candidate object.
+2. Confirm `users.avatar_key` / `users.banner_key` does not reference the object key.
+3. If the key is still unpersisted, delete the object through the standard private-bucket path and rely on bucket versioning for LIN-590 recovery.
+4. Record the cleanup timestamp, object key, principal, and incident/request reference.
+
+### 8.3 Close conditions
+
+- The unpersisted object is removed from the live object namespace.
+- Cleanup evidence (`request_id`, `object_key`, `principal_id`, timestamp) is recorded.
+
+## 9. Change management notes
 
 1. Bucket split between avatar/banner is out of scope for v0 and requires a new contract update.
 2. TTL changes must stay aligned with LIN-590 or be explicitly superseded.
 3. Runtime/API changes must preserve `key persistence + signed URL reissue` as the display contract for LIN-886.
+4. MIME allowlist or target size-limit changes require both contract and runbook updates.

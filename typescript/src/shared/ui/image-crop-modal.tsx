@@ -24,8 +24,19 @@ function resolveCropMimeType(file: File): string {
   return file.type.startsWith("image/") ? file.type : "image/png";
 }
 
+function resolveCroppedBlobMimeType(blob: Blob, requestedType: string): string {
+  const normalizedBlobType = blob.type.trim().toLowerCase();
+  if (normalizedBlobType.startsWith("image/")) {
+    return normalizedBlobType;
+  }
+
+  return requestedType;
+}
+
 function resolveCropExtension(type: string): string {
   switch (type) {
+    case "image/avif":
+      return "avif";
     case "image/jpeg":
       return "jpg";
     case "image/webp":
@@ -145,10 +156,11 @@ export function ImageCropModal({
         onCrop({ file: sourceFile, url: imageUrl });
         return;
       }
+      const outputMimeType = resolveCroppedBlobMimeType(blob, mimeType);
 
       onCrop({
-        file: new File([blob], buildCroppedFileName(sourceFile, mimeType), {
-          type: mimeType,
+        file: new File([blob], buildCroppedFileName(sourceFile, outputMimeType), {
+          type: outputMimeType,
         }),
         url: URL.createObjectURL(blob),
       });

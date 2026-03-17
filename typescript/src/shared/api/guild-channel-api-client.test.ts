@@ -1009,6 +1009,7 @@ describe("GuildChannelAPIClient", () => {
       target: "avatar",
       filename: "avatar.png",
       contentType: "image/png",
+      sizeBytes: 1_048_576,
     });
 
     expect(upload).toEqual({
@@ -1030,6 +1031,7 @@ describe("GuildChannelAPIClient", () => {
         target: "avatar",
         filename: "avatar.png",
         content_type: "image/png",
+        size_bytes: 1_048_576,
       }),
     );
   });
