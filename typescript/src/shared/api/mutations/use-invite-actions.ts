@@ -18,8 +18,8 @@ export function useCreateInvite() {
       channelId: string;
       data: CreateInviteData;
     }) => api.createInvite(serverId, channelId, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["invites"] });
+    onSuccess: (_invite, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["invites", variables.serverId] });
     },
   });
 }
@@ -29,9 +29,10 @@ export function useRevokeInvite() {
   const api = getAPIClient();
 
   return useMutation({
-    mutationFn: (inviteCode: string) => api.revokeInvite(inviteCode),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["invites"] });
+    mutationFn: ({ serverId, inviteCode }: { serverId: string; inviteCode: string }) =>
+      api.revokeInvite(serverId, inviteCode),
+    onSuccess: (_result, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["invites", variables.serverId] });
     },
   });
 }

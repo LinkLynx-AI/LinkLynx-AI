@@ -69,6 +69,13 @@ struct ReadyMessageContext<'a> {
     reauth_deadline: &'a mut Option<Instant>,
 }
 
+#[derive(Debug, Clone)]
+struct IdentifyRateLimitKey {
+    value: String,
+    source: &'static str,
+    scope: String,
+}
+
 /// WS接続ハンドシェイクを処理する。
 /// @param state アプリケーション状態
 /// @param headers HTTPヘッダー
@@ -101,7 +108,6 @@ async fn ws_handler(
         );
     }
 
-    let identify_rate_key = identify_rate_key(origin_header);
     let auth_header_present = headers.contains_key(axum::http::header::AUTHORIZATION);
 
     let header_token = if auth_header_present {
@@ -160,15 +166,7 @@ async fn ws_handler(
         );
 
         return ws
-            .on_upgrade(move |socket| {
-                handle_socket(
-                    socket,
-                    state,
-                    Some(authenticated),
-                    request_id,
-                    identify_rate_key,
-                )
-            })
+            .on_upgrade(move |socket| handle_socket(socket, state, Some(authenticated), request_id))
             .into_response();
     }
 
@@ -206,19 +204,11 @@ async fn ws_handler(
         );
 
         return ws
-            .on_upgrade(move |socket| {
-                handle_socket(
-                    socket,
-                    state,
-                    Some(authenticated),
-                    request_id,
-                    identify_rate_key,
-                )
-            })
+            .on_upgrade(move |socket| handle_socket(socket, state, Some(authenticated), request_id))
             .into_response();
     }
 
-    ws.on_upgrade(move |socket| handle_socket(socket, state, None, request_id, identify_rate_key))
+    ws.on_upgrade(move |socket| handle_socket(socket, state, None, request_id))
         .into_response()
 }
 
@@ -227,7 +217,6 @@ async fn ws_handler(
 /// @param state アプリケーション状態
 /// @param authenticated 認証済み主体
 /// @param request_id 接続識別子
-/// @param identify_rate_key Identifyレートリミットキー
 /// @returns なし
 /// @throws なし
 async fn handle_socket(
@@ -235,7 +224,6 @@ async fn handle_socket(
     state: AppState,
     mut authenticated: Option<AuthenticatedPrincipal>,
     request_id: String,
-    identify_rate_key: String,
 ) {
     let session_id = uuid::Uuid::new_v4().to_string();
     let (outbound_tx, mut outbound_rx) =
@@ -272,7 +260,7 @@ async fn handle_socket(
                         &mut socket,
                         &mut authenticated,
                         &request_id,
-                        &identify_rate_key,
+                        &session_id,
                         message,
                     ).await;
 
@@ -408,7 +396,7 @@ async fn handle_socket(
 /// @param socket WebSocket接続
 /// @param authenticated 認証済み主体
 /// @param request_id 接続識別子
-/// @param identify_rate_key Identifyレートリミットキー
+/// @param session_id WSセッション識別子
 /// @param message 受信メッセージ
 /// @returns 継続可否
 /// @throws なし
@@ -417,7 +405,7 @@ async fn handle_identify_message(
     socket: &mut WebSocket,
     authenticated: &mut Option<AuthenticatedPrincipal>,
     request_id: &str,
-    identify_rate_key: &str,
+    session_id: &str,
     message: Message,
 ) -> bool {
     match message {
@@ -433,9 +421,11 @@ async fn handle_identify_message(
                 return false;
             }
 
+            let identify_rate_limit_key =
+                identify_rate_limit_key(state, session_id, payload.ticket.trim()).await;
             if !state
                 .ws_identify_rate_limiter
-                .check_and_record(identify_rate_key)
+                .check_and_record(&identify_rate_limit_key.value)
                 .await
             {
                 tracing::warn!(
@@ -443,6 +433,8 @@ async fn handle_identify_message(
                     request_id = %request_id,
                     error_class = "rate_limited",
                     reason = "identify_rate_limited",
+                    rate_limit_key_source = identify_rate_limit_key.source,
+                    rate_limit_scope = %identify_rate_limit_key.scope,
                     "WS identify rejected by rate limit"
                 );
                 let _ = close_socket(socket, 1008, "identify_rate_limited").await;
@@ -494,6 +486,8 @@ async fn handle_identify_message(
                 principal_id = next_principal.principal_id.0,
                 firebase_uid = %next_principal.firebase_uid,
                 email_verified = true,
+                rate_limit_key_source = identify_rate_limit_key.source,
+                rate_limit_scope = %identify_rate_limit_key.scope,
                 "WS auth accepted by identify"
             );
             *authenticated = Some(next_principal);
@@ -796,13 +790,30 @@ async fn handle_message_frame(
     send_json_message(socket, &response).await.is_ok()
 }
 
-fn identify_rate_key(origin_header: Option<&str>) -> String {
-    let key = origin_header
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .map(ToOwned::to_owned)
-        .unwrap_or_else(|| "origin_missing".to_owned());
-    format!("identify:{key}")
+/// Identify のレートリミットキーを決定する。
+/// @param state アプリケーション状態
+/// @param session_id WSセッション識別子
+/// @param ticket identify payload の ticket
+/// @returns レートリミットキーと由来情報
+/// @throws なし
+async fn identify_rate_limit_key(
+    state: &AppState,
+    session_id: &str,
+    ticket: &str,
+) -> IdentifyRateLimitKey {
+    if let Some(principal_id) = state.ws_ticket_store.peek_principal_id(ticket).await {
+        return IdentifyRateLimitKey {
+            value: format!("identify:principal:{}", principal_id.0),
+            source: "ticket_principal",
+            scope: format!("principal:{}", principal_id.0),
+        };
+    }
+
+    IdentifyRateLimitKey {
+        value: format!("identify:session:{session_id}"),
+        source: "session_id_fallback",
+        scope: format!("session:{session_id}"),
+    }
 }
 
 fn ws_upgrade_with_close(ws: WebSocketUpgrade, code: u16, reason: &'static str) -> Response {

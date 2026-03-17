@@ -58,9 +58,10 @@ export function ChannelItem({
         channelId: channel.id,
         channelName: channel.name,
         channelType: channel.type,
+        serverId,
       });
     },
-    [channel.id, channel.name, channel.type, openModal],
+    [channel.id, channel.name, channel.type, openModal, serverId],
   );
   const openCreateInviteModal = useCallback(
     (event: React.MouseEvent<HTMLButtonElement>) => {

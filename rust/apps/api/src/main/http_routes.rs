@@ -73,10 +73,13 @@ fn app_with_state(state: AppState) -> Router {
         .route("/v1/guilds/{guild_id}", axum::routing::patch(update_guild))
         .route("/v1/guilds/{guild_id}/members", get(get_guild_members))
         .route("/v1/guilds/{guild_id}/roles", get(get_guild_roles))
-        .route("/v1/guilds/{guild_id}/invites", post(create_guild_invite))
+        .route(
+            "/v1/guilds/{guild_id}/invites",
+            get(list_guild_invites).post(create_guild_invite),
+        )
         .route(
             "/v1/guilds/{guild_id}/invites/{invite_code}",
-            get(get_guild_invite),
+            get(get_guild_invite).delete(revoke_guild_invite),
         )
         .route(
             "/v1/guilds/{guild_id}/channels/{channel_id}",
@@ -374,6 +377,13 @@ struct CreateInviteResponse {
 }
 
 #[derive(Debug, Serialize)]
+struct ListGuildInvitesResponse {
+    ok: bool,
+    request_id: String,
+    invites: Vec<invite::GuildInviteSummary>,
+}
+
+#[derive(Debug, Serialize)]
 struct InviteVerifyResponse {
     ok: bool,
     request_id: String,
@@ -467,6 +477,43 @@ async fn get_guild_invite(
         guild_id,
         invite_code,
     })
+}
+
+/// guild配下の有効な招待一覧を返す。
+/// @param state アプリケーション状態
+/// @param auth_context 認証文脈
+/// @param params パスパラメータ
+/// @returns 招待一覧レスポンス
+/// @throws なし
+async fn list_guild_invites(
+    State(state): State<AppState>,
+    Extension(auth_context): Extension<AuthContext>,
+    Path(params): Path<GuildPathParams>,
+) -> Response {
+    let request_id = auth_context.request_id.clone();
+    let guild_id = match parse_guild_id(&params.guild_id) {
+        Ok(value) => value,
+        Err(error) => {
+            return invite_error_response(
+                &invite::InviteError::validation(error.reason),
+                request_id,
+            )
+        }
+    };
+
+    match state
+        .invite_service
+        .list_invites(auth_context.principal_id, guild_id)
+        .await
+    {
+        Ok(invites) => Json(ListGuildInvitesResponse {
+            ok: true,
+            request_id,
+            invites,
+        })
+        .into_response(),
+        Err(error) => invite_error_response(&error, request_id),
+    }
 }
 
 /// 公開招待コードの状態を返す。
@@ -1569,6 +1616,12 @@ struct GuildChannelMessagePathParams {
 }
 
 #[derive(Debug, Deserialize)]
+struct GuildInvitePathParams {
+    guild_id: String,
+    invite_code: String,
+}
+
+#[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct EditMessageRequest {
     content: String,
@@ -2347,8 +2400,39 @@ async fn create_guild_invite(
         }))
             .into_response(),
         Err(error) => invite_error_response(&error, request_id),
+    }
 }
 
+/// guild配下の招待を取り消す。
+/// @param state アプリケーション状態
+/// @param auth_context 認証文脈
+/// @param params パスパラメータ
+/// @returns 取消結果
+/// @throws なし
+async fn revoke_guild_invite(
+    State(state): State<AppState>,
+    Extension(auth_context): Extension<AuthContext>,
+    Path(params): Path<GuildInvitePathParams>,
+) -> Response {
+    let request_id = auth_context.request_id.clone();
+    let guild_id = match parse_guild_id(&params.guild_id) {
+        Ok(value) => value,
+        Err(error) => {
+            return invite_error_response(
+                &invite::InviteError::validation(error.reason),
+                request_id,
+            )
+        }
+    };
+
+    match state
+        .invite_service
+        .revoke_invite(auth_context.principal_id, guild_id, params.invite_code)
+        .await
+    {
+        Ok(()) => StatusCode::NO_CONTENT.into_response(),
+        Err(error) => invite_error_response(&error, request_id),
+    }
 }
 
 /// permission snapshot 監査ログの共通項目を返す。

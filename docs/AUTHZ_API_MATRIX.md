@@ -35,7 +35,9 @@
 | PATCH | `/v1/guilds/:guild_id` | Protected | 必須 | 必須 | Guild管理 |
 | GET | `/guilds/:guild_id/channels` | Protected | 必須 | 必須 | Guild channel 一覧。category container を含みうる |
 | POST | `/guilds/:guild_id/channels` | Protected | 必須 | 必須 | Guild channel / category 作成 |
+| GET | `/v1/guilds/:guild_id/invites` | Protected | 必須 | 必須 | Invite一覧 |
 | POST | `/v1/guilds/:guild_id/invites` | Protected | 必須 | 必須 | Invite作成 |
+| DELETE | `/v1/guilds/:guild_id/invites/:invite_code` | Protected | 必須 | 必須 | Invite取消 |
 | PATCH | `/channels/:channel_id` | Protected | 必須 | 必須 | Channel / category rename |
 | DELETE | `/channels/:channel_id` | Protected | 必須 | 必須 | Channel / category delete |
 | GET | `/v1/guilds/:guild_id/channels/:channel_id` | Protected | 必須 | 必須 | Channel参照 |
@@ -80,7 +82,9 @@
 - `PATCH /v1/guilds/:guild_id`
 - `GET /guilds/:guild_id/channels`
 - `POST /guilds/:guild_id/channels`
+- `GET /v1/guilds/:guild_id/invites`
 - `POST /v1/guilds/:guild_id/invites`
+- `DELETE /v1/guilds/:guild_id/invites/:invite_code`
 - `PATCH /channels/:channel_id`
 - `DELETE /channels/:channel_id`
 - `GET /v1/guilds/:guild_id/channels/:channel_id`
@@ -112,7 +116,9 @@
 | REST | `PATCH /v1/guilds/:guild_id` | AuthN済み `principal_id` | `AuthzResource::Guild { guild_id }` | `Manage` | deny=`403/AUTHZ_DENIED`, unavailable=`503/AUTHZ_UNAVAILABLE` |
 | REST | `GET /guilds/:guild_id/channels` | AuthN済み `principal_id` | `AuthzResource::Guild { guild_id }` | `View` | category container を含む一覧取得。deny=`403/AUTHZ_DENIED`, unavailable=`503/AUTHZ_UNAVAILABLE` |
 | REST | `POST /guilds/:guild_id/channels` | AuthN済み `principal_id` | `AuthzResource::Guild { guild_id }` | `Post` | create path は handler/service で `Manage` 境界を追加適用する |
+| REST | `GET /v1/guilds/:guild_id/invites` | AuthN済み `principal_id` | `AuthzResource::Guild { guild_id }` | `View` | invite list path。rate limit は `InviteAccess` を適用し、service 側で guild manage を fail-close 適用する |
 | REST | `POST /v1/guilds/:guild_id/invites` | AuthN済み `principal_id` | `AuthzResource::Guild { guild_id }` | `Manage` | invite create path。route と service の両方で guild manage を fail-close 適用する |
+| REST | `DELETE /v1/guilds/:guild_id/invites/:invite_code` | AuthN済み `principal_id` | `AuthzResource::Guild { guild_id }` | `Manage` | invite revoke path。rate limit は `InviteAccess` を適用し、監査ログへ `principal_id/guild_id/invite_code` を残す |
 | REST | `PATCH /channels/:channel_id` | AuthN済み `principal_id` | `AuthzResource::RestPath { path: "/channels/:channel_id" }` | `Manage` | route通過後、handler/service で category を含む channel manage 判定を fail-close 適用する |
 | REST | `DELETE /channels/:channel_id` | AuthN済み `principal_id` | `AuthzResource::RestPath { path: "/channels/:channel_id" }` | `Manage` | route通過後、handler/service で category cascade delete 可否を fail-close 適用する |
 | REST | `GET /v1/guilds/:guild_id/channels/:channel_id` | AuthN済み `principal_id` | `AuthzResource::GuildChannel { guild_id, channel_id }` | `View` | deny=`403/AUTHZ_DENIED`, unavailable=`503/AUTHZ_UNAVAILABLE` |
@@ -124,7 +130,7 @@
 | REST | `GET /v1/dms/:channel_id/messages` | AuthN済み `principal_id` | `AuthzResource::Channel { channel_id }` | `View` | deny=`403/AUTHZ_DENIED`, unavailable=`503/AUTHZ_UNAVAILABLE` |
 | REST | `POST /v1/dms/:channel_id/messages` | AuthN済み `principal_id` | `AuthzResource::Channel { channel_id }` | `Post` | deny=`403/AUTHZ_DENIED`, unavailable=`503/AUTHZ_UNAVAILABLE` |
 | REST | `PATCH /v1/moderation/guilds/:guild_id/members/:member_id` | AuthN済み `principal_id` | `AuthzResource::Guild { guild_id }` | `Manage` | deny=`403/AUTHZ_DENIED`, unavailable=`503/AUTHZ_UNAVAILABLE`。rate limit は `RestRateLimitAction::ModerationAction` を適用し、Dragonfly degraded 時は `429` fail-close |
-| WS | `/ws` handshake | AuthN済み `principal_id` | `AuthzResource::Session` | `Connect` | deny=`1008`, unavailable=`1011` |
+| WS | `/ws` handshake | AuthN済み `principal_id` | `AuthzResource::Session` | `Connect` | unauthenticated upgrade 後の `auth.identify` は active ws-ticket から principal を引ける場合は principal 単位、引けない場合は session 単位で rate limit を適用する。`Origin` は allowlist 判定のみに使い、deny=`1008`, unavailable=`1011` |
 | WS | `auth.reauthenticate` | AuthN済み `principal_id` | `AuthzResource::Session` | `Connect` | deny=`1008`, unavailable=`1011` |
 | WS | stream text/binary message | AuthN済み `principal_id` | `AuthzResource::RestPath { path: "/ws/stream" }` | `View` | deny=`1008`, unavailable=`1011` |
 
@@ -144,11 +150,13 @@
 ## 5. WS message inventory
 
 ### Client -> Server
+- `auth.identify`（ticket付き。rate limit key は principal 優先、未解決時のみ session fallback）
 - `auth.reauthenticate`（token付き）
 - その他テキスト（reauth要求中は拒否、通常時はAuthZ通過後にecho）
 - バイナリ（reauth要求中は拒否、通常時はAuthZ通過時のみ継続）
 
 ### Server -> Client
+- `auth.ready`（identify 成功通知。`principalId` を返す）
 - `auth.reauthenticate`（再認証要求）
 - `auth.reauthenticated`（再認証成功通知）
 

@@ -42,6 +42,7 @@ export function ChannelContextMenu({ data }: { data: { channel: Channel; serverI
             channelId: data.channel.id,
             channelName: data.channel.name,
             channelType: data.channel.type,
+            serverId: data.serverId,
           });
           hideContextMenu();
         }}

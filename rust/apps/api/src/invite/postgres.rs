@@ -11,6 +11,49 @@ pub struct PostgresInviteService {
 impl PostgresInviteService {
     const DEFAULT_POOL_SIZE: usize = 4;
     const MAX_POOL_SIZE: usize = 100;
+    const LIST_INVITES_SQL: &str = "WITH manageable AS (
+                    SELECT gm.guild_id
+                    FROM guild_members gm
+                    WHERE gm.guild_id = $1
+                      AND gm.user_id = $2
+                      AND (
+                        EXISTS (
+                          SELECT 1
+                          FROM guilds g
+                          WHERE g.id = gm.guild_id
+                            AND g.owner_id = $2
+                        )
+                        OR EXISTS (
+                          SELECT 1
+                          FROM guild_member_roles_v2 gmr
+                          JOIN guild_roles_v2 gr
+                            ON gr.guild_id = gmr.guild_id
+                           AND gr.role_key = gmr.role_key
+                          WHERE gmr.guild_id = gm.guild_id
+                            AND gmr.user_id = $2
+                            AND gr.allow_manage = TRUE
+                        )
+                      )
+                    FOR KEY SHARE
+                 )
+                 SELECT
+                    i.code AS invite_code,
+                    i.created_by,
+                    u.display_name AS creator_display_name,
+                    to_char(i.expires_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS expires_at_text,
+                    i.uses,
+                    i.max_uses,
+                    to_char(i.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS created_at_text
+                 FROM invites i
+                 JOIN manageable m
+                   ON m.guild_id = i.guild_id
+                 LEFT JOIN users u
+                   ON u.id = i.created_by
+                 WHERE i.guild_id = $1
+                   AND i.is_disabled = FALSE
+                   AND (i.expires_at IS NULL OR i.expires_at >= now())
+                   AND (i.max_uses IS NULL OR i.uses < i.max_uses)
+                 ORDER BY i.created_at DESC, i.id DESC";
     const CREATE_INVITE_SQL: &str = "WITH manageable AS (
                     SELECT gm.guild_id
                     FROM guild_members gm
@@ -88,6 +131,79 @@ impl PostgresInviteService {
                    ON g.id = ii.guild_id
                  JOIN target_channel tc
                    ON tc.guild_id = ii.guild_id";
+    const REVOKE_INVITE_SQL: &str = "WITH manageable AS (
+                    SELECT gm.guild_id
+                    FROM guild_members gm
+                    WHERE gm.guild_id = $1
+                      AND gm.user_id = $2
+                      AND (
+                        EXISTS (
+                          SELECT 1
+                          FROM guilds g
+                          WHERE g.id = gm.guild_id
+                            AND g.owner_id = $2
+                        )
+                        OR EXISTS (
+                          SELECT 1
+                          FROM guild_member_roles_v2 gmr
+                          JOIN guild_roles_v2 gr
+                            ON gr.guild_id = gmr.guild_id
+                           AND gr.role_key = gmr.role_key
+                          WHERE gmr.guild_id = gm.guild_id
+                            AND gmr.user_id = $2
+                            AND gr.allow_manage = TRUE
+                        )
+                      )
+                    FOR KEY SHARE
+                 ),
+                 target_invite AS (
+                    SELECT
+                      i.id,
+                      i.guild_id,
+                      i.created_by,
+                      i.code,
+                      i.uses,
+                      i.max_uses
+                    FROM invites i
+                    JOIN manageable m
+                      ON m.guild_id = i.guild_id
+                    WHERE i.guild_id = $1
+                      AND i.code = $3
+                      AND i.is_disabled = FALSE
+                      AND (i.expires_at IS NULL OR i.expires_at >= now())
+                      AND (i.max_uses IS NULL OR i.uses < i.max_uses)
+                    FOR UPDATE
+                 ),
+                 updated AS (
+                    UPDATE invites i
+                    SET is_disabled = TRUE
+                    FROM target_invite ti
+                    WHERE i.id = ti.id
+                    RETURNING ti.id,
+                              ti.guild_id,
+                              ti.created_by,
+                              ti.code,
+                              ti.uses,
+                              ti.max_uses
+                 ),
+                 audit_insert AS (
+                    INSERT INTO audit_logs (guild_id, actor_id, action, target_type, target_id, metadata)
+                    SELECT
+                      updated.guild_id,
+                      $2,
+                      'INVITE_DISABLE',
+                      'invite',
+                      updated.id,
+                      jsonb_build_object(
+                        'invite_code', updated.code,
+                        'created_by', updated.created_by,
+                        'uses', updated.uses,
+                        'max_uses', updated.max_uses
+                      )
+                    FROM updated
+                 )
+                 SELECT id
+                 FROM updated";
     const VERIFY_PUBLIC_INVITE_SQL: &str = "SELECT
                     i.code AS invite_code,
                     CASE
@@ -448,6 +564,31 @@ impl PostgresInviteService {
         }
     }
 
+    /// guild管理対象へのアクセス前提を検証する。
+    /// @param client Postgresクライアント
+    /// @param principal_id 認証済みprincipal_id
+    /// @param guild_id 対象guild_id
+    /// @returns なし
+    /// @throws InviteError 未存在、非権限、または依存障害時
+    async fn verify_manageable_guild_access(
+        &self,
+        client: &tokio_postgres::Client,
+        principal_id: PrincipalId,
+        guild_id: i64,
+    ) -> Result<(), InviteError> {
+        if !self.has_guild(client, guild_id).await? {
+            return Err(InviteError::not_found("guild_not_found"));
+        }
+        if !self.has_guild_membership(client, guild_id, principal_id.0).await? {
+            return Err(InviteError::forbidden("guild_membership_required"));
+        }
+        if !self.has_manage_permission(client, principal_id, guild_id).await? {
+            return Err(InviteError::forbidden("invite_manage_permission_required"));
+        }
+
+        Ok(())
+    }
+
     /// channelの所属guildと種別を取得する。
     /// @param client Postgresクライアント
     /// @param channel_id 対象channel_id
@@ -474,6 +615,41 @@ impl PostgresInviteService {
             ))),
             Ok(None) => Ok(None),
             Err(error) => Err(self.map_database_error("channel_scope_lookup_failed", error).await),
+        }
+    }
+
+    /// guild配下のinvite状態を取得する。
+    /// @param client Postgresクライアント
+    /// @param guild_id 対象guild_id
+    /// @param invite_code 対象invite_code
+    /// @returns invite状態
+    /// @throws InviteError 依存障害時
+    async fn find_invite_state(
+        &self,
+        client: &tokio_postgres::Client,
+        guild_id: i64,
+        invite_code: &str,
+    ) -> Result<Option<StoredInviteState>, InviteError> {
+        match client
+            .query_opt(
+                "SELECT
+                    is_disabled,
+                    (expires_at IS NOT NULL AND expires_at < now()) AS is_expired,
+                    (max_uses IS NOT NULL AND uses >= max_uses) AS is_maxed_out
+                 FROM invites
+                 WHERE guild_id = $1
+                   AND code = $2",
+                &[&guild_id, &invite_code],
+            )
+            .await
+        {
+            Ok(Some(row)) => Ok(Some(StoredInviteState {
+                is_disabled: row.get::<&str, bool>("is_disabled"),
+                is_expired: row.get::<&str, bool>("is_expired"),
+                is_maxed_out: row.get::<&str, bool>("is_maxed_out"),
+            })),
+            Ok(None) => Ok(None),
+            Err(error) => Err(self.map_database_error("invite_state_lookup_failed", error).await),
         }
     }
 
@@ -519,8 +695,64 @@ impl PostgresInviteService {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct StoredInviteState {
+    is_disabled: bool,
+    is_expired: bool,
+    is_maxed_out: bool,
+}
+
 #[async_trait]
 impl InviteService for PostgresInviteService {
+    /// 認証済みユーザーが guild 配下の有効な招待一覧を取得する。
+    /// @param principal_id 取得主体ID
+    /// @param guild_id 対象guild_id
+    /// @returns guild配下の有効招待一覧
+    /// @throws InviteError 入力不正、未存在、非権限、または依存障害時
+    async fn list_invites(
+        &self,
+        principal_id: PrincipalId,
+        guild_id: i64,
+    ) -> Result<Vec<GuildInviteSummary>, InviteError> {
+        if guild_id <= 0 {
+            return Err(InviteError::validation("guild_id_must_be_positive"));
+        }
+
+        let client = self.select_client().await?;
+        let rows = match client
+            .query(Self::LIST_INVITES_SQL, &[&guild_id, &principal_id.0])
+            .await
+        {
+            Ok(rows) => rows,
+            Err(error) => return Err(self.map_database_error("invite_list_failed", error).await),
+        };
+
+        if rows.is_empty() {
+            self.verify_manageable_guild_access(&client, principal_id, guild_id)
+                .await?;
+        }
+
+        rows.into_iter()
+            .map(|row| {
+                build_guild_invite_summary(
+                    row.get::<&str, String>("invite_code"),
+                    GuildInviteSummaryRecord {
+                        creator: row.get::<&str, Option<i64>>("created_by").map(|user_id| {
+                            InviteCreatorRecord {
+                                user_id,
+                                display_name: row.get::<&str, String>("creator_display_name"),
+                            }
+                        }),
+                        expires_at: row.get::<&str, Option<String>>("expires_at_text"),
+                        uses: row.get::<&str, i32>("uses"),
+                        max_uses: row.get::<&str, Option<i32>>("max_uses"),
+                        created_at: row.get::<&str, String>("created_at_text"),
+                    },
+                )
+            })
+            .collect()
+    }
+
     /// 認証済みユーザーが guild 配下の招待を作成する。
     /// @param principal_id 作成主体ID
     /// @param guild_id 対象guild_id
@@ -558,18 +790,8 @@ impl InviteService for PostgresInviteService {
             {
                 Ok(Some(row)) => row,
                 Ok(None) => {
-                    if !self.has_guild(&client, guild_id).await? {
-                        return Err(InviteError::not_found("guild_not_found"));
-                    }
-                    if !self
-                        .has_guild_membership(&client, guild_id, principal_id.0)
-                        .await?
-                    {
-                        return Err(InviteError::forbidden("guild_membership_required"));
-                    }
-                    if !self.has_manage_permission(&client, principal_id, guild_id).await? {
-                        return Err(InviteError::forbidden("invite_manage_permission_required"));
-                    }
+                    self.verify_manageable_guild_access(&client, principal_id, guild_id)
+                        .await?;
 
                     let Some((channel_guild_id, channel_type)) =
                         self.find_channel_scope(&client, normalized_input.channel_id).await?
@@ -694,5 +916,55 @@ impl InviteService for PostgresInviteService {
         });
 
         build_invite_join_result(normalized_invite_code, record)
+    }
+
+    /// 認証済みユーザーが guild 配下の招待を取り消す。
+    /// @param principal_id 取消主体ID
+    /// @param guild_id 対象guild_id
+    /// @param invite_code 取消対象の招待コード
+    /// @returns なし
+    /// @throws InviteError 入力不正、未存在、無効招待、非権限、または依存障害時
+    async fn revoke_invite(
+        &self,
+        principal_id: PrincipalId,
+        guild_id: i64,
+        invite_code: String,
+    ) -> Result<(), InviteError> {
+        if guild_id <= 0 {
+            return Err(InviteError::validation("guild_id_must_be_positive"));
+        }
+
+        let normalized_invite_code = normalize_invite_code(&invite_code)?;
+        let client = self.select_client().await?;
+        let row = match client
+            .query_opt(
+                Self::REVOKE_INVITE_SQL,
+                &[&guild_id, &principal_id.0, &normalized_invite_code],
+            )
+            .await
+        {
+            Ok(row) => row,
+            Err(error) => return Err(self.map_write_error("invite_revoke_failed", error).await),
+        };
+
+        if row.is_some() {
+            return Ok(());
+        }
+
+        self.verify_manageable_guild_access(&client, principal_id, guild_id)
+            .await?;
+
+        match self
+            .find_invite_state(&client, guild_id, &normalized_invite_code)
+            .await?
+        {
+            Some(state) if state.is_disabled || state.is_expired || state.is_maxed_out => {
+                Err(InviteError::invalid_invite("invite_invalid"))
+            }
+            Some(_) => Err(InviteError::dependency_unavailable(
+                "invite_revoke_rejected_without_reason",
+            )),
+            None => Err(InviteError::invite_not_found("invite_not_found")),
+        }
     }
 }

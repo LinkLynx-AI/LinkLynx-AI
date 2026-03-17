@@ -37,8 +37,8 @@ function formatExpiry(expiresAt: string | null): string {
   return new Date(expiresAt).toLocaleString("ja-JP");
 }
 
-function formatMaxUses(maxUses: number): string {
-  if (maxUses === 0) {
+function formatMaxUses(maxUses: number | null): string {
+  if (maxUses === null) {
     return "無制限";
   }
 

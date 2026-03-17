@@ -68,9 +68,38 @@ pub struct CreatedInvite {
     pub max_uses: Option<i32>,
 }
 
+/// guild招待の作成者最小情報を表現する。
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct InviteCreatorSummary {
+    pub user_id: i64,
+    pub display_name: String,
+}
+
+/// guild招待一覧の1件を表現する。
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct GuildInviteSummary {
+    pub invite_code: String,
+    pub creator: Option<InviteCreatorSummary>,
+    pub expires_at: Option<String>,
+    pub uses: i32,
+    pub max_uses: Option<i32>,
+    pub created_at: String,
+}
+
 /// invite verify APIユースケース境界を表現する。
 #[async_trait]
 pub trait InviteService: Send + Sync {
+    /// 認証済みユーザーが guild 配下の有効な招待一覧を取得する。
+    /// @param principal_id 取得主体ID
+    /// @param guild_id 対象guild_id
+    /// @returns guild配下の有効招待一覧
+    /// @throws InviteError 入力不正、未存在、非権限、または依存障害時
+    async fn list_invites(
+        &self,
+        principal_id: PrincipalId,
+        guild_id: i64,
+    ) -> Result<Vec<GuildInviteSummary>, InviteError>;
+
     /// 認証済みユーザーが guild 配下の招待を作成する。
     /// @param principal_id 作成主体ID
     /// @param guild_id 対象guild_id
@@ -103,6 +132,19 @@ pub trait InviteService: Send + Sync {
         principal_id: PrincipalId,
         invite_code: String,
     ) -> Result<InviteJoinResult, InviteError>;
+
+    /// 認証済みユーザーが guild 配下の招待を取り消す。
+    /// @param principal_id 取消主体ID
+    /// @param guild_id 対象guild_id
+    /// @param invite_code 取消対象の招待コード
+    /// @returns なし
+    /// @throws InviteError 入力不正、未存在、無効招待、非権限、または依存障害時
+    async fn revoke_invite(
+        &self,
+        principal_id: PrincipalId,
+        guild_id: i64,
+        invite_code: String,
+    ) -> Result<(), InviteError>;
 }
 
 /// 依存未構成時にfail-closeさせるサービスを表現する。
@@ -133,6 +175,19 @@ impl UnavailableInviteService {
 
 #[async_trait]
 impl InviteService for UnavailableInviteService {
+    /// guild配下の有効な招待一覧を取得する。
+    /// @param _principal_id 取得主体ID
+    /// @param _guild_id 対象guild_id
+    /// @returns なし
+    /// @throws InviteError 常に依存障害
+    async fn list_invites(
+        &self,
+        _principal_id: PrincipalId,
+        _guild_id: i64,
+    ) -> Result<Vec<GuildInviteSummary>, InviteError> {
+        Err(self.unavailable_error())
+    }
+
     /// 招待を作成する。
     /// @param _principal_id 作成主体ID
     /// @param _guild_id 対象guild_id
@@ -169,6 +224,21 @@ impl InviteService for UnavailableInviteService {
         _principal_id: PrincipalId,
         _invite_code: String,
     ) -> Result<InviteJoinResult, InviteError> {
+        Err(self.unavailable_error())
+    }
+
+    /// guild配下の招待を取り消す。
+    /// @param _principal_id 取消主体ID
+    /// @param _guild_id 対象guild_id
+    /// @param _invite_code 取消対象の招待コード
+    /// @returns なし
+    /// @throws InviteError 常に依存障害
+    async fn revoke_invite(
+        &self,
+        _principal_id: PrincipalId,
+        _guild_id: i64,
+        _invite_code: String,
+    ) -> Result<(), InviteError> {
         Err(self.unavailable_error())
     }
 }
@@ -216,6 +286,21 @@ struct CreatedInviteRecord {
     expires_at: Option<String>,
     uses: i32,
     max_uses: Option<i32>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct InviteCreatorRecord {
+    user_id: i64,
+    display_name: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct GuildInviteSummaryRecord {
+    creator: Option<InviteCreatorRecord>,
+    expires_at: Option<String>,
+    uses: i32,
+    max_uses: Option<i32>,
+    created_at: String,
 }
 
 /// 招待作成入力を検証する。
@@ -339,5 +424,29 @@ fn build_created_invite(
         expires_at: record.expires_at,
         uses: record.uses,
         max_uses: record.max_uses,
+    })
+}
+
+/// guild招待一覧レコードをレスポンスへ変換する。
+/// @param invite_code 招待コード
+/// @param record 一覧レコード
+/// @returns guild招待一覧要約
+/// @throws InviteError 入力不正時
+fn build_guild_invite_summary(
+    invite_code: String,
+    record: GuildInviteSummaryRecord,
+) -> Result<GuildInviteSummary, InviteError> {
+    let normalized_invite_code = normalize_invite_code(&invite_code)?;
+
+    Ok(GuildInviteSummary {
+        invite_code: normalized_invite_code,
+        creator: record.creator.map(|creator| InviteCreatorSummary {
+            user_id: creator.user_id,
+            display_name: creator.display_name,
+        }),
+        expires_at: record.expires_at,
+        uses: record.uses,
+        max_uses: record.max_uses,
+        created_at: record.created_at,
     })
 }
