@@ -119,7 +119,7 @@
 | REST | `GET /v1/dms/:channel_id/messages` | AuthN済み `principal_id` | `AuthzResource::Channel { channel_id }` | `View` | deny=`403/AUTHZ_DENIED`, unavailable=`503/AUTHZ_UNAVAILABLE` |
 | REST | `POST /v1/dms/:channel_id/messages` | AuthN済み `principal_id` | `AuthzResource::Channel { channel_id }` | `Post` | deny=`403/AUTHZ_DENIED`, unavailable=`503/AUTHZ_UNAVAILABLE` |
 | REST | `PATCH /v1/moderation/guilds/:guild_id/members/:member_id` | AuthN済み `principal_id` | `AuthzResource::Guild { guild_id }` | `Manage` | deny=`403/AUTHZ_DENIED`, unavailable=`503/AUTHZ_UNAVAILABLE`。rate limit は `RestRateLimitAction::ModerationAction` を適用し、Dragonfly degraded 時は `429` fail-close |
-| WS | `/ws` handshake | AuthN済み `principal_id` | `AuthzResource::Session` | `Connect` | deny=`1008`, unavailable=`1011` |
+| WS | `/ws` handshake | AuthN済み `principal_id` | `AuthzResource::Session` | `Connect` | unauthenticated upgrade 後の `auth.identify` は active ws-ticket から principal を引ける場合は principal 単位、引けない場合は session 単位で rate limit を適用する。`Origin` は allowlist 判定のみに使い、deny=`1008`, unavailable=`1011` |
 | WS | `auth.reauthenticate` | AuthN済み `principal_id` | `AuthzResource::Session` | `Connect` | deny=`1008`, unavailable=`1011` |
 | WS | stream text/binary message | AuthN済み `principal_id` | `AuthzResource::RestPath { path: "/ws/stream" }` | `View` | deny=`1008`, unavailable=`1011` |
 
@@ -139,11 +139,13 @@
 ## 5. WS message inventory
 
 ### Client -> Server
+- `auth.identify`（ticket付き。rate limit key は principal 優先、未解決時のみ session fallback）
 - `auth.reauthenticate`（token付き）
 - その他テキスト（reauth要求中は拒否、通常時はAuthZ通過後にecho）
 - バイナリ（reauth要求中は拒否、通常時はAuthZ通過時のみ継続）
 
 ### Server -> Client
+- `auth.ready`（identify 成功通知。`principalId` を返す）
 - `auth.reauthenticate`（再認証要求）
 - `auth.reauthenticated`（再認証成功通知）
 
