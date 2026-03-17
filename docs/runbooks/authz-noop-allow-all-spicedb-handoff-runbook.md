@@ -95,6 +95,7 @@ Cutover readiness requires all items:
   - `request_id`, `principal_id`, `resource`, `action`, `decision`, `decision_source`, `error_class`
 - Metrics endpoint exposes decision counters:
   - `GET /internal/authz/metrics` -> `allow_total`, `deny_total`, `unavailable_total`
+  - access requires `x-linklynx-internal-shared-secret`; bearer token only is insufficient
 - Validation gates pass:
   - `cd rust && cargo test -p linklynx_backend --locked`
   - `make rust-lint`
@@ -112,6 +113,7 @@ Cutover readiness requires all items:
 5. Verify observability:
   - logs include required decision fields
   - `GET /internal/authz/metrics` counters increase in expected buckets
+  - use the internal shared secret header when querying the metrics endpoint
 6. Roll forward to production only after staged acceptance pass.
 
 ## 6. Rollback procedure
@@ -137,6 +139,7 @@ During exception and cutover windows, monitor at minimum:
   - `allow_total`
   - `deny_total`
   - `unavailable_total`
+  - query path is guarded by `x-linklynx-internal-shared-secret`
 - ws close code distribution (`1008`, `1011`)
 
 Alert viewpoints:

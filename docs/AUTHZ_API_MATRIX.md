@@ -27,8 +27,9 @@
 | GET | `/v1/invites/:invite_code` | Public | なし | なし | Public invite verify |
 | POST | `/v1/invites/:invite_code/join` | AuthN-only exception | 必須 | なし | Invite join。ADR-004 の明示例外 |
 | GET | `/internal/scylla/health` | Public | なし | なし | Scylla ヘルス。詳細はログに残し、レスポンスは coarse reason code のみ返す |
-| GET | `/internal/auth/metrics` | Public | なし | なし | 認証メトリクス取得 |
-| GET | `/internal/authz/metrics` | Public | なし | なし | 認可メトリクス取得 |
+| GET | `/internal/auth/metrics` | Internal | internal shared secret | なし | 認証メトリクス取得。`x-linklynx-internal-shared-secret` 必須 |
+| GET | `/internal/authz/metrics` | Internal | internal shared secret | なし | 認可メトリクス取得。`x-linklynx-internal-shared-secret` 必須 |
+| POST | `/internal/authz/cache/invalidate` | Internal | internal shared secret | なし | AuthZ cache invalidation。bearer token だけでは到達不可 |
 | GET | `/v1/protected/ping` | Protected | 必須 | 必須 | `rest_auth_middleware` を経由 |
 | GET | `/v1/guilds/:guild_id` | Protected | 必須 | 必須 | Guild参照 |
 | PATCH | `/v1/guilds/:guild_id` | Protected | 必須 | 必須 | Guild管理 |
@@ -62,11 +63,18 @@
 - `GET /health`
 - `GET /v1/invites/:invite_code`
 - `GET /internal/scylla/health`
-- `GET /internal/auth/metrics`
-- `GET /internal/authz/metrics`
 
 ### AuthN-only exception (AuthZ excluded)
 - `POST /v1/invites/:invite_code/join`
+
+### Internal (dedicated guard required, AuthZ excluded)
+- `GET /internal/auth/metrics`
+- `GET /internal/authz/metrics`
+- `POST /internal/authz/cache/invalidate`
+- Requirement:
+  `x-linklynx-internal-shared-secret` を満たすこと。一般 bearer token や `AUTHZ_PROVIDER=noop` では通過させない
+- Browser CORS:
+  browser 向け permissive CORS からは切り離し、custom header preflight を公開しない
 
 ### Protected (AuthZ required)
 - `GET /v1/protected/ping`
@@ -98,6 +106,9 @@
 
 | Surface | Operation | Principal | Resource | Action | Expected decision handling |
 | --- | --- | --- | --- | --- | --- |
+| REST | `GET /internal/auth/metrics` | 運用 caller | AuthZ対象外 | N/A | dedicated internal guard。deny=`403/INTERNAL_OPS_FORBIDDEN`, unavailable=`503/INTERNAL_OPS_UNAVAILABLE` |
+| REST | `GET /internal/authz/metrics` | 運用 caller | AuthZ対象外 | N/A | dedicated internal guard。deny=`403/INTERNAL_OPS_FORBIDDEN`, unavailable=`503/INTERNAL_OPS_UNAVAILABLE` |
+| REST | `POST /internal/authz/cache/invalidate` | 運用 caller | AuthZ対象外 | N/A | dedicated internal guard。general bearer token と `RestPath + can_view` には依存しない |
 | REST | `GET /v1/protected/ping` | AuthN済み `principal_id` | `AuthzResource::RestPath { path: "/v1/protected/ping" }` | `View` | deny=`403/AUTHZ_DENIED`, unavailable=`503/AUTHZ_UNAVAILABLE` |
 | REST | `GET /v1/invites/:invite_code` | なし（Public route） | AuthZ対象外 | N/A | Public verify endpoint。rate limit は `x-linklynx-trusted-proxy-secret` が runtime secret と一致したときだけ `x-linklynx-client-scope` 単位へ分離し、それ以外は shared anonymous fallback を使う |
 | REST | `POST /v1/invites/:invite_code/join` | AuthN済み `principal_id` | AuthZ対象外 | N/A | ADR-004 明示例外。invite state 検証と invite access rate limit を適用。rate limit key は principal 単位、audit log には `invite_code/client_scope/request_id` を残す |

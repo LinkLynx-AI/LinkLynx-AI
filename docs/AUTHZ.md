@@ -234,6 +234,7 @@ v0 での認可関連 SoR:
   - deny: close `1008`（`AUTHZ_DENIED`）
   - unavailable: close `1011`（`AUTHZ_UNAVAILABLE`）
 - 最小観測基盤として `GET /internal/authz/metrics` を追加し、`allow_total` / `deny_total` / `unavailable_total` を公開する。
+  - この internal endpoint は `x-linklynx-internal-shared-secret` を満たす運用専用境界でのみ利用可能とする。
 
 ## 15. LIN-925 Permission snapshot contract baseline
 
