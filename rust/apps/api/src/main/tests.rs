@@ -89,6 +89,7 @@ mod tests {
 
     const MAX_RESPONSE_BYTES: usize = 16 * 1024;
     const TEST_INTERNAL_OPS_SECRET: &str = "test-internal-secret";
+    const TEST_PUBLIC_INVITE_TRUSTED_PROXY_SECRET: &str = "test-public-invite-proxy-secret";
 
     struct StaticTokenVerifier;
     struct UnavailableTokenVerifier;
@@ -2024,6 +2025,14 @@ mod tests {
         app_with_state(state)
     }
 
+    async fn app_for_test_with_public_invite_trusted_proxy_secret(
+        shared_secret: &str,
+    ) -> Router {
+        let mut state = state_for_test_with_authorizer(Arc::new(StaticAllowAllAuthorizer)).await;
+        state.public_invite_trusted_proxy_shared_secret = Some(shared_secret.to_owned());
+        app_with_state(state)
+    }
+
     async fn app_for_test_with_authorizer_and_ws_identify_limit(
         authorizer: Arc<dyn Authorizer>,
         max_requests: u32,
@@ -2243,6 +2252,7 @@ mod tests {
                 "http://localhost:3000".to_owned(),
                 "http://127.0.0.1:3000".to_owned(),
             ]))),
+            public_invite_trusted_proxy_shared_secret: None,
             rest_rate_limit_service: Arc::new(RestRateLimitService::new(
                 RestRateLimitConfig::default(),
             )),
@@ -3169,6 +3179,85 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn public_invite_endpoint_uses_trusted_client_scope_rate_limit_keys() {
+        let app = app_for_test_with_public_invite_trusted_proxy_secret(
+            TEST_PUBLIC_INVITE_TRUSTED_PROXY_SECRET,
+        )
+        .await;
+        let mut last_primary_response = None;
+
+        for _ in 0..11 {
+            last_primary_response = Some(
+                app.clone()
+                    .oneshot(
+                        Request::builder()
+                            .uri("/v1/invites/DEVJOIN2026")
+                            .header(
+                                PUBLIC_INVITE_TRUSTED_PROXY_SECRET_HEADER,
+                                TEST_PUBLIC_INVITE_TRUSTED_PROXY_SECRET,
+                            )
+                            .header(PUBLIC_INVITE_CLIENT_SCOPE_HEADER, "client-a")
+                            .body(Body::empty())
+                            .unwrap(),
+                    )
+                    .await
+                    .unwrap(),
+            );
+        }
+
+        let primary_response = last_primary_response.unwrap();
+        assert_eq!(primary_response.status(), StatusCode::TOO_MANY_REQUESTS);
+
+        let secondary_response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/v1/invites/DEVJOIN2026")
+                    .header(
+                        PUBLIC_INVITE_TRUSTED_PROXY_SECRET_HEADER,
+                        TEST_PUBLIC_INVITE_TRUSTED_PROXY_SECRET,
+                    )
+                    .header(PUBLIC_INVITE_CLIENT_SCOPE_HEADER, "client-b")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(secondary_response.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn public_invite_endpoint_rejects_spoofed_client_scope_when_proxy_secret_is_invalid() {
+        let app = app_for_test_with_public_invite_trusted_proxy_secret(
+            TEST_PUBLIC_INVITE_TRUSTED_PROXY_SECRET,
+        )
+        .await;
+        let mut last_response = None;
+
+        for index in 0..11 {
+            last_response = Some(
+                app.clone()
+                    .oneshot(
+                        Request::builder()
+                            .uri(format!("/v1/invites/SPOOF{index}"))
+                            .header(PUBLIC_INVITE_TRUSTED_PROXY_SECRET_HEADER, "wrong-secret")
+                            .header(
+                                PUBLIC_INVITE_CLIENT_SCOPE_HEADER,
+                                format!("spoofed-client-{index}"),
+                            )
+                            .body(Body::empty())
+                            .unwrap(),
+                    )
+                    .await
+                    .unwrap(),
+            );
+        }
+
+        let response = last_response.unwrap();
+        assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
+    }
+
+    #[tokio::test]
     async fn public_invite_endpoint_rate_limits_across_codes_without_headers() {
         let app = app_for_test().await;
         let mut last_response = None;
@@ -3204,6 +3293,42 @@ mod tests {
             .oneshot(
                 Request::builder()
                     .uri("/v1/invites/DEVJOIN2026")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
+        assert_eq!(
+            response
+                .headers()
+                .get(RETRY_AFTER)
+                .and_then(|value| value.to_str().ok()),
+            Some("60")
+        );
+    }
+
+    #[tokio::test]
+    async fn public_invite_endpoint_fail_closes_when_ratelimit_degraded_for_trusted_scope() {
+        let mut state = state_for_test_with_authorizer(Arc::new(StaticAllowAllAuthorizer)).await;
+        state.public_invite_trusted_proxy_shared_secret =
+            Some(TEST_PUBLIC_INVITE_TRUSTED_PROXY_SECRET.to_owned());
+        state
+            .rest_rate_limit_service
+            .set_degraded_for_test(true)
+            .await;
+        let app = app_with_state(state);
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/v1/invites/DEVJOIN2026")
+                    .header(
+                        PUBLIC_INVITE_TRUSTED_PROXY_SECRET_HEADER,
+                        TEST_PUBLIC_INVITE_TRUSTED_PROXY_SECRET,
+                    )
+                    .header(PUBLIC_INVITE_CLIENT_SCOPE_HEADER, "client-a")
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -6670,7 +6795,7 @@ mod tests {
                     .header("authorization", format!("Bearer {token}"))
                     .header("content-type", "application/json")
                     .body(Body::from(
-                        r#"{"target":"avatar","filename":"avatar.png","content_type":"image/png"}"#,
+                        r#"{"target":"avatar","filename":"avatar.png","content_type":"image/png","size_bytes":1048576}"#,
                     ))
                     .unwrap(),
             )

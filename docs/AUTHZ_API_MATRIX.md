@@ -110,8 +110,8 @@
 | REST | `GET /internal/authz/metrics` | 運用 caller | AuthZ対象外 | N/A | dedicated internal guard。deny=`403/INTERNAL_OPS_FORBIDDEN`, unavailable=`503/INTERNAL_OPS_UNAVAILABLE` |
 | REST | `POST /internal/authz/cache/invalidate` | 運用 caller | AuthZ対象外 | N/A | dedicated internal guard。general bearer token と `RestPath + can_view` には依存しない |
 | REST | `GET /v1/protected/ping` | AuthN済み `principal_id` | `AuthzResource::RestPath { path: "/v1/protected/ping" }` | `View` | deny=`403/AUTHZ_DENIED`, unavailable=`503/AUTHZ_UNAVAILABLE` |
-| REST | `GET /v1/invites/:invite_code` | なし（Public route） | AuthZ対象外 | N/A | Public verify endpoint。rate limit は invite access を適用 |
-| REST | `POST /v1/invites/:invite_code/join` | AuthN済み `principal_id` | AuthZ対象外 | N/A | ADR-004 明示例外。invite state 検証と invite access rate limit を適用 |
+| REST | `GET /v1/invites/:invite_code` | なし（Public route） | AuthZ対象外 | N/A | Public verify endpoint。rate limit は `x-linklynx-trusted-proxy-secret` が runtime secret と一致したときだけ `x-linklynx-client-scope` 単位へ分離し、それ以外は shared anonymous fallback を使う |
+| REST | `POST /v1/invites/:invite_code/join` | AuthN済み `principal_id` | AuthZ対象外 | N/A | ADR-004 明示例外。invite state 検証と invite access rate limit を適用。rate limit key は principal 単位、audit log には `invite_code/client_scope/request_id` を残す |
 | REST | `GET /v1/guilds/:guild_id` | AuthN済み `principal_id` | `AuthzResource::Guild { guild_id }` | `View` | deny=`403/AUTHZ_DENIED`, unavailable=`503/AUTHZ_UNAVAILABLE` |
 | REST | `PATCH /v1/guilds/:guild_id` | AuthN済み `principal_id` | `AuthzResource::Guild { guild_id }` | `Manage` | deny=`403/AUTHZ_DENIED`, unavailable=`503/AUTHZ_UNAVAILABLE` |
 | REST | `GET /guilds/:guild_id/channels` | AuthN済み `principal_id` | `AuthzResource::Guild { guild_id }` | `View` | category container を含む一覧取得。deny=`403/AUTHZ_DENIED`, unavailable=`503/AUTHZ_UNAVAILABLE` |

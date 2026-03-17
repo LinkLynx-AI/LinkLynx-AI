@@ -10,6 +10,30 @@ type ProfileMediaApi = Pick<
   "createMyProfileMediaUploadUrl" | "getMyProfileMediaDownloadUrl"
 >;
 
+function resolveProfileMediaContentType(file: File): string {
+  const trimmedType = file.type.trim();
+  if (trimmedType.length > 0) {
+    return trimmedType;
+  }
+
+  const extension = file.name.trim().split(".").pop()?.toLowerCase();
+  switch (extension) {
+    case "png":
+      return "image/png";
+    case "jpg":
+    case "jpeg":
+      return "image/jpeg";
+    case "gif":
+      return "image/gif";
+    case "webp":
+      return "image/webp";
+    case "avif":
+      return "image/avif";
+    default:
+      return "application/octet-stream";
+  }
+}
+
 function buildUploadFilename(target: ProfileMediaTarget, file: File): string {
   const trimmed = file.name.trim();
   if (trimmed.length > 0) {
@@ -27,11 +51,12 @@ export async function uploadMyProfileMedia(
   target: ProfileMediaTarget,
   file: File,
 ): Promise<string> {
-  const contentType = file.type.trim().length > 0 ? file.type : "application/octet-stream";
+  const contentType = resolveProfileMediaContentType(file);
   const upload = await api.createMyProfileMediaUploadUrl({
     target,
     filename: buildUploadFilename(target, file),
     contentType,
+    sizeBytes: file.size,
   });
   const headers = new Headers(upload.requiredHeaders);
   if (!headers.has("content-type")) {

@@ -311,6 +311,101 @@ async fn internal_ops_middleware(
     }
 }
 
+const PUBLIC_INVITE_TRUSTED_PROXY_SHARED_SECRET_ENV: &str =
+    "PUBLIC_INVITE_TRUSTED_PROXY_SHARED_SECRET";
+const PUBLIC_INVITE_CLIENT_SCOPE_HEADER: &str = "x-linklynx-client-scope";
+const PUBLIC_INVITE_TRUSTED_PROXY_SECRET_HEADER: &str = "x-linklynx-trusted-proxy-secret";
+const PUBLIC_INVITE_ANONYMOUS_CLIENT_SCOPE: &str = "anonymous";
+const PUBLIC_INVITE_MAX_CLIENT_SCOPE_LEN: usize = 128;
+
+#[derive(Debug, Clone)]
+struct PublicInviteClientScope {
+    key_fragment: String,
+    log_value: String,
+    source: &'static str,
+}
+
+impl PublicInviteClientScope {
+    fn trusted(scope: String) -> Self {
+        Self {
+            key_fragment: scope.clone(),
+            log_value: scope,
+            source: "trusted_proxy_header",
+        }
+    }
+
+    fn anonymous() -> Self {
+        Self {
+            key_fragment: PUBLIC_INVITE_ANONYMOUS_CLIENT_SCOPE.to_owned(),
+            log_value: PUBLIC_INVITE_ANONYMOUS_CLIENT_SCOPE.to_owned(),
+            source: "anonymous_fallback",
+        }
+    }
+}
+
+/// 実行時の public invite trusted proxy shared secret を解決する。
+/// @param なし
+/// @returns 設定済み secret。未設定または空文字時は `None`
+/// @throws なし
+fn build_runtime_public_invite_trusted_proxy_shared_secret() -> Option<String> {
+    match env::var(PUBLIC_INVITE_TRUSTED_PROXY_SHARED_SECRET_ENV) {
+        Ok(shared_secret) if shared_secret.trim().is_empty() => {
+            tracing::warn!(
+                env_var = PUBLIC_INVITE_TRUSTED_PROXY_SHARED_SECRET_ENV,
+                "blank public invite trusted proxy secret is invalid; anonymous fallback will be used"
+            );
+            None
+        }
+        Ok(shared_secret) => Some(shared_secret),
+        Err(_) => None,
+    }
+}
+
+/// 公開invite向け client scope をヘッダーから解決する。
+/// @param headers リクエストヘッダー
+/// @param trusted_proxy_shared_secret runtime で信頼する proxy shared secret
+/// @returns rate-limit と監査ログに使う client scope
+/// @throws なし
+fn resolve_public_invite_client_scope(
+    headers: &HeaderMap,
+    trusted_proxy_shared_secret: Option<&str>,
+) -> PublicInviteClientScope {
+    let provided_secret = headers
+        .get(PUBLIC_INVITE_TRUSTED_PROXY_SECRET_HEADER)
+        .and_then(|value| value.to_str().ok());
+    let provided_scope = headers
+        .get(PUBLIC_INVITE_CLIENT_SCOPE_HEADER)
+        .and_then(|value| value.to_str().ok())
+        .and_then(normalize_public_invite_client_scope_value);
+
+    if trusted_proxy_shared_secret.is_some()
+        && trusted_proxy_shared_secret == provided_secret
+        && provided_scope.is_some()
+    {
+        return PublicInviteClientScope::trusted(provided_scope.unwrap_or_default());
+    }
+
+    PublicInviteClientScope::anonymous()
+}
+
+/// public invite client scope ヘッダー値を正規化する。
+/// @param raw_scope 生のヘッダー値
+/// @returns 利用可能な client scope。無効値は `None`
+/// @throws なし
+fn normalize_public_invite_client_scope_value(raw_scope: &str) -> Option<String> {
+    let trimmed = raw_scope.trim();
+    if trimmed.is_empty() || trimmed.len() > PUBLIC_INVITE_MAX_CLIENT_SCOPE_LEN {
+        return None;
+    }
+    if !trimmed.chars().all(|ch| {
+        ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '.' | ':')
+    }) {
+        return None;
+    }
+
+    Some(trimmed.to_owned())
+}
+
 /// ルート疎通応答を返す。
 /// @param なし
 /// @returns サーバー識別文字列
@@ -528,10 +623,15 @@ async fn get_public_invite(
     Path(params): Path<InviteVerifyPathParams>,
 ) -> Response {
     let request_id = request_id_from_headers(&headers);
+    let invite_code = params.invite_code;
+    let client_scope = resolve_public_invite_client_scope(
+        &headers,
+        state.public_invite_trusted_proxy_shared_secret.as_deref(),
+    );
     let rate_limit_decision = state
         .rest_rate_limit_service
         .evaluate_key(
-            public_invite_rate_limit_key(),
+            public_invite_rate_limit_key(&client_scope),
             RestRateLimitAction::InviteAccess,
         )
         .await;
@@ -554,6 +654,9 @@ async fn get_public_invite(
         tracing::warn!(
             decision = "deny",
             request_id = %request_id,
+            invite_code = %invite_code,
+            client_scope = %client_scope.log_value,
+            client_scope_source = client_scope.source,
             error_class = error_class,
             reason = reason,
             resource = "/v1/invites/{invite_code}",
@@ -573,7 +676,7 @@ async fn get_public_invite(
 
     match state
         .invite_service
-        .verify_public_invite(params.invite_code)
+        .verify_public_invite(invite_code)
         .await
     {
         Ok(invite) => Json(InviteVerifyResponse {
@@ -598,12 +701,20 @@ async fn join_public_invite(
     Path(params): Path<InviteVerifyPathParams>,
 ) -> Response {
     let request_id = request_id_from_headers(&headers);
+    let invite_code = params.invite_code;
+    let client_scope = resolve_public_invite_client_scope(
+        &headers,
+        state.public_invite_trusted_proxy_shared_secret.as_deref(),
+    );
     let token = match bearer_token_from_headers(&headers) {
         Ok(token) => token,
         Err(error) => {
             tracing::warn!(
                 decision = %error.decision(),
                 request_id = %request_id,
+                invite_code = %invite_code,
+                client_scope = %client_scope.log_value,
+                client_scope_source = client_scope.source,
                 error_class = %error.log_class(),
                 reason = %error.reason,
                 "invite join rejected at header parsing"
@@ -618,6 +729,9 @@ async fn join_public_invite(
             tracing::warn!(
                 decision = %error.decision(),
                 request_id = %request_id,
+                invite_code = %invite_code,
+                client_scope = %client_scope.log_value,
+                client_scope_source = client_scope.source,
                 error_class = %error.log_class(),
                 reason = %error.reason,
                 "invite join rejected at authentication"
@@ -653,6 +767,9 @@ async fn join_public_invite(
             decision = "deny",
             request_id = %request_id,
             principal_id = authenticated.principal_id.0,
+            invite_code = %invite_code,
+            client_scope = %client_scope.log_value,
+            client_scope_source = client_scope.source,
             error_class = error_class,
             reason = reason,
             resource = "/v1/invites/{invite_code}/join",
@@ -672,7 +789,7 @@ async fn join_public_invite(
 
     match state
         .invite_service
-        .join_invite(authenticated.principal_id, params.invite_code)
+        .join_invite(authenticated.principal_id, invite_code)
         .await
     {
         Ok(join) => Json(InviteJoinResponse {
@@ -1756,6 +1873,7 @@ struct ProfileMediaUploadUrlRequest {
     target: String,
     filename: String,
     content_type: String,
+    size_bytes: u64,
 }
 
 #[derive(Debug, Deserialize)]
@@ -2079,6 +2197,7 @@ fn parse_profile_media_upload_payload(
         target: profile::ProfileMediaTarget::parse(payload.target.as_str())?,
         filename: payload.filename,
         content_type: payload.content_type,
+        size_bytes: payload.size_bytes,
     })
 }
 
@@ -2208,11 +2327,11 @@ fn parse_report_id(raw_report_id: &str) -> Result<i64, ModerationError> {
 }
 
 /// 公開invite用のレート制限キーを生成する。
-/// 未認証かつ trusted peer 情報を利用していないため共有匿名バケットを用いる。
+/// @param client_scope 解決済み client scope
 /// @returns レート制限キー
 /// @throws なし
-fn public_invite_rate_limit_key() -> &'static str {
-    "public:anonymous:invite_access"
+fn public_invite_rate_limit_key(client_scope: &PublicInviteClientScope) -> String {
+    format!("public:{}:invite_access", client_scope.key_fragment)
 }
 
 /// JSON入力を検証してモデレーションペイロードを取得する。
@@ -3131,13 +3250,26 @@ async fn issue_my_profile_media_upload_url(
         Ok(value) => value,
         Err(error) => return profile_error_response(&error, request_id),
     };
+    let requested_size_bytes = input.size_bytes;
+    let requested_content_type = input.content_type.clone();
 
     match state
         .profile_media_service
         .issue_upload_url(auth_context.principal_id, input)
         .await
     {
-        Ok(upload) => Json(ProfileMediaUploadUrlResponse { upload }).into_response(),
+        Ok(upload) => {
+            tracing::info!(
+                request_id = %request_id,
+                principal_id = auth_context.principal_id.0,
+                target = %upload.target.as_key_segment(),
+                object_key = %upload.object_key,
+                content_type = %requested_content_type,
+                size_bytes = requested_size_bytes,
+                "profile media upload url issued"
+            );
+            Json(ProfileMediaUploadUrlResponse { upload }).into_response()
+        }
         Err(error) => profile_error_response(&error, request_id),
     }
 }
@@ -3164,7 +3296,16 @@ async fn get_my_profile_media_download_url(
         .issue_download_url(auth_context.principal_id, target)
         .await
     {
-        Ok(media) => Json(ProfileMediaDownloadUrlResponse { media }).into_response(),
+        Ok(media) => {
+            tracing::info!(
+                request_id = %request_id,
+                principal_id = auth_context.principal_id.0,
+                target = %media.target.as_key_segment(),
+                object_key = %media.object_key,
+                "profile media download url issued"
+            );
+            Json(ProfileMediaDownloadUrlResponse { media }).into_response()
+        }
         Err(error) => profile_error_response(&error, request_id),
     }
 }

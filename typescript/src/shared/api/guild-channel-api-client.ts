@@ -1825,6 +1825,7 @@ export class GuildChannelAPIClient extends NoDataAPIClient {
         target: input.target,
         filename: input.filename,
         content_type: input.contentType,
+        size_bytes: input.sizeBytes,
       },
       schema: PROFILE_MEDIA_UPLOAD_RESPONSE_SCHEMA,
       expectedStatus: 200,
