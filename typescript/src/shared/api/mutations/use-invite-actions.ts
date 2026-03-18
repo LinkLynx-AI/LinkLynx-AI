@@ -29,8 +29,15 @@ export function useRevokeInvite() {
   const api = getAPIClient();
 
   return useMutation({
-    mutationFn: ({ serverId, inviteCode }: { serverId: string; inviteCode: string }) =>
-      api.revokeInvite(serverId, inviteCode),
+    mutationFn: ({
+      serverId,
+      inviteCode,
+      channelId,
+    }: {
+      serverId: string;
+      inviteCode: string;
+      channelId?: string;
+    }) => api.revokeInvite(serverId, inviteCode, { channelId }),
     onSuccess: (_result, variables) => {
       queryClient.invalidateQueries({ queryKey: ["invites", variables.serverId] });
     },

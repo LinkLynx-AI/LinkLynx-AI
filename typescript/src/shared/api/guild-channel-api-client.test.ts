@@ -1471,6 +1471,10 @@ describe("GuildChannelAPIClient", () => {
           invites: [
             {
               invite_code: "DEVJOIN2026",
+              channel: {
+                channel_id: 3001,
+                name: "general",
+              },
               creator: {
                 user_id: 1001,
                 display_name: "Alice",
@@ -1482,6 +1486,7 @@ describe("GuildChannelAPIClient", () => {
             },
             {
               invite_code: "OPENJOIN2026",
+              channel: null,
               creator: null,
               expires_at: "2026-03-21T00:00:00Z",
               uses: 0,
@@ -1500,6 +1505,7 @@ describe("GuildChannelAPIClient", () => {
     expect(invites).toEqual([
       {
         code: "DEVJOIN2026",
+        channel: { id: "3001", name: "general" },
         creator: { id: "1001", displayName: "Alice" },
         expiresAt: null,
         uses: 3,
@@ -1508,6 +1514,7 @@ describe("GuildChannelAPIClient", () => {
       },
       {
         code: "OPENJOIN2026",
+        channel: null,
         creator: null,
         expiresAt: "2026-03-21T00:00:00Z",
         uses: 0,
@@ -1529,6 +1536,27 @@ describe("GuildChannelAPIClient", () => {
 
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe("http://localhost:8080/v1/guilds/2001/invites/DEVJOIN2026");
+    expect(init.method).toBe("DELETE");
+  });
+
+  test("getInvites appends channel filter query when provided", async () => {
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ invites: [] }), { status: 200 }));
+
+    const client = new GuildChannelAPIClient();
+    await client.getInvites("2001", { channelId: "3001" });
+
+    const [url] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("http://localhost:8080/v1/guilds/2001/invites?channel_id=3001");
+  });
+
+  test("revokeInvite appends channel filter query when provided", async () => {
+    fetchMock.mockResolvedValue(new Response(null, { status: 204 }));
+
+    const client = new GuildChannelAPIClient();
+    await client.revokeInvite("2001", "DEVJOIN2026", { channelId: "3001" });
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("http://localhost:8080/v1/guilds/2001/invites/DEVJOIN2026?channel_id=3001");
     expect(init.method).toBe("DELETE");
   });
 

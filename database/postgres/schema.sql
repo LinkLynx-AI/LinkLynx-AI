@@ -554,6 +554,7 @@ CREATE TABLE public.invite_uses (
 CREATE TABLE public.invites (
     id bigint NOT NULL,
     guild_id bigint NOT NULL,
+    channel_id bigint,
     created_by bigint,
     code text NOT NULL,
     expires_at timestamp with time zone,
@@ -992,6 +993,7 @@ CREATE INDEX idx_guild_roles_v2_priority ON public.guild_roles_v2 USING btree (g
 CREATE INDEX idx_invites_expires ON public.invites USING btree (expires_at) WHERE (expires_at IS NOT NULL);
 
 
+CREATE INDEX idx_invites_guild_channel ON public.invites USING btree (guild_id, channel_id) WHERE (channel_id IS NOT NULL);
 
 CREATE INDEX idx_invites_guild ON public.invites USING btree (guild_id);
 
@@ -1234,6 +1236,13 @@ ALTER TABLE ONLY public.invite_uses
 
 
 ALTER TABLE ONLY public.invites
+    ADD CONSTRAINT invites_channel_id_fkey FOREIGN KEY (channel_id) REFERENCES public.channels(id) ON DELETE SET NULL;
+
+
+
+
+
+ALTER TABLE ONLY public.invites
     ADD CONSTRAINT invites_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id) ON DELETE SET NULL;
 
 
@@ -1305,7 +1314,5 @@ ALTER TABLE ONLY public.moderation_reports
 
 ALTER TABLE ONLY public.moderation_reports
     ADD CONSTRAINT moderation_reports_resolved_by_fkey FOREIGN KEY (resolved_by) REFERENCES public.users(id) ON DELETE SET NULL;
-
-
 
 

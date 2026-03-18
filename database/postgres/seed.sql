@@ -142,7 +142,7 @@ ON CONFLICT (invite_id, used_by) DO NOTHING;
 INSERT INTO audit_logs (id, guild_id, actor_id, action, target_type, target_id, metadata)
 VALUES
   (5001, 2001, 1001, 'CHANNEL_CREATE', 'channel', 3002, '{"name":"random"}'::jsonb),
-  (5002, 2001, 1001, 'INVITE_CREATE', 'invite', 4001, '{"code":"DEVJOIN2026"}'::jsonb)
+  (5002, 2001, 1001, 'INVITE_CREATE', 'invite', 4001, '{"code":"DEVJOIN2026","channel_id":3001}'::jsonb)
 ON CONFLICT (id) DO UPDATE
 SET
   guild_id = EXCLUDED.guild_id,

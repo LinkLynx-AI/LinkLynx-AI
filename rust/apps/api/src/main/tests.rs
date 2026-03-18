@@ -1771,14 +1771,19 @@ mod tests {
             &self,
             _principal_id: PrincipalId,
             guild_id: i64,
+            channel_id: Option<i64>,
         ) -> Result<Vec<GuildInviteSummary>, InviteError> {
             if guild_id != 2001 {
                 return Err(InviteError::not_found("guild_not_found"));
             }
 
-            Ok(vec![
+            let invites = vec![
                 GuildInviteSummary {
                     invite_code: "DEVJOIN2026".to_owned(),
+                    channel: Some(InviteChannelSummary {
+                        channel_id: 3001,
+                        name: "general".to_owned(),
+                    }),
                     creator: Some(InviteCreatorSummary {
                         user_id: 1001,
                         display_name: "Alice".to_owned(),
@@ -1790,13 +1795,25 @@ mod tests {
                 },
                 GuildInviteSummary {
                     invite_code: "OPENJOIN2026".to_owned(),
+                    channel: Some(InviteChannelSummary {
+                        channel_id: 3002,
+                        name: "random".to_owned(),
+                    }),
                     creator: None,
                     expires_at: None,
                     uses: 0,
                     max_uses: None,
                     created_at: "2026-03-13T00:00:00Z".to_owned(),
                 },
-            ])
+            ];
+
+            Ok(match channel_id {
+                Some(channel_id) => invites
+                    .into_iter()
+                    .filter(|invite| invite.channel.as_ref().map(|channel| channel.channel_id) == Some(channel_id))
+                    .collect(),
+                None => invites,
+            })
         }
 
         async fn create_invite(
@@ -1852,6 +1869,10 @@ mod tests {
                     status: PublicInviteStatus::Valid,
                     invite_code: normalized_invite_code,
                     guild: Some(guild),
+                    channel: Some(InviteChannelSummary {
+                        channel_id: 3001,
+                        name: "general".to_owned(),
+                    }),
                     expires_at: Some("2026-03-21T00:00:00Z".to_owned()),
                     uses: Some(3),
                     max_uses: Some(100),
@@ -1860,6 +1881,10 @@ mod tests {
                     status: PublicInviteStatus::Expired,
                     invite_code: normalized_invite_code,
                     guild: Some(guild),
+                    channel: Some(InviteChannelSummary {
+                        channel_id: 3001,
+                        name: "general".to_owned(),
+                    }),
                     expires_at: Some("2026-03-01T00:00:00Z".to_owned()),
                     uses: Some(10),
                     max_uses: Some(10),
@@ -1868,6 +1893,10 @@ mod tests {
                     status: PublicInviteStatus::Invalid,
                     invite_code: normalized_invite_code,
                     guild: Some(guild),
+                    channel: Some(InviteChannelSummary {
+                        channel_id: 3001,
+                        name: "general".to_owned(),
+                    }),
                     expires_at: Some("2026-03-21T00:00:00Z".to_owned()),
                     uses: Some(3),
                     max_uses: Some(10),
@@ -1876,6 +1905,7 @@ mod tests {
                     status: PublicInviteStatus::Invalid,
                     invite_code: normalized_invite_code,
                     guild: None,
+                    channel: None,
                     expires_at: None,
                     uses: None,
                     max_uses: None,
@@ -1897,11 +1927,19 @@ mod tests {
                 "DEVJOIN2026" => Ok(InviteJoinResult {
                     invite_code: normalized_invite_code,
                     guild_id: 2001,
+                    channel: Some(InviteChannelSummary {
+                        channel_id: 3001,
+                        name: "general".to_owned(),
+                    }),
                     status: InviteJoinStatus::Joined,
                 }),
                 "ALREADY2026" => Ok(InviteJoinResult {
                     invite_code: normalized_invite_code,
                     guild_id: 2001,
+                    channel: Some(InviteChannelSummary {
+                        channel_id: 3001,
+                        name: "general".to_owned(),
+                    }),
                     status: InviteJoinStatus::AlreadyMember,
                 }),
                 "EXPIRED2026" => Err(InviteError::expired_invite("invite_expired")),
@@ -1913,10 +1951,14 @@ mod tests {
             &self,
             _principal_id: PrincipalId,
             guild_id: i64,
+            channel_id: Option<i64>,
             invite_code: String,
         ) -> Result<(), InviteError> {
             if guild_id != 2001 {
                 return Err(InviteError::not_found("guild_not_found"));
+            }
+            if channel_id.is_some() && channel_id != Some(3001) {
+                return Err(InviteError::invite_not_found("invite_not_found"));
             }
 
             match invite_code.trim() {
@@ -1933,6 +1975,7 @@ mod tests {
             &self,
             _principal_id: PrincipalId,
             _guild_id: i64,
+            _channel_id: Option<i64>,
         ) -> Result<Vec<GuildInviteSummary>, InviteError> {
             Err(InviteError::dependency_unavailable(
                 "invite_store_unconfigured",
@@ -1973,6 +2016,7 @@ mod tests {
             &self,
             _principal_id: PrincipalId,
             _guild_id: i64,
+            _channel_id: Option<i64>,
             _invite_code: String,
         ) -> Result<(), InviteError> {
             Err(InviteError::dependency_unavailable(
@@ -2856,8 +2900,36 @@ mod tests {
             .unwrap();
         let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
         assert_eq!(json["invites"][0]["invite_code"], "DEVJOIN2026");
+        assert_eq!(json["invites"][0]["channel"]["channel_id"], 3001);
+        assert_eq!(json["invites"][0]["channel"]["name"], "general");
         assert_eq!(json["invites"][0]["creator"]["display_name"], "Alice");
+        assert_eq!(json["invites"][1]["channel"]["channel_id"], 3002);
         assert_eq!(json["invites"][1]["creator"], serde_json::Value::Null);
+    }
+
+    #[tokio::test]
+    async fn list_guild_invites_filters_by_channel_query_when_present() {
+        let app = app_for_test().await;
+        let token = format!("u-admin:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/v1/guilds/2001/invites?channel_id=3001")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["invites"].as_array().unwrap().len(), 1);
+        assert_eq!(json["invites"][0]["channel"]["channel_id"], 3001);
+        assert_eq!(json["invites"][0]["channel"]["name"], "general");
     }
 
     #[tokio::test]
@@ -3008,6 +3080,25 @@ mod tests {
                 Request::builder()
                     .method(Method::DELETE)
                     .uri("/v1/guilds/2001/invites/DEVJOIN2026")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::NO_CONTENT);
+    }
+
+    #[tokio::test]
+    async fn revoke_guild_invite_accepts_channel_query_when_present() {
+        let app = app_for_test().await;
+        let token = format!("u-admin:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method(Method::DELETE)
+                    .uri("/v1/guilds/2001/invites/DEVJOIN2026?channel_id=3001")
                     .header("authorization", format!("Bearer {token}"))
                     .body(Body::empty())
                     .unwrap(),

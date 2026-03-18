@@ -38,6 +38,8 @@ impl PostgresInviteService {
                  )
                  SELECT
                     i.code AS invite_code,
+                    i.channel_id,
+                    c.name AS channel_name,
                     i.created_by,
                     u.display_name AS creator_display_name,
                     to_char(i.expires_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS expires_at_text,
@@ -47,9 +49,12 @@ impl PostgresInviteService {
                  FROM invites i
                  JOIN manageable m
                    ON m.guild_id = i.guild_id
+                 LEFT JOIN channels c
+                   ON c.id = i.channel_id
                  LEFT JOIN users u
                    ON u.id = i.created_by
                  WHERE i.guild_id = $1
+                   AND ($3::bigint IS NULL OR i.channel_id = $3)
                    AND i.is_disabled = FALSE
                    AND (i.expires_at IS NULL OR i.expires_at >= now())
                    AND (i.max_uses IS NULL OR i.uses < i.max_uses)
@@ -94,6 +99,7 @@ impl PostgresInviteService {
                  inserted_invite AS (
                     INSERT INTO invites (
                       guild_id,
+                      channel_id,
                       created_by,
                       code,
                       expires_at,
@@ -101,6 +107,7 @@ impl PostgresInviteService {
                     )
                     SELECT
                       tc.guild_id,
+                      tc.channel_id,
                       $3,
                       $4,
                       CASE
@@ -112,6 +119,7 @@ impl PostgresInviteService {
                     RETURNING
                       code AS invite_code,
                       guild_id,
+                      channel_id,
                       to_char(expires_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS expires_at_text,
                       uses,
                       max_uses
@@ -162,6 +170,7 @@ impl PostgresInviteService {
                       i.guild_id,
                       i.created_by,
                       i.code,
+                      i.channel_id,
                       i.uses,
                       i.max_uses
                     FROM invites i
@@ -169,6 +178,7 @@ impl PostgresInviteService {
                       ON m.guild_id = i.guild_id
                     WHERE i.guild_id = $1
                       AND i.code = $3
+                      AND ($4::bigint IS NULL OR i.channel_id = $4)
                       AND i.is_disabled = FALSE
                       AND (i.expires_at IS NULL OR i.expires_at >= now())
                       AND (i.max_uses IS NULL OR i.uses < i.max_uses)
@@ -183,6 +193,7 @@ impl PostgresInviteService {
                               ti.guild_id,
                               ti.created_by,
                               ti.code,
+                              ti.channel_id,
                               ti.uses,
                               ti.max_uses
                  ),
@@ -197,6 +208,7 @@ impl PostgresInviteService {
                       jsonb_build_object(
                         'invite_code', updated.code,
                         'created_by', updated.created_by,
+                        'channel_id', updated.channel_id,
                         'uses', updated.uses,
                         'max_uses', updated.max_uses
                       )
@@ -214,17 +226,22 @@ impl PostgresInviteService {
                     g.id AS guild_id,
                     g.name AS guild_name,
                     g.icon_key,
+                    i.channel_id,
+                    c.name AS channel_name,
                     to_char(i.expires_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS expires_at_text,
                     i.uses,
                     i.max_uses
                  FROM invites i
                  JOIN guilds g
                    ON g.id = i.guild_id
+                 LEFT JOIN channels c
+                   ON c.id = i.channel_id
                  WHERE i.code = $1";
     const JOIN_INVITE_SQL: &str = "WITH locked_invite AS (
                     SELECT
                       i.id,
                       i.guild_id,
+                      i.channel_id,
                       i.expires_at,
                       i.max_uses,
                       i.uses,
@@ -237,6 +254,7 @@ impl PostgresInviteService {
                     SELECT
                       li.id AS invite_id,
                       li.guild_id,
+                      li.channel_id,
                       li.expires_at,
                       li.max_uses,
                       li.uses,
@@ -259,6 +277,7 @@ impl PostgresInviteService {
                     SELECT
                       im.invite_id,
                       im.guild_id,
+                      im.channel_id,
                       im.already_used,
                       CASE
                         WHEN im.already_member THEN 'already_member'
@@ -305,8 +324,12 @@ impl PostgresInviteService {
                  )
                  SELECT
                     state.guild_id,
-                    state.invite_decision
-                 FROM invite_state state";
+                    state.invite_decision,
+                    state.channel_id,
+                    c.name AS channel_name
+                 FROM invite_state state
+                 LEFT JOIN channels c
+                   ON c.id = state.channel_id";
 
     /// Postgresサービスを生成する。
     /// @param database_url 接続文字列
@@ -628,6 +651,7 @@ impl PostgresInviteService {
         &self,
         client: &tokio_postgres::Client,
         guild_id: i64,
+        channel_id: Option<i64>,
         invite_code: &str,
     ) -> Result<Option<StoredInviteState>, InviteError> {
         match client
@@ -638,8 +662,9 @@ impl PostgresInviteService {
                     (max_uses IS NOT NULL AND uses >= max_uses) AS is_maxed_out
                  FROM invites
                  WHERE guild_id = $1
-                   AND code = $2",
-                &[&guild_id, &invite_code],
+                   AND code = $2
+                   AND ($3::bigint IS NULL OR channel_id = $3)",
+                &[&guild_id, &invite_code, &channel_id],
             )
             .await
         {
@@ -713,14 +738,18 @@ impl InviteService for PostgresInviteService {
         &self,
         principal_id: PrincipalId,
         guild_id: i64,
+        channel_id: Option<i64>,
     ) -> Result<Vec<GuildInviteSummary>, InviteError> {
         if guild_id <= 0 {
             return Err(InviteError::validation("guild_id_must_be_positive"));
         }
+        if matches!(channel_id, Some(value) if value <= 0) {
+            return Err(InviteError::validation("channel_id_must_be_positive"));
+        }
 
         let client = self.select_client().await?;
         let rows = match client
-            .query(Self::LIST_INVITES_SQL, &[&guild_id, &principal_id.0])
+            .query(Self::LIST_INVITES_SQL, &[&guild_id, &principal_id.0, &channel_id])
             .await
         {
             Ok(rows) => rows,
@@ -730,6 +759,19 @@ impl InviteService for PostgresInviteService {
         if rows.is_empty() {
             self.verify_manageable_guild_access(&client, principal_id, guild_id)
                 .await?;
+            if let Some(channel_id) = channel_id {
+                let Some((channel_guild_id, channel_type)) =
+                    self.find_channel_scope(&client, channel_id).await?
+                else {
+                    return Err(InviteError::channel_not_found("invite_channel_not_found"));
+                };
+                if channel_guild_id != guild_id {
+                    return Err(InviteError::validation("invite_channel_cross_guild"));
+                }
+                if channel_type != "guild_text" {
+                    return Err(InviteError::validation("invite_channel_must_be_guild_text"));
+                }
+            }
         }
 
         rows.into_iter()
@@ -737,6 +779,12 @@ impl InviteService for PostgresInviteService {
                 build_guild_invite_summary(
                     row.get::<&str, String>("invite_code"),
                     GuildInviteSummaryRecord {
+                        channel: row.get::<&str, Option<i64>>("channel_id").map(|channel_id| {
+                            InviteChannelSummary {
+                                channel_id,
+                                name: row.get::<&str, String>("channel_name"),
+                            }
+                        }),
                         creator: row.get::<&str, Option<i64>>("created_by").map(|user_id| {
                             InviteCreatorRecord {
                                 user_id,
@@ -872,6 +920,12 @@ impl InviteService for PostgresInviteService {
                     name: row.get::<&str, String>("guild_name"),
                     icon_key: row.get::<&str, Option<String>>("icon_key"),
                 },
+                channel: row.get::<&str, Option<i64>>("channel_id").map(|channel_id| {
+                    InviteChannelSummary {
+                        channel_id,
+                        name: row.get::<&str, String>("channel_name"),
+                    }
+                }),
                 expires_at: row.get::<&str, Option<String>>("expires_at_text"),
                 uses: row.get::<&str, i32>("uses"),
                 max_uses: row.get::<&str, Option<i32>>("max_uses"),
@@ -911,6 +965,12 @@ impl InviteService for PostgresInviteService {
 
             InviteJoinRecord {
                 guild_id: row.get::<&str, i64>("guild_id"),
+                channel: row.get::<&str, Option<i64>>("channel_id").map(|channel_id| {
+                    InviteChannelSummary {
+                        channel_id,
+                        name: row.get::<&str, String>("channel_name"),
+                    }
+                }),
                 decision,
             }
         });
@@ -928,10 +988,14 @@ impl InviteService for PostgresInviteService {
         &self,
         principal_id: PrincipalId,
         guild_id: i64,
+        channel_id: Option<i64>,
         invite_code: String,
     ) -> Result<(), InviteError> {
         if guild_id <= 0 {
             return Err(InviteError::validation("guild_id_must_be_positive"));
+        }
+        if matches!(channel_id, Some(value) if value <= 0) {
+            return Err(InviteError::validation("channel_id_must_be_positive"));
         }
 
         let normalized_invite_code = normalize_invite_code(&invite_code)?;
@@ -939,7 +1003,7 @@ impl InviteService for PostgresInviteService {
         let row = match client
             .query_opt(
                 Self::REVOKE_INVITE_SQL,
-                &[&guild_id, &principal_id.0, &normalized_invite_code],
+                &[&guild_id, &principal_id.0, &normalized_invite_code, &channel_id],
             )
             .await
         {
@@ -953,9 +1017,22 @@ impl InviteService for PostgresInviteService {
 
         self.verify_manageable_guild_access(&client, principal_id, guild_id)
             .await?;
+        if let Some(channel_id) = channel_id {
+            let Some((channel_guild_id, channel_type)) =
+                self.find_channel_scope(&client, channel_id).await?
+            else {
+                return Err(InviteError::channel_not_found("invite_channel_not_found"));
+            };
+            if channel_guild_id != guild_id {
+                return Err(InviteError::validation("invite_channel_cross_guild"));
+            }
+            if channel_type != "guild_text" {
+                return Err(InviteError::validation("invite_channel_must_be_guild_text"));
+            }
+        }
 
         match self
-            .find_invite_state(&client, guild_id, &normalized_invite_code)
+            .find_invite_state(&client, guild_id, channel_id, &normalized_invite_code)
             .await?
         {
             Some(state) if state.is_disabled || state.is_expired || state.is_maxed_out => {

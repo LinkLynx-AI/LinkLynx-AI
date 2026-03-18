@@ -21,6 +21,7 @@ pub struct PublicInviteLookup {
     pub status: PublicInviteStatus,
     pub invite_code: String,
     pub guild: Option<PublicInviteGuild>,
+    pub channel: Option<InviteChannelSummary>,
     pub expires_at: Option<String>,
     pub uses: Option<i32>,
     pub max_uses: Option<i32>,
@@ -39,6 +40,7 @@ pub enum InviteJoinStatus {
 pub struct InviteJoinResult {
     pub invite_code: String,
     pub guild_id: i64,
+    pub channel: Option<InviteChannelSummary>,
     pub status: InviteJoinStatus,
 }
 
@@ -79,6 +81,7 @@ pub struct InviteCreatorSummary {
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 pub struct GuildInviteSummary {
     pub invite_code: String,
+    pub channel: Option<InviteChannelSummary>,
     pub creator: Option<InviteCreatorSummary>,
     pub expires_at: Option<String>,
     pub uses: i32,
@@ -98,6 +101,7 @@ pub trait InviteService: Send + Sync {
         &self,
         principal_id: PrincipalId,
         guild_id: i64,
+        channel_id: Option<i64>,
     ) -> Result<Vec<GuildInviteSummary>, InviteError>;
 
     /// 認証済みユーザーが guild 配下の招待を作成する。
@@ -143,6 +147,7 @@ pub trait InviteService: Send + Sync {
         &self,
         principal_id: PrincipalId,
         guild_id: i64,
+        channel_id: Option<i64>,
         invite_code: String,
     ) -> Result<(), InviteError>;
 }
@@ -184,6 +189,7 @@ impl InviteService for UnavailableInviteService {
         &self,
         _principal_id: PrincipalId,
         _guild_id: i64,
+        _channel_id: Option<i64>,
     ) -> Result<Vec<GuildInviteSummary>, InviteError> {
         Err(self.unavailable_error())
     }
@@ -237,6 +243,7 @@ impl InviteService for UnavailableInviteService {
         &self,
         _principal_id: PrincipalId,
         _guild_id: i64,
+        _channel_id: Option<i64>,
         _invite_code: String,
     ) -> Result<(), InviteError> {
         Err(self.unavailable_error())
@@ -260,6 +267,7 @@ fn normalize_invite_code(raw_invite_code: &str) -> Result<String, InviteError> {
 struct InviteRecord {
     status: PublicInviteStatus,
     guild: PublicInviteGuild,
+    channel: Option<InviteChannelSummary>,
     expires_at: Option<String>,
     uses: i32,
     max_uses: Option<i32>,
@@ -276,6 +284,7 @@ enum InviteJoinDecision {
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct InviteJoinRecord {
     guild_id: i64,
+    channel: Option<InviteChannelSummary>,
     decision: InviteJoinDecision,
 }
 
@@ -296,6 +305,7 @@ struct InviteCreatorRecord {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct GuildInviteSummaryRecord {
+    channel: Option<InviteChannelSummary>,
     creator: Option<InviteCreatorRecord>,
     expires_at: Option<String>,
     uses: i32,
@@ -351,6 +361,7 @@ fn build_public_invite_lookup(
             status: record.status,
             invite_code: normalized_invite_code,
             guild: Some(record.guild),
+            channel: record.channel,
             expires_at: record.expires_at,
             uses: Some(record.uses),
             max_uses: record.max_uses,
@@ -359,6 +370,7 @@ fn build_public_invite_lookup(
             status: PublicInviteStatus::Invalid,
             invite_code: normalized_invite_code,
             guild: None,
+            channel: None,
             expires_at: None,
             uses: None,
             max_uses: None,
@@ -380,18 +392,22 @@ fn build_invite_join_result(
     match record {
         Some(InviteJoinRecord {
             guild_id,
+            channel,
             decision: InviteJoinDecision::Joined,
         }) => Ok(InviteJoinResult {
             invite_code: normalized_invite_code,
             guild_id,
+            channel,
             status: InviteJoinStatus::Joined,
         }),
         Some(InviteJoinRecord {
             guild_id,
+            channel,
             decision: InviteJoinDecision::AlreadyMember,
         }) => Ok(InviteJoinResult {
             invite_code: normalized_invite_code,
             guild_id,
+            channel,
             status: InviteJoinStatus::AlreadyMember,
         }),
         Some(InviteJoinRecord {
@@ -440,6 +456,7 @@ fn build_guild_invite_summary(
 
     Ok(GuildInviteSummary {
         invite_code: normalized_invite_code,
+        channel: record.channel,
         creator: record.creator.map(|creator| InviteCreatorSummary {
             user_id: creator.user_id,
             display_name: creator.display_name,

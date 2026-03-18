@@ -15,12 +15,13 @@ vi.mock("@/shared/api/mutations", () => ({
 }));
 
 describe("ChannelEditInvites", () => {
-  test("shows guild-scoped note and revokes invite with server id", async () => {
+  test("loads channel-scoped invites and revokes with channel id", async () => {
     const mutateAsync = vi.fn().mockResolvedValue(undefined);
     useInvitesMock.mockReturnValue({
       data: [
         {
           code: "DEVJOIN2026",
+          channel: { id: "3001", name: "general" },
           creator: { id: "1001", displayName: "Alice" },
           expiresAt: null,
           uses: 2,
@@ -39,13 +40,15 @@ describe("ChannelEditInvites", () => {
 
     render(<ChannelEditInvites serverId="2001" channelId="3001" />);
 
-    expect(screen.getByText(/サーバー単位で管理/)).not.toBeNull();
+    expect(useInvitesMock).toHaveBeenCalledWith("2001", "3001");
+    expect(screen.queryByText(/サーバー単位で管理/)).toBeNull();
 
     await userEvent.click(screen.getByRole("button", { name: "招待を取り消す" }));
 
     expect(mutateAsync).toHaveBeenCalledWith({
       serverId: "2001",
       inviteCode: "DEVJOIN2026",
+      channelId: "3001",
     });
   });
 
@@ -64,5 +67,6 @@ describe("ChannelEditInvites", () => {
     render(<ChannelEditInvites serverId="2001" channelId="3001" />);
 
     expect(screen.getByText("招待がありません")).not.toBeNull();
+    expect(screen.getByText("このチャンネルにはアクティブな招待がありません")).not.toBeNull();
   });
 });
