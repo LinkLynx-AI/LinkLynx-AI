@@ -46,8 +46,8 @@ Out of scope:
   - Client -> Server: `{ \"type\": \"auth.identify\", \"d\": { \"method\": \"ticket\", \"ticket\": string } }`
   - Server -> Client: `{ \"type\": \"auth.ready\", \"d\": { \"principalId\": number } }`
 - Compatibility paths:
-  - `GET /ws?ticket=<ticket>`
   - `Authorization` header based WS handshake
+  - `GET /ws?ticket=<ticket>` is disabled by default and may be re-enabled only by explicit runtime opt-in.
 - Close behavior:
   - invalid/expired/replayed ticket, identify timeout, identify-before-ready violation -> `1008`
   - auth dependency unavailable -> `1011`
@@ -81,7 +81,12 @@ Out of scope:
   - `AUTH_IDENTIFY_TIMEOUT_SECONDS` (default: `5`)
   - `WS_TICKET_RATE_LIMIT_MAX_PER_MINUTE` (default: `20`)
   - `WS_IDENTIFY_RATE_LIMIT_MAX_PER_MINUTE` (default: `60`)
+  - `AUTH_ATTEMPT_RATE_LIMIT_MAX_PER_MINUTE` (default: `20`)
   - `WS_ALLOWED_ORIGINS` (default: `http://localhost:3000,http://127.0.0.1:3000`)
+  - `HTTP_ALLOWED_ORIGINS` (default: `http://localhost:3000,http://127.0.0.1:3000`)
+  - `WS_QUERY_TICKET_ENABLED` (default: `false`)
+  - `WS_PREAUTH_MESSAGE_MAX_BYTES` (default: `16384`)
+  - `WS_PREAUTH_MAX_CONNECTIONS_PER_NODE` (default: `100`)
 - Principal store retry behavior is configurable via:
   - `AUTH_PRINCIPAL_STORE_MAX_RETRIES` (default: `2`)
   - `AUTH_PRINCIPAL_STORE_RETRY_BASE_BACKOFF_MS` (default: `25`)
@@ -141,6 +146,7 @@ Local steps (runbook-only reproducible flow):
    - `cd typescript && npm run smoke:auth -- --mode=happy-path`
 6. Verify auth path expectations.
    - `happy-path` must complete `Firebase login -> GET /protected/ping -> POST /auth/ws-ticket -> GET /ws + auth.identify`.
+   - `GET /ws?ticket=<ticket>` is not part of the default browser baseline.
    - `protected/ping` success payload must include `request_id`, `principal_id`, `firebase_uid`.
    - `auth.ready` payload must include `principalId` and match the REST `principal_id`.
 7. Validate missing/invalid token path separately when needed.

@@ -3,10 +3,7 @@
 /// @returns APIルータ
 /// @throws なし
 fn app_with_state(state: AppState) -> Router {
-    let cors = CorsLayer::new()
-        .allow_origin(Any)
-        .allow_methods(Any)
-        .allow_headers(Any);
+    let external_cors = build_http_cors_layer(state.http_allowed_origins.as_ref());
 
     let protected_routes = Router::new()
         .route("/protected/ping", get(protected_ping))
@@ -101,26 +98,30 @@ fn app_with_state(state: AppState) -> Router {
             "/v1/moderation/guilds/{guild_id}/members/{member_id}",
             axum::routing::patch(moderate_guild_member),
         )
-        .route_layer(middleware::from_fn_with_state(
-            state.clone(),
-            rest_auth_middleware,
-        ));
-
-    Router::new()
-        .route("/", get(root))
-        .route("/health", get(health_check))
         .route(
             "/users/me/dms",
             get(list_dm_channels).post(open_or_create_dm),
         )
+        .route_layer(middleware::from_fn_with_state(
+            state.clone(),
+            rest_auth_middleware,
+        ))
+        .layer(external_cors.clone());
+
+    let public_routes = Router::new()
+        .route("/", get(root))
+        .route("/health", get(health_check))
         .route("/v1/invites/{invite_code}", get(get_public_invite))
         .route("/v1/invites/{invite_code}/join", post(join_public_invite))
+        .route("/auth/ws-ticket", post(issue_ws_ticket))
+        .layer(external_cors);
+
+    Router::new()
         .route("/internal/scylla/health", get(scylla_health_check))
         .route("/ws", get(ws_handler))
-        .route("/auth/ws-ticket", post(issue_ws_ticket))
+        .merge(public_routes)
         .merge(protected_routes)
         .with_state(state)
-        .layer(cors)
 }
 
 /// ルート疎通応答を返す。
@@ -1158,11 +1159,26 @@ fn rate_limit_error_response(
 /// @param headers HTTPヘッダー
 /// @returns 発行済みWSチケット
 /// @throws なし
-async fn issue_ws_ticket(State(state): State<AppState>, headers: HeaderMap) -> Response {
+async fn issue_ws_ticket(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Response {
     let request_id = request_id_from_headers(&headers);
     let token = match bearer_token_from_headers(&headers) {
         Ok(token) => token,
         Err(error) => {
+            if auth_error_counts_toward_attempt_limit(&error) {
+                if let Some(response) =
+                    enforce_auth_attempt_rate_limit(
+                        &state,
+                        &request_id,
+                        &auth_attempt_rate_limit_key(&headers, None),
+                    )
+                    .await
+                {
+                    return response;
+                }
+            }
             tracing::warn!(
                 decision = %error.decision(),
                 request_id = %request_id,
@@ -1177,6 +1193,18 @@ async fn issue_ws_ticket(State(state): State<AppState>, headers: HeaderMap) -> R
     let authenticated = match state.auth_service.authenticate_token(&token).await {
         Ok(authenticated) => authenticated,
         Err(error) => {
+            if auth_error_counts_toward_attempt_limit(&error) {
+                if let Some(response) =
+                    enforce_auth_attempt_rate_limit(
+                        &state,
+                        &request_id,
+                        &auth_attempt_rate_limit_key(&headers, Some(&token)),
+                    )
+                    .await
+                {
+                    return response;
+                }
+            }
             tracing::warn!(
                 decision = %error.decision(),
                 request_id = %request_id,
@@ -2740,6 +2768,18 @@ async fn rest_auth_middleware(
     let token = match bearer_token_from_headers(request.headers()) {
         Ok(token) => token,
         Err(error) => {
+            if auth_error_counts_toward_attempt_limit(&error) {
+                if let Some(response) =
+                    enforce_auth_attempt_rate_limit(
+                        &state,
+                        &request_id,
+                        &auth_attempt_rate_limit_key(request.headers(), None),
+                    )
+                    .await
+                {
+                    return response;
+                }
+            }
             tracing::warn!(
                 decision = %error.decision(),
                 request_id = %request_id,
@@ -2754,6 +2794,18 @@ async fn rest_auth_middleware(
     let authenticated = match state.auth_service.authenticate_token(&token).await {
         Ok(authenticated) => authenticated,
         Err(error) => {
+            if auth_error_counts_toward_attempt_limit(&error) {
+                if let Some(response) =
+                    enforce_auth_attempt_rate_limit(
+                        &state,
+                        &request_id,
+                        &auth_attempt_rate_limit_key(request.headers(), Some(&token)),
+                    )
+                    .await
+                {
+                    return response;
+                }
+            }
             tracing::warn!(
                 decision = %error.decision(),
                 request_id = %request_id,
@@ -2897,6 +2949,9 @@ fn rest_authz_resource_from_path(path: &str) -> AuthzResource {
             channel_id,
         };
     }
+    if let Some(channel_id) = parse_channel_path(path) {
+        return AuthzResource::Channel { channel_id };
+    }
     if let Some(channel_id) = parse_dm_channel_path(path) {
         return AuthzResource::Channel { channel_id };
     }
@@ -2926,8 +2981,20 @@ fn parse_guild_path(path: &str) -> Option<i64> {
     let segments = path.trim_matches('/').split('/').collect::<Vec<_>>();
     match segments.as_slice() {
         ["guilds", guild_id] => guild_id.parse::<i64>().ok(),
+        ["guilds", guild_id, "channels"] => guild_id.parse::<i64>().ok(),
+        ["guilds", guild_id, "moderation", "reports"] => guild_id.parse::<i64>().ok(),
+        ["guilds", guild_id, "moderation", "reports", _report_id] => guild_id.parse::<i64>().ok(),
+        ["guilds", guild_id, "moderation", "reports", _report_id, "resolve"] => {
+            guild_id.parse::<i64>().ok()
+        }
+        ["guilds", guild_id, "moderation", "reports", _report_id, "reopen"] => {
+            guild_id.parse::<i64>().ok()
+        }
+        ["guilds", guild_id, "moderation", "mutes"] => guild_id.parse::<i64>().ok(),
         ["guilds", guild_id, "permission-snapshot"] => guild_id.parse::<i64>().ok(),
         ["v1", "guilds", guild_id] => guild_id.parse::<i64>().ok(),
+        ["v1", "guilds", guild_id, "members"] => guild_id.parse::<i64>().ok(),
+        ["v1", "guilds", guild_id, "roles"] => guild_id.parse::<i64>().ok(),
         _ => None,
     }
 }
@@ -2977,6 +3044,18 @@ fn parse_dm_channel_path(path: &str) -> Option<i64> {
         return None;
     }
     segments[2].parse::<i64>().ok()
+}
+
+/// チャンネルパスから channel_id を抽出する。
+/// @param path リクエストパス
+/// @returns channel_id
+/// @throws なし
+fn parse_channel_path(path: &str) -> Option<i64> {
+    let segments = path.trim_matches('/').split('/').collect::<Vec<_>>();
+    match segments.as_slice() {
+        ["channels", channel_id] => channel_id.parse::<i64>().ok(),
+        _ => None,
+    }
 }
 
 /// モデレーションパスから guild_id を抽出する。

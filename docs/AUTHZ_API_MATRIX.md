@@ -44,6 +44,8 @@
 | GET | `/v1/dms/:channel_id` | Protected | 必須 | 必須 | DM channel参照 |
 | GET | `/v1/dms/:channel_id/messages` | Protected | 必須 | 必須 | DM message一覧参照 |
 | POST | `/v1/dms/:channel_id/messages` | Protected | 必須 | 必須 | DM message投稿 |
+| GET | `/users/me/dms` | Protected | 必須 | 必須 | DM bootstrap 一覧。implicit bypass を禁止 |
+| POST | `/users/me/dms` | Protected | 必須 | 必須 | DM bootstrap open/create |
 | PATCH | `/v1/moderation/guilds/:guild_id/members/:member_id` | Protected | 必須 | 必須 | Moderation操作 |
 
 ### 2.2 WebSocket endpoint
@@ -81,6 +83,8 @@
 - `GET /v1/dms/:channel_id`
 - `GET /v1/dms/:channel_id/messages`
 - `POST /v1/dms/:channel_id/messages`
+- `GET /users/me/dms`
+- `POST /users/me/dms`
 - `PATCH /v1/moderation/guilds/:guild_id/members/:member_id`
 - `GET /ws`（upgrade handshake）
 - `auth.reauthenticate` 処理時の再認証 AuthZ
@@ -109,6 +113,8 @@
 | REST | `GET /v1/dms/:channel_id` | AuthN済み `principal_id` | `AuthzResource::Channel { channel_id }` | `View` | deny=`403/AUTHZ_DENIED`, unavailable=`503/AUTHZ_UNAVAILABLE` |
 | REST | `GET /v1/dms/:channel_id/messages` | AuthN済み `principal_id` | `AuthzResource::Channel { channel_id }` | `View` | deny=`403/AUTHZ_DENIED`, unavailable=`503/AUTHZ_UNAVAILABLE` |
 | REST | `POST /v1/dms/:channel_id/messages` | AuthN済み `principal_id` | `AuthzResource::Channel { channel_id }` | `Post` | deny=`403/AUTHZ_DENIED`, unavailable=`503/AUTHZ_UNAVAILABLE` |
+| REST | `GET /users/me/dms` | AuthN済み `principal_id` | `AuthzResource::RestPath { path: "/users/me/dms" }` | `View` | DM bootstrap を protected 化。deny=`403/AUTHZ_DENIED`, unavailable=`503/AUTHZ_UNAVAILABLE` |
+| REST | `POST /users/me/dms` | AuthN済み `principal_id` | `AuthzResource::RestPath { path: "/users/me/dms" }` | `Post` | DM bootstrap create。deny=`403/AUTHZ_DENIED`, unavailable=`503/AUTHZ_UNAVAILABLE` |
 | REST | `PATCH /v1/moderation/guilds/:guild_id/members/:member_id` | AuthN済み `principal_id` | `AuthzResource::Guild { guild_id }` | `Manage` | deny=`403/AUTHZ_DENIED`, unavailable=`503/AUTHZ_UNAVAILABLE` |
 | WS | `/ws` handshake | AuthN済み `principal_id` | `AuthzResource::Session` | `Connect` | deny=`1008`, unavailable=`1011` |
 | WS | `auth.reauthenticate` | AuthN済み `principal_id` | `AuthzResource::Session` | `Connect` | deny=`1008`, unavailable=`1011` |

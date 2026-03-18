@@ -18,7 +18,9 @@ type MyProfileMediaSyncInput =
   | null
   | undefined;
 
-function normalizeMediaOverrides(input: MyProfileMediaSyncInput): NormalizedMyProfileMediaOverrides {
+function normalizeMediaOverrides(
+  input: MyProfileMediaSyncInput,
+): NormalizedMyProfileMediaOverrides {
   if (input === undefined) {
     return {
       avatarUrl: undefined,
@@ -120,8 +122,7 @@ function buildUserProfileForCurrentUser(
       createdAt: new Date(0).toISOString(),
     }),
     ...baseUser,
-    banner:
-      profile.bannerKey === null ? null : (media.bannerUrl ?? existing?.banner ?? null),
+    banner: profile.bannerKey === null ? null : (media.bannerUrl ?? existing?.banner ?? null),
     bio: profile.statusText,
   };
 }

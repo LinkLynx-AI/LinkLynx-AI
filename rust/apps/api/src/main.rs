@@ -37,7 +37,10 @@ use axum::{
         ws::{CloseFrame, Message, WebSocket, WebSocketUpgrade},
         Extension, Path, Query, State,
     },
-    http::{header::RETRY_AFTER, HeaderMap, HeaderValue, Request, StatusCode},
+    http::{
+        header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE, ORIGIN, RETRY_AFTER},
+        HeaderMap, HeaderName, HeaderValue, Method, Request, StatusCode,
+    },
     middleware::{self, Next},
     response::{IntoResponse, Response},
     routing::{get, patch, post},
@@ -73,7 +76,9 @@ use ratelimit::{
 };
 use scylla_health::{build_runtime_scylla_health_reporter, ScyllaHealthReporter};
 use serde::{Deserialize, Serialize};
-use tower_http::cors::{Any, CorsLayer};
+use sha2::{Digest, Sha256};
+use tokio::sync::{OwnedSemaphorePermit, Semaphore};
+use tower_http::cors::{AllowOrigin, CorsLayer};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use user_directory::{
     build_runtime_user_directory_service, user_directory_error_response, UserDirectoryError,
@@ -101,7 +106,13 @@ pub(crate) struct AppState {
     ws_ticket_store: Arc<WsTicketStore>,
     ws_ticket_rate_limiter: Arc<FixedWindowRateLimiter>,
     ws_identify_rate_limiter: Arc<FixedWindowRateLimiter>,
+    auth_attempt_rate_limiter: Arc<FixedWindowRateLimiter>,
     ws_origin_allowlist: Arc<WsOriginAllowlist>,
+    http_allowed_origins: Arc<Vec<HeaderValue>>,
+    ws_query_ticket_enabled: bool,
+    ws_preauth_message_max_bytes: usize,
+    ws_preauth_limit: usize,
+    ws_preauth_connections: Arc<Semaphore>,
     rest_rate_limit_service: Arc<RestRateLimitService>,
 }
 
@@ -123,7 +134,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing::info!(address = %addr, "server starting");
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
-    axum::serve(listener, app).await?;
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .await?;
     Ok(())
 }
 
@@ -172,6 +187,11 @@ async fn build_runtime_state() -> AppState {
         parse_runtime_u64("WS_TICKET_RATE_LIMIT_MAX_PER_MINUTE", 20).min(u32::MAX as u64) as u32;
     let ws_identify_rate_limit_max =
         parse_runtime_u64("WS_IDENTIFY_RATE_LIMIT_MAX_PER_MINUTE", 60).min(u32::MAX as u64) as u32;
+    let auth_attempt_rate_limit_max =
+        parse_runtime_u64("AUTH_ATTEMPT_RATE_LIMIT_MAX_PER_MINUTE", 20).min(u32::MAX as u64) as u32;
+    let ws_preauth_message_max_bytes =
+        parse_runtime_u64("WS_PREAUTH_MESSAGE_MAX_BYTES", 16 * 1024) as usize;
+    let ws_preauth_limit = parse_runtime_u64("WS_PREAUTH_MAX_CONNECTIONS_PER_NODE", 100) as usize;
 
     AppState {
         auth_service,
@@ -199,7 +219,16 @@ async fn build_runtime_state() -> AppState {
             ws_identify_rate_limit_max,
             Duration::from_secs(60),
         )),
+        auth_attempt_rate_limiter: Arc::new(FixedWindowRateLimiter::new(
+            auth_attempt_rate_limit_max,
+            Duration::from_secs(60),
+        )),
         ws_origin_allowlist: Arc::new(build_runtime_ws_origin_allowlist()),
+        http_allowed_origins: Arc::new(build_runtime_http_allowed_origins()),
+        ws_query_ticket_enabled: parse_runtime_bool("WS_QUERY_TICKET_ENABLED", false),
+        ws_preauth_message_max_bytes,
+        ws_preauth_limit,
+        ws_preauth_connections: Arc::new(Semaphore::new(ws_preauth_limit)),
         rest_rate_limit_service: Arc::new(build_runtime_rest_rate_limit_service()),
     }
 }
@@ -220,6 +249,159 @@ fn parse_runtime_u64(name: &str, default: u64) -> u64 {
             }
         },
         Err(_) => default,
+    }
+}
+
+fn parse_runtime_bool(name: &str, default: bool) -> bool {
+    match env::var(name) {
+        Ok(value) => match value.trim().to_ascii_lowercase().as_str() {
+            "1" | "true" | "yes" | "on" => true,
+            "0" | "false" | "no" | "off" => false,
+            _ => {
+                tracing::warn!(
+                    env_var = %name,
+                    value = %value,
+                    default = default,
+                    "invalid runtime bool env value; fallback to default"
+                );
+                default
+            }
+        },
+        Err(_) => default,
+    }
+}
+
+fn build_runtime_http_allowed_origins() -> Vec<HeaderValue> {
+    let raw =
+        env::var("HTTP_ALLOWED_ORIGINS").unwrap_or_else(|_| DEFAULT_WS_ALLOWED_ORIGINS.to_owned());
+    let parsed = parse_ws_origin_allowlist(&raw).unwrap_or_else(|error| {
+        let fallback = parse_ws_origin_allowlist(DEFAULT_WS_ALLOWED_ORIGINS)
+            .expect("default WS allowed origins must be valid");
+        tracing::warn!(
+            env_var = "HTTP_ALLOWED_ORIGINS",
+            value = %raw,
+            reason = %error,
+            fallback = DEFAULT_WS_ALLOWED_ORIGINS,
+            "invalid HTTP allowed origins env value; fallback to default"
+        );
+        fallback
+    });
+
+    parsed
+        .into_iter()
+        .filter_map(|origin| HeaderValue::from_str(&origin).ok())
+        .collect()
+}
+
+fn build_http_cors_layer(allowed_origins: &[HeaderValue]) -> CorsLayer {
+    CorsLayer::new()
+        .allow_origin(AllowOrigin::list(allowed_origins.iter().cloned()))
+        .allow_methods([
+            Method::GET,
+            Method::POST,
+            Method::PATCH,
+            Method::DELETE,
+            Method::HEAD,
+            Method::OPTIONS,
+        ])
+        .allow_headers([
+            AUTHORIZATION,
+            CONTENT_TYPE,
+            ACCEPT,
+            ORIGIN,
+            HeaderName::from_static("x-request-id"),
+        ])
+}
+
+fn stable_scope_hash(value: &str) -> String {
+    let digest = Sha256::digest(value.as_bytes());
+    format!("{digest:x}")
+}
+
+fn auth_attempt_rate_limit_key(headers: &HeaderMap, token: Option<&str>) -> String {
+    let scope_source = token
+        .map(stable_scope_hash)
+        .or_else(|| {
+            headers
+                .get(AUTHORIZATION)
+                .and_then(|value| value.to_str().ok())
+                .map(stable_scope_hash)
+        })
+        .unwrap_or_else(|| "anonymous".to_owned());
+    format!("auth_attempt:{scope_source}")
+}
+
+fn identify_rate_limit_key(origin_header: Option<&str>) -> String {
+    let origin_scope = origin_header
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or("origin_missing");
+    format!("identify:{origin_scope}")
+}
+
+fn auth_error_counts_toward_attempt_limit(error: &auth::AuthError) -> bool {
+    matches!(
+        error.kind,
+        auth::AuthErrorKind::InvalidToken | auth::AuthErrorKind::ExpiredToken
+    )
+}
+
+async fn enforce_auth_attempt_rate_limit(
+    state: &AppState,
+    request_id: &str,
+    rate_limit_key: &str,
+) -> Option<Response> {
+    let decision = state
+        .auth_attempt_rate_limiter
+        .check_and_record_with_retry_after(rate_limit_key)
+        .await;
+    if decision.allowed {
+        return None;
+    }
+
+    state.auth_service.metrics().record_auth_attempt_limited();
+    let retry_after_seconds = decision
+        .retry_after
+        .map(|value| value.as_secs().max(1))
+        .unwrap_or(1);
+    tracing::warn!(
+        decision = "deny",
+        request_id = %request_id,
+        error_class = "rate_limited",
+        reason = "auth_attempt_rate_limited",
+        auth_attempt_key = %rate_limit_key,
+        retry_after_seconds,
+        "authentication attempt rejected by rate limit"
+    );
+    Some(rate_limit_error_response(
+        "AUTH_RATE_LIMITED",
+        "authentication rate limit exceeded",
+        request_id.to_owned(),
+        retry_after_seconds,
+    ))
+}
+
+fn try_acquire_ws_preauth_permit(
+    state: &AppState,
+    request_id: &str,
+) -> Option<OwnedSemaphorePermit> {
+    match Arc::clone(&state.ws_preauth_connections).try_acquire_owned() {
+        Ok(permit) => {
+            state.auth_service.metrics().record_ws_preauth_open();
+            Some(permit)
+        }
+        Err(_) => {
+            state.auth_service.metrics().record_ws_preauth_rejected();
+            tracing::warn!(
+                decision = "deny",
+                request_id = %request_id,
+                error_class = "rate_limited",
+                reason = "ws_preauth_connection_limited",
+                connection_limit = state.ws_preauth_limit,
+                "WS pre-auth connection rejected by cap"
+            );
+            None
+        }
     }
 }
 
