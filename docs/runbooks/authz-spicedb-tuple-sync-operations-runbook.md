@@ -124,3 +124,26 @@ Failure triage checkpoints:
 2. tuple mapping tests pass for role/user override canonical relations.
 3. sync service tests pass for success/failure/full-resync paths.
 4. runtime logs include tuple sync env configuration when `AUTHZ_PROVIDER=spicedb`.
+
+## 8. Role change triage for LIN-949 flow
+
+When validating server role rollout locally, check these checkpoints in order:
+
+1. Write path completed:
+   - role CRUD / member role assignment / channel override API returned success
+2. Invalidation path fired:
+   - corresponding cache invalidation event kind was emitted
+3. Tuple sync path updated SpiceDB:
+   - outbox event moved to sent
+   - no repeated `mark_outbox_event_failed` loop for the same aggregate
+4. Read path converged:
+   - permission snapshot changed
+   - target operation allow/deny matched the snapshot
+
+Common failure signatures:
+- permission snapshot unchanged after write:
+  - check outbox claim/ack and tuple sync mutation failures first
+- snapshot changed but UI button/guard stayed stale:
+  - inspect frontend query invalidation around `permission-snapshot` and settings/channel permission queries
+- write succeeds but SpiceDB is unavailable:
+  - request-time checks should fail-close with `AUTHZ_UNAVAILABLE`; do not treat this as an allow fallback
