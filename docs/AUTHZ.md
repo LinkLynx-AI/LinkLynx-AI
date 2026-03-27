@@ -294,3 +294,24 @@ v0 での認可関連 SoR:
   - `guild:moderate` -> moderation queue / moderation report detail / resolve / reopen / mute
   - `channel:manage` -> channel context menu の edit/delete / channel item settings shortcut / channel edit overview / channel delete modal
 - invite 作成に加えて、invite 一覧/取消も real API/client 実装済み。invite は引き続き guild-scope 管理とし、channel 固有 list は持たない。
+
+## 16. LIN-950 v2 server role / channel permission management baseline
+
+- `LIN-949` 配下の v2 最小スコープでは、server role / member role assignment / channel permission override の契約SSOTを `database/contracts/lin950_v2_server_role_authz_contract.md` に固定する。
+- role model は既存 `guild_roles_v2` 系の最小 field を維持し、backend scope は `role_key`, `name`, `priority`, `allow_view`, `allow_post`, `allow_manage`, `is_system`, `member_count` に限定する。
+- `color` / `hoist` / `mentionable` / Discord full bitset は今回の backend/AuthZ 契約に含めない。
+- system role は既存 seed (`owner`, `admin`, `member`) を唯一の baseline とし、v2 minimal scope では read-only とする。
+  - `member` は UI で `@everyone` alias として表示してよい
+  - backend canonical key は `member` のままとする
+- planned endpoint family は以下で固定する。
+  - `/v1/guilds/{guild_id}/roles`
+  - `/v1/guilds/{guild_id}/members/{member_id}/roles`
+  - `/v1/guilds/{guild_id}/channels/{channel_id}/permissions`
+- action mapping は以下で固定する。
+  - role management: `Guild + Manage`
+  - member role assignment: `Guild + Manage`
+  - channel permission editor: `GuildChannel + Manage`
+- permission snapshot と FE ActionGuard は `LIN-925` / `LIN-926` の boolean contract を維持し、新しい role bitset 解釈は frontend に導入しない。
+- role / assignment / override 変更時は `LIN-864` tuple sync family と AuthZ cache invalidation の両方へ接続する。
+  - invalidation kind: `guild_role_changed`, `guild_member_role_changed`, `channel_role_override_changed`, `channel_user_override_changed`
+  - tuple sync family: `authz.tuple.guild_role.v1`, `authz.tuple.guild_member_role.v1`, `authz.tuple.channel_role_override.v1`, `authz.tuple.channel_user_override.v1`
