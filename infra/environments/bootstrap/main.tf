@@ -43,7 +43,7 @@ resource "google_project" "bootstrap" {
   auto_create_network = false
   org_id              = var.folder_id == "" ? var.org_id : null
   folder_id           = var.folder_id != "" ? var.folder_id : null
-  labels              = merge(var.common_labels, {
+  labels = merge(var.common_labels, {
     component   = "bootstrap"
     environment = "bootstrap"
   })
@@ -64,7 +64,7 @@ module "state_backend" {
   bucket_name  = local.state_bucket_name
   location     = var.state_bucket_location
   kms_key_name = var.state_bucket_kms_key_name
-  labels       = merge(var.common_labels, {
+  labels = merge(var.common_labels, {
     component   = "tfstate"
     environment = "bootstrap"
   })
@@ -93,19 +93,19 @@ module "environment_projects" {
   for_each = local.environment_specs
   source   = "../../modules/project_baseline"
 
-  project_id                                  = each.value.project_id
-  project_name                                = each.value.project_name
-  billing_account_id                          = var.billing_account_id
-  folder_id                                   = var.folder_id
-  org_id                                      = var.org_id
-  services                                    = var.project_services
-  budget_amount                               = each.value.budget_amount
-  budget_currency                             = var.budget_currency
-  budget_display_name                         = each.value.budget_display_name
-  budget_alert_thresholds                     = var.budget_alert_thresholds
-  budget_monitoring_notification_channels     = var.budget_monitoring_notification_channels
-  disable_default_budget_alert_recipients     = var.disable_default_budget_alert_recipients
-  labels                                      = merge(var.common_labels, {
+  project_id                              = each.value.project_id
+  project_name                            = each.value.project_name
+  billing_account_id                      = var.billing_account_id
+  folder_id                               = var.folder_id
+  org_id                                  = var.org_id
+  services                                = var.project_services
+  budget_amount                           = each.value.budget_amount
+  budget_currency                         = var.budget_currency
+  budget_display_name                     = each.value.budget_display_name
+  budget_alert_thresholds                 = var.budget_alert_thresholds
+  budget_monitoring_notification_channels = var.budget_monitoring_notification_channels
+  disable_default_budget_alert_recipients = var.disable_default_budget_alert_recipients
+  labels = merge(var.common_labels, {
     environment = each.key
   })
 }
