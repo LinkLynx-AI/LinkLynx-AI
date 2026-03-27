@@ -32,7 +32,7 @@ resource "google_billing_budget" "this" {
     specified_amount {
       currency_code = var.budget_currency
       units         = tostring(var.budget_amount)
-      nano          = 0
+      nanos         = 0
     }
   }
 
