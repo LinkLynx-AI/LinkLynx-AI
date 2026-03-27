@@ -43,7 +43,7 @@ resource "google_project" "bootstrap" {
   auto_create_network = false
   org_id              = var.folder_id == "" ? var.org_id : null
   folder_id           = var.folder_id != "" ? var.folder_id : null
-  labels = merge(var.common_labels, {
+  labels              = merge(var.common_labels, {
     component   = "bootstrap"
     environment = "bootstrap"
   })
@@ -60,10 +60,10 @@ resource "google_project_service" "bootstrap_services" {
 module "state_backend" {
   source = "../../modules/state_backend"
 
-  project_id = google_project.bootstrap.project_id
+  project_id  = google_project.bootstrap.project_id
   bucket_name = local.state_bucket_name
-  location   = var.state_bucket_location
-  labels = merge(var.common_labels, {
+  location    = var.state_bucket_location
+  labels      = merge(var.common_labels, {
     component   = "tfstate"
     environment = "bootstrap"
   })
@@ -103,7 +103,7 @@ module "environment_projects" {
   budget_display_name                         = each.value.budget_display_name
   budget_monitoring_notification_channels     = var.budget_monitoring_notification_channels
   disable_default_budget_alert_recipients     = var.disable_default_budget_alert_recipients
-  labels = merge(var.common_labels, {
+  labels                                      = merge(var.common_labels, {
     environment = each.key
   })
 }
