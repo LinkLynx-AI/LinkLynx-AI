@@ -3948,6 +3948,9 @@ async fn rest_auth_middleware(
 /// @returns AuthZ action
 /// @throws なし
 fn rest_authz_action_for_request(method: &axum::http::Method, path: &str) -> AuthzAction {
+    if is_guild_manage_route(path) || is_channel_manage_route(path) {
+        return AuthzAction::Manage;
+    }
     if *method == axum::http::Method::POST && is_guild_invite_create_path(path) {
         return AuthzAction::Manage;
     }
@@ -4049,6 +4052,25 @@ fn rest_request_scope_from_path(path: &str) -> RestRequestScope {
 
 fn is_message_command_path(path: &str) -> bool {
     path.starts_with("/v1/guilds/") && path.contains("/channels/") && path.contains("/messages/")
+}
+
+fn is_guild_manage_route(path: &str) -> bool {
+    matches!(
+        path.trim_matches('/').split('/').collect::<Vec<_>>().as_slice(),
+        ["guilds", _, "channels"]
+            | ["v1", "guilds", _, "members"]
+            | ["v1", "guilds", _, "members", _, "roles"]
+            | ["v1", "guilds", _, "roles"]
+            | ["v1", "guilds", _, "roles", "reorder"]
+            | ["v1", "guilds", _, "roles", _]
+    )
+}
+
+fn is_channel_manage_route(path: &str) -> bool {
+    matches!(
+        path.trim_matches('/').split('/').collect::<Vec<_>>().as_slice(),
+        ["channels", _] | ["v1", "guilds", _, "channels", _, "permissions"]
+    )
 }
 
 /// ギルドパスから guild_id を抽出する。

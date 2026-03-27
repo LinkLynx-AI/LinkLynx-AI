@@ -237,76 +237,6 @@ impl PostgresUserDirectoryService {
             })
     }
 
-    /// guild manage 権限を検証する。
-    /// @param client Postgres client
-    /// @param guild_id 対象guild_id
-    /// @param principal_id 実行主体
-    /// @returns なし
-    /// @throws UserDirectoryError 未存在/権限拒否/依存障害時
-    async fn ensure_guild_manage_access<C>(
-        &self,
-        client: &C,
-        guild_id: i64,
-        principal_id: PrincipalId,
-    ) -> Result<(), UserDirectoryError>
-    where
-        C: GenericClient + Sync,
-    {
-        let row = client
-            .query_one(
-                "SELECT
-                    EXISTS(SELECT 1 FROM guilds WHERE id = $1) AS guild_exists,
-                    EXISTS(
-                      SELECT 1
-                      FROM guild_members
-                      WHERE guild_id = $1
-                        AND user_id = $2
-                    ) AS is_member,
-                    EXISTS(
-                      SELECT 1
-                      FROM guilds
-                      WHERE id = $1
-                        AND owner_id = $2
-                    ) AS is_owner,
-                    EXISTS(
-                      SELECT 1
-                      FROM guild_member_roles_v2 gmr
-                      JOIN guild_roles_v2 gr
-                        ON gr.guild_id = gmr.guild_id
-                       AND gr.role_key = gmr.role_key
-                      WHERE gmr.guild_id = $1
-                        AND gmr.user_id = $2
-                        AND gr.allow_manage = TRUE
-                    ) AS can_manage",
-                &[&guild_id, &principal_id.0],
-            )
-            .await
-            .map_err(|error| {
-                UserDirectoryError::dependency_unavailable(format!(
-                    "user_directory_guild_manage_scope_query_failed:{error}"
-                ))
-            })?;
-
-        let guild_exists = row.get::<&str, bool>("guild_exists");
-        let is_member = row.get::<&str, bool>("is_member");
-        let is_owner = row.get::<&str, bool>("is_owner");
-        let can_manage = row.get::<&str, bool>("can_manage");
-
-        if !guild_exists {
-            return Err(UserDirectoryError::guild_not_found("guild_not_found"));
-        }
-        if !is_member {
-            return Err(UserDirectoryError::forbidden("guild_membership_required"));
-        }
-        if !is_owner && !can_manage {
-            return Err(UserDirectoryError::forbidden(
-                "guild_manage_permission_required",
-            ));
-        }
-
-        Ok(())
-    }
-
     /// member 存在を検証する。
     /// @param client Postgres client
     /// @param guild_id 対象guild_id
@@ -1058,12 +988,13 @@ impl UserDirectoryService for PostgresUserDirectoryService {
     /// @throws UserDirectoryError 権限拒否/依存障害時
     async fn list_guild_members(
         &self,
-        principal_id: PrincipalId,
+        _principal_id: PrincipalId,
         guild_id: i64,
     ) -> Result<Vec<GuildMemberDirectoryEntry>, UserDirectoryError> {
         let client = self.select_client().await?;
-        self.ensure_guild_manage_access(&*client, guild_id, principal_id)
-            .await?;
+        if !self.has_guild(&*client, guild_id).await? {
+            return Err(UserDirectoryError::guild_not_found("guild_not_found"));
+        }
         self.load_guild_members(&*client, guild_id).await
     }
 
@@ -1074,12 +1005,13 @@ impl UserDirectoryService for PostgresUserDirectoryService {
     /// @throws UserDirectoryError 権限拒否/依存障害時
     async fn list_guild_roles(
         &self,
-        principal_id: PrincipalId,
+        _principal_id: PrincipalId,
         guild_id: i64,
     ) -> Result<Vec<GuildRoleDirectoryEntry>, UserDirectoryError> {
         let client = self.select_client().await?;
-        self.ensure_guild_manage_access(&*client, guild_id, principal_id)
-            .await?;
+        if !self.has_guild(&*client, guild_id).await? {
+            return Err(UserDirectoryError::guild_not_found("guild_not_found"));
+        }
         self.load_guild_roles(&*client, guild_id).await
     }
 
@@ -1091,7 +1023,7 @@ impl UserDirectoryService for PostgresUserDirectoryService {
     /// @throws UserDirectoryError 検証失敗/権限拒否/依存障害時
     async fn create_guild_role(
         &self,
-        principal_id: PrincipalId,
+        _principal_id: PrincipalId,
         guild_id: i64,
         input: CreateGuildRoleInput,
     ) -> Result<GuildRoleDirectoryEntry, UserDirectoryError> {
@@ -1103,8 +1035,9 @@ impl UserDirectoryService for PostgresUserDirectoryService {
             ))
         })?;
 
-        self.ensure_guild_manage_access(&transaction, guild_id, principal_id)
-            .await?;
+        if !self.has_guild(&transaction, guild_id).await? {
+            return Err(UserDirectoryError::guild_not_found("guild_not_found"));
+        }
         let role_key = self
             .allocate_role_key(&transaction, guild_id, &normalized_name)
             .await?;
@@ -1169,7 +1102,7 @@ impl UserDirectoryService for PostgresUserDirectoryService {
     /// @throws UserDirectoryError 検証失敗/権限拒否/依存障害時
     async fn update_guild_role(
         &self,
-        principal_id: PrincipalId,
+        _principal_id: PrincipalId,
         guild_id: i64,
         role_key: &str,
         patch: GuildRolePatchInput,
@@ -1190,8 +1123,9 @@ impl UserDirectoryService for PostgresUserDirectoryService {
             ))
         })?;
 
-        self.ensure_guild_manage_access(&transaction, guild_id, principal_id)
-            .await?;
+        if !self.has_guild(&transaction, guild_id).await? {
+            return Err(UserDirectoryError::guild_not_found("guild_not_found"));
+        }
         let current = self
             .get_role_state(&transaction, guild_id, &normalized_role_key)
             .await?;
@@ -1263,7 +1197,7 @@ impl UserDirectoryService for PostgresUserDirectoryService {
     /// @throws UserDirectoryError 検証失敗/権限拒否/依存障害時
     async fn delete_guild_role(
         &self,
-        principal_id: PrincipalId,
+        _principal_id: PrincipalId,
         guild_id: i64,
         role_key: &str,
     ) -> Result<(), UserDirectoryError> {
@@ -1275,8 +1209,9 @@ impl UserDirectoryService for PostgresUserDirectoryService {
             ))
         })?;
 
-        self.ensure_guild_manage_access(&transaction, guild_id, principal_id)
-            .await?;
+        if !self.has_guild(&transaction, guild_id).await? {
+            return Err(UserDirectoryError::guild_not_found("guild_not_found"));
+        }
         let current = self
             .get_role_state(&transaction, guild_id, &normalized_role_key)
             .await?;
@@ -1336,7 +1271,7 @@ impl UserDirectoryService for PostgresUserDirectoryService {
     /// @throws UserDirectoryError 検証失敗/権限拒否/依存障害時
     async fn reorder_guild_roles(
         &self,
-        principal_id: PrincipalId,
+        _principal_id: PrincipalId,
         guild_id: i64,
         role_keys: Vec<String>,
     ) -> Result<Vec<GuildRoleDirectoryEntry>, UserDirectoryError> {
@@ -1357,8 +1292,9 @@ impl UserDirectoryService for PostgresUserDirectoryService {
             ))
         })?;
 
-        self.ensure_guild_manage_access(&transaction, guild_id, principal_id)
-            .await?;
+        if !self.has_guild(&transaction, guild_id).await? {
+            return Err(UserDirectoryError::guild_not_found("guild_not_found"));
+        }
         let current_roles = self.load_guild_roles(&transaction, guild_id).await?;
         let custom_roles = current_roles
             .iter()
@@ -1448,8 +1384,9 @@ impl UserDirectoryService for PostgresUserDirectoryService {
             ))
         })?;
 
-        self.ensure_guild_manage_access(&transaction, guild_id, principal_id)
-            .await?;
+        if !self.has_guild(&transaction, guild_id).await? {
+            return Err(UserDirectoryError::guild_not_found("guild_not_found"));
+        }
         self.ensure_target_member_exists(&transaction, guild_id, member_id)
             .await?;
 
@@ -1577,13 +1514,11 @@ impl UserDirectoryService for PostgresUserDirectoryService {
     /// @throws UserDirectoryError 検証失敗/権限拒否/依存障害時
     async fn get_channel_permissions(
         &self,
-        principal_id: PrincipalId,
+        _principal_id: PrincipalId,
         guild_id: i64,
         channel_id: i64,
     ) -> Result<ChannelPermissionDirectoryEntry, UserDirectoryError> {
         let client = self.select_client().await?;
-        self.ensure_guild_manage_access(&*client, guild_id, principal_id)
-            .await?;
         self.ensure_target_channel_exists(&*client, guild_id, channel_id)
             .await?;
         self.load_channel_permissions(&*client, guild_id, channel_id)
@@ -1599,7 +1534,7 @@ impl UserDirectoryService for PostgresUserDirectoryService {
     /// @throws UserDirectoryError 検証失敗/権限拒否/依存障害時
     async fn replace_channel_permissions(
         &self,
-        principal_id: PrincipalId,
+        _principal_id: PrincipalId,
         guild_id: i64,
         channel_id: i64,
         input: ReplaceChannelPermissionsInput,
@@ -1647,8 +1582,6 @@ impl UserDirectoryService for PostgresUserDirectoryService {
             ))
         })?;
 
-        self.ensure_guild_manage_access(&transaction, guild_id, principal_id)
-            .await?;
         self.ensure_target_channel_exists(&transaction, guild_id, channel_id)
             .await?;
 

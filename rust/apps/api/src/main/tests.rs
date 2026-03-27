@@ -7268,6 +7268,31 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn get_guild_roles_returns_forbidden_without_manage_permission() {
+        let app = app_for_test_with_authorizer(Arc::new(RoleScenarioAuthorizer)).await;
+        let token = format!("u-3:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/v1/guilds/2001/roles")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("x-request-id", "guild-roles-manage-denied")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "AUTHZ_DENIED");
+        assert_eq!(json["request_id"], "guild-roles-manage-denied");
+    }
+
+    #[tokio::test]
     async fn create_guild_role_returns_created_role() {
         let app = app_for_test().await;
         let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
@@ -7351,6 +7376,31 @@ mod tests {
         assert_eq!(json["permissions"]["role_overrides"][0]["can_post"], "deny");
         assert_eq!(json["permissions"]["user_overrides"][0]["user_id"], 1003);
         assert_eq!(json["permissions"]["user_overrides"][0]["can_post"], "allow");
+    }
+
+    #[tokio::test]
+    async fn get_channel_permissions_returns_forbidden_without_manage_permission() {
+        let app = app_for_test().await;
+        let token = format!("u-3:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/v1/guilds/2001/channels/3001/permissions")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("x-request-id", "channel-permissions-manage-denied")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "AUTHZ_DENIED");
+        assert_eq!(json["request_id"], "channel-permissions-manage-denied");
     }
 
     #[tokio::test]
@@ -8849,6 +8899,18 @@ mod tests {
     fn rest_authz_action_maps_invite_and_message_commands() {
         assert!(matches!(
             rest_authz_action_for_request(&Method::POST, "/v1/guilds/10/invites"),
+            AuthzAction::Manage
+        ));
+        assert!(matches!(
+            rest_authz_action_for_request(&Method::GET, "/v1/guilds/10/roles"),
+            AuthzAction::Manage
+        ));
+        assert!(matches!(
+            rest_authz_action_for_request(&Method::GET, "/v1/guilds/10/channels/20/permissions"),
+            AuthzAction::Manage
+        ));
+        assert!(matches!(
+            rest_authz_action_for_request(&Method::POST, "/guilds/10/channels"),
             AuthzAction::Manage
         ));
         assert!(matches!(
