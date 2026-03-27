@@ -4,6 +4,7 @@
 - Now:
   - M1/M2 の実装、targeted test、TypeScript typecheck、Rust strict gate まで完了した。
   - parent issue 向けの handoff と PR ドラフトを用意できる状態にした。
+  - PR `#1262` を `main` 向けに作成した。
 - Next:
   - Firebase / API 接続先が揃う環境で `full-discord-flow` の live smoke を実行する。
   - `make validate` を Python `pip` が入った環境で再実行する。
@@ -42,6 +43,7 @@
 - branch: `codex/lin-646`
 - suggested PR title: `LIN-646 v1 Discord 残タスクの UI 整列と full smoke を追加`
 - PR body draft: `docs/agent_runs/LIN-646/PR.md` を参照
+- PR: `https://github.com/LinkLynx-AI/LinkLynx-AI/pull/1262`
 
 ## How to run / demo
 - `cd typescript && npm run test -- src/features/settings/ui/settings-layout.test.tsx src/features/settings/ui/server/server-overview.test.tsx src/features/settings/ui/server/server-invites.test.tsx src/features/modals/ui/channel-edit-invites.test.tsx`
@@ -54,3 +56,5 @@
 - live smoke は local runtime / Firebase test user が必要。
 - frontend validation には `typescript/node_modules` が必要だったため、ローカル install 後に test / typecheck を実行した。
 - `make validate` は Python formatting step の `/usr/bin/python3.10: No module named pip` で停止した。frontend prettier と Rust formatting は通過しており、失敗は今回変更箇所由来ではない。
+- `make -C python setup` も `python3.10 -m venv .venv` で停止し、原因は `ensurepip` 不足だった。
+- `.env` の Firebase 設定は placeholder (`your-firebase-project-id` / `replace-with-your-firebase-web-api-key` など) のままで、現環境では `full-discord-flow` の live smoke を実行できない。
