@@ -147,8 +147,10 @@ Local steps (runbook-only reproducible flow):
    - `docker compose logs typescript` should not contain frontend env validation errors.
 5. Run smoke verification.
    - `cd typescript && npm run smoke:auth -- --mode=happy-path`
+   - `cd typescript && npm run smoke:auth -- --mode=full-discord-flow`
 6. Verify auth path expectations.
    - `happy-path` must complete `Firebase login -> GET /protected/ping -> POST /auth/ws-ticket -> GET /ws + auth.identify`.
+   - `full-discord-flow` must complete `Firebase login -> protected ping -> ws identify -> guild create -> channel create -> channel read -> message post -> moderation report create/resolve -> guild cleanup`.
    - `protected/ping` success payload must include `request_id`, `principal_id`, `firebase_uid`.
    - `auth.ready` payload must include `principalId` and match the REST `principal_id`.
 7. Validate missing/invalid token path separately when needed.
@@ -276,6 +278,10 @@ This scenario is the default first triage path when `npm run smoke:auth` fails l
    - Confirm `WS_ALLOWED_ORIGINS` includes the local frontend origin.
    - Confirm logs show whether the request used `ticket_principal` or `session_id_fallback`; `Origin` mismatch and identify rate limiting are separate failure classes.
    - Distinguish deterministic close (`1008`) from dependency unavailable (`1011`) before escalating.
+6. `full-discord-flow` fails after auth succeeds:
+   - Confirm the smoke user can create and own a new guild in the current local runtime.
+   - Confirm message API and moderation API are reachable on the same backend instance.
+   - If cleanup failed, manually delete the emitted smoke guild ID before rerunning.
 
 ## 6. Verification procedure
 
@@ -283,6 +289,7 @@ This scenario is the default first triage path when `npm run smoke:auth` fails l
 - REST protected endpoint returns `200`.
 - WS handshake succeeds.
 - `cd typescript && npm run smoke:auth -- --mode=happy-path` passes.
+- `cd typescript && npm run smoke:auth -- --mode=full-discord-flow` passes.
 
 2. Invalid/expired token:
 - REST returns `401`.
@@ -302,6 +309,7 @@ This scenario is the default first triage path when `npm run smoke:auth` fails l
 Operational note:
 
 - `dependency-unavailable` mode verifies the AuthZ provider outage path (`AUTHZ_UNAVAILABLE`) only.
+- `full-discord-flow` is self-contained and must not depend on pre-created guild/channel fixtures.
 - AuthN dependency outages such as JWKS or principal store failures remain manual verification scenarios in section 5.
 
 5. Unverified email token:

@@ -84,7 +84,7 @@ describe("ServerOverview", () => {
         },
       });
     });
-    expect(screen.getByText("サーバー設定を保存しました。")).not.toBeNull();
+    expect(screen.getByText("サーバー名を保存しました。")).not.toBeNull();
   });
 
   test("keeps local input while editing even when server data refetches", async () => {
@@ -114,5 +114,14 @@ describe("ServerOverview", () => {
     render(<ServerOverview serverId="2001" />);
 
     expect(screen.getByRole("button", { name: "サーバーを削除" })).not.toBeNull();
+  });
+
+  test("does not render non-api-backed server setting controls", () => {
+    render(<ServerOverview serverId="2001" />);
+
+    expect(screen.getByText(/サーバー名の変更とサーバー削除のみ/)).not.toBeNull();
+    expect(screen.queryByText("サーバーバナー")).toBeNull();
+    expect(screen.queryByText("システムメッセージチャンネル")).toBeNull();
+    expect(screen.queryByText("AFK チャンネル")).toBeNull();
   });
 });
