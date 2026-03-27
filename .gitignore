@@ -35,3 +35,13 @@ npm-debug.log*
 
 # Docker
 *.tar
+
+# Terraform
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+infra/environments/*/backend.hcl
