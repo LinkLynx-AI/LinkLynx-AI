@@ -1,0 +1,5 @@
+project_id = "linklynx-staging"
+region     = "us-east1"
+
+# Optional: set when using service account impersonation.
+terraform_admin_service_account_email = "terraform-admin@linklynx-bootstrap.iam.gserviceaccount.com"

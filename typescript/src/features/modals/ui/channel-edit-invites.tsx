@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Link, Trash2 } from "lucide-react";
 import { useRevokeInvite } from "@/shared/api/mutations";
 import { useInvites } from "@/shared/api/queries/use-invites";
-import { toDeleteActionErrorText } from "@/shared/api/guild-channel-api-client";
+import { toApiErrorText, toDeleteActionErrorText } from "@/shared/api/guild-channel-api-client";
 import { useUIStore } from "@/shared/model/stores/ui-store";
 import { Button } from "@/shared/ui/button";
 
@@ -47,7 +47,10 @@ export function ChannelEditInvites({
 
   const invites = invitesQuery.data ?? [];
   const errorMessage =
-    submitError ?? (invitesQuery.error instanceof Error ? invitesQuery.error.message : null);
+    submitError ??
+    (invitesQuery.error == null
+      ? null
+      : toApiErrorText(invitesQuery.error, "招待一覧の取得に失敗しました。"));
 
   if (invitesQuery.isPending) {
     return (
