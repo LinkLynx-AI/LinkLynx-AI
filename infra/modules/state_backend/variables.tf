@@ -19,6 +19,12 @@ variable "labels" {
   default     = {}
 }
 
+variable "kms_key_name" {
+  description = "Optional CMEK key for the bucket."
+  type        = string
+  default     = ""
+}
+
 variable "force_destroy" {
   description = "Allow destroying non-empty bucket."
   type        = bool

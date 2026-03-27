@@ -13,6 +13,9 @@
 - bootstrap baseline は `linklynx-bootstrap` project, shared GCS state bucket, `terraform-admin` service account を基準にする
 - runtime project baseline には budget alert, baseline API enablement, and later env root scaffold を含める
 - CI に Terraform format / validate job を追加し、root `make validate` とは分離して扱う
+- Terraform admin service account の default role は `roles/owner` ではなく、bootstrap/runtime ごとの curated predefined roles に絞る
+- state bucket は optional CMEK を受け取れるようにした
+- `.terraform-version` を追加して CI とローカルの Terraform version を揃えやすくした
 
 ## How to run / demo
 - `make validate`

@@ -1,6 +1,11 @@
 variable "billing_account_id" {
   description = "Plain billing account ID like 000000-000000-000000."
   type        = string
+
+  validation {
+    condition     = can(regex("^[0-9]{6}-[0-9]{6}-[0-9]{6}$", var.billing_account_id))
+    error_message = "Billing account ID must be in format 000000-000000-000000."
+  }
 }
 
 variable "folder_id" {
@@ -57,6 +62,12 @@ variable "state_bucket_name" {
   default     = ""
 }
 
+variable "state_bucket_kms_key_name" {
+  description = "Optional CMEK key for the Terraform state bucket."
+  type        = string
+  default     = ""
+}
+
 variable "budget_currency" {
   description = "Budget currency."
   type        = string
@@ -79,6 +90,17 @@ variable "budget_monitoring_notification_channels" {
   description = "Optional Cloud Monitoring notification channels for budget alerts."
   type        = list(string)
   default     = []
+}
+
+variable "budget_alert_thresholds" {
+  description = "Budget alert thresholds expressed as 0-1 ratios."
+  type        = list(number)
+  default     = [0.5, 0.8, 1.0]
+
+  validation {
+    condition     = length(var.budget_alert_thresholds) > 0 && alltrue([for threshold in var.budget_alert_thresholds : threshold > 0 && threshold <= 1])
+    error_message = "Budget alert thresholds must be ratios between 0 and 1."
+  }
 }
 
 variable "disable_default_budget_alert_recipients" {
@@ -141,11 +163,27 @@ variable "terraform_admin_service_account_id" {
 variable "terraform_admin_bootstrap_roles" {
   description = "Project roles granted to the Terraform admin service account on the bootstrap project."
   type        = list(string)
-  default     = ["roles/owner"]
+  default = [
+    "roles/iam.serviceAccountAdmin",
+    "roles/resourcemanager.projectIamAdmin",
+    "roles/serviceusage.serviceUsageAdmin",
+    "roles/storage.admin",
+  ]
 }
 
 variable "terraform_admin_project_roles" {
   description = "Project roles granted to the Terraform admin service account on runtime projects."
   type        = list(string)
-  default     = ["roles/owner"]
+  default = [
+    "roles/artifactregistry.admin",
+    "roles/certificatemanager.editor",
+    "roles/cloudsql.admin",
+    "roles/compute.admin",
+    "roles/container.admin",
+    "roles/dns.admin",
+    "roles/iam.serviceAccountAdmin",
+    "roles/resourcemanager.projectIamAdmin",
+    "roles/secretmanager.admin",
+    "roles/serviceusage.serviceUsageAdmin",
+  ]
 }

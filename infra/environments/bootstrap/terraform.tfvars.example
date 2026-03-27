@@ -10,11 +10,13 @@ bootstrap_project_id       = "linklynx-bootstrap"
 bootstrap_project_name     = "LinkLynx Bootstrap"
 default_region             = "us-east1"
 state_bucket_location      = "us-east1"
+state_bucket_kms_key_name  = ""
 
 environment_budgets = {
   staging = 300000
   prod    = 1500000
 }
 
+budget_alert_thresholds                 = [0.5, 0.8, 1.0]
 budget_monitoring_notification_channels = []
 disable_default_budget_alert_recipients = false

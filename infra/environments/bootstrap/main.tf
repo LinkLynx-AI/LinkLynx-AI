@@ -60,10 +60,11 @@ resource "google_project_service" "bootstrap_services" {
 module "state_backend" {
   source = "../../modules/state_backend"
 
-  project_id  = google_project.bootstrap.project_id
-  bucket_name = local.state_bucket_name
-  location    = var.state_bucket_location
-  labels      = merge(var.common_labels, {
+  project_id   = google_project.bootstrap.project_id
+  bucket_name  = local.state_bucket_name
+  location     = var.state_bucket_location
+  kms_key_name = var.state_bucket_kms_key_name
+  labels       = merge(var.common_labels, {
     component   = "tfstate"
     environment = "bootstrap"
   })
@@ -101,6 +102,7 @@ module "environment_projects" {
   budget_amount                               = each.value.budget_amount
   budget_currency                             = var.budget_currency
   budget_display_name                         = each.value.budget_display_name
+  budget_alert_thresholds                     = var.budget_alert_thresholds
   budget_monitoring_notification_channels     = var.budget_monitoring_notification_channels
   disable_default_budget_alert_recipients     = var.disable_default_budget_alert_recipients
   labels                                      = merge(var.common_labels, {
