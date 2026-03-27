@@ -2,20 +2,15 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { getAPIClient } from "@/shared/api/api-client";
-import type { Role } from "@/shared/api/api-client";
+import type { CreateRoleInput, Role, UpdateRoleInput } from "@/shared/api/api-client";
 
 export function useCreateRole() {
   const queryClient = useQueryClient();
   const api = getAPIClient();
 
   return useMutation({
-    mutationFn: ({
-      serverId,
-      data,
-    }: {
-      serverId: string;
-      data: { name: string; color?: string; permissions?: number };
-    }) => api.createRole(serverId, data),
+    mutationFn: ({ serverId, data }: { serverId: string; data: CreateRoleInput }) =>
+      api.createRole(serverId, data),
     onSuccess: (_, { serverId }) => {
       queryClient.invalidateQueries({ queryKey: ["roles", serverId] });
     },
@@ -34,7 +29,7 @@ export function useUpdateRole() {
     }: {
       serverId: string;
       roleId: string;
-      data: Partial<Role>;
+      data: UpdateRoleInput;
     }) => api.updateRole(serverId, roleId, data),
     onSuccess: (_, { serverId }) => {
       queryClient.invalidateQueries({ queryKey: ["roles", serverId] });
@@ -60,13 +55,8 @@ export function useReorderRoles() {
   const api = getAPIClient();
 
   return useMutation({
-    mutationFn: ({
-      serverId,
-      roles,
-    }: {
-      serverId: string;
-      roles: { id: string; position: number }[];
-    }) => api.reorderRoles(serverId, roles),
+    mutationFn: ({ serverId, roleKeys }: { serverId: string; roleKeys: string[] }) =>
+      api.reorderRoles(serverId, roleKeys),
     onSuccess: (_, { serverId }) => {
       queryClient.invalidateQueries({ queryKey: ["roles", serverId] });
     },

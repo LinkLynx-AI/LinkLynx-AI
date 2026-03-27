@@ -46,7 +46,9 @@ export function ChannelEditModal({
         {activeTab === "overview" && (
           <ChannelEditOverview channelId={channelId} onSaved={onClose} />
         )}
-        {activeTab === "permissions" && <ChannelEditPermissions channelId={channelId} />}
+        {activeTab === "permissions" && (
+          <ChannelEditPermissions channelId={channelId} serverId={serverId} />
+        )}
         {activeTab === "invites" && (
           <ChannelEditInvites serverId={serverId} channelId={channelId} />
         )}

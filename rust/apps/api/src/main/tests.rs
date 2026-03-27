@@ -63,8 +63,11 @@ mod tests {
     };
     use scylla_health::{ScyllaHealthReport, ScyllaHealthReporter};
     use user_directory::{
-        GuildMemberDirectoryEntry, GuildRoleDirectoryEntry, UserDirectoryError,
-        UserDirectoryService, UserProfileDirectoryEntry,
+        ChannelPermissionDirectoryEntry, ChannelPermissionUpdateResult,
+        ChannelRolePermissionOverrideEntry, ChannelUserPermissionOverrideEntry,
+        CreateGuildRoleInput, GuildMemberDirectoryEntry, GuildRoleDirectoryEntry,
+        GuildRolePatchInput, PermissionOverrideValue, ReplaceChannelPermissionsInput,
+        UserDirectoryError, UserDirectoryService, UserProfileDirectoryEntry,
     };
     use std::{
         collections::{HashMap, HashSet},
@@ -1429,17 +1432,255 @@ mod tests {
                     role_key: "owner".to_owned(),
                     name: "Owner".to_owned(),
                     priority: 300,
+                    allow_view: true,
+                    allow_post: true,
                     allow_manage: true,
+                    is_system: true,
                     member_count: 1,
                 },
                 GuildRoleDirectoryEntry {
                     role_key: "member".to_owned(),
                     name: "Member".to_owned(),
                     priority: 100,
+                    allow_view: true,
+                    allow_post: true,
                     allow_manage: false,
+                    is_system: true,
                     member_count: 1,
                 },
             ])
+        }
+
+        async fn create_guild_role(
+            &self,
+            principal_id: PrincipalId,
+            guild_id: i64,
+            input: CreateGuildRoleInput,
+        ) -> Result<GuildRoleDirectoryEntry, UserDirectoryError> {
+            if guild_id != 2001 {
+                return Err(UserDirectoryError::guild_not_found("guild_not_found"));
+            }
+            if principal_id.0 != 1001 {
+                return Err(UserDirectoryError::forbidden(
+                    "guild_manage_permission_required",
+                ));
+            }
+            if input.name.trim().is_empty() {
+                return Err(UserDirectoryError::validation("role_name_required"));
+            }
+
+            Ok(GuildRoleDirectoryEntry {
+                role_key: "moderator".to_owned(),
+                name: input.name.trim().to_owned(),
+                priority: 99,
+                allow_view: input.allow_view,
+                allow_post: input.allow_post,
+                allow_manage: input.allow_manage,
+                is_system: false,
+                member_count: 0,
+            })
+        }
+
+        async fn update_guild_role(
+            &self,
+            principal_id: PrincipalId,
+            guild_id: i64,
+            role_key: &str,
+            patch: GuildRolePatchInput,
+        ) -> Result<GuildRoleDirectoryEntry, UserDirectoryError> {
+            if guild_id != 2001 {
+                return Err(UserDirectoryError::guild_not_found("guild_not_found"));
+            }
+            if principal_id.0 != 1001 {
+                return Err(UserDirectoryError::forbidden(
+                    "guild_manage_permission_required",
+                ));
+            }
+            if patch.is_empty() {
+                return Err(UserDirectoryError::validation("role_patch_empty"));
+            }
+            if role_key == "owner" || role_key == "member" {
+                return Err(UserDirectoryError::forbidden("system_role_update_forbidden"));
+            }
+            if role_key != "moderator" {
+                return Err(UserDirectoryError::role_not_found("role_not_found"));
+            }
+
+            Ok(GuildRoleDirectoryEntry {
+                role_key: "moderator".to_owned(),
+                name: patch
+                    .name
+                    .unwrap_or_else(|| "Moderator".to_owned())
+                    .trim()
+                    .to_owned(),
+                priority: 99,
+                allow_view: patch.allow_view.unwrap_or(true),
+                allow_post: patch.allow_post.unwrap_or(true),
+                allow_manage: patch.allow_manage.unwrap_or(false),
+                is_system: false,
+                member_count: 1,
+            })
+        }
+
+        async fn delete_guild_role(
+            &self,
+            principal_id: PrincipalId,
+            guild_id: i64,
+            role_key: &str,
+        ) -> Result<(), UserDirectoryError> {
+            if guild_id != 2001 {
+                return Err(UserDirectoryError::guild_not_found("guild_not_found"));
+            }
+            if principal_id.0 != 1001 {
+                return Err(UserDirectoryError::forbidden(
+                    "guild_manage_permission_required",
+                ));
+            }
+            if role_key == "owner" || role_key == "member" {
+                return Err(UserDirectoryError::forbidden("system_role_delete_forbidden"));
+            }
+            if role_key != "moderator" {
+                return Err(UserDirectoryError::role_not_found("role_not_found"));
+            }
+            Ok(())
+        }
+
+        async fn reorder_guild_roles(
+            &self,
+            principal_id: PrincipalId,
+            guild_id: i64,
+            role_keys: Vec<String>,
+        ) -> Result<Vec<GuildRoleDirectoryEntry>, UserDirectoryError> {
+            if guild_id != 2001 {
+                return Err(UserDirectoryError::guild_not_found("guild_not_found"));
+            }
+            if principal_id.0 != 1001 {
+                return Err(UserDirectoryError::forbidden(
+                    "guild_manage_permission_required",
+                ));
+            }
+            if role_keys != vec!["moderator".to_owned()] {
+                return Err(UserDirectoryError::validation(
+                    "role_reorder_custom_role_set_mismatch",
+                ));
+            }
+            self.list_guild_roles(principal_id, guild_id).await
+        }
+
+        async fn replace_member_roles(
+            &self,
+            principal_id: PrincipalId,
+            guild_id: i64,
+            member_id: i64,
+            role_keys: Vec<String>,
+        ) -> Result<GuildMemberDirectoryEntry, UserDirectoryError> {
+            if guild_id != 2001 {
+                return Err(UserDirectoryError::guild_not_found("guild_not_found"));
+            }
+            if principal_id.0 != 1001 {
+                return Err(UserDirectoryError::forbidden(
+                    "guild_manage_permission_required",
+                ));
+            }
+            if member_id != 1003 {
+                return Err(UserDirectoryError::member_not_found("member_not_found"));
+            }
+            if !role_keys.iter().any(|role_key| role_key == "member") {
+                return Err(UserDirectoryError::validation("member_role_required"));
+            }
+
+            Ok(GuildMemberDirectoryEntry {
+                user_id: 1003,
+                display_name: "Carol".to_owned(),
+                avatar_key: None,
+                status_text: Some("Reviewing".to_owned()),
+                nickname: None,
+                joined_at: "2026-03-02T00:00:00Z".to_owned(),
+                role_keys,
+            })
+        }
+
+        async fn get_channel_permissions(
+            &self,
+            principal_id: PrincipalId,
+            guild_id: i64,
+            channel_id: i64,
+        ) -> Result<ChannelPermissionDirectoryEntry, UserDirectoryError> {
+            if guild_id != 2001 {
+                return Err(UserDirectoryError::guild_not_found("guild_not_found"));
+            }
+            if principal_id.0 != 1001 {
+                return Err(UserDirectoryError::forbidden(
+                    "guild_manage_permission_required",
+                ));
+            }
+            if channel_id != 3001 {
+                return Err(UserDirectoryError::channel_not_found("channel_not_found"));
+            }
+
+            Ok(ChannelPermissionDirectoryEntry {
+                role_overrides: vec![ChannelRolePermissionOverrideEntry {
+                    role_key: "member".to_owned(),
+                    subject_name: "Member".to_owned(),
+                    is_system: true,
+                    can_view: PermissionOverrideValue::Allow,
+                    can_post: PermissionOverrideValue::Deny,
+                }],
+                user_overrides: vec![ChannelUserPermissionOverrideEntry {
+                    user_id: 1003,
+                    subject_name: "Carol".to_owned(),
+                    can_view: PermissionOverrideValue::Inherit,
+                    can_post: PermissionOverrideValue::Allow,
+                }],
+            })
+        }
+
+        async fn replace_channel_permissions(
+            &self,
+            principal_id: PrincipalId,
+            guild_id: i64,
+            channel_id: i64,
+            input: ReplaceChannelPermissionsInput,
+        ) -> Result<ChannelPermissionUpdateResult, UserDirectoryError> {
+            if guild_id != 2001 {
+                return Err(UserDirectoryError::guild_not_found("guild_not_found"));
+            }
+            if principal_id.0 != 1001 {
+                return Err(UserDirectoryError::forbidden(
+                    "guild_manage_permission_required",
+                ));
+            }
+            if channel_id != 3001 {
+                return Err(UserDirectoryError::channel_not_found("channel_not_found"));
+            }
+
+            Ok(ChannelPermissionUpdateResult {
+                permissions: ChannelPermissionDirectoryEntry {
+                    role_overrides: input
+                        .role_overrides
+                        .into_iter()
+                        .map(|entry| ChannelRolePermissionOverrideEntry {
+                            role_key: entry.role_key,
+                            subject_name: "Role".to_owned(),
+                            is_system: false,
+                            can_view: entry.can_view,
+                            can_post: entry.can_post,
+                        })
+                        .collect(),
+                    user_overrides: input
+                        .user_overrides
+                        .into_iter()
+                        .map(|entry| ChannelUserPermissionOverrideEntry {
+                            user_id: entry.user_id,
+                            subject_name: "User".to_owned(),
+                            can_view: entry.can_view,
+                            can_post: entry.can_post,
+                        })
+                        .collect(),
+                },
+                changed_role_overrides: true,
+                changed_user_ids: vec![1003],
+            })
         }
 
         async fn get_user_profile(
@@ -7001,7 +7242,7 @@ mod tests {
     #[tokio::test]
     async fn get_guild_roles_returns_directory_entries() {
         let app = app_for_test().await;
-        let token = format!("u-3:{}", unix_timestamp_seconds() + 300);
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
         let response = app
             .oneshot(
                 Request::builder()
@@ -7020,7 +7261,146 @@ mod tests {
         let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
         assert_eq!(json["roles"][0]["role_key"], "owner");
         assert_eq!(json["roles"][0]["member_count"], 1);
+        assert_eq!(json["roles"][0]["allow_view"], true);
+        assert_eq!(json["roles"][0]["allow_post"], true);
+        assert_eq!(json["roles"][0]["is_system"], true);
         assert_eq!(json["roles"][1]["role_key"], "member");
+    }
+
+    #[tokio::test]
+    async fn get_guild_roles_returns_forbidden_without_manage_permission() {
+        let app = app_for_test_with_authorizer(Arc::new(RoleScenarioAuthorizer)).await;
+        let token = format!("u-3:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/v1/guilds/2001/roles")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("x-request-id", "guild-roles-manage-denied")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "AUTHZ_DENIED");
+        assert_eq!(json["request_id"], "guild-roles-manage-denied");
+    }
+
+    #[tokio::test]
+    async fn create_guild_role_returns_created_role() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/v1/guilds/2001/roles")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        r#"{"name":"Moderator","allow_view":true,"allow_post":true,"allow_manage":false}"#,
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::CREATED);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["role"]["role_key"], "moderator");
+        assert_eq!(json["role"]["name"], "Moderator");
+        assert_eq!(json["role"]["is_system"], false);
+    }
+
+    #[tokio::test]
+    async fn replace_member_roles_returns_updated_member() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("PUT")
+                    .uri("/v1/guilds/2001/members/1003/roles")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"role_keys":["member","moderator"]}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["member"]["user_id"], 1003);
+        assert_eq!(json["member"]["role_keys"][0], "member");
+        assert_eq!(json["member"]["role_keys"][1], "moderator");
+    }
+
+    #[tokio::test]
+    async fn replace_channel_permissions_returns_updated_permissions() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("PUT")
+                    .uri("/v1/guilds/2001/channels/3001/permissions")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        r#"{"role_overrides":[{"role_key":"member","can_view":"allow","can_post":"deny"}],"user_overrides":[{"user_id":1003,"can_view":"inherit","can_post":"allow"}]}"#,
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["permissions"]["role_overrides"][0]["role_key"], "member");
+        assert_eq!(json["permissions"]["role_overrides"][0]["can_post"], "deny");
+        assert_eq!(json["permissions"]["user_overrides"][0]["user_id"], 1003);
+        assert_eq!(json["permissions"]["user_overrides"][0]["can_post"], "allow");
+    }
+
+    #[tokio::test]
+    async fn get_channel_permissions_returns_forbidden_without_manage_permission() {
+        let app = app_for_test().await;
+        let token = format!("u-3:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/v1/guilds/2001/channels/3001/permissions")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("x-request-id", "channel-permissions-manage-denied")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "AUTHZ_DENIED");
+        assert_eq!(json["request_id"], "channel-permissions-manage-denied");
     }
 
     #[tokio::test]
@@ -8519,6 +8899,18 @@ mod tests {
     fn rest_authz_action_maps_invite_and_message_commands() {
         assert!(matches!(
             rest_authz_action_for_request(&Method::POST, "/v1/guilds/10/invites"),
+            AuthzAction::Manage
+        ));
+        assert!(matches!(
+            rest_authz_action_for_request(&Method::GET, "/v1/guilds/10/roles"),
+            AuthzAction::Manage
+        ));
+        assert!(matches!(
+            rest_authz_action_for_request(&Method::GET, "/v1/guilds/10/channels/20/permissions"),
+            AuthzAction::Manage
+        ));
+        assert!(matches!(
+            rest_authz_action_for_request(&Method::POST, "/guilds/10/channels"),
             AuthzAction::Manage
         ));
         assert!(matches!(

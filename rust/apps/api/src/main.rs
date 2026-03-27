@@ -40,7 +40,7 @@ use axum::{
     http::{header::RETRY_AFTER, HeaderMap, HeaderValue, Request, StatusCode},
     middleware::{self, Next},
     response::{IntoResponse, Response},
-    routing::{get, patch, post},
+    routing::{get, patch, post, put},
     Json, Router,
 };
 use dm::{build_runtime_dm_service, dm_error_response, DmService};

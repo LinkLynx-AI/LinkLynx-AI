@@ -1,5 +1,7 @@
 import type {
   APIClient,
+  ChannelPermissions,
+  CreateRoleInput,
   CreateMyProfileMediaUploadUrlInput,
   CreateModerationMuteData,
   CreateModerationReportData,
@@ -19,6 +21,7 @@ import type {
   ModerationReportStatus,
   MyProfile,
   PermissionSnapshot,
+  ReplaceChannelPermissionsInput,
   Role,
   UpdateMyProfileInput,
   Webhook,
@@ -588,39 +591,129 @@ export class MockAPIClient implements APIClient {
       hoist: r.hoist,
       mentionable: r.mentionable,
       memberCount: r.memberCount,
+      allowView: true,
+      allowPost: true,
+      allowManage: r.permissions > 0,
+      isSystem: r.id === "owner" || r.id === "admin" || r.id === "member",
     }));
   }
 
-  async createRole(
-    _serverId: string,
-    data: { name: string; color?: string; permissions?: number },
-  ): Promise<Role> {
+  async createRole(_serverId: string, data: CreateRoleInput): Promise<Role> {
     await this.simulateDelay();
     return {
       id: this.generateId(),
       name: data.name,
-      color: data.color ?? "#95a5a6",
+      color: "#95a5a6",
       position: mockRolesData.length,
-      permissions: data.permissions ?? 0,
+      permissions: data.allowManage ? 1 : 0,
       hoist: false,
       mentionable: false,
       memberCount: 0,
+      allowView: data.allowView,
+      allowPost: data.allowPost,
+      allowManage: data.allowManage,
+      isSystem: false,
     };
   }
 
-  async updateRole(_serverId: string, roleId: string, data: Partial<Role>): Promise<Role> {
+  async updateRole(
+    _serverId: string,
+    roleId: string,
+    data: {
+      name?: string;
+      allowView?: boolean;
+      allowPost?: boolean;
+      allowManage?: boolean;
+    },
+  ): Promise<Role> {
     await this.simulateDelay();
     const role = mockRolesData.find((r) => r.id === roleId);
     if (!role) throw new Error("Role not found");
-    return { ...role, ...data } as Role;
+    return {
+      id: role.id,
+      name: data.name ?? role.name,
+      color: role.color,
+      position: role.position,
+      permissions: (data.allowManage ?? false) ? 1 : role.permissions,
+      hoist: role.hoist,
+      mentionable: role.mentionable,
+      memberCount: role.memberCount,
+      allowView: data.allowView ?? true,
+      allowPost: data.allowPost ?? true,
+      allowManage: data.allowManage ?? role.permissions > 0,
+      isSystem: role.id === "owner" || role.id === "admin" || role.id === "member",
+    };
   }
 
   async deleteRole(_serverId: string, _roleId: string): Promise<void> {
     await this.simulateDelay();
   }
 
-  async reorderRoles(_serverId: string, _roles: { id: string; position: number }[]): Promise<void> {
+  async reorderRoles(_serverId: string, roleKeys: string[]): Promise<Role[]> {
     await this.simulateDelay();
+    const order = new Map(roleKeys.map((roleKey, index) => [roleKey, roleKeys.length - index]));
+    return mockRolesData
+      .map((role) => ({
+        id: role.id,
+        name: role.name,
+        color: role.color,
+        position: order.get(role.id) ?? role.position,
+        permissions: role.permissions,
+        hoist: role.hoist,
+        mentionable: role.mentionable,
+        memberCount: role.memberCount,
+        allowView: true,
+        allowPost: true,
+        allowManage: role.permissions > 0,
+        isSystem: role.id === "owner" || role.id === "admin" || role.id === "member",
+      }))
+      .sort((left, right) => right.position - left.position);
+  }
+
+  async replaceMemberRoles(
+    serverId: string,
+    memberId: string,
+    roleKeys: string[],
+  ): Promise<GuildMember> {
+    await this.simulateDelay();
+    const member = (mockMembers[serverId] ?? []).find(
+      (candidate) => candidate.user.id === memberId,
+    );
+    if (!member) {
+      throw new Error("Member not found");
+    }
+    return {
+      ...member,
+      roles: roleKeys,
+    };
+  }
+
+  async getChannelPermissions(_serverId: string, _channelId: string): Promise<ChannelPermissions> {
+    await this.simulateDelay();
+    return { roleOverrides: [], userOverrides: [] };
+  }
+
+  async replaceChannelPermissions(
+    _serverId: string,
+    _channelId: string,
+    data: ReplaceChannelPermissionsInput,
+  ): Promise<ChannelPermissions> {
+    await this.simulateDelay();
+    return {
+      roleOverrides: data.roleOverrides.map((override) => ({
+        roleKey: override.roleKey,
+        subjectName: override.roleKey,
+        isSystem: override.roleKey === "member",
+        canView: override.canView,
+        canPost: override.canPost,
+      })),
+      userOverrides: data.userOverrides.map((override) => ({
+        userId: override.userId,
+        subjectName: override.userId,
+        canView: override.canView,
+        canPost: override.canPost,
+      })),
+    };
   }
 
   // Webhooks

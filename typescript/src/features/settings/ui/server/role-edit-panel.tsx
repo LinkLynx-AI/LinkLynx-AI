@@ -1,290 +1,293 @@
 "use client";
 
-import { useState } from "react";
-import { cn } from "@/shared/lib/cn";
-import { ArrowLeft, Search, UserPlus } from "lucide-react";
-import { Input } from "@/shared/ui/input";
+import { useMemo, useState } from "react";
+import { ArrowDown, ArrowLeft, ArrowUp, Shield, Trash2, Users } from "lucide-react";
+import type { Role, UpdateRoleInput } from "@/shared/api/api-client";
+import {
+  toDeleteActionErrorText,
+  toUpdateActionErrorText,
+} from "@/shared/api/guild-channel-api-client";
+import type { GuildMember } from "@/shared/model/types";
 import { Button } from "@/shared/ui/button";
-import { Toggle } from "@/shared/ui/toggle";
+import { Checkbox } from "@/shared/ui/checkbox";
+import { Input } from "@/shared/ui/input";
 import { Tabs } from "@/shared/ui/tabs-simple";
-import { PermissionToggle } from "./permission-toggle";
-import { RoleColorPicker } from "./role-color-picker";
-import { type MockRole, PERMISSION_FLAGS, hasPermission } from "@/shared/api/mock/data/roles";
+import { Toggle } from "@/shared/ui/toggle";
 
-type PermissionState = "allow" | "deny" | "inherit";
+type RoleEditTab = "display" | "permissions" | "members";
 
-const TABS = [
+const TABS: { id: RoleEditTab; label: string }[] = [
   { id: "display", label: "表示" },
   { id: "permissions", label: "権限" },
   { id: "members", label: "メンバー" },
-  { id: "links", label: "リンク" },
 ];
 
-type PermissionDef = {
-  flag: number;
-  label: string;
-  description: string;
-  category: string;
-};
+const ROLE_PERMISSION_FIELDS = [
+  {
+    key: "allowView",
+    label: "閲覧を許可",
+    description: "サーバーやチャンネルを表示できる基礎権限です。",
+  },
+  {
+    key: "allowPost",
+    label: "投稿を許可",
+    description: "メッセージ送信やリアクションなど投稿系の基礎権限です。",
+  },
+  {
+    key: "allowManage",
+    label: "管理を許可",
+    description: "設定、ロール、権限制御など管理系操作を許可します。",
+  },
+] as const;
 
-const PERMISSION_DEFS: PermissionDef[] = [
-  {
-    flag: PERMISSION_FLAGS.ADMINISTRATOR,
-    label: "管理者",
-    description: "すべての権限を持ち、チャンネル固有の権限を上書きします",
-    category: "一般",
-  },
-  {
-    flag: PERMISSION_FLAGS.MANAGE_CHANNELS,
-    label: "チャンネルの管理",
-    description: "チャンネルの作成、編集、削除ができます",
-    category: "一般",
-  },
-  {
-    flag: PERMISSION_FLAGS.MANAGE_GUILD,
-    label: "サーバーの管理",
-    description: "サーバー名やリージョンを変更できます",
-    category: "一般",
-  },
-  {
-    flag: PERMISSION_FLAGS.MANAGE_ROLES,
-    label: "ロールの管理",
-    description: "ロールの作成、編集、削除ができます",
-    category: "一般",
-  },
-  {
-    flag: PERMISSION_FLAGS.KICK_MEMBERS,
-    label: "メンバーをキック",
-    description: "メンバーをサーバーからキックできます",
-    category: "一般",
-  },
-  {
-    flag: PERMISSION_FLAGS.BAN_MEMBERS,
-    label: "メンバーをBAN",
-    description: "メンバーをサーバーからBANできます",
-    category: "一般",
-  },
-  {
-    flag: PERMISSION_FLAGS.VIEW_AUDIT_LOG,
-    label: "監査ログの表示",
-    description: "サーバーの監査ログを表示できます",
-    category: "一般",
-  },
-  {
-    flag: PERMISSION_FLAGS.VIEW_CHANNEL,
-    label: "チャンネルを見る",
-    description: "チャンネルを閲覧できます",
-    category: "テキスト",
-  },
-  {
-    flag: PERMISSION_FLAGS.SEND_MESSAGES,
-    label: "メッセージを送信",
-    description: "テキストチャンネルにメッセージを送信できます",
-    category: "テキスト",
-  },
-  {
-    flag: PERMISSION_FLAGS.MANAGE_MESSAGES,
-    label: "メッセージの管理",
-    description: "他のメンバーのメッセージを削除、ピン留めできます",
-    category: "テキスト",
-  },
-  {
-    flag: PERMISSION_FLAGS.EMBED_LINKS,
-    label: "埋め込みリンク",
-    description: "リンクのプレビューを送信できます",
-    category: "テキスト",
-  },
-  {
-    flag: PERMISSION_FLAGS.ATTACH_FILES,
-    label: "ファイルを添付",
-    description: "メッセージにファイルを添付できます",
-    category: "テキスト",
-  },
-  {
-    flag: PERMISSION_FLAGS.ADD_REACTIONS,
-    label: "リアクションの追加",
-    description: "メッセージにリアクションを追加できます",
-    category: "テキスト",
-  },
-  {
-    flag: PERMISSION_FLAGS.READ_MESSAGE_HISTORY,
-    label: "メッセージ履歴を読む",
-    description: "過去のメッセージを読むことができます",
-    category: "テキスト",
-  },
-  {
-    flag: PERMISSION_FLAGS.MENTION_EVERYONE,
-    label: "@everyoneにメンション",
-    description: "@everyone、@here、すべてのロールにメンションできます",
-    category: "テキスト",
-  },
-  {
-    flag: PERMISSION_FLAGS.CONNECT,
-    label: "接続",
-    description: "ボイスチャンネルに接続できます",
-    category: "ボイス",
-  },
-  {
-    flag: PERMISSION_FLAGS.SPEAK,
-    label: "発言",
-    description: "ボイスチャンネルで発言できます",
-    category: "ボイス",
-  },
-  {
-    flag: PERMISSION_FLAGS.MUTE_MEMBERS,
-    label: "メンバーをミュート",
-    description: "メンバーのマイクをミュートできます",
-    category: "ボイス",
-  },
-  {
-    flag: PERMISSION_FLAGS.DEAFEN_MEMBERS,
-    label: "メンバーのスピーカーをミュート",
-    description: "メンバーのスピーカーをオフにできます",
-    category: "ボイス",
-  },
-  {
-    flag: PERMISSION_FLAGS.MOVE_MEMBERS,
-    label: "メンバーを移動",
-    description: "メンバーを他のボイスチャンネルに移動できます",
-    category: "ボイス",
-  },
-];
+type RolePermissionField = (typeof ROLE_PERMISSION_FIELDS)[number]["key"];
 
-const MOCK_MEMBERS: {
-  id: string;
-  username: string;
-  avatar: string;
-  discriminator: string;
-}[] = [];
+function getRoleDisplayName(role: Role): string {
+  if (role.id === "member") {
+    return "@everyone";
+  }
+  return role.name;
+}
+
+function getMemberDisplayName(member: GuildMember): string {
+  return member.nick ?? member.user.displayName;
+}
 
 export function RoleEditPanel({
   role,
-  onSave,
+  members,
+  canMoveUp,
+  canMoveDown,
   onBack,
+  onSave,
+  onDelete,
+  onMove,
+  onUpdateMemberRoles,
 }: {
-  role: MockRole;
-  onSave?: (role: MockRole) => void;
-  onBack?: () => void;
+  role: Role;
+  members: GuildMember[];
+  canMoveUp: boolean;
+  canMoveDown: boolean;
+  onBack: () => void;
+  onSave: (input: UpdateRoleInput) => Promise<Role>;
+  onDelete: (() => Promise<void>) | null;
+  onMove: (direction: "up" | "down") => Promise<void>;
+  onUpdateMemberRoles: (memberId: string, roleKeys: string[]) => Promise<void>;
 }) {
-  const [activeTab, setActiveTab] = useState("display");
+  const [activeTab, setActiveTab] = useState<RoleEditTab>("display");
   const [name, setName] = useState(role.name);
-  const [color, setColor] = useState(role.color);
-  const [hoist, setHoist] = useState(role.hoist);
-  const [mentionable, setMentionable] = useState(role.mentionable);
-  const [permissions, setPermissions] = useState(role.permissions);
+  const [allowView, setAllowView] = useState(role.allowView);
+  const [allowPost, setAllowPost] = useState(role.allowPost);
+  const [allowManage, setAllowManage] = useState(role.allowManage);
   const [memberSearch, setMemberSearch] = useState("");
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [saveSuccessMessage, setSaveSuccessMessage] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isReordering, setIsReordering] = useState(false);
+  const [pendingMemberId, setPendingMemberId] = useState<string | null>(null);
+
+  const filteredMembers = useMemo(() => {
+    const query = memberSearch.trim().toLowerCase();
+    return members
+      .filter((member) => {
+        if (query.length === 0) {
+          return true;
+        }
+        return (
+          getMemberDisplayName(member).toLowerCase().includes(query) ||
+          member.user.username.toLowerCase().includes(query)
+        );
+      })
+      .sort((left, right) => getMemberDisplayName(left).localeCompare(getMemberDisplayName(right)));
+  }, [memberSearch, members]);
 
   const hasChanges =
-    name !== role.name ||
-    color !== role.color ||
-    hoist !== role.hoist ||
-    mentionable !== role.mentionable ||
-    permissions !== role.permissions;
+    name.trim() !== role.name ||
+    allowView !== role.allowView ||
+    allowPost !== role.allowPost ||
+    allowManage !== role.allowManage;
+  const isBusy = isSaving || isDeleting || isReordering || pendingMemberId !== null;
 
-  function getPermState(flag: number): PermissionState {
-    if (hasPermission(permissions, flag)) return "allow";
-    return "inherit";
-  }
+  async function handleSave() {
+    const normalizedName = name.trim();
+    if (normalizedName.length === 0) {
+      setSubmitError("ロール名を入力してください。");
+      setSaveSuccessMessage(null);
+      return;
+    }
 
-  function setPermState(flag: number, state: PermissionState) {
-    if (state === "allow") {
-      setPermissions((prev) => prev | flag);
-    } else {
-      setPermissions((prev) => prev & ~flag);
+    setIsSaving(true);
+    setSubmitError(null);
+    setSaveSuccessMessage(null);
+    try {
+      await onSave({
+        name: normalizedName,
+        allowView,
+        allowPost,
+        allowManage,
+      });
+      setSaveSuccessMessage("ロール設定を保存しました。");
+    } catch (error: unknown) {
+      setSubmitError(toUpdateActionErrorText(error, "ロール設定の保存に失敗しました。"));
+    } finally {
+      setIsSaving(false);
     }
   }
 
-  function handleSave() {
-    onSave?.({
-      ...role,
-      name,
-      color,
-      hoist,
-      mentionable,
-      permissions,
-    });
+  async function handleDelete() {
+    if (onDelete === null) {
+      return;
+    }
+
+    setIsDeleting(true);
+    setSubmitError(null);
+    setSaveSuccessMessage(null);
+    try {
+      await onDelete();
+    } catch (error: unknown) {
+      setSubmitError(toDeleteActionErrorText(error, "ロールの削除に失敗しました。"));
+    } finally {
+      setIsDeleting(false);
+    }
   }
 
-  const categories = Array.from(new Set(PERMISSION_DEFS.map((p) => p.category)));
+  async function handleMove(direction: "up" | "down") {
+    setIsReordering(true);
+    setSubmitError(null);
+    setSaveSuccessMessage(null);
+    try {
+      await onMove(direction);
+    } catch (error: unknown) {
+      setSubmitError(toUpdateActionErrorText(error, "ロール順序の更新に失敗しました。"));
+    } finally {
+      setIsReordering(false);
+    }
+  }
 
-  const filteredMembers = MOCK_MEMBERS.filter((m) =>
-    m.username.toLowerCase().includes(memberSearch.toLowerCase()),
-  );
+  async function handleMemberToggle(member: GuildMember, checked: boolean) {
+    const hasRole = member.roles.includes(role.id);
+    if (hasRole === checked) {
+      return;
+    }
+
+    setPendingMemberId(member.user.id);
+    setSubmitError(null);
+    setSaveSuccessMessage(null);
+    try {
+      const nextRoleKeys = checked
+        ? [...member.roles, role.id]
+        : member.roles.filter((roleKey) => roleKey !== role.id);
+      await onUpdateMemberRoles(member.user.id, nextRoleKeys);
+    } catch (error: unknown) {
+      setSubmitError(toUpdateActionErrorText(error, "メンバー権限の更新に失敗しました。"));
+    } finally {
+      setPendingMemberId(null);
+    }
+  }
 
   return (
     <div className="flex-1">
-      {/* Header with back button */}
-      <div className="mb-4 flex items-center gap-3">
-        <button
-          onClick={onBack}
-          className="flex items-center gap-1 text-sm text-discord-text-link hover:underline"
-          aria-label="戻る"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          戻る
-        </button>
-        <span className="text-sm text-discord-text-muted">—</span>
-        <h3 className="text-base font-semibold text-discord-header-primary">
-          ロールの編集 — {role.name}
-        </h3>
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={onBack}
+            className="flex items-center gap-1 text-sm text-discord-text-link hover:underline"
+            aria-label="戻る"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            戻る
+          </button>
+          <h3 className="text-base font-semibold text-discord-header-primary">
+            ロールの編集 - {getRoleDisplayName(role)}
+          </h3>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={!canMoveUp || isBusy}
+            onClick={() => void handleMove("up")}
+          >
+            <ArrowUp className="mr-1.5 h-4 w-4" />
+            上へ
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={!canMoveDown || isBusy}
+            onClick={() => void handleMove("down")}
+          >
+            <ArrowDown className="mr-1.5 h-4 w-4" />
+            下へ
+          </Button>
+        </div>
       </div>
 
-      {/* Tabs */}
-      <Tabs tabs={TABS} activeTab={activeTab} onChange={setActiveTab} className="mb-4" />
+      <Tabs
+        tabs={TABS}
+        activeTab={activeTab}
+        onChange={(id) => setActiveTab(id as RoleEditTab)}
+        className="mb-4"
+      />
 
-      {/* Tab content */}
+      {submitError !== null && <p className="mb-4 text-sm text-discord-brand-red">{submitError}</p>}
+      {saveSuccessMessage !== null && (
+        <p className="mb-4 text-sm text-discord-brand-green">{saveSuccessMessage}</p>
+      )}
+
       {activeTab === "display" && (
         <div className="space-y-6">
           <Input
             label="ロール名"
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onChange={(event) => setName(event.target.value)}
             fullWidth
           />
 
-          <div>
-            <label className="mb-2 block text-xs font-bold uppercase text-discord-header-secondary">
-              ロールの色
-            </label>
-            <RoleColorPicker value={color} onChange={setColor} />
-          </div>
-
-          <div className="flex items-center justify-between py-2">
-            <div>
-              <p className="text-sm text-discord-text-normal">ロールをメンバーリストで分ける</p>
-              <p className="text-xs text-discord-text-muted">
-                このロールのメンバーをメンバーリストで別のグループとして表示します
+          <div className="rounded-lg bg-discord-bg-secondary p-4">
+            <p className="text-sm font-medium text-discord-text-normal">metadata 互換</p>
+            <p className="mt-1 text-xs text-discord-text-muted">
+              `color` / `hoist` / `mentionable` は v2 backend contract の保存対象外です。
+              この画面では role 名と権限のみを編集します。
+            </p>
+            {role.isSystem && (
+              <p className="mt-3 text-xs text-discord-text-muted">
+                system role は削除できません。`member` は UI 上 `@everyone` として表示します。
               </p>
-            </div>
-            <Toggle checked={hoist} onChange={setHoist} />
-          </div>
-
-          <div className="flex items-center justify-between py-2">
-            <div>
-              <p className="text-sm text-discord-text-normal">このロールに@mentionを許可</p>
-              <p className="text-xs text-discord-text-muted">
-                メンバーがこのロールに@mentionできるようになります
-              </p>
-            </div>
-            <Toggle checked={mentionable} onChange={setMentionable} />
+            )}
           </div>
         </div>
       )}
 
       {activeTab === "permissions" && (
-        <div>
-          {categories.map((cat) => (
-            <div key={cat} className="mb-6">
-              <h4 className="mb-2 text-xs font-bold uppercase text-discord-text-muted">{cat}</h4>
-              {PERMISSION_DEFS.filter((p) => p.category === cat).map((perm) => (
-                <PermissionToggle
-                  key={perm.flag}
-                  value={getPermState(perm.flag)}
-                  onChange={(state) => setPermState(perm.flag, state)}
-                  label={perm.label}
-                  description={perm.description}
-                />
-              ))}
+        <div className="space-y-4">
+          {ROLE_PERMISSION_FIELDS.map((field) => (
+            <div
+              key={field.key}
+              className="flex items-center justify-between rounded-lg bg-discord-bg-secondary px-4 py-3"
+            >
+              <div className="pr-4">
+                <p className="text-sm text-discord-text-normal">{field.label}</p>
+                <p className="mt-1 text-xs text-discord-text-muted">{field.description}</p>
+              </div>
+              <Toggle
+                checked={
+                  field.key === "allowView"
+                    ? allowView
+                    : field.key === "allowPost"
+                      ? allowPost
+                      : allowManage
+                }
+                onChange={(checked) => {
+                  const setter: Record<RolePermissionField, (value: boolean) => void> = {
+                    allowView: setAllowView,
+                    allowPost: setAllowPost,
+                    allowManage: setAllowManage,
+                  };
+                  setter[field.key](checked);
+                }}
+              />
             </div>
           ))}
         </div>
@@ -292,94 +295,80 @@ export function RoleEditPanel({
 
       {activeTab === "members" && (
         <div>
-          <div className="mb-4 flex items-center gap-3">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-discord-text-muted" />
-              <input
-                type="text"
-                placeholder="メンバーを検索..."
-                value={memberSearch}
-                onChange={(e) => setMemberSearch(e.target.value)}
-                className="h-8 w-full rounded-[3px] bg-discord-input-bg pl-9 pr-3 text-sm text-discord-text-normal outline-none focus:outline-2 focus:outline-discord-brand-blurple"
-              />
-            </div>
-            <Button size="sm">
-              <UserPlus className="mr-1.5 h-4 w-4" />
-              メンバーを追加
-            </Button>
-          </div>
+          <Input
+            label="メンバーを検索"
+            value={memberSearch}
+            onChange={(event) => setMemberSearch(event.target.value)}
+            fullWidth
+          />
 
-          <div className="space-y-1">
-            {filteredMembers.map((member) => (
-              <div
-                key={member.id}
-                className="flex items-center gap-3 rounded px-3 py-2 hover:bg-discord-bg-mod-hover"
-              >
+          <div className="mt-4 space-y-2">
+            {filteredMembers.map((member) => {
+              const hasRole = member.roles.includes(role.id);
+              const isPending = pendingMemberId === member.user.id;
+
+              return (
                 <div
-                  className="flex h-8 w-8 items-center justify-center rounded-full text-sm font-medium text-white"
-                  style={{ backgroundColor: color }}
+                  key={member.user.id}
+                  className="flex items-center gap-3 rounded-lg bg-discord-bg-secondary px-4 py-3"
                 >
-                  {member.avatar}
+                  <Checkbox
+                    checked={hasRole}
+                    disabled={isPending || isBusy}
+                    onChange={(checked) => void handleMemberToggle(member, checked)}
+                  />
+                  <div
+                    className="flex h-8 w-8 items-center justify-center rounded-full bg-discord-bg-tertiary text-discord-text-normal"
+                    aria-hidden="true"
+                  >
+                    {role.id === "member" ? (
+                      <Users className="h-4 w-4" />
+                    ) : (
+                      <Shield className="h-4 w-4" />
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm text-discord-text-normal">
+                      {getMemberDisplayName(member)}
+                    </p>
+                    <p className="truncate text-xs text-discord-text-muted">
+                      {member.user.username}
+                    </p>
+                  </div>
+                  {isPending && <span className="text-xs text-discord-text-muted">更新中...</span>}
                 </div>
-                <div className="flex-1">
-                  <span className="text-sm text-discord-text-normal">{member.username}</span>
-                  <span className="ml-1 text-xs text-discord-text-muted">
-                    #{member.discriminator}
-                  </span>
-                </div>
-                <button className="text-xs text-discord-text-muted hover:text-discord-brand-red">
-                  削除
-                </button>
-              </div>
-            ))}
+              );
+            })}
             {filteredMembers.length === 0 && (
               <p className="py-4 text-center text-sm text-discord-text-muted">
-                メンバーが見つかりません
+                対象メンバーが見つかりません。
               </p>
             )}
           </div>
         </div>
       )}
 
-      {activeTab === "links" && (
-        <div>
-          <div className="rounded-lg bg-discord-bg-secondary p-6 text-center">
-            <h4 className="mb-2 text-sm font-semibold text-discord-header-primary">
-              リンクされたロール
-            </h4>
-            <p className="mb-4 text-sm text-discord-text-muted">
-              外部サービスとの連携でロールを自動的に付与できます。
-              ボットやインテグレーションを使ってリンクされたロールを設定してください。
-            </p>
-            <Button variant="secondary" size="sm">
-              インテグレーションを管理
+      <div className="mt-6 flex items-center justify-between gap-3 rounded-lg bg-discord-bg-tertiary p-3">
+        <div className="text-sm text-discord-text-normal">
+          {hasChanges ? "変更が保存されていません" : "保存済みの状態です"}
+        </div>
+        <div className="flex items-center gap-2">
+          {onDelete !== null && (
+            <Button
+              variant="danger"
+              size="sm"
+              disabled={isBusy}
+              onClick={() => void handleDelete()}
+            >
+              <Trash2 className="mr-1.5 h-4 w-4" />
+              削除
             </Button>
-          </div>
-        </div>
-      )}
-
-      {/* Save bar */}
-      {hasChanges && (
-        <div className="mt-6 flex items-center justify-end gap-3 rounded-lg bg-discord-bg-tertiary p-3">
-          <span className="mr-auto text-sm text-discord-text-normal">変更が保存されていません</span>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => {
-              setName(role.name);
-              setColor(role.color);
-              setHoist(role.hoist);
-              setMentionable(role.mentionable);
-              setPermissions(role.permissions);
-            }}
-          >
-            リセット
-          </Button>
-          <Button size="sm" onClick={handleSave}>
-            変更を保存
+          )}
+          <Button size="sm" disabled={!hasChanges || isBusy} onClick={() => void handleSave()}>
+            {isSaving ? "保存中..." : "変更を保存"}
           </Button>
         </div>
-      )}
+      </div>
     </div>
   );
 }
