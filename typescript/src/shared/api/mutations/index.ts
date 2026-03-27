@@ -36,3 +36,7 @@ export { useCreateRole, useUpdateRole, useDeleteRole, useReorderRoles } from "./
 export { useCreateInvite, useRevokeInvite } from "./use-invite-actions";
 export { useUpdateChannel } from "./use-channel-update";
 export { useUpdateMyProfile } from "./use-my-profile";
+export {
+  useReplaceMemberRoles,
+  useReplaceChannelPermissions,
+} from "./use-guild-permission-actions";
