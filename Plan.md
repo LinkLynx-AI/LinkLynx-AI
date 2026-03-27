@@ -1,28 +1,22 @@
 # Plan
 
 ## Rules
-- Stop-and-fix: 検証またはレビューで失敗したら次工程へ進まず修正する。
-- Scope lock: guild text channel の frontend 接続に限定し、DM や backend 契約拡張は行わない。
+- Stop-and-fix: 追加差分を実装する場合は、検証失敗を解消してから次へ進む。
+- Scope lock: 今回は `LIN-796` の差分確認に限定し、追加要件が無い限り product code を編集しない。
 
 ## Milestones
-### M1: 実装前提の更新
+### M1: 親 issue と既存実装の対応確認
 - Acceptance criteria:
-  - [ ] `Prompt.md` / `Plan.md` / `Implement.md` / `Documentation.md` を `LIN-829` 用に更新
-  - [ ] 既存 message/chat/WS 導線の変更点を確定
+  - [x] `LIN-796` の子課題 `LIN-811` / `LIN-816` / `LIN-819` を特定する。
+  - [x] invite verify / join / `/invite/[code]` の実装が現行コードに存在することを確認する。
+  - [x] `origin/main...HEAD` が `0 0` であることを確認する。
 
-### M2: message API/query 基盤
+### M2: 検証結果の取得
 - Acceptance criteria:
-  - [ ] message list/create 用型と query key を整理
-  - [ ] `GuildChannelAPIClient` で guild message list/create が動く
-  - [ ] cache merge helper を追加
+  - [x] Rust invite 関連テストを実行し、既存 backend 実装の健全性を確認する。
+  - [x] frontend 検証が環境要因で未実行の場合、その理由を明記する。
 
-### M3: chat UI / realtime 接続
+### M3: 作業記録の是正
 - Acceptance criteria:
-  - [ ] `ChatArea` / `MessageList` / `MessageInput` に guildId と paging/error 表示を配線
-  - [ ] `WsAuthBridge` で active channel 購読と `message.created` cache 反映が動く
-
-### M4: テストと収束
-- Acceptance criteria:
-  - [ ] API client / hook / WS/chat の回帰テストを更新
-  - [ ] `make validate` と `cd typescript && npm run typecheck` を実行
-  - [ ] 実装内容と意図を日本語で説明できる状態にする
+  - [x] `Prompt.md` / `Plan.md` / `Implement.md` / `Documentation.md` を `LIN-796` 用に更新する。
+  - [x] 「追加差分なし」の判断根拠と未解決事項を残す。

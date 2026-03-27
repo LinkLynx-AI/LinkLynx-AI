@@ -1,44 +1,40 @@
 # Implement
 
-## 2026-03-10 LIN-829 frontend message timeline/composer real-data run
+## 2026-03-27 LIN-796 invite parent delta confirmation
 
 ### 必須参照
+- `docs/RUST.md`
 - `docs/TYPESCRIPT.md`
-- `docs/runbooks/realtime-nats-core-subject-subscription-runbook.md`
-- `docs/runbooks/message-v1-api-ws-contract-runbook.md`
-- `.agents/skills/linear-implementation-leaf/references/core-policy.md`
-- `.agents/skills/linear-implementation-leaf/references/delivery-flow.md`
-- `.agents/skills/linear-implementation-leaf/references/review-gates.md`
+- `docs/DATABASE.md`
+- `docs/adr/ADR-004-authz-fail-close-and-cache-strategy.md`
+- `docs/adr/ADR-005-dragonfly-ratelimit-failure-policy.md`
+- `.agents/skills/linear-implementation-simple-review-parent/SKILL.md`
 
 ### Start mode
-- `standalone smallest-unit`
-- current branch: `codex/lin-829`
+- `parent issue confirmation`
+- current branch: `codex/lin-796`
 
 ### Scope decisions
-- guild text channel のみを対象にする
-- DM route は non-goal として read/write を有効化しない
-- author 表示は frontend 最小補完
-- paging UI は timeline 上部ボタン方式
+- `LIN-796` は親 issue として扱う。
+- 既存 `main` に invite verify / join / FE 導線が入っている前提で差分だけ確認する。
+- 追加要件や再現不具合が無い限り product code は変更しない。
 
-### Progress log
-- [x] memory files 更新
-- [x] message API / query / cache helper
-- [x] chat UI / composer / paging
-- [x] WS subscribe / realtime cache apply
-- [x] review 指摘の blocking 修正
-- [ ] tests / validation
+### Evidence gathered
+- Linear 上で `LIN-796` の子課題は `LIN-811` / `LIN-816` / `LIN-819` と確認した。
+- 既存コード上で以下を確認した。
+  - public invite verify route
+  - invite join route
+  - `/invite/[code]` page と invite join frontend
+- `git rev-list --left-right --count origin/main...HEAD` は `0 0` だった。
+- `cargo test -p linklynx_backend invite::tests:: -- --nocapture` は `28 passed, 0 failed`。
 
-### Review-driven fixes
-- message REST/WS の `i64` ID は exact decimal として保持するように parser を追加
-- reconnect 後は active channel の timeline query を invalidate して履歴補償する
-- auth-store に `currentPrincipalId` を保持し、own-message 判定を Firebase UID 依存から分離した
+### Validation blockers
+- `typescript/node_modules` が存在しないため `vitest` / `prettier` が未導入。
+- そのため以下は現環境では未完了。
+  - `cd typescript && npm run test -- --run ...`
+  - `cd typescript && npm run typecheck`
+  - `make validate`
 
-## 2026-03-10 local dev startup fix
-
-### Goal
-- `make dev` で Scylla 起動直後でも message runtime が安定して立ち上がるようにする
-
-### Changes
-- `Makefile` に `scylla-wait` を追加し、CQL 応答待ちを共通化
-- `scylla-bootstrap` で `.env` を読み込み、`SCYLLA_KEYSPACE` を local runtime と一致させる
-- `dev` 起動時に `scylla-bootstrap` を必ず実行してから Rust API を起動する
+### Actions taken
+- root memory files を `LIN-796` 向けに更新した。
+- 既存実装の再編集は行っていない。
