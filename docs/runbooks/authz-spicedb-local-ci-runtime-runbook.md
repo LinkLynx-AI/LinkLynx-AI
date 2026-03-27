@@ -160,6 +160,48 @@ Recommended end-to-end verification:
    - `make authz-spicedb-up`
    - `make authz-spicedb-health`
 
+### 6.4 Role change propagation smoke
+
+Use this sequence after role/member/channel override changes land in the current branch.
+
+1. Start dependencies and API:
+
+```bash
+make authz-spicedb-up
+make authz-spicedb-health
+AUTHZ_PROVIDER=spicedb \
+SPICEDB_ENDPOINT=http://localhost:50051 \
+SPICEDB_CHECK_ENDPOINT=http://localhost:8443 \
+SPICEDB_PRESHARED_KEY=replace-with-dev-spicedb-key \
+make rust-dev
+```
+
+2. Open server settings and prepare two principals:
+   - principal A: has `Manage`
+   - principal B: currently does not have the target capability
+3. For role baseline verification:
+   - create or update a custom role from `ServerRoles`
+   - assign the role to principal B from `ServerRoles` or `ServerMembers`
+4. For channel override verification:
+   - open `ChannelEditPermissions`
+   - update `can_view` / `can_post` to `allow`, `deny`, or `inherit`
+5. After each write, confirm in this order:
+   - permission snapshot changes for principal B
+   - target REST/UI operation flips to allow or deny as expected
+   - no stale allow remains after `deny`
+
+Expected observations:
+- role/member changes invalidate `guild_role_changed` / `guild_member_role_changed`
+- channel overrides invalidate `channel_role_override_changed` / `channel_user_override_changed`
+- frontend guard and operation state converge without manual cache clearing
+
+If propagation does not happen:
+- inspect API logs for `AUTHZ_UNAVAILABLE` or tuple sync write failures
+- confirm SpiceDB health is still ready
+- rerun the same update once and compare permission snapshot before/after
+- if snapshot changes but operation does not, treat as frontend/query cache bug
+- if neither changes, continue with tuple sync triage in `authz-spicedb-tuple-sync-operations-runbook.md`
+
 ## 7. Exit criteria for LIN-863 + LIN-876
 
 All items must be true:

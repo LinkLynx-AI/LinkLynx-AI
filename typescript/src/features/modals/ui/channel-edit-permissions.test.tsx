@@ -137,4 +137,16 @@ describe("ChannelEditPermissions", () => {
 
     expect(screen.getByText("アクセス権限がありません")).not.toBeNull();
   });
+
+  test("renders service unavailable guard screen when authz is unavailable", () => {
+    useActionGuardMock.mockReturnValue({
+      status: "unavailable",
+      isAllowed: false,
+      message: "認可基盤が一時的に利用できません。",
+    });
+
+    render(<ChannelEditPermissions serverId="2001" channelId="3001" />);
+
+    expect(screen.getByText("認証基盤が一時的に利用できません")).not.toBeNull();
+  });
 });
