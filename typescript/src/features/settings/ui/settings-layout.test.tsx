@@ -5,35 +5,11 @@ import { render, screen, userEvent } from "@/test/test-utils";
 vi.mock("./server/server-overview", () => ({
   ServerOverview: () => <div>ServerOverview</div>,
 }));
-vi.mock("./server/server-roles", () => ({
-  ServerRoles: () => <div>ServerRoles</div>,
-}));
 vi.mock("./server/server-members", () => ({
   ServerMembers: () => <div>ServerMembers</div>,
 }));
-vi.mock("./server/server-emoji", () => ({
-  ServerEmoji: () => <div>ServerEmoji</div>,
-}));
-vi.mock("./server/server-stickers", () => ({
-  ServerStickers: () => <div>ServerStickers</div>,
-}));
-vi.mock("./server/server-boost", () => ({
-  ServerBoost: () => <div>ServerBoost</div>,
-}));
-vi.mock("./server/server-automod", () => ({
-  ServerAutomod: () => <div>ServerAutomod</div>,
-}));
-vi.mock("./server/server-audit-log", () => ({
-  ServerAuditLog: () => <div>ServerAuditLog</div>,
-}));
 vi.mock("./server/server-invites", () => ({
   ServerInvites: () => <div>ServerInvites</div>,
-}));
-vi.mock("./server/server-bans", () => ({
-  ServerBans: () => <div>ServerBans</div>,
-}));
-vi.mock("./server/server-analytics", () => ({
-  ServerAnalytics: () => <div>ServerAnalytics</div>,
 }));
 vi.mock("./user/user-account", () => ({
   UserAccount: () => <div>マイアカウント画面</div>,
@@ -110,5 +86,19 @@ describe("SettingsLayout", () => {
 
     expect(screen.getByText("アクセス権限がありません")).not.toBeNull();
     expect(screen.queryByText("ServerOverview")).toBeNull();
+  });
+
+  test("shows only real api-backed server setting tabs", async () => {
+    render(<SettingsLayout type="server" serverId="2001" onClose={vi.fn()} />);
+
+    expect(screen.getByRole("button", { name: "概要" })).not.toBeNull();
+    expect(screen.getByRole("button", { name: "メンバー" })).not.toBeNull();
+    expect(screen.getByRole("button", { name: "招待" })).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "ロール" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "AutoMod" })).toBeNull();
+
+    await userEvent.click(screen.getByRole("button", { name: "招待" }));
+
+    expect(screen.getByText("ServerInvites")).not.toBeNull();
   });
 });

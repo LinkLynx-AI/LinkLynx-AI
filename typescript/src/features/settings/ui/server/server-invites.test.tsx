@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, test, vi } from "vitest";
+import { GuildChannelApiError } from "@/shared/api/guild-channel-api-client";
 import { render, screen, userEvent } from "@/test/test-utils";
 import { ServerInvites } from "./server-invites";
 
@@ -72,7 +73,11 @@ describe("ServerInvites", () => {
     useInvitesMock.mockReturnValue({
       data: undefined,
       isPending: false,
-      error: new Error("招待一覧の取得に失敗しました。"),
+      error: new GuildChannelApiError("認可サービスが一時的に利用できません。", {
+        status: 503,
+        code: "AUTHZ_UNAVAILABLE",
+        requestId: "req-invites-503",
+      }),
     });
     useRevokeInviteMock.mockReturnValue({
       mutateAsync: vi.fn(),
@@ -82,6 +87,8 @@ describe("ServerInvites", () => {
 
     render(<ServerInvites serverId="2001" />);
 
-    expect(screen.getByText("招待一覧の取得に失敗しました。")).not.toBeNull();
+    expect(
+      screen.getByText("認可サービスが一時的に利用できません。 (request_id: req-invites-503)"),
+    ).not.toBeNull();
   });
 });

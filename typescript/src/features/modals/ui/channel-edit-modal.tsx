@@ -4,15 +4,11 @@ import { useState } from "react";
 import { Modal, ModalHeader, ModalBody } from "@/shared/ui/modal";
 import { Tabs } from "@/shared/ui/tabs-simple";
 import { ChannelEditOverview } from "./channel-edit-overview";
-import { ChannelEditPermissions } from "./channel-edit-permissions";
 import { ChannelEditInvites } from "./channel-edit-invites";
-import { ChannelEditIntegrations } from "./channel-edit-integrations";
 
 const tabs = [
   { id: "overview", label: "概要" },
-  { id: "permissions", label: "権限" },
   { id: "invites", label: "招待" },
-  { id: "integrations", label: "連携" },
 ];
 
 export function ChannelEditModal({
@@ -46,11 +42,9 @@ export function ChannelEditModal({
         {activeTab === "overview" && (
           <ChannelEditOverview channelId={channelId} onSaved={onClose} />
         )}
-        {activeTab === "permissions" && <ChannelEditPermissions channelId={channelId} />}
         {activeTab === "invites" && (
           <ChannelEditInvites serverId={serverId} channelId={channelId} />
         )}
-        {activeTab === "integrations" && <ChannelEditIntegrations channelId={channelId} />}
       </ModalBody>
     </Modal>
   );
