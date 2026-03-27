@@ -1,0 +1,4 @@
+ALTER TABLE invites
+  ALTER COLUMN id DROP DEFAULT;
+
+DROP SEQUENCE IF EXISTS invites_id_seq;

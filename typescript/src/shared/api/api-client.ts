@@ -69,6 +69,7 @@ export type CreateMyProfileMediaUploadUrlInput = {
   target: ProfileMediaTarget;
   filename: string;
   contentType: string;
+  sizeBytes: number;
 };
 
 export type MyProfileMediaUpload = {
@@ -115,7 +116,19 @@ export type Invite = {
   channel: Channel;
   expiresAt: string | null;
   uses: number;
-  maxUses: number;
+  maxUses: number | null;
+};
+
+export type InviteListItem = {
+  code: string;
+  creator: {
+    id: string;
+    displayName: string;
+  } | null;
+  expiresAt: string | null;
+  uses: number;
+  maxUses: number | null;
+  createdAt: string;
 };
 
 export type Role = {
@@ -282,9 +295,9 @@ export type APIClient = {
   createGroupDM(recipientIds: string[]): Promise<Channel>;
 
   // Invites
-  createInvite(channelId: string, data: CreateInviteData): Promise<Invite>;
-  getInvites(serverId: string): Promise<Invite[]>;
-  revokeInvite(inviteCode: string): Promise<void>;
+  createInvite(serverId: string, channelId: string, data: CreateInviteData): Promise<Invite>;
+  getInvites(serverId: string): Promise<InviteListItem[]>;
+  revokeInvite(serverId: string, inviteCode: string): Promise<void>;
 
   // Roles
   getRoles(serverId: string): Promise<Role[]>;

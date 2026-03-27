@@ -5,15 +5,21 @@
 fn app_with_state(state: AppState) -> Router {
     let external_cors = build_http_cors_layer(state.http_allowed_origins.as_ref());
 
-    let protected_routes = Router::new()
-        .route("/protected/ping", get(protected_ping))
-        .route("/v1/protected/ping", get(protected_ping))
+    let internal_routes = Router::new()
         .route("/internal/auth/metrics", get(auth_metrics_handler))
         .route("/internal/authz/metrics", get(authz_metrics_handler))
         .route(
             "/internal/authz/cache/invalidate",
             post(authz_cache_invalidate_handler),
         )
+        .route_layer(middleware::from_fn_with_state(
+            state.clone(),
+            internal_ops_middleware,
+        ));
+
+    let protected_routes = Router::new()
+        .route("/protected/ping", get(protected_ping))
+        .route("/v1/protected/ping", get(protected_ping))
         .route("/guilds", get(list_guilds).post(create_guild))
         .route(
             "/guilds/{guild_id}",
@@ -65,8 +71,12 @@ fn app_with_state(state: AppState) -> Router {
         .route("/v1/guilds/{guild_id}/members", get(get_guild_members))
         .route("/v1/guilds/{guild_id}/roles", get(get_guild_roles))
         .route(
+            "/v1/guilds/{guild_id}/invites",
+            get(list_guild_invites).post(create_guild_invite),
+        )
+        .route(
             "/v1/guilds/{guild_id}/invites/{invite_code}",
-            get(get_guild_invite),
+            get(get_guild_invite).delete(revoke_guild_invite),
         )
         .route(
             "/v1/guilds/{guild_id}/channels/{channel_id}",
@@ -113,15 +123,285 @@ fn app_with_state(state: AppState) -> Router {
         .route("/health", get(health_check))
         .route("/v1/invites/{invite_code}", get(get_public_invite))
         .route("/v1/invites/{invite_code}/join", post(join_public_invite))
+        .route("/internal/scylla/health", get(scylla_health_check))
+        .route("/ws", get(ws_handler))
         .route("/auth/ws-ticket", post(issue_ws_ticket))
         .layer(external_cors);
 
     Router::new()
-        .route("/internal/scylla/health", get(scylla_health_check))
-        .route("/ws", get(ws_handler))
         .merge(public_routes)
         .merge(protected_routes)
+        .merge(internal_routes)
         .with_state(state)
+}
+
+const INTERNAL_OPS_SHARED_SECRET_ENV: &str = "INTERNAL_OPS_SHARED_SECRET";
+const INTERNAL_OPS_SHARED_SECRET_HEADER: &str = "x-linklynx-internal-shared-secret";
+
+#[derive(Debug, Clone)]
+struct InternalOpsGuard {
+    shared_secret: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct InternalOpsAccess {
+    caller_boundary: &'static str,
+}
+
+#[derive(Debug, Clone)]
+struct InternalRequestContext {
+    request_id: String,
+    caller_boundary: &'static str,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum InternalOpsGuardError {
+    MissingConfiguration,
+    MissingOrInvalidSecret,
+}
+
+impl InternalOpsGuard {
+    fn with_shared_secret(shared_secret: impl Into<String>) -> Self {
+        Self {
+            shared_secret: Some(shared_secret.into()),
+        }
+    }
+
+    fn authorize(&self, headers: &HeaderMap) -> Result<InternalOpsAccess, InternalOpsGuardError> {
+        let expected = self
+            .shared_secret
+            .as_deref()
+            .ok_or(InternalOpsGuardError::MissingConfiguration)?;
+        let provided = headers
+            .get(INTERNAL_OPS_SHARED_SECRET_HEADER)
+            .and_then(|value| value.to_str().ok());
+        if provided == Some(expected) {
+            return Ok(InternalOpsAccess {
+                caller_boundary: "internal_shared_secret",
+            });
+        }
+        Err(InternalOpsGuardError::MissingOrInvalidSecret)
+    }
+}
+
+impl InternalOpsGuardError {
+    fn code(self) -> &'static str {
+        match self {
+            Self::MissingConfiguration => "INTERNAL_OPS_UNAVAILABLE",
+            Self::MissingOrInvalidSecret => "INTERNAL_OPS_FORBIDDEN",
+        }
+    }
+
+    fn message(self) -> &'static str {
+        match self {
+            Self::MissingConfiguration => "internal operations guard is unavailable",
+            Self::MissingOrInvalidSecret => "internal operations access is forbidden",
+        }
+    }
+
+    fn status(self) -> StatusCode {
+        match self {
+            Self::MissingConfiguration => StatusCode::SERVICE_UNAVAILABLE,
+            Self::MissingOrInvalidSecret => StatusCode::FORBIDDEN,
+        }
+    }
+
+    fn log_class(self) -> &'static str {
+        match self {
+            Self::MissingConfiguration => "internal_ops_guard_unavailable",
+            Self::MissingOrInvalidSecret => "internal_ops_guard_denied",
+        }
+    }
+
+    fn reason(self) -> &'static str {
+        match self {
+            Self::MissingConfiguration => "internal_shared_secret_missing",
+            Self::MissingOrInvalidSecret => "internal_shared_secret_invalid",
+        }
+    }
+
+    fn caller_boundary(self) -> &'static str {
+        match self {
+            Self::MissingConfiguration => "internal_guard_unconfigured",
+            Self::MissingOrInvalidSecret => "external_request",
+        }
+    }
+}
+
+/// 実行時 internal operations guard を構築する。
+/// @param なし
+/// @returns internal operations guard
+/// @throws なし
+fn build_runtime_internal_ops_guard() -> InternalOpsGuard {
+    match env::var(INTERNAL_OPS_SHARED_SECRET_ENV) {
+        Ok(shared_secret) if shared_secret.trim().is_empty() => {
+            tracing::warn!(
+                env_var = INTERNAL_OPS_SHARED_SECRET_ENV,
+                "blank internal ops shared secret is invalid; internal routes will fail-close"
+            );
+            InternalOpsGuard {
+                shared_secret: None,
+            }
+        }
+        Ok(shared_secret) => InternalOpsGuard::with_shared_secret(shared_secret),
+        Err(_) => {
+            tracing::warn!(
+                env_var = INTERNAL_OPS_SHARED_SECRET_ENV,
+                "internal ops shared secret is not configured; internal routes will fail-close"
+            );
+            InternalOpsGuard {
+                shared_secret: None,
+            }
+        }
+    }
+}
+
+/// internal route 専用 guard を適用する。
+/// @param state アプリケーション状態
+/// @param request HTTP リクエスト
+/// @param next 次のハンドラ
+/// @returns internal route 応答
+/// @throws なし
+async fn internal_ops_middleware(
+    State(state): State<AppState>,
+    mut request: Request<Body>,
+    next: Next,
+) -> Response {
+    let request_id = request_id_from_headers(request.headers());
+    let resource = request.uri().path().to_owned();
+    match state.internal_ops_guard.authorize(request.headers()) {
+        Ok(context) => {
+            let context = InternalRequestContext {
+                request_id: request_id.clone(),
+                caller_boundary: context.caller_boundary,
+            };
+            tracing::info!(
+                decision = "allow",
+                request_id = %request_id,
+                caller_boundary = context.caller_boundary,
+                outcome = "allow",
+                resource = %resource,
+                decision_source = "internal_ops_guard",
+                "internal route access allowed"
+            );
+            request.extensions_mut().insert(context);
+            next.run(request).await
+        }
+        Err(error) => {
+            tracing::warn!(
+                decision = "deny",
+                request_id = %request_id,
+                caller_boundary = error.caller_boundary(),
+                outcome = "deny",
+                resource = %resource,
+                error_class = error.log_class(),
+                reason = error.reason(),
+                decision_source = "internal_ops_guard",
+                "internal route access rejected"
+            );
+            let body = ApiErrorResponse {
+                code: error.code(),
+                message: error.message(),
+                request_id,
+            };
+            (error.status(), Json(body)).into_response()
+        }
+    }
+}
+
+const PUBLIC_INVITE_TRUSTED_PROXY_SHARED_SECRET_ENV: &str =
+    "PUBLIC_INVITE_TRUSTED_PROXY_SHARED_SECRET";
+const PUBLIC_INVITE_CLIENT_SCOPE_HEADER: &str = "x-linklynx-client-scope";
+const PUBLIC_INVITE_TRUSTED_PROXY_SECRET_HEADER: &str = "x-linklynx-trusted-proxy-secret";
+const PUBLIC_INVITE_ANONYMOUS_CLIENT_SCOPE: &str = "anonymous";
+const PUBLIC_INVITE_MAX_CLIENT_SCOPE_LEN: usize = 128;
+
+#[derive(Debug, Clone)]
+struct PublicInviteClientScope {
+    key_fragment: String,
+    log_value: String,
+    source: &'static str,
+}
+
+impl PublicInviteClientScope {
+    fn trusted(scope: String) -> Self {
+        Self {
+            key_fragment: scope.clone(),
+            log_value: scope,
+            source: "trusted_proxy_header",
+        }
+    }
+
+    fn anonymous() -> Self {
+        Self {
+            key_fragment: PUBLIC_INVITE_ANONYMOUS_CLIENT_SCOPE.to_owned(),
+            log_value: PUBLIC_INVITE_ANONYMOUS_CLIENT_SCOPE.to_owned(),
+            source: "anonymous_fallback",
+        }
+    }
+}
+
+/// 実行時の public invite trusted proxy shared secret を解決する。
+/// @param なし
+/// @returns 設定済み secret。未設定または空文字時は `None`
+/// @throws なし
+fn build_runtime_public_invite_trusted_proxy_shared_secret() -> Option<String> {
+    match env::var(PUBLIC_INVITE_TRUSTED_PROXY_SHARED_SECRET_ENV) {
+        Ok(shared_secret) if shared_secret.trim().is_empty() => {
+            tracing::warn!(
+                env_var = PUBLIC_INVITE_TRUSTED_PROXY_SHARED_SECRET_ENV,
+                "blank public invite trusted proxy secret is invalid; anonymous fallback will be used"
+            );
+            None
+        }
+        Ok(shared_secret) => Some(shared_secret),
+        Err(_) => None,
+    }
+}
+
+/// 公開invite向け client scope をヘッダーから解決する。
+/// @param headers リクエストヘッダー
+/// @param trusted_proxy_shared_secret runtime で信頼する proxy shared secret
+/// @returns rate-limit と監査ログに使う client scope
+/// @throws なし
+fn resolve_public_invite_client_scope(
+    headers: &HeaderMap,
+    trusted_proxy_shared_secret: Option<&str>,
+) -> PublicInviteClientScope {
+    let provided_secret = headers
+        .get(PUBLIC_INVITE_TRUSTED_PROXY_SECRET_HEADER)
+        .and_then(|value| value.to_str().ok());
+    let provided_scope = headers
+        .get(PUBLIC_INVITE_CLIENT_SCOPE_HEADER)
+        .and_then(|value| value.to_str().ok())
+        .and_then(normalize_public_invite_client_scope_value);
+
+    if trusted_proxy_shared_secret.is_some()
+        && trusted_proxy_shared_secret == provided_secret
+        && provided_scope.is_some()
+    {
+        return PublicInviteClientScope::trusted(provided_scope.unwrap_or_default());
+    }
+
+    PublicInviteClientScope::anonymous()
+}
+
+/// public invite client scope ヘッダー値を正規化する。
+/// @param raw_scope 生のヘッダー値
+/// @returns 利用可能な client scope。無効値は `None`
+/// @throws なし
+fn normalize_public_invite_client_scope_value(raw_scope: &str) -> Option<String> {
+    let trimmed = raw_scope.trim();
+    if trimmed.is_empty() || trimmed.len() > PUBLIC_INVITE_MAX_CLIENT_SCOPE_LEN {
+        return None;
+    }
+    if !trimmed.chars().all(|ch| {
+        ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '.' | ':')
+    }) {
+        return None;
+    }
+
+    Some(trimmed.to_owned())
 }
 
 /// ルート疎通応答を返す。
@@ -183,6 +463,20 @@ struct GuildInviteResponse {
 }
 
 #[derive(Debug, Serialize)]
+struct CreateInviteResponse {
+    ok: bool,
+    request_id: String,
+    invite: invite::CreatedInvite,
+}
+
+#[derive(Debug, Serialize)]
+struct ListGuildInvitesResponse {
+    ok: bool,
+    request_id: String,
+    invites: Vec<invite::GuildInviteSummary>,
+}
+
+#[derive(Debug, Serialize)]
 struct InviteVerifyResponse {
     ok: bool,
     request_id: String,
@@ -209,16 +503,6 @@ struct DmChannelListResponse {
 #[derive(Debug, Deserialize)]
 struct OpenOrCreateDmRequest {
     recipient_id: i64,
-}
-
-#[derive(Debug, Serialize)]
-struct ModerationActionResponse {
-    ok: bool,
-    request_id: String,
-    principal_id: i64,
-    guild_id: i64,
-    member_id: i64,
-    action: String,
 }
 
 /// 認証済みエンドポイントの疎通応答を返す。
@@ -288,6 +572,43 @@ async fn get_guild_invite(
     })
 }
 
+/// guild配下の有効な招待一覧を返す。
+/// @param state アプリケーション状態
+/// @param auth_context 認証文脈
+/// @param params パスパラメータ
+/// @returns 招待一覧レスポンス
+/// @throws なし
+async fn list_guild_invites(
+    State(state): State<AppState>,
+    Extension(auth_context): Extension<AuthContext>,
+    Path(params): Path<GuildPathParams>,
+) -> Response {
+    let request_id = auth_context.request_id.clone();
+    let guild_id = match parse_guild_id(&params.guild_id) {
+        Ok(value) => value,
+        Err(error) => {
+            return invite_error_response(
+                &invite::InviteError::validation(error.reason),
+                request_id,
+            )
+        }
+    };
+
+    match state
+        .invite_service
+        .list_invites(auth_context.principal_id, guild_id)
+        .await
+    {
+        Ok(invites) => Json(ListGuildInvitesResponse {
+            ok: true,
+            request_id,
+            invites,
+        })
+        .into_response(),
+        Err(error) => invite_error_response(&error, request_id),
+    }
+}
+
 /// 公開招待コードの状態を返す。
 /// @param state アプリケーション状態
 /// @param headers HTTPヘッダー
@@ -300,10 +621,15 @@ async fn get_public_invite(
     Path(params): Path<InviteVerifyPathParams>,
 ) -> Response {
     let request_id = request_id_from_headers(&headers);
+    let invite_code = params.invite_code;
+    let client_scope = resolve_public_invite_client_scope(
+        &headers,
+        state.public_invite_trusted_proxy_shared_secret.as_deref(),
+    );
     let rate_limit_decision = state
         .rest_rate_limit_service
         .evaluate_key(
-            public_invite_rate_limit_key(),
+            public_invite_rate_limit_key(&client_scope),
             RestRateLimitAction::InviteAccess,
         )
         .await;
@@ -326,6 +652,9 @@ async fn get_public_invite(
         tracing::warn!(
             decision = "deny",
             request_id = %request_id,
+            invite_code = %invite_code,
+            client_scope = %client_scope.log_value,
+            client_scope_source = client_scope.source,
             error_class = error_class,
             reason = reason,
             resource = "/v1/invites/{invite_code}",
@@ -345,7 +674,7 @@ async fn get_public_invite(
 
     match state
         .invite_service
-        .verify_public_invite(params.invite_code)
+        .verify_public_invite(invite_code)
         .await
     {
         Ok(invite) => Json(InviteVerifyResponse {
@@ -370,12 +699,20 @@ async fn join_public_invite(
     Path(params): Path<InviteVerifyPathParams>,
 ) -> Response {
     let request_id = request_id_from_headers(&headers);
+    let invite_code = params.invite_code;
+    let client_scope = resolve_public_invite_client_scope(
+        &headers,
+        state.public_invite_trusted_proxy_shared_secret.as_deref(),
+    );
     let token = match bearer_token_from_headers(&headers) {
         Ok(token) => token,
         Err(error) => {
             tracing::warn!(
                 decision = %error.decision(),
                 request_id = %request_id,
+                invite_code = %invite_code,
+                client_scope = %client_scope.log_value,
+                client_scope_source = client_scope.source,
                 error_class = %error.log_class(),
                 reason = %error.reason,
                 "invite join rejected at header parsing"
@@ -390,6 +727,9 @@ async fn join_public_invite(
             tracing::warn!(
                 decision = %error.decision(),
                 request_id = %request_id,
+                invite_code = %invite_code,
+                client_scope = %client_scope.log_value,
+                client_scope_source = client_scope.source,
                 error_class = %error.log_class(),
                 reason = %error.reason,
                 "invite join rejected at authentication"
@@ -425,6 +765,9 @@ async fn join_public_invite(
             decision = "deny",
             request_id = %request_id,
             principal_id = authenticated.principal_id.0,
+            invite_code = %invite_code,
+            client_scope = %client_scope.log_value,
+            client_scope_source = client_scope.source,
             error_class = error_class,
             reason = reason,
             resource = "/v1/invites/{invite_code}/join",
@@ -444,7 +787,7 @@ async fn join_public_invite(
 
     match state
         .invite_service
-        .join_invite(authenticated.principal_id, params.invite_code)
+        .join_invite(authenticated.principal_id, invite_code)
         .await
     {
         Ok(join) => Json(InviteJoinResponse {
@@ -959,30 +1302,99 @@ async fn open_or_create_dm(
     }
 }
 
-/// モデレーション操作の最小応答を返す。
+/// モデレーション対象メンバーへミュート操作を適用する。
+/// @param state アプリケーション状態
 /// @param path guild_id と member_id を含むパス
 /// @param auth_context 認証文脈
-/// @returns モデレーション最小応答
+/// @param payload ミュート入力
+/// @returns モデレーション結果レスポンス
 /// @throws なし
 async fn moderate_guild_member(
+    State(state): State<AppState>,
     axum::extract::Path((guild_id, member_id)): axum::extract::Path<(i64, i64)>,
     Extension(auth_context): Extension<AuthContext>,
-) -> Json<ModerationActionResponse> {
-    Json(ModerationActionResponse {
-        ok: true,
-        request_id: auth_context.request_id,
-        principal_id: auth_context.principal_id.0,
-        guild_id,
+    payload: Result<Json<PatchModerationMemberRequest>, JsonRejection>,
+) -> Response {
+    let request_id = auth_context.request_id.clone();
+    let guild_id = match parse_moderation_guild_id(&guild_id.to_string()) {
+        Ok(value) => value,
+        Err(error) => return moderation_error_response(&error, request_id),
+    };
+    let target_user_id = match moderation::normalize_positive_id(
         member_id,
-        action: "moderate_member".to_owned(),
-    })
+        "target_user_id_must_be_positive",
+    ) {
+        Ok(value) => value,
+        Err(error) => return moderation_error_response(&error, request_id),
+    };
+    let payload = match parse_moderation_json_payload(payload) {
+        Ok(value) => value,
+        Err(error) => return moderation_error_response(&error, request_id),
+    };
+
+    tracing::info!(
+        request_id = %auth_context.request_id,
+        principal_id = auth_context.principal_id.0,
+        guild_id,
+        member_id = target_user_id,
+        action = "mute",
+        "moderation member patch request accepted"
+    );
+
+    let input = moderation::CreateModerationMuteInput {
+        guild_id,
+        target_user_id,
+        reason: payload.reason,
+        expires_at: payload.expires_at,
+    };
+
+    match state
+        .moderation_service
+        .create_mute(auth_context.principal_id, input)
+        .await
+    {
+        Ok(mute) => {
+            tracing::info!(
+                request_id = %auth_context.request_id,
+                principal_id = auth_context.principal_id.0,
+                guild_id,
+                member_id = target_user_id,
+                action = "mute",
+                "moderation member patch completed"
+            );
+            (StatusCode::OK, Json(ModerationMuteResponse { mute })).into_response()
+        }
+        Err(error) => {
+            tracing::warn!(
+                request_id = %auth_context.request_id,
+                principal_id = auth_context.principal_id.0,
+                guild_id,
+                member_id = target_user_id,
+                action = "mute",
+                error_kind = ?error.kind,
+                reason = %error.reason,
+                "moderation member patch failed"
+            );
+            moderation_error_response(&error, request_id)
+        }
+    }
 }
 
 /// 認証メトリクスを返す。
 /// @param state アプリケーション状態
 /// @returns 認証メトリクス
 /// @throws なし
-async fn auth_metrics_handler(State(state): State<AppState>) -> Json<AuthMetricsSnapshot> {
+async fn auth_metrics_handler(
+    State(state): State<AppState>,
+    Extension(context): Extension<InternalRequestContext>,
+) -> Json<AuthMetricsSnapshot> {
+    tracing::info!(
+        request_id = %context.request_id,
+        caller_boundary = context.caller_boundary,
+        outcome = "auth_metrics_returned",
+        resource = "/internal/auth/metrics",
+        "internal auth metrics returned"
+    );
     Json(state.auth_service.metrics().snapshot())
 }
 
@@ -990,7 +1402,17 @@ async fn auth_metrics_handler(State(state): State<AppState>) -> Json<AuthMetrics
 /// @param state アプリケーション状態
 /// @returns 認可メトリクス
 /// @throws なし
-async fn authz_metrics_handler(State(state): State<AppState>) -> Json<AuthzMetricsSnapshot> {
+async fn authz_metrics_handler(
+    State(state): State<AppState>,
+    Extension(context): Extension<InternalRequestContext>,
+) -> Json<AuthzMetricsSnapshot> {
+    tracing::info!(
+        request_id = %context.request_id,
+        caller_boundary = context.caller_boundary,
+        outcome = "authz_metrics_returned",
+        resource = "/internal/authz/metrics",
+        "internal authz metrics returned"
+    );
     Json(state.authz_metrics.snapshot())
 }
 
@@ -1023,17 +1445,26 @@ struct AuthzCacheInvalidationResponse {
 /// @throws なし
 async fn authz_cache_invalidate_handler(
     State(state): State<AppState>,
-    Extension(auth_context): Extension<AuthContext>,
+    Extension(context): Extension<InternalRequestContext>,
     payload: Result<Json<AuthzCacheInvalidationRequest>, JsonRejection>,
 ) -> Response {
-    let request_id = auth_context.request_id;
+    let request_id = context.request_id.clone();
     let payload = match payload {
         Ok(Json(value)) => value,
         Err(_) => {
+            tracing::warn!(
+                request_id = %request_id,
+                caller_boundary = context.caller_boundary,
+                outcome = "invalid_payload",
+                resource = "/internal/authz/cache/invalidate",
+                error_class = "internal_ops_invalid_payload",
+                reason = "json_rejection",
+                "internal authz cache invalidation rejected"
+            );
             let body = ApiErrorResponse {
                 code: "AUTHZ_CACHE_INVALIDATION_INVALID",
                 message: "invalidation payload is invalid",
-                request_id,
+                request_id: request_id.clone(),
             };
             return (StatusCode::BAD_REQUEST, Json(body)).into_response();
         }
@@ -1042,10 +1473,19 @@ async fn authz_cache_invalidate_handler(
     let event = match build_authz_cache_invalidation_event(payload) {
         Ok(value) => value,
         Err(reason) => {
+            tracing::warn!(
+                request_id = %request_id,
+                caller_boundary = context.caller_boundary,
+                outcome = "invalid_payload",
+                resource = "/internal/authz/cache/invalidate",
+                error_class = "internal_ops_invalid_payload",
+                reason = reason,
+                "internal authz cache invalidation rejected"
+            );
             let body = ApiErrorResponse {
                 code: "AUTHZ_CACHE_INVALIDATION_INVALID",
                 message: reason,
-                request_id,
+                request_id: request_id.clone(),
             };
             return (StatusCode::BAD_REQUEST, Json(body)).into_response();
         }
@@ -1053,6 +1493,15 @@ async fn authz_cache_invalidate_handler(
 
     let report = state.authorizer.invalidate_cache(&event).await;
     let metrics = state.authorizer.cache_invalidation_metrics();
+    tracing::info!(
+        request_id = %request_id,
+        caller_boundary = context.caller_boundary,
+        outcome = "cache_invalidated",
+        resource = "/internal/authz/cache/invalidate",
+        evicted_keys = report.evicted_keys,
+        lag_ms = report.lag_ms,
+        "internal authz cache invalidation applied"
+    );
 
     Json(AuthzCacheInvalidationResponse {
         evicted_keys: report.evicted_keys,
@@ -1309,6 +1758,12 @@ struct GuildChannelMessagePathParams {
 }
 
 #[derive(Debug, Deserialize)]
+struct GuildInvitePathParams {
+    guild_id: String,
+    invite_code: String,
+}
+
+#[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct EditMessageRequest {
     content: String,
@@ -1327,8 +1782,28 @@ struct InviteVerifyPathParams {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CreateInviteRequest {
+    channel_id: i64,
+    #[serde(default)]
+    max_age_seconds: Option<i64>,
+    #[serde(default)]
+    max_uses: Option<i32>,
+}
+
+#[derive(Debug, Deserialize)]
 struct PermissionSnapshotQuery {
     channel_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct PermissionSnapshotAuditFields {
+    principal_id: i64,
+    guild_id: i64,
+    channel_id: Option<i64>,
+    action: &'static str,
+    resource: &'static str,
+    decision_source: &'static str,
 }
 
 #[derive(Debug, Serialize)]
@@ -1423,6 +1898,7 @@ struct ProfileMediaUploadUrlRequest {
     target: String,
     filename: String,
     content_type: String,
+    size_bytes: u64,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1466,6 +1942,12 @@ struct CreateModerationReportRequest {
 #[derive(Debug, Deserialize)]
 struct CreateModerationMuteRequest {
     target_user_id: i64,
+    reason: String,
+    expires_at: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct PatchModerationMemberRequest {
     reason: String,
     expires_at: Option<String>,
 }
@@ -1578,6 +2060,18 @@ fn parse_json_payload<T>(payload: Result<Json<T>, JsonRejection>) -> Result<T, G
     payload
         .map(|Json(value)| value)
         .map_err(|_| GuildChannelError::validation("request_body_invalid"))
+}
+
+/// invite create 向けJSON payloadを検証する。
+/// @param payload JSON抽出結果
+/// @returns 検証済みpayload
+/// @throws InviteError JSON形式不正時
+fn parse_invite_json_payload<T>(
+    payload: Result<Json<T>, JsonRejection>,
+) -> Result<T, invite::InviteError> {
+    payload
+        .map(|Json(value)| value)
+        .map_err(|_| invite::InviteError::validation("request_body_invalid"))
 }
 
 /// Query入力を検証して message 一覧クエリを取得する。
@@ -1728,6 +2222,7 @@ fn parse_profile_media_upload_payload(
         target: profile::ProfileMediaTarget::parse(payload.target.as_str())?,
         filename: payload.filename,
         content_type: payload.content_type,
+        size_bytes: payload.size_bytes,
     })
 }
 
@@ -1857,11 +2352,11 @@ fn parse_report_id(raw_report_id: &str) -> Result<i64, ModerationError> {
 }
 
 /// 公開invite用のレート制限キーを生成する。
-/// 未認証かつ trusted peer 情報を利用していないため共有匿名バケットを用いる。
+/// @param client_scope 解決済み client scope
 /// @returns レート制限キー
 /// @throws なし
-fn public_invite_rate_limit_key() -> &'static str {
-    "public:anonymous:invite_access"
+fn public_invite_rate_limit_key(client_scope: &PublicInviteClientScope) -> String {
+    format!("public:{}:invite_access", client_scope.key_fragment)
 }
 
 /// JSON入力を検証してモデレーションペイロードを取得する。
@@ -1917,8 +2412,25 @@ async fn get_permission_snapshot(
     };
     let channel_id = match parse_optional_channel_id(query.channel_id.as_deref()) {
         Ok(value) => value,
-        Err(error) => return guild_channel_error_response(&error, request_id),
+        Err(error) => {
+            let audit = permission_snapshot_audit_fields(&auth_context, guild_id, None);
+            tracing::warn!(
+                decision = "deny",
+                request_id = %request_id,
+                principal_id = audit.principal_id,
+                guild_id = audit.guild_id,
+                channel_id = audit.channel_id,
+                error_class = "validation_invalid_input",
+                reason = %error.reason,
+                action = audit.action,
+                resource = audit.resource,
+                decision_source = "request_validation",
+                "permission snapshot rejected at request validation"
+            );
+            return guild_channel_error_response(&error, request_id);
+        }
     };
+    let audit = permission_snapshot_audit_fields(&auth_context, guild_id, channel_id);
 
     let guild_manage_future = resolve_permission_flag(
         Arc::clone(&state.authorizer),
@@ -1935,8 +2447,36 @@ async fn get_permission_snapshot(
 
     let (guild_manage, channel) = match tokio::try_join!(guild_manage_future, channel_future) {
         Ok(values) => values,
-        Err(error) => return authz_error_response(&error, request_id),
+        Err(error) => {
+            tracing::warn!(
+                decision = %error.decision(),
+                request_id = %request_id,
+                principal_id = audit.principal_id,
+                guild_id = audit.guild_id,
+                channel_id = audit.channel_id,
+                error_class = %error.log_class(),
+                reason = %error.reason,
+                action = audit.action,
+                resource = audit.resource,
+                decision_source = audit.decision_source,
+                "permission snapshot rejected"
+            );
+            return authz_error_response(&error, request_id);
+        }
     };
+
+    tracing::info!(
+        decision = "allow",
+        request_id = %request_id,
+        principal_id = audit.principal_id,
+        guild_id = audit.guild_id,
+        channel_id = audit.channel_id,
+        error_class = "none",
+        action = audit.action,
+        resource = audit.resource,
+        decision_source = audit.decision_source,
+        "permission snapshot returned"
+    );
 
     Json(PermissionSnapshotResponse {
         request_id,
@@ -1954,6 +2494,110 @@ async fn get_permission_snapshot(
         },
     })
     .into_response()
+}
+
+/// guild配下へinviteを作成する。
+/// @param state アプリケーション状態
+/// @param auth_context 認証文脈
+/// @param params パスパラメータ
+/// @param payload 作成入力
+/// @returns 作成結果レスポンス
+/// @throws なし
+async fn create_guild_invite(
+    State(state): State<AppState>,
+    Extension(auth_context): Extension<AuthContext>,
+    Path(params): Path<GuildPathParams>,
+    payload: Result<Json<CreateInviteRequest>, JsonRejection>,
+) -> Response {
+    let request_id = auth_context.request_id.clone();
+    let guild_id = match parse_guild_id(&params.guild_id) {
+        Ok(value) => value,
+        Err(error) => {
+            return invite_error_response(
+                &invite::InviteError::validation(error.reason),
+                request_id,
+            )
+        }
+    };
+    let payload = match parse_invite_json_payload(payload) {
+        Ok(value) => value,
+        Err(error) => return invite_error_response(&error, request_id),
+    };
+
+    match state
+        .invite_service
+        .create_invite(
+            auth_context.principal_id,
+            guild_id,
+            invite::CreateInviteInput {
+                channel_id: payload.channel_id,
+                max_age_seconds: payload.max_age_seconds,
+                max_uses: payload.max_uses,
+            },
+        )
+        .await
+    {
+        Ok(invite) => (StatusCode::CREATED, Json(CreateInviteResponse {
+            ok: true,
+            request_id,
+            invite,
+        }))
+            .into_response(),
+        Err(error) => invite_error_response(&error, request_id),
+    }
+}
+
+/// guild配下の招待を取り消す。
+/// @param state アプリケーション状態
+/// @param auth_context 認証文脈
+/// @param params パスパラメータ
+/// @returns 取消結果
+/// @throws なし
+async fn revoke_guild_invite(
+    State(state): State<AppState>,
+    Extension(auth_context): Extension<AuthContext>,
+    Path(params): Path<GuildInvitePathParams>,
+) -> Response {
+    let request_id = auth_context.request_id.clone();
+    let guild_id = match parse_guild_id(&params.guild_id) {
+        Ok(value) => value,
+        Err(error) => {
+            return invite_error_response(
+                &invite::InviteError::validation(error.reason),
+                request_id,
+            )
+        }
+    };
+
+    match state
+        .invite_service
+        .revoke_invite(auth_context.principal_id, guild_id, params.invite_code)
+        .await
+    {
+        Ok(()) => StatusCode::NO_CONTENT.into_response(),
+        Err(error) => invite_error_response(&error, request_id),
+    }
+}
+
+/// permission snapshot 監査ログの共通項目を返す。
+/// @param auth_context 認証文脈
+/// @param guild_id 対象guild_id
+/// @param channel_id 対象channel_id
+/// @returns 監査ログ項目
+/// @throws なし
+fn permission_snapshot_audit_fields(
+    auth_context: &AuthContext,
+    guild_id: i64,
+    channel_id: Option<i64>,
+) -> PermissionSnapshotAuditFields {
+    PermissionSnapshotAuditFields {
+        principal_id: auth_context.principal_id.0,
+        guild_id,
+        channel_id,
+        action: "view",
+        resource: "permission_snapshot",
+        decision_source: "permission_snapshot_handler",
+    }
 }
 
 /// permission boolean を解決する。
@@ -2631,13 +3275,26 @@ async fn issue_my_profile_media_upload_url(
         Ok(value) => value,
         Err(error) => return profile_error_response(&error, request_id),
     };
+    let requested_size_bytes = input.size_bytes;
+    let requested_content_type = input.content_type.clone();
 
     match state
         .profile_media_service
         .issue_upload_url(auth_context.principal_id, input)
         .await
     {
-        Ok(upload) => Json(ProfileMediaUploadUrlResponse { upload }).into_response(),
+        Ok(upload) => {
+            tracing::info!(
+                request_id = %request_id,
+                principal_id = auth_context.principal_id.0,
+                target = %upload.target.as_key_segment(),
+                object_key = %upload.object_key,
+                content_type = %requested_content_type,
+                size_bytes = requested_size_bytes,
+                "profile media upload url issued"
+            );
+            Json(ProfileMediaUploadUrlResponse { upload }).into_response()
+        }
         Err(error) => profile_error_response(&error, request_id),
     }
 }
@@ -2664,7 +3321,16 @@ async fn get_my_profile_media_download_url(
         .issue_download_url(auth_context.principal_id, target)
         .await
     {
-        Ok(media) => Json(ProfileMediaDownloadUrlResponse { media }).into_response(),
+        Ok(media) => {
+            tracing::info!(
+                request_id = %request_id,
+                principal_id = auth_context.principal_id.0,
+                target = %media.target.as_key_segment(),
+                object_key = %media.object_key,
+                "profile media download url issued"
+            );
+            Json(ProfileMediaDownloadUrlResponse { media }).into_response()
+        }
         Err(error) => profile_error_response(&error, request_id),
     }
 }
@@ -2764,6 +3430,7 @@ async fn rest_auth_middleware(
     let request_id = request_id_from_headers(request.headers());
     let request_method = request.method().clone();
     let request_path = request.uri().path().to_owned();
+    let request_scope = rest_request_scope_from_path(&request_path);
 
     let token = match bearer_token_from_headers(request.headers()) {
         Ok(token) => token,
@@ -2855,6 +3522,8 @@ async fn rest_auth_middleware(
                 principal_id = authenticated.principal_id.0,
                 error_class = error_class,
                 reason = reason,
+                guild_id = request_scope.guild_id,
+                channel_id = request_scope.channel_id,
                 resource = %request_path,
                 action = decision.action().label(),
                 operation_class = ?decision.operation_class(),
@@ -2891,6 +3560,8 @@ async fn rest_auth_middleware(
             principal_id = authenticated.principal_id.0,
             error_class = %error.log_class(),
             reason = %error.reason,
+            guild_id = request_scope.guild_id,
+            channel_id = request_scope.channel_id,
             resource = %request_path,
             action = action_label,
             decision_source = "authorizer",
@@ -2915,8 +3586,8 @@ async fn rest_auth_middleware(
 /// @returns AuthZ action
 /// @throws なし
 fn rest_authz_action_for_request(method: &axum::http::Method, path: &str) -> AuthzAction {
-    if path == "/internal/authz/cache/invalidate" {
-        return AuthzAction::View;
+    if *method == axum::http::Method::POST && is_guild_invite_create_path(path) {
+        return AuthzAction::Manage;
     }
     if is_message_command_path(path)
         && (*method == axum::http::Method::PATCH || *method == axum::http::Method::DELETE)
@@ -2966,6 +3637,54 @@ fn rest_authz_resource_from_path(path: &str) -> AuthzResource {
     }
     AuthzResource::RestPath {
         path: path.to_owned(),
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct RestRequestScope {
+    guild_id: Option<i64>,
+    channel_id: Option<i64>,
+}
+
+/// RESTパスから監査用の scope 情報を抽出する。
+/// @param path リクエストパス
+/// @returns guild/channel scope
+/// @throws なし
+fn rest_request_scope_from_path(path: &str) -> RestRequestScope {
+    if let Some((guild_id, channel_id)) = parse_guild_channel_path(path) {
+        return RestRequestScope {
+            guild_id: Some(guild_id),
+            channel_id: Some(channel_id),
+        };
+    }
+    if let Some(channel_id) = parse_dm_channel_path(path) {
+        return RestRequestScope {
+            guild_id: None,
+            channel_id: Some(channel_id),
+        };
+    }
+    if let Some(guild_id) = parse_guild_invite_path(path) {
+        return RestRequestScope {
+            guild_id: Some(guild_id),
+            channel_id: None,
+        };
+    }
+    if let Some(guild_id) = parse_moderation_guild_path(path) {
+        return RestRequestScope {
+            guild_id: Some(guild_id),
+            channel_id: None,
+        };
+    }
+    if let Some(guild_id) = parse_guild_path(path) {
+        return RestRequestScope {
+            guild_id: Some(guild_id),
+            channel_id: None,
+        };
+    }
+
+    RestRequestScope {
+        guild_id: None,
+        channel_id: None,
     }
 }
 
@@ -3022,13 +3741,16 @@ fn parse_guild_channel_path(path: &str) -> Option<(i64, i64)> {
 /// @throws なし
 fn parse_guild_invite_path(path: &str) -> Option<i64> {
     let segments = path.trim_matches('/').split('/').collect::<Vec<_>>();
-    if segments.len() != 5 {
-        return None;
+    match segments.as_slice() {
+        ["v1", "guilds", guild_id, "invites"]
+        | ["v1", "guilds", guild_id, "invites", _] => guild_id.parse::<i64>().ok(),
+        _ => None,
     }
-    if segments[0] != "v1" || segments[1] != "guilds" || segments[3] != "invites" {
-        return None;
-    }
-    segments[2].parse::<i64>().ok()
+}
+
+fn is_guild_invite_create_path(path: &str) -> bool {
+    let segments = path.trim_matches('/').split('/').collect::<Vec<_>>();
+    matches!(segments.as_slice(), ["v1", "guilds", _, "invites"])
 }
 
 /// DMパスから channel_id を抽出する。

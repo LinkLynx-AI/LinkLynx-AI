@@ -90,6 +90,7 @@ pub(crate) struct AppState {
     auth_service: Arc<AuthService>,
     authorizer: Arc<dyn Authorizer>,
     authz_metrics: Arc<AuthzMetrics>,
+    internal_ops_guard: Arc<InternalOpsGuard>,
     guild_channel_service: Arc<dyn GuildChannelService>,
     dm_service: Arc<dyn DmService>,
     invite_service: Arc<dyn InviteService>,
@@ -113,6 +114,7 @@ pub(crate) struct AppState {
     ws_preauth_message_max_bytes: usize,
     ws_preauth_limit: usize,
     ws_preauth_connections: Arc<Semaphore>,
+    public_invite_trusted_proxy_shared_secret: Option<String>,
     rest_rate_limit_service: Arc<RestRateLimitService>,
 }
 
@@ -197,6 +199,7 @@ async fn build_runtime_state() -> AppState {
         auth_service,
         authorizer,
         authz_metrics,
+        internal_ops_guard: Arc::new(build_runtime_internal_ops_guard()),
         guild_channel_service,
         dm_service,
         invite_service,
@@ -229,6 +232,8 @@ async fn build_runtime_state() -> AppState {
         ws_preauth_message_max_bytes,
         ws_preauth_limit,
         ws_preauth_connections: Arc::new(Semaphore::new(ws_preauth_limit)),
+        public_invite_trusted_proxy_shared_secret:
+            build_runtime_public_invite_trusted_proxy_shared_secret(),
         rest_rate_limit_service: Arc::new(build_runtime_rest_rate_limit_service()),
     }
 }
@@ -329,14 +334,6 @@ fn auth_attempt_rate_limit_key(headers: &HeaderMap, token: Option<&str>) -> Stri
         })
         .unwrap_or_else(|| "anonymous".to_owned());
     format!("auth_attempt:{scope_source}")
-}
-
-fn identify_rate_limit_key(origin_header: Option<&str>) -> String {
-    let origin_scope = origin_header
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .unwrap_or("origin_missing");
-    format!("identify:{origin_scope}")
 }
 
 fn auth_error_counts_toward_attempt_limit(error: &auth::AuthError) -> bool {

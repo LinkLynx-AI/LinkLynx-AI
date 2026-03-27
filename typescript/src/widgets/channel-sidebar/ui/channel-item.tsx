@@ -30,12 +30,17 @@ export function ChannelItem({
 }) {
   const showContextMenu = useUIStore((s) => s.showContextMenu);
   const openModal = useUIStore((s) => s.openModal);
-  const [didPrimeManageGuard, setDidPrimeManageGuard] = useState(isActive);
+  const [didPrimeGuards, setDidPrimeGuards] = useState(isActive);
   const manageChannelGuard = useActionGuard({
     serverId,
     channelId: channel.id,
     requirement: "channel:manage",
-    enabled: didPrimeManageGuard,
+    enabled: didPrimeGuards,
+  });
+  const createInviteGuard = useActionGuard({
+    serverId,
+    requirement: "guild:create-invite",
+    enabled: didPrimeGuards,
   });
 
   const handleContextMenu = useCallback(
@@ -53,13 +58,25 @@ export function ChannelItem({
         channelId: channel.id,
         channelName: channel.name,
         channelType: channel.type,
+        serverId,
       });
     },
-    [channel.id, channel.name, channel.type, openModal],
+    [channel.id, channel.name, channel.type, openModal, serverId],
+  );
+  const openCreateInviteModal = useCallback(
+    (event: React.MouseEvent<HTMLButtonElement>) => {
+      event.preventDefault();
+      event.stopPropagation();
+      openModal("create-invite", {
+        serverId,
+        channelId: channel.id,
+      });
+    },
+    [channel.id, openModal, serverId],
   );
   const primeManageGuard = () => {
-    if (!didPrimeManageGuard) {
-      setDidPrimeManageGuard(true);
+    if (!didPrimeGuards) {
+      setDidPrimeGuards(true);
     }
   };
 
@@ -98,7 +115,8 @@ export function ChannelItem({
           type="button"
           aria-label="招待を作成"
           className="rounded p-0.5 text-discord-channels-default hover:text-discord-interactive-hover"
-          disabled
+          disabled={!createInviteGuard.isAllowed}
+          onClick={openCreateInviteModal}
         >
           <UserPlus className="h-4 w-4" />
         </button>

@@ -323,6 +323,29 @@ impl PostgresModerationService {
         }
     }
 
+    /// 対象メンバーが guild に所属しているか確認する。
+    /// @param client Postgresクライアント
+    /// @param guild_id 対象guild_id
+    /// @param target_user_id 対象user_id
+    /// @returns なし
+    /// @throws ModerationError 未存在/依存障害時
+    async fn ensure_target_member_exists(
+        &self,
+        client: &tokio_postgres::Client,
+        guild_id: i64,
+        target_user_id: i64,
+    ) -> Result<(), ModerationError> {
+        if self.is_guild_member(client, guild_id, target_user_id).await? {
+            return Ok(());
+        }
+
+        if !self.has_guild(client, guild_id).await? {
+            return Err(ModerationError::not_found("guild_not_found"));
+        }
+
+        Err(ModerationError::not_found("member_not_found"))
+    }
+
     /// owner/admin ロール有無を確認する。
     /// @param client Postgresクライアント
     /// @param guild_id 対象guild_id
@@ -648,6 +671,8 @@ impl ModerationService for PostgresModerationService {
         let client = self.select_client().await?;
 
         self.ensure_moderator_access(&client, input.guild_id, principal_id)
+            .await?;
+        self.ensure_target_member_exists(&client, input.guild_id, target_user_id)
             .await?;
 
         let row = match client

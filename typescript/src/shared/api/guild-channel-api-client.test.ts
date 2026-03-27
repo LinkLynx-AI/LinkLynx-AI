@@ -1009,6 +1009,7 @@ describe("GuildChannelAPIClient", () => {
       target: "avatar",
       filename: "avatar.png",
       contentType: "image/png",
+      sizeBytes: 1_048_576,
     });
 
     expect(upload).toEqual({
@@ -1030,6 +1031,7 @@ describe("GuildChannelAPIClient", () => {
         target: "avatar",
         filename: "avatar.png",
         content_type: "image/png",
+        size_bytes: 1_048_576,
       }),
     );
   });
@@ -1429,6 +1431,122 @@ describe("GuildChannelAPIClient", () => {
 
     expect(toMessageActionErrorText(error, "送信に失敗しました。")).toBe(
       "送信が多すぎます。少し待ってから再試行してください。（約 2 秒後に再試行してください） (request_id: req-rate-limit)",
+    );
+  });
+
+  test("createInvite preserves null max uses from API", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          invite: {
+            invite_code: "DEVCREATE2026",
+            guild: {
+              guild_id: 2001,
+              name: "LinkLynx Developers",
+              icon_key: null,
+            },
+            channel: {
+              channel_id: 3001,
+              name: "general",
+            },
+            expires_at: null,
+            uses: 0,
+            max_uses: null,
+          },
+        }),
+        { status: 201 },
+      ),
+    );
+
+    const client = new GuildChannelAPIClient();
+    const invite = await client.createInvite("2001", "3001", {});
+
+    expect(invite.maxUses).toBeNull();
+  });
+
+  test("getInvites maps guild invite list response", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          invites: [
+            {
+              invite_code: "DEVJOIN2026",
+              creator: {
+                user_id: 1001,
+                display_name: "Alice",
+              },
+              expires_at: null,
+              uses: 3,
+              max_uses: 10,
+              created_at: "2026-03-14T00:00:00Z",
+            },
+            {
+              invite_code: "OPENJOIN2026",
+              creator: null,
+              expires_at: "2026-03-21T00:00:00Z",
+              uses: 0,
+              max_uses: null,
+              created_at: "2026-03-13T00:00:00Z",
+            },
+          ],
+        }),
+        { status: 200 },
+      ),
+    );
+
+    const client = new GuildChannelAPIClient();
+    const invites = await client.getInvites("2001");
+
+    expect(invites).toEqual([
+      {
+        code: "DEVJOIN2026",
+        creator: { id: "1001", displayName: "Alice" },
+        expiresAt: null,
+        uses: 3,
+        maxUses: 10,
+        createdAt: "2026-03-14T00:00:00Z",
+      },
+      {
+        code: "OPENJOIN2026",
+        creator: null,
+        expiresAt: "2026-03-21T00:00:00Z",
+        uses: 0,
+        maxUses: null,
+        createdAt: "2026-03-13T00:00:00Z",
+      },
+    ]);
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("http://localhost:8080/v1/guilds/2001/invites");
+    expect(init.method).toBe("GET");
+  });
+
+  test("revokeInvite issues guild-scoped delete request", async () => {
+    fetchMock.mockResolvedValue(new Response(null, { status: 204 }));
+
+    const client = new GuildChannelAPIClient();
+    await client.revokeInvite("2001", "DEVJOIN2026");
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("http://localhost:8080/v1/guilds/2001/invites/DEVJOIN2026");
+    expect(init.method).toBe("DELETE");
+  });
+
+  test("toDeleteActionErrorText maps invite-specific delete errors", () => {
+    const notFound = new GuildChannelApiError("invite missing", {
+      code: "INVITE_NOT_FOUND",
+      requestId: "req-invite-missing",
+    });
+    const invalid = new GuildChannelApiError("invite invalid", {
+      code: "INVITE_INVALID",
+      requestId: "req-invite-invalid",
+    });
+
+    expect(toDeleteActionErrorText(notFound, "削除に失敗しました。")).toBe(
+      "対象の招待が見つかりません。 (request_id: req-invite-missing)",
+    );
+    expect(toDeleteActionErrorText(invalid, "削除に失敗しました。")).toBe(
+      "この招待はすでに無効です。 (request_id: req-invite-invalid)",
     );
   });
 });

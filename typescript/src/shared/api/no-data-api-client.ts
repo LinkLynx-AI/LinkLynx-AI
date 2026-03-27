@@ -17,6 +17,7 @@ import type {
   UpdateGuildData,
   CreateInviteData,
   Invite,
+  InviteListItem,
   ModerationMute,
   ModerationReport,
   MyProfile,
@@ -293,15 +294,15 @@ export class NoDataAPIClient implements APIClient {
     return unsupportedPromise("createGroupDM");
   }
 
-  createInvite(_channelId: string, _data: CreateInviteData): Promise<Invite> {
+  createInvite(_serverId: string, _channelId: string, _data: CreateInviteData): Promise<Invite> {
     return unsupportedPromise("createInvite");
   }
 
-  getInvites(_serverId: string): Promise<Invite[]> {
+  getInvites(_serverId: string): Promise<InviteListItem[]> {
     return Promise.resolve([]);
   }
 
-  revokeInvite(_inviteCode: string): Promise<void> {
+  revokeInvite(_serverId: string, _inviteCode: string): Promise<void> {
     return unsupportedPromise("revokeInvite");
   }
 

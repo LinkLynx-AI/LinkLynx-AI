@@ -45,11 +45,16 @@ Out of scope:
 - Identify contract:
   - Client -> Server: `{ \"type\": \"auth.identify\", \"d\": { \"method\": \"ticket\", \"ticket\": string } }`
   - Server -> Client: `{ \"type\": \"auth.ready\", \"d\": { \"principalId\": number } }`
+- Identify rate-limit contract:
+  - active ws-ticket から principal を引ける場合は principal 単位 bucket を使う。
+  - principal を引けない場合のみ WS session 単位 bucket へ fallback する。
+  - `Origin` は allowlist 判定のみに使い、shared rate-limit key には使わない。
 - Compatibility paths:
   - `Authorization` header based WS handshake
   - `GET /ws?ticket=<ticket>` is disabled by default and may be re-enabled only by explicit runtime opt-in.
 - Close behavior:
   - invalid/expired/replayed ticket, identify timeout, identify-before-ready violation -> `1008`
+  - identify rate limited -> `1008` (`identify_rate_limited`)
   - auth dependency unavailable -> `1011`
 
 ### 2.3 Error mapping policy
@@ -87,6 +92,9 @@ Out of scope:
   - `WS_QUERY_TICKET_ENABLED` (default: `false`)
   - `WS_PREAUTH_MESSAGE_MAX_BYTES` (default: `16384`)
   - `WS_PREAUTH_MAX_CONNECTIONS_PER_NODE` (default: `100`)
+- WS identify observability baseline:
+  - deny / accept log に `rate_limit_key_source` と `rate_limit_scope` を残す。
+  - `rate_limit_key_source` は `ticket_principal` または `session_id_fallback` のみを許可する。
 - Principal store retry behavior is configurable via:
   - `AUTH_PRINCIPAL_STORE_MAX_RETRIES` (default: `2`)
   - `AUTH_PRINCIPAL_STORE_RETRY_BASE_BACKOFF_MS` (default: `25`)
@@ -272,6 +280,7 @@ This scenario is the default first triage path when `npm run smoke:auth` fails l
    - Confirm the backend returns an auth code (`AUTH_*`) instead of transport errors.
 5. `/ws + auth.identify` fails:
    - Confirm `WS_ALLOWED_ORIGINS` includes the local frontend origin.
+   - Confirm logs show whether the request used `ticket_principal` or `session_id_fallback`; `Origin` mismatch and identify rate limiting are separate failure classes.
    - Distinguish deterministic close (`1008`) from dependency unavailable (`1011`) before escalating.
 
 ## 6. Verification procedure

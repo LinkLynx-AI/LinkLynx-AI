@@ -16,6 +16,10 @@ export function ServerContextMenu({ data }: { data: { server: Guild } }) {
     serverId: data.server.id,
     requirement: "guild:manage-settings",
   });
+  const createInviteGuard = useActionGuard({
+    serverId: data.server.id,
+    requirement: "guild:create-invite",
+  });
 
   return (
     <ContextMenu>
@@ -43,7 +47,15 @@ export function ServerContextMenu({ data }: { data: { server: Guild } }) {
         カテゴリーを作成
       </MenuItem>
       <MenuSeparator />
-      <MenuItem disabled>招待を作成</MenuItem>
+      <MenuItem
+        disabled={!createInviteGuard.isAllowed}
+        onClick={() => {
+          openModal("create-invite", { serverId: data.server.id });
+          hideContextMenu();
+        }}
+      >
+        招待を作成
+      </MenuItem>
       <MenuItem
         disabled={!manageSettingsGuard.isAllowed}
         onClick={() => {

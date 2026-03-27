@@ -31,6 +31,7 @@ function createSnapshot(overrides?: Partial<PermissionSnapshot>): PermissionSnap
 describe("useActionGuard helpers", () => {
   test("maps allowed snapshot permissions to allowed state", () => {
     expect(resolveActionGuardStatus(createSnapshot(), "guild:create-channel")).toBe("allowed");
+    expect(resolveActionGuardStatus(createSnapshot(), "guild:create-invite")).toBe("forbidden");
     expect(resolveActionGuardStatus(createSnapshot(), "guild:manage-settings")).toBe("allowed");
     expect(resolveActionGuardStatus(createSnapshot(), "guild:moderate")).toBe("allowed");
     expect(resolveActionGuardStatus(createSnapshot(), "channel:manage")).toBe("allowed");
@@ -53,6 +54,7 @@ describe("useActionGuard helpers", () => {
     });
 
     expect(resolveActionGuardStatus(snapshot, "guild:create-channel")).toBe("forbidden");
+    expect(resolveActionGuardStatus(snapshot, "guild:create-invite")).toBe("forbidden");
     expect(resolveActionGuardStatus(snapshot, "guild:manage-settings")).toBe("forbidden");
     expect(resolveActionGuardStatus(snapshot, "guild:moderate")).toBe("forbidden");
     expect(resolveActionGuardStatus(snapshot, "channel:manage")).toBe("forbidden");

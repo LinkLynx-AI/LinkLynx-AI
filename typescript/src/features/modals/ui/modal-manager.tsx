@@ -67,6 +67,7 @@ export function ModalManager() {
       return (
         <CreateInviteModal
           onClose={closeModal}
+          serverId={modalProps.serverId as string | undefined}
           channelId={modalProps.channelId as string | undefined}
         />
       );
@@ -155,6 +156,7 @@ export function ModalManager() {
           channelId={modalProps.channelId as string | undefined}
           channelName={modalProps.channelName as string | undefined}
           channelType={modalProps.channelType as number | undefined}
+          serverId={modalProps.serverId as string | undefined}
         />
       );
     case "onboarding":

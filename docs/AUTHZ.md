@@ -147,6 +147,8 @@ v0 での認可関連 SoR:
 
 - `noop allow-all` は `LIN-602` で導入する「v1非リリース期間限定の実装例外」であり、恒久契約ではない。
 - 本例外は `AUTHZ_ALLOW_ALL_UNTIL` で期限管理し、撤去条件は `LIN-629` のRunbookで固定する。
+- `AUTHZ_PROVIDER` 未設定 / 空文字 / 不明値は temporary exception に含めず、fail-close（`503` / `AUTHZ_UNAVAILABLE`）とする。
+- `AUTHZ_PROVIDER=noop` は明示指定時にのみ一時例外として有効化し、`AUTHZ_ALLOW_ALL_UNTIL` が不正または期限切れなら fail-close とする。
 - SpiceDB移植後は本節の例外は削除対象であり、fail-close契約（4.1/4.2/4.3）を唯一の運用基準とする。
 - 運用手順の詳細は `docs/runbooks/authz-noop-allow-all-spicedb-handoff-runbook.md` を参照する。
 
@@ -156,7 +158,7 @@ v0 での認可関連 SoR:
 - `Authorizer` 境界を1箇所に集約して導入する。
 - REST保護ルートとWS（接続/再認証）に同じ境界を挿入する。
 - `AUTHZ_PROVIDER=noop|spicedb` を導入する。
-- 初期は noop allow-all を有効化し、関数内部に TODO で移植先を明記する。
+- runtime default は fail-close とし、noop allow-all は明示設定された非リリース例外としてのみ有効化する。
 - deny/unavailable のマッピングをテストで固定する。
 
 ## 6. Compatibility note
@@ -224,6 +226,7 @@ v0 での認可関連 SoR:
 
 - Invite/DM/Moderation 系 REST を `rest_auth_middleware` 保護配下に追加し、既存の `error.code/message/details/requestId` 契約を維持する。
 - path->resource の追加写像（current baseline）は以下で固定する。
+  - `/v1/guilds/{guild_id}/invites` -> `AuthzResource::Guild { guild_id }`
   - `/v1/guilds/{guild_id}/invites/{invite_code}` -> `AuthzResource::Guild { guild_id }`
   - `/v1/dms/{channel_id}` / `/v1/dms/{channel_id}/messages` -> `AuthzResource::Channel { channel_id }`
   - `/v1/moderation/guilds/{guild_id}/...` -> `AuthzResource::Guild { guild_id }`
@@ -231,11 +234,14 @@ v0 での認可関連 SoR:
   - deny: close `1008`（`AUTHZ_DENIED`）
   - unavailable: close `1011`（`AUTHZ_UNAVAILABLE`）
 - 最小観測基盤として `GET /internal/authz/metrics` を追加し、`allow_total` / `deny_total` / `unavailable_total` を公開する。
+  - この internal endpoint は `x-linklynx-internal-shared-secret` を満たす運用専用境界でのみ利用可能とする。
 
 ## 15. LIN-925 Permission snapshot contract baseline
 
 - FE が v1 で必要な `can_*` 判定を 1 リクエストで取得する最小契約として、`GET /guilds/{guild_id}/permission-snapshot` を追加する。
 - route 自体は `rest_auth_middleware` 配下に置き、`AuthzResource::Guild { guild_id } + View` を通過条件とする。
+- 現行フェーズでは guild API の既存 surface に合わせて non-`v1` path を正とし、`v1` alias への cutover は別 issue で扱う。
+- 監査ログでは snapshot 取得主体/対象を追跡できるよう、少なくとも `request_id`、`principal_id`、`guild_id`、`channel_id`（指定時）を残す。
 - 成功レスポンス shape は以下で固定する。
 
 ```json
@@ -283,7 +289,8 @@ v0 での認可関連 SoR:
   - `unavailable`: page は `RouteGuardScreen(kind="service-unavailable")`、個別操作は disabled
 - v1 の requirement と UI 対応は以下で固定する。
   - `guild:create-channel` -> server context menu の create channel / create-channel modal
+  - `guild:create-invite` -> server context menu / channel context menu / channel item shortcut / create-invite modal
   - `guild:manage-settings` -> server settings modal
   - `guild:moderate` -> moderation queue / moderation report detail / resolve / reopen / mute
   - `channel:manage` -> channel context menu の edit/delete / channel item settings shortcut / channel edit overview / channel delete modal
-- invite 作成は real API/client が未実装のため、`LIN-926` では導線を disabled にして停止し、`CreateInviteModal` も fail-close placeholder に固定する。
+- invite 作成に加えて、invite 一覧/取消も real API/client 実装済み。invite は引き続き guild-scope 管理とし、channel 固有 list は持たない。

@@ -11,6 +11,7 @@ import type {
   CreateChannelData,
   CreateInviteData,
   Invite,
+  InviteListItem,
   MyProfileMediaDownload,
   MyProfileMediaUpload,
   ModerationMute,
@@ -545,31 +546,33 @@ export class MockAPIClient implements APIClient {
   }
 
   // Invites
-  async createInvite(channelId: string, _data: CreateInviteData): Promise<Invite> {
+  async createInvite(
+    serverId: string,
+    channelId: string,
+    _data: CreateInviteData,
+  ): Promise<Invite> {
     await this.simulateDelay();
+    const guild = mockServers.find((candidate) => candidate.id === serverId) ?? mockServers[0];
+    const channel =
+      (mockChannels[serverId] ?? []).find((candidate) => candidate.id === channelId) ??
+      (mockChannels[guild.id] ?? [])[0] ??
+      ({} as Channel);
     return {
       code: "abc123",
-      guild: mockServers[0],
-      channel: (mockChannels[mockServers[0].id] ?? [])[0] ?? ({} as Channel),
+      guild,
+      channel,
       expiresAt: null,
       uses: 0,
-      maxUses: 0,
+      maxUses: null,
     };
   }
 
-  async getInvites(_serverId: string): Promise<Invite[]> {
+  async getInvites(_serverId: string): Promise<InviteListItem[]> {
     await this.simulateDelay();
-    return mockInvites.map((inv) => ({
-      code: inv.code,
-      guild: mockServers[0],
-      channel: (mockChannels[mockServers[0].id] ?? [])[0] ?? ({} as Channel),
-      expiresAt: inv.expiresAt,
-      uses: inv.uses,
-      maxUses: inv.maxUses ?? 0,
-    }));
+    return mockInvites;
   }
 
-  async revokeInvite(_inviteCode: string): Promise<void> {
+  async revokeInvite(_serverId: string, _inviteCode: string): Promise<void> {
     await this.simulateDelay();
   }
 

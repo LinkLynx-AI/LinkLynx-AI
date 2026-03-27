@@ -1,6 +1,6 @@
 # V1 Traceability Ledger
 
-最終更新: 2026-03-08
+最終更新: 2026-03-13
 
 この文書は、`Linear` の親子構造や issue 状態を後で整理し直しても、現在の実装アーティファクトとタスクの対応を失わないためのローカル台帳です。
 
@@ -28,6 +28,15 @@
 | `db.migration.0015.lin803` | `0015_lin803_server_channel_minimal_contract` | `LIN-803` | active | もとは `0008` だったが、2026-03-07 に `sqlx` version collision 解消のため `0015` へ改番。 |
 | `db.migration.0016.lin822` | `0016_lin822_minimal_moderation` | `LIN-822` / implementation run is tracked under `LIN-802` | active | もとは `0012`。2026-03-07 に改番。Linear 上の `LIN-822` 状態が `Backlog` でも、コード/DB上は実装済み。 |
 | `db.migration.0017.lin939` | `0017_lin939_profile_banner_key` | `LIN-939` | active | `users.banner_key` を追加し、profile media の key persistence 契約を有効化。 |
+| `db.migration.0018.lin941` | `0018_lin941_channel_category_contract` | `LIN-941` | active | もとは `0017`。2026-03-13 に `0017` 重複 collision を解消するため `0018` へ改番。 |
+| `db.migration.0019.lin948` | `0019_lin948_message_create_idempotency` | `LIN-948` | active | もとは `0017`。2026-03-13 に `sqlx` migration version collision 解消のため `0019` へ改番。 |
+| `db.migration.0020.lin941` | `0020_lin941_channel_category_constraints` | `LIN-941` | active | もとは `0018`。2026-03-13 に `0017` 重複 collision 解消のため `0020` へ改番。 |
+
+## Current runbook follow-up mapping
+
+| Local artifact key | Current repo artifact | Original Linear anchor | Local state | Notes |
+| --- | --- | --- | --- | --- |
+| `runbook.message_v1.followup.lin981` | `docs/runbooks/message-v1-api-ws-contract-runbook.md` | `LIN-981` | active | edit/delete contract と durable event transport を current v1 delivery gate から分離し、tracked follow-up として維持。次回目標日は 2026-04-15。 |
 
 ## When Linear is reorganized
 
@@ -35,3 +44,11 @@
 2. 実装済み判定は `Local artifact key` と現物ファイルで行う。
 3. 過去の `docs/agent_runs/LIN-*` は履歴として残し、必要なら「現在の対応先」を追記する。
 4. migration 番号変更が必要になった場合は、変更理由と旧番号を必ずここに残す。
+
+## Current boundary notes
+
+- `GET /guilds/{guild_id}/permission-snapshot` は `LIN-925` / `LIN-980` 時点で non-`v1` path を正とする。
+- cutover 条件:
+  - backend に等価な `v1` alias が追加されても AuthN/AuthZ/監査ログ契約が不変であること
+  - frontend / client query が新 path へ移行済みであること
+  - 運用 runbook と監査ダッシュボードが新旧 path 混在を不要と判断できること

@@ -20,7 +20,10 @@ mod tests {
     use axum::{
         body::to_bytes,
         http::{
-            header::{AUTHORIZATION, ORIGIN, RETRY_AFTER},
+            header::{
+                ACCESS_CONTROL_REQUEST_HEADERS, ACCESS_CONTROL_REQUEST_METHOD, AUTHORIZATION,
+                ORIGIN, RETRY_AFTER,
+            },
             Method, StatusCode,
         },
     };
@@ -31,8 +34,9 @@ mod tests {
         GuildChannelService, GuildPatchInput, GuildSummary, PostgresGuildChannelService,
     };
     use invite::{
-        InviteError, InviteJoinResult, InviteJoinStatus, InviteService, PublicInviteGuild,
-        PublicInviteLookup, PublicInviteStatus,
+        CreateInviteInput, CreatedInvite, GuildInviteSummary, InviteChannelSummary,
+        InviteCreatorSummary, InviteError, InviteJoinResult, InviteJoinStatus, InviteService,
+        PublicInviteGuild, PublicInviteLookup, PublicInviteStatus,
     };
     use linklynx_message_api::{
         CreateGuildChannelMessageRequestV1, CreateGuildChannelMessageResponseV1,
@@ -49,6 +53,7 @@ mod tests {
     use moderation::{
         CreateModerationMuteInput, CreateModerationReportInput, ModerationError, ModerationReport,
         ModerationReportStatus, ModerationService, ModerationTargetType,
+        UnavailableModerationService,
     };
     use profile::ProfileTheme;
     use profile::{
@@ -83,6 +88,8 @@ mod tests {
     use tower::ServiceExt;
 
     const MAX_RESPONSE_BYTES: usize = 16 * 1024;
+    const TEST_INTERNAL_OPS_SECRET: &str = "test-internal-secret";
+    const TEST_PUBLIC_INVITE_TRUSTED_PROXY_SECRET: &str = "test-public-invite-proxy-secret";
 
     struct StaticTokenVerifier;
     struct UnavailableTokenVerifier;
@@ -1605,12 +1612,20 @@ mod tests {
             if input.guild_id != 2001 {
                 return Err(ModerationError::not_found("guild_not_found"));
             }
-            if principal_id.0 != 1001 {
+            if principal_id.0 != 1001 && principal_id.0 != 9001 && principal_id.0 != 9002 {
                 return Err(ModerationError::forbidden("moderation_role_required"));
             }
             if input.target_user_id <= 0 {
                 return Err(ModerationError::validation(
                     "target_user_id_must_be_positive",
+                ));
+            }
+            if input.target_user_id == 4040 {
+                return Err(ModerationError::not_found("member_not_found"));
+            }
+            if input.target_user_id == 5003 {
+                return Err(ModerationError::dependency_unavailable(
+                    "moderation_store_temporarily_unavailable",
                 ));
             }
             let reason = input.reason.trim();
@@ -1752,6 +1767,71 @@ mod tests {
 
     #[async_trait]
     impl InviteService for StaticInviteService {
+        async fn list_invites(
+            &self,
+            _principal_id: PrincipalId,
+            guild_id: i64,
+        ) -> Result<Vec<GuildInviteSummary>, InviteError> {
+            if guild_id != 2001 {
+                return Err(InviteError::not_found("guild_not_found"));
+            }
+
+            Ok(vec![
+                GuildInviteSummary {
+                    invite_code: "DEVJOIN2026".to_owned(),
+                    creator: Some(InviteCreatorSummary {
+                        user_id: 1001,
+                        display_name: "Alice".to_owned(),
+                    }),
+                    expires_at: Some("2026-03-21T00:00:00Z".to_owned()),
+                    uses: 3,
+                    max_uses: Some(100),
+                    created_at: "2026-03-14T00:00:00Z".to_owned(),
+                },
+                GuildInviteSummary {
+                    invite_code: "OPENJOIN2026".to_owned(),
+                    creator: None,
+                    expires_at: None,
+                    uses: 0,
+                    max_uses: None,
+                    created_at: "2026-03-13T00:00:00Z".to_owned(),
+                },
+            ])
+        }
+
+        async fn create_invite(
+            &self,
+            _principal_id: PrincipalId,
+            guild_id: i64,
+            input: CreateInviteInput,
+        ) -> Result<CreatedInvite, InviteError> {
+            if guild_id != 2001 {
+                return Err(InviteError::not_found("guild_not_found"));
+            }
+            if input.channel_id != 3001 {
+                return Err(InviteError::channel_not_found("invite_channel_not_found"));
+            }
+            if input.max_age_seconds == Some(0) || input.max_uses == Some(0) {
+                return Err(InviteError::validation("invite_limits_invalid"));
+            }
+
+            Ok(CreatedInvite {
+                invite_code: "DEVCREATE2026".to_owned(),
+                guild: PublicInviteGuild {
+                    guild_id,
+                    name: "LinkLynx Guild".to_owned(),
+                    icon_key: None,
+                },
+                channel: InviteChannelSummary {
+                    channel_id: input.channel_id,
+                    name: "general".to_owned(),
+                },
+                expires_at: Some("2026-03-21T00:00:00Z".to_owned()),
+                uses: 0,
+                max_uses: input.max_uses,
+            })
+        }
+
         async fn verify_public_invite(
             &self,
             invite_code: String,
@@ -1828,10 +1908,48 @@ mod tests {
                 _ => Err(InviteError::invalid_invite("invite_invalid")),
             }
         }
+
+        async fn revoke_invite(
+            &self,
+            _principal_id: PrincipalId,
+            guild_id: i64,
+            invite_code: String,
+        ) -> Result<(), InviteError> {
+            if guild_id != 2001 {
+                return Err(InviteError::not_found("guild_not_found"));
+            }
+
+            match invite_code.trim() {
+                "DEVJOIN2026" => Ok(()),
+                "DISABLED2026" => Err(InviteError::invalid_invite("invite_invalid")),
+                _ => Err(InviteError::invite_not_found("invite_not_found")),
+            }
+        }
     }
 
     #[async_trait]
     impl InviteService for StaticUnavailableInviteService {
+        async fn list_invites(
+            &self,
+            _principal_id: PrincipalId,
+            _guild_id: i64,
+        ) -> Result<Vec<GuildInviteSummary>, InviteError> {
+            Err(InviteError::dependency_unavailable(
+                "invite_store_unconfigured",
+            ))
+        }
+
+        async fn create_invite(
+            &self,
+            _principal_id: PrincipalId,
+            _guild_id: i64,
+            _input: CreateInviteInput,
+        ) -> Result<CreatedInvite, InviteError> {
+            Err(InviteError::dependency_unavailable(
+                "invite_store_unconfigured",
+            ))
+        }
+
         async fn verify_public_invite(
             &self,
             _invite_code: String,
@@ -1850,6 +1968,17 @@ mod tests {
                 "invite_store_unconfigured",
             ))
         }
+
+        async fn revoke_invite(
+            &self,
+            _principal_id: PrincipalId,
+            _guild_id: i64,
+            _invite_code: String,
+        ) -> Result<(), InviteError> {
+            Err(InviteError::dependency_unavailable(
+                "invite_store_unconfigured",
+            ))
+        }
     }
 
     async fn app_for_test() -> Router {
@@ -1857,6 +1986,7 @@ mod tests {
             Arc::new(StaticAllowAllAuthorizer),
             Arc::new(StaticProfileService),
             Arc::new(StaticInviteService),
+            Arc::new(StaticModerationService),
         )
         .await;
         app_with_state(state)
@@ -1869,6 +1999,7 @@ mod tests {
             Arc::new(StaticProfileMediaService),
             Arc::new(StaticInviteService),
             Arc::new(StaticScyllaHealthReporter { report }),
+            Arc::new(StaticModerationService),
         )
         .await;
         app_with_state(state)
@@ -1879,6 +2010,50 @@ mod tests {
             authorizer,
             Arc::new(StaticProfileService),
             Arc::new(StaticInviteService),
+            Arc::new(StaticModerationService),
+        )
+        .await;
+        app_with_state(state)
+    }
+
+    async fn app_for_test_with_authorizer_and_internal_ops_guard(
+        authorizer: Arc<dyn Authorizer>,
+        internal_ops_guard: InternalOpsGuard,
+    ) -> Router {
+        let mut state = state_for_test_with_authorizer(authorizer).await;
+        state.internal_ops_guard = Arc::new(internal_ops_guard);
+        app_with_state(state)
+    }
+
+    async fn app_for_test_with_public_invite_trusted_proxy_secret(
+        shared_secret: &str,
+    ) -> Router {
+        let mut state = state_for_test_with_authorizer(Arc::new(StaticAllowAllAuthorizer)).await;
+        state.public_invite_trusted_proxy_shared_secret = Some(shared_secret.to_owned());
+        app_with_state(state)
+    }
+
+    async fn app_for_test_with_authorizer_and_ws_identify_limit(
+        authorizer: Arc<dyn Authorizer>,
+        max_requests: u32,
+    ) -> Router {
+        let mut state = state_for_test_with_authorizer(authorizer).await;
+        state.ws_identify_rate_limiter = Arc::new(FixedWindowRateLimiter::new(
+            max_requests,
+            Duration::from_secs(60),
+        ));
+        app_with_state(state)
+    }
+
+    async fn app_for_test_with_authorizer_and_moderation_service(
+        authorizer: Arc<dyn Authorizer>,
+        moderation_service: Arc<dyn ModerationService>,
+    ) -> Router {
+        let state = state_for_test_with_authorizer_and_profile_and_invite(
+            authorizer,
+            Arc::new(StaticProfileService),
+            Arc::new(StaticInviteService),
+            moderation_service,
         )
         .await;
         app_with_state(state)
@@ -1897,6 +2072,7 @@ mod tests {
             authorizer,
             Arc::new(StaticProfileService),
             Arc::new(StaticInviteService),
+            Arc::new(StaticModerationService),
         )
         .await
     }
@@ -1916,6 +2092,7 @@ mod tests {
             }),
             Arc::new(StaticMessageService),
             Arc::new(StaticGuildChannelService),
+            Arc::new(StaticModerationService),
         )
         .await
     }
@@ -1924,6 +2101,7 @@ mod tests {
         authorizer: Arc<dyn Authorizer>,
         profile_service: Arc<dyn ProfileService>,
         invite_service: Arc<dyn InviteService>,
+        moderation_service: Arc<dyn ModerationService>,
     ) -> AppState {
         state_for_test_with_authorizer_profile_media_invite_scylla_and_message(
             authorizer,
@@ -1934,6 +2112,7 @@ mod tests {
                 report: ScyllaHealthReport::ready(),
             }),
             Arc::new(StaticMessageService),
+            moderation_service,
         )
         .await
     }
@@ -1944,6 +2123,7 @@ mod tests {
         profile_media_service: Arc<dyn ProfileMediaService>,
         invite_service: Arc<dyn InviteService>,
         scylla_health_reporter: Arc<dyn ScyllaHealthReporter>,
+        moderation_service: Arc<dyn ModerationService>,
     ) -> AppState {
         state_for_test_with_authorizer_profile_media_invite_scylla_and_message(
             authorizer,
@@ -1952,6 +2132,7 @@ mod tests {
             invite_service,
             scylla_health_reporter,
             Arc::new(StaticMessageService),
+            moderation_service,
         )
         .await
     }
@@ -1963,6 +2144,7 @@ mod tests {
         invite_service: Arc<dyn InviteService>,
         scylla_health_reporter: Arc<dyn ScyllaHealthReporter>,
         message_service: Arc<dyn MessageService>,
+        moderation_service: Arc<dyn ModerationService>,
     ) -> AppState {
         state_for_test_with_authorizer_profile_invite_scylla_message_and_guild_channel(
             authorizer,
@@ -1972,10 +2154,12 @@ mod tests {
             scylla_health_reporter,
             message_service,
             Arc::new(StaticGuildChannelService),
+            moderation_service,
         )
         .await
     }
 
+    #[allow(clippy::too_many_arguments)]
     async fn state_for_test_with_authorizer_profile_invite_scylla_message_and_guild_channel(
         authorizer: Arc<dyn Authorizer>,
         profile_service: Arc<dyn ProfileService>,
@@ -1984,6 +2168,7 @@ mod tests {
         scylla_health_reporter: Arc<dyn ScyllaHealthReporter>,
         message_service: Arc<dyn MessageService>,
         guild_channel_service: Arc<dyn GuildChannelService>,
+        moderation_service: Arc<dyn ModerationService>,
     ) -> AppState {
         state_for_test_with_authorizer_token_verifier_profile_invite_scylla_message_and_guild_channel(
             authorizer,
@@ -1994,6 +2179,7 @@ mod tests {
             scylla_health_reporter,
             message_service,
             guild_channel_service,
+            moderation_service,
         )
         .await
     }
@@ -2008,6 +2194,7 @@ mod tests {
         scylla_health_reporter: Arc<dyn ScyllaHealthReporter>,
         message_service: Arc<dyn MessageService>,
         guild_channel_service: Arc<dyn GuildChannelService>,
+        moderation_service: Arc<dyn ModerationService>,
     ) -> AppState {
         let metrics = Arc::new(AuthMetrics::default());
 
@@ -2036,12 +2223,15 @@ mod tests {
             auth_service,
             authorizer,
             authz_metrics: Arc::new(AuthzMetrics::default()),
+            internal_ops_guard: Arc::new(InternalOpsGuard::with_shared_secret(
+                TEST_INTERNAL_OPS_SECRET,
+            )),
             guild_channel_service,
             dm_service: Arc::new(StaticDmService),
             invite_service,
             message_service,
             message_realtime_hub: Arc::new(MessageRealtimeHub::default()),
-            moderation_service: Arc::new(StaticModerationService),
+            moderation_service,
             profile_service,
             profile_media_service,
             user_directory_service: Arc::new(StaticUserDirectoryService),
@@ -2074,6 +2264,7 @@ mod tests {
             ws_preauth_message_max_bytes: 16 * 1024,
             ws_preauth_limit: 100,
             ws_preauth_connections: Arc::new(Semaphore::new(100)),
+            public_invite_trusted_proxy_shared_secret: None,
             rest_rate_limit_service: Arc::new(RestRateLimitService::new(
                 RestRateLimitConfig::default(),
             )),
@@ -2088,6 +2279,7 @@ mod tests {
             authorizer,
             profile_service,
             Arc::new(StaticInviteService),
+            Arc::new(StaticModerationService),
         )
         .await;
         app_with_state(state)
@@ -2106,6 +2298,7 @@ mod tests {
                 report: ScyllaHealthReport::ready(),
             }),
             message_service,
+            Arc::new(StaticModerationService),
         )
         .await;
         app_with_state(state)
@@ -2126,6 +2319,7 @@ mod tests {
             }),
             message_service,
             guild_channel_service,
+            Arc::new(StaticModerationService),
         )
         .await;
         app_with_state(state)
@@ -2144,6 +2338,7 @@ mod tests {
             Arc::new(StaticScyllaHealthReporter {
                 report: ScyllaHealthReport::ready(),
             }),
+            Arc::new(StaticModerationService),
         )
         .await;
         app_with_state(state)
@@ -2154,6 +2349,7 @@ mod tests {
             Arc::new(StaticAllowAllAuthorizer),
             Arc::new(StaticProfileService),
             invite_service,
+            Arc::new(StaticModerationService),
         )
         .await;
         app_with_state(state)
@@ -2212,9 +2408,81 @@ mod tests {
         socket
     }
 
+    async fn connect_test_ws_without_authorization(
+        address: SocketAddr,
+        origin: Option<&str>,
+    ) -> TestWsStream {
+        let mut request = format!("ws://{address}/ws").into_client_request().unwrap();
+        if let Some(origin) = origin {
+            request
+                .headers_mut()
+                .insert(ORIGIN, origin.parse().unwrap());
+        }
+
+        let (socket, _) = connect_async(request).await.unwrap();
+        socket
+    }
+
     async fn connect_test_ws_at(address: SocketAddr, uid: &str) -> TestWsStream {
         let token = format!("{uid}:{}", unix_timestamp_seconds() + 300);
         connect_test_ws_with_authorization(address, Some(&format!("Bearer {token}"))).await
+    }
+
+    async fn issue_test_ws_ticket(address: SocketAddr, uid: &str) -> String {
+        let token = format!("{uid}:{}", unix_timestamp_seconds() + 300);
+        let response = reqwest::Client::new()
+            .post(format!("http://{address}/auth/ws-ticket"))
+            .header("authorization", format!("Bearer {token}"))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status(), reqwest::StatusCode::OK);
+        let json = response.json::<serde_json::Value>().await.unwrap();
+        json["ticket"].as_str().unwrap().to_owned()
+    }
+
+    async fn send_identify_ticket(socket: &mut TestWsStream, ticket: &str) {
+        let payload = serde_json::json!({
+            "type": "auth.identify",
+            "d": {
+                "method": "ticket",
+                "ticket": ticket,
+            }
+        })
+        .to_string();
+        socket
+            .send(WsClientMessage::Text(payload.into()))
+            .await
+            .unwrap();
+    }
+
+    async fn expect_ws_json_message(socket: &mut TestWsStream) -> serde_json::Value {
+        loop {
+            let response = timeout(Duration::from_secs(2), socket.next())
+                .await
+                .unwrap()
+                .unwrap()
+                .unwrap();
+            match response {
+                WsClientMessage::Text(text) => {
+                    return serde_json::from_str::<serde_json::Value>(&text).unwrap();
+                }
+                WsClientMessage::Ping(_) | WsClientMessage::Pong(_) => continue,
+                other => panic!("expected text frame, got {other:?}"),
+            }
+        }
+    }
+
+    async fn expect_ws_close_reason(socket: &mut TestWsStream) -> (CloseCode, String) {
+        let response = timeout(Duration::from_secs(2), socket.next())
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
+        match response {
+            WsClientMessage::Close(Some(frame)) => (frame.code, frame.reason.to_string()),
+            other => panic!("expected close frame, got {other:?}"),
+        }
     }
 
     async fn subscribe_test_channel(
@@ -2582,6 +2850,295 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn list_guild_invites_returns_active_invites_for_valid_request() {
+        let app = app_for_test().await;
+        let token = format!("u-admin:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/v1/guilds/2001/invites")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["invites"][0]["invite_code"], "DEVJOIN2026");
+        assert_eq!(json["invites"][0]["creator"]["display_name"], "Alice");
+        assert_eq!(json["invites"][1]["creator"], serde_json::Value::Null);
+    }
+
+    #[tokio::test]
+    async fn list_guild_invites_returns_service_unavailable_when_invite_service_fails() {
+        let app = app_for_test_with_invite_service(Arc::new(StaticUnavailableInviteService)).await;
+        let token = format!("u-admin:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/v1/guilds/2001/invites")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("x-request-id", "invite-list-unavailable-test")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "INVITE_UNAVAILABLE");
+        assert_eq!(json["request_id"], "invite-list-unavailable-test");
+    }
+
+    #[tokio::test]
+    async fn list_guild_invites_returns_retry_after_when_rate_limited() {
+        let app = app_for_test().await;
+        let token = format!("u-admin:{}", unix_timestamp_seconds() + 300);
+        let mut last_response = None;
+
+        for _ in 0..11 {
+            last_response = Some(
+                app.clone()
+                    .oneshot(
+                        Request::builder()
+                            .uri("/v1/guilds/2001/invites")
+                            .header("authorization", format!("Bearer {token}"))
+                            .body(Body::empty())
+                            .unwrap(),
+                    )
+                    .await
+                    .unwrap(),
+            );
+        }
+
+        let response = last_response.unwrap();
+        assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
+        assert_eq!(
+            response
+                .headers()
+                .get(RETRY_AFTER)
+                .and_then(|value| value.to_str().ok()),
+            Some("60")
+        );
+    }
+
+    #[tokio::test]
+    async fn create_guild_invite_returns_created_for_valid_request() {
+        let app = app_for_test().await;
+        let token = format!("u-admin:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method(Method::POST)
+                    .uri("/v1/guilds/2001/invites")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        r#"{"channel_id":3001,"max_age_seconds":3600,"max_uses":5}"#,
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::CREATED);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["invite"]["invite_code"], "DEVCREATE2026");
+        assert_eq!(json["invite"]["guild"]["guild_id"], 2001);
+        assert_eq!(json["invite"]["channel"]["channel_id"], 3001);
+        assert_eq!(json["invite"]["max_uses"], 5);
+    }
+
+    #[tokio::test]
+    async fn create_guild_invite_rejects_malformed_json() {
+        let app = app_for_test().await;
+        let token = format!("u-admin:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method(Method::POST)
+                    .uri("/v1/guilds/2001/invites")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"channel_id":"oops"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "VALIDATION_ERROR");
+    }
+
+    #[tokio::test]
+    async fn create_guild_invite_returns_service_unavailable_when_invite_service_fails() {
+        let app = app_for_test_with_invite_service(Arc::new(StaticUnavailableInviteService)).await;
+        let token = format!("u-admin:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method(Method::POST)
+                    .uri("/v1/guilds/2001/invites")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("x-request-id", "invite-create-unavailable-test")
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"channel_id":3001}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "INVITE_UNAVAILABLE");
+        assert_eq!(json["request_id"], "invite-create-unavailable-test");
+    }
+
+    #[tokio::test]
+    async fn revoke_guild_invite_returns_no_content_for_valid_request() {
+        let app = app_for_test().await;
+        let token = format!("u-admin:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method(Method::DELETE)
+                    .uri("/v1/guilds/2001/invites/DEVJOIN2026")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::NO_CONTENT);
+    }
+
+    #[tokio::test]
+    async fn revoke_guild_invite_returns_not_found_for_missing_invite() {
+        let app = app_for_test().await;
+        let token = format!("u-admin:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method(Method::DELETE)
+                    .uri("/v1/guilds/2001/invites/UNKNOWN2026")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "INVITE_NOT_FOUND");
+    }
+
+    #[tokio::test]
+    async fn revoke_guild_invite_returns_conflict_for_invalid_invite() {
+        let app = app_for_test().await;
+        let token = format!("u-admin:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method(Method::DELETE)
+                    .uri("/v1/guilds/2001/invites/DISABLED2026")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::CONFLICT);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "INVITE_INVALID");
+    }
+
+    #[tokio::test]
+    async fn revoke_guild_invite_returns_service_unavailable_when_invite_service_fails() {
+        let app = app_for_test_with_invite_service(Arc::new(StaticUnavailableInviteService)).await;
+        let token = format!("u-admin:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method(Method::DELETE)
+                    .uri("/v1/guilds/2001/invites/DEVJOIN2026")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("x-request-id", "invite-revoke-unavailable-test")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "INVITE_UNAVAILABLE");
+        assert_eq!(json["request_id"], "invite-revoke-unavailable-test");
+    }
+
+    #[tokio::test]
+    async fn revoke_guild_invite_fail_closes_when_ratelimit_degraded() {
+        let state = state_for_test_with_authorizer(Arc::new(StaticAllowAllAuthorizer)).await;
+        state
+            .rest_rate_limit_service
+            .set_degraded_for_test(true)
+            .await;
+        let app = app_with_state(state);
+        let token = format!("u-admin:{}", unix_timestamp_seconds() + 300);
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method(Method::DELETE)
+                    .uri("/v1/guilds/2001/invites/DEVJOIN2026")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
+        assert_eq!(
+            response
+                .headers()
+                .get(RETRY_AFTER)
+                .and_then(|value| value.to_str().ok()),
+            Some("60")
+        );
+    }
+
+    #[tokio::test]
     async fn public_invite_endpoint_returns_retry_after_when_rate_limited() {
         let app = app_for_test().await;
         let mut last_response = None;
@@ -2623,6 +3180,85 @@ mod tests {
                         Request::builder()
                             .uri(format!("/v1/invites/SPOOFED{index}"))
                             .header("x-forwarded-for", format!("203.0.113.{index}"))
+                            .body(Body::empty())
+                            .unwrap(),
+                    )
+                    .await
+                    .unwrap(),
+            );
+        }
+
+        let response = last_response.unwrap();
+        assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
+    }
+
+    #[tokio::test]
+    async fn public_invite_endpoint_uses_trusted_client_scope_rate_limit_keys() {
+        let app = app_for_test_with_public_invite_trusted_proxy_secret(
+            TEST_PUBLIC_INVITE_TRUSTED_PROXY_SECRET,
+        )
+        .await;
+        let mut last_primary_response = None;
+
+        for _ in 0..11 {
+            last_primary_response = Some(
+                app.clone()
+                    .oneshot(
+                        Request::builder()
+                            .uri("/v1/invites/DEVJOIN2026")
+                            .header(
+                                PUBLIC_INVITE_TRUSTED_PROXY_SECRET_HEADER,
+                                TEST_PUBLIC_INVITE_TRUSTED_PROXY_SECRET,
+                            )
+                            .header(PUBLIC_INVITE_CLIENT_SCOPE_HEADER, "client-a")
+                            .body(Body::empty())
+                            .unwrap(),
+                    )
+                    .await
+                    .unwrap(),
+            );
+        }
+
+        let primary_response = last_primary_response.unwrap();
+        assert_eq!(primary_response.status(), StatusCode::TOO_MANY_REQUESTS);
+
+        let secondary_response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/v1/invites/DEVJOIN2026")
+                    .header(
+                        PUBLIC_INVITE_TRUSTED_PROXY_SECRET_HEADER,
+                        TEST_PUBLIC_INVITE_TRUSTED_PROXY_SECRET,
+                    )
+                    .header(PUBLIC_INVITE_CLIENT_SCOPE_HEADER, "client-b")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(secondary_response.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn public_invite_endpoint_rejects_spoofed_client_scope_when_proxy_secret_is_invalid() {
+        let app = app_for_test_with_public_invite_trusted_proxy_secret(
+            TEST_PUBLIC_INVITE_TRUSTED_PROXY_SECRET,
+        )
+        .await;
+        let mut last_response = None;
+
+        for index in 0..11 {
+            last_response = Some(
+                app.clone()
+                    .oneshot(
+                        Request::builder()
+                            .uri(format!("/v1/invites/SPOOF{index}"))
+                            .header(PUBLIC_INVITE_TRUSTED_PROXY_SECRET_HEADER, "wrong-secret")
+                            .header(
+                                PUBLIC_INVITE_CLIENT_SCOPE_HEADER,
+                                format!("spoofed-client-{index}"),
+                            )
                             .body(Body::empty())
                             .unwrap(),
                     )
@@ -2685,6 +3321,42 @@ mod tests {
             .unwrap();
         let retry_after_seconds = retry_after.parse::<u64>().unwrap();
         assert!((1..=60).contains(&retry_after_seconds));
+    }
+
+    #[tokio::test]
+    async fn public_invite_endpoint_fail_closes_when_ratelimit_degraded_for_trusted_scope() {
+        let mut state = state_for_test_with_authorizer(Arc::new(StaticAllowAllAuthorizer)).await;
+        state.public_invite_trusted_proxy_shared_secret =
+            Some(TEST_PUBLIC_INVITE_TRUSTED_PROXY_SECRET.to_owned());
+        state
+            .rest_rate_limit_service
+            .set_degraded_for_test(true)
+            .await;
+        let app = app_with_state(state);
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/v1/invites/DEVJOIN2026")
+                    .header(
+                        PUBLIC_INVITE_TRUSTED_PROXY_SECRET_HEADER,
+                        TEST_PUBLIC_INVITE_TRUSTED_PROXY_SECRET,
+                    )
+                    .header(PUBLIC_INVITE_CLIENT_SCOPE_HEADER, "client-a")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
+        assert_eq!(
+            response
+                .headers()
+                .get(RETRY_AFTER)
+                .and_then(|value| value.to_str().ok()),
+            Some("60")
+        );
     }
 
     #[tokio::test]
@@ -3005,7 +3677,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn auth_metrics_endpoint_rejects_missing_token() {
+    async fn auth_metrics_endpoint_rejects_missing_internal_secret() {
         let app = app_for_test().await;
         let response = app
             .oneshot(
@@ -3017,46 +3689,11 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
     }
 
     #[tokio::test]
-    async fn auth_metrics_endpoint_rejects_invalid_token() {
-        let app = app_for_test().await;
-        let response = app
-            .oneshot(
-                Request::builder()
-                    .uri("/internal/auth/metrics")
-                    .header("authorization", "Bearer invalid-token")
-                    .body(Body::empty())
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-
-        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
-    }
-
-    #[tokio::test]
-    async fn auth_metrics_endpoint_rejects_expired_token() {
-        let app = app_for_test().await;
-        let token = format!("u-1:{}", unix_timestamp_seconds().saturating_sub(1));
-        let response = app
-            .oneshot(
-                Request::builder()
-                    .uri("/internal/auth/metrics")
-                    .header("authorization", format!("Bearer {token}"))
-                    .body(Body::empty())
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-
-        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
-    }
-
-    #[tokio::test]
-    async fn auth_metrics_endpoint_accepts_valid_token() {
+    async fn auth_metrics_endpoint_rejects_bearer_token_without_internal_secret() {
         let app = app_for_test().await;
         let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
         let response = app
@@ -3064,6 +3701,31 @@ mod tests {
                 Request::builder()
                     .uri("/internal/auth/metrics")
                     .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "INTERNAL_OPS_FORBIDDEN");
+    }
+
+    #[tokio::test]
+    async fn auth_metrics_endpoint_accepts_valid_internal_secret() {
+        let app = app_for_test().await;
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/internal/auth/metrics")
+                    .header(
+                        INTERNAL_OPS_SHARED_SECRET_HEADER,
+                        TEST_INTERNAL_OPS_SECRET,
+                    )
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -3080,7 +3742,34 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn internal_authz_metrics_endpoint_rejects_missing_token() {
+    async fn auth_metrics_endpoint_returns_unavailable_when_internal_secret_is_unconfigured() {
+        let app = app_for_test_with_authorizer_and_internal_ops_guard(
+            Arc::new(StaticAllowAllAuthorizer),
+            InternalOpsGuard {
+                shared_secret: None,
+            },
+        )
+        .await;
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/internal/auth/metrics")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "INTERNAL_OPS_UNAVAILABLE");
+    }
+
+    #[tokio::test]
+    async fn internal_authz_metrics_endpoint_rejects_missing_internal_secret() {
         let app = app_for_test().await;
         let response = app
             .oneshot(
@@ -3092,18 +3781,20 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
     }
 
     #[tokio::test]
-    async fn internal_authz_metrics_endpoint_accepts_valid_token() {
+    async fn internal_authz_metrics_endpoint_accepts_valid_internal_secret() {
         let app = app_for_test().await;
-        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
         let response = app
             .oneshot(
                 Request::builder()
                     .uri("/internal/authz/metrics")
-                    .header("authorization", format!("Bearer {token}"))
+                    .header(
+                        INTERNAL_OPS_SHARED_SECRET_HEADER,
+                        TEST_INTERNAL_OPS_SECRET,
+                    )
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -3121,40 +3812,19 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn internal_authz_metrics_endpoint_returns_forbidden_when_authz_denied() {
-        let app = app_for_test_with_authorizer(Arc::new(StaticDenyAuthorizer)).await;
-        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+    async fn internal_authz_metrics_endpoint_returns_unavailable_when_internal_secret_is_unconfigured(
+    ) {
+        let app = app_for_test_with_authorizer_and_internal_ops_guard(
+            Arc::new(StaticAllowAllAuthorizer),
+            InternalOpsGuard {
+                shared_secret: None,
+            },
+        )
+        .await;
         let response = app
             .oneshot(
                 Request::builder()
                     .uri("/internal/authz/metrics")
-                    .header("authorization", format!("Bearer {token}"))
-                    .header("x-request-id", "internal-authz-metrics-denied")
-                    .body(Body::empty())
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-
-        assert_eq!(response.status(), StatusCode::FORBIDDEN);
-        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
-            .await
-            .unwrap();
-        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
-        assert_eq!(json["code"], "AUTHZ_DENIED");
-        assert_eq!(json["request_id"], "internal-authz-metrics-denied");
-    }
-
-    #[tokio::test]
-    async fn internal_authz_metrics_endpoint_returns_unavailable_when_authz_unavailable() {
-        let app = app_for_test_with_authorizer(Arc::new(StaticUnavailableAuthorizer)).await;
-        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
-        let response = app
-            .oneshot(
-                Request::builder()
-                    .uri("/internal/authz/metrics")
-                    .header("authorization", format!("Bearer {token}"))
-                    .header("x-request-id", "internal-authz-metrics-unavailable")
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -3166,8 +3836,220 @@ mod tests {
             .await
             .unwrap();
         let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
-        assert_eq!(json["code"], "AUTHZ_UNAVAILABLE");
-        assert_eq!(json["request_id"], "internal-authz-metrics-unavailable");
+        assert_eq!(json["code"], "INTERNAL_OPS_UNAVAILABLE");
+    }
+
+    #[tokio::test]
+    async fn internal_authz_metrics_endpoint_ignores_rest_authz_denied() {
+        let app = app_for_test_with_authorizer(Arc::new(StaticDenyAuthorizer)).await;
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/internal/authz/metrics")
+                    .header(
+                        INTERNAL_OPS_SHARED_SECRET_HEADER,
+                        TEST_INTERNAL_OPS_SECRET,
+                    )
+                    .header("x-request-id", "internal-authz-metrics-ops")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert!(json.get("allow_total").is_some());
+    }
+
+    #[tokio::test]
+    async fn internal_authz_metrics_endpoint_ignores_rest_authz_unavailable() {
+        let app = app_for_test_with_authorizer(Arc::new(StaticUnavailableAuthorizer)).await;
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/internal/authz/metrics")
+                    .header(
+                        INTERNAL_OPS_SHARED_SECRET_HEADER,
+                        TEST_INTERNAL_OPS_SECRET,
+                    )
+                    .header("x-request-id", "internal-authz-metrics-ops")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert!(json.get("unavailable_total").is_some());
+    }
+
+    #[tokio::test]
+    async fn internal_authz_cache_invalidate_rejects_bearer_token_without_internal_secret() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method(Method::POST)
+                    .uri("/internal/authz/cache/invalidate")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        r#"{"kind":"guild_role_changed","guild_id":10}"#,
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "INTERNAL_OPS_FORBIDDEN");
+    }
+
+    #[tokio::test]
+    async fn internal_authz_cache_invalidate_accepts_valid_internal_secret() {
+        let app = app_for_test_with_authorizer(Arc::new(StaticDenyAuthorizer)).await;
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method(Method::POST)
+                    .uri("/internal/authz/cache/invalidate")
+                    .header(
+                        INTERNAL_OPS_SHARED_SECRET_HEADER,
+                        TEST_INTERNAL_OPS_SECRET,
+                    )
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        r#"{"kind":"guild_role_changed","guild_id":10}"#,
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["evictedKeys"], 0);
+    }
+
+    #[tokio::test]
+    async fn internal_authz_cache_invalidate_rejects_malformed_json() {
+        let app = app_for_test().await;
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method(Method::POST)
+                    .uri("/internal/authz/cache/invalidate")
+                    .header(
+                        INTERNAL_OPS_SHARED_SECRET_HEADER,
+                        TEST_INTERNAL_OPS_SECRET,
+                    )
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"kind":"guild_role_changed""#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "AUTHZ_CACHE_INVALIDATION_INVALID");
+    }
+
+    #[tokio::test]
+    async fn internal_authz_cache_invalidate_rejects_unknown_kind() {
+        let app = app_for_test().await;
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method(Method::POST)
+                    .uri("/internal/authz/cache/invalidate")
+                    .header(
+                        INTERNAL_OPS_SHARED_SECRET_HEADER,
+                        TEST_INTERNAL_OPS_SECRET,
+                    )
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"kind":"unexpected_kind","guild_id":10}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "AUTHZ_CACHE_INVALIDATION_INVALID");
+    }
+
+    #[tokio::test]
+    async fn internal_authz_cache_invalidate_rejects_missing_required_field() {
+        let app = app_for_test().await;
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method(Method::POST)
+                    .uri("/internal/authz/cache/invalidate")
+                    .header(
+                        INTERNAL_OPS_SHARED_SECRET_HEADER,
+                        TEST_INTERNAL_OPS_SECRET,
+                    )
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"kind":"guild_role_changed"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "AUTHZ_CACHE_INVALIDATION_INVALID");
+    }
+
+    #[tokio::test]
+    async fn internal_authz_metrics_preflight_does_not_expose_browser_cors_headers() {
+        let app = app_for_test().await;
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method(Method::OPTIONS)
+                    .uri("/internal/authz/metrics")
+                    .header(ORIGIN, "https://evil.example")
+                    .header(ACCESS_CONTROL_REQUEST_METHOD, "GET")
+                    .header(
+                        ACCESS_CONTROL_REQUEST_HEADERS,
+                        INTERNAL_OPS_SHARED_SECRET_HEADER,
+                    )
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert!(!response.headers().contains_key("access-control-allow-origin"));
+        assert!(!response.headers().contains_key("access-control-allow-headers"));
     }
 
     #[tokio::test]
@@ -3565,6 +4447,38 @@ mod tests {
         let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
         assert_eq!(json["code"], "AUTHZ_UNAVAILABLE");
         assert_eq!(json["request_id"], "permission-snapshot-unavailable");
+    }
+
+    #[test]
+    fn permission_snapshot_audit_fields_include_principal_guild_and_channel_scope() {
+        let auth_context = AuthContext {
+            request_id: "req-permission".to_owned(),
+            principal_id: PrincipalId(1001),
+            firebase_uid: "u-member".to_owned(),
+        };
+
+        assert_eq!(
+            permission_snapshot_audit_fields(&auth_context, 2001, Some(3001)),
+            PermissionSnapshotAuditFields {
+                principal_id: 1001,
+                guild_id: 2001,
+                channel_id: Some(3001),
+                action: "view",
+                resource: "permission_snapshot",
+                decision_source: "permission_snapshot_handler",
+            }
+        );
+        assert_eq!(
+            permission_snapshot_audit_fields(&auth_context, 2001, None),
+            PermissionSnapshotAuditFields {
+                principal_id: 1001,
+                guild_id: 2001,
+                channel_id: None,
+                action: "view",
+                resource: "permission_snapshot",
+                decision_source: "permission_snapshot_handler",
+            }
+        );
     }
 
     #[tokio::test]
@@ -4150,6 +5064,60 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn create_guild_channel_rejects_unknown_parent_channel() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/guilds/2001/channels")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        r#"{"name":"times-abe-2","type":"guild_text","parent_id":9999}"#,
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "CHANNEL_NOT_FOUND");
+    }
+
+    #[tokio::test]
+    async fn create_guild_channel_rejects_non_category_parent_channel() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/guilds/2001/channels")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        r#"{"name":"release-ops","type":"guild_text","parent_id":3001}"#,
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "VALIDATION_ERROR");
+    }
+
+    #[tokio::test]
     async fn patch_guild_channel_returns_updated_for_manage_member() {
         let app = app_for_test().await;
         let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
@@ -4686,6 +5654,91 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn patch_moderation_member_returns_updated_mute() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("PATCH")
+                    .uri("/v1/moderation/guilds/2001/members/1002")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        r#"{"reason":"abuse","expires_at":"2026-04-01T00:00:00Z"}"#,
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["mute"]["mute_id"], 5001);
+        assert_eq!(json["mute"]["target_user_id"], 1002);
+        assert_eq!(json["mute"]["created_by"], 1001);
+    }
+
+    #[tokio::test]
+    async fn patch_moderation_member_returns_not_found_for_unknown_member() {
+        let app = app_for_test().await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("PATCH")
+                    .uri("/v1/moderation/guilds/2001/members/4040")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"reason":"abuse"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "MODERATION_NOT_FOUND");
+    }
+
+    #[tokio::test]
+    async fn patch_moderation_member_returns_unavailable_when_service_fails_close() {
+        let app = app_for_test_with_authorizer_and_moderation_service(
+            Arc::new(StaticAllowAllAuthorizer),
+            Arc::new(UnavailableModerationService::new(
+                "moderation_store_temporarily_unavailable",
+            )),
+        )
+        .await;
+        let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("PATCH")
+                    .uri("/v1/moderation/guilds/2001/members/1002")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"reason":"abuse"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        assert_eq!(json["code"], "AUTHZ_UNAVAILABLE");
+    }
+
+    #[tokio::test]
     async fn ws_ticket_endpoint_returns_ticket_for_authenticated_request() {
         let app = app_for_test().await;
         let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
@@ -4868,6 +5921,114 @@ mod tests {
                 .and_then(|value| value.to_str().ok()),
             Some("http://localhost:3000")
         );
+    }
+
+    #[tokio::test]
+    async fn identify_rate_limit_key_uses_ticket_principal_when_ticket_is_active() {
+        let state = state_for_test_with_authorizer(Arc::new(StaticAllowAllAuthorizer)).await;
+        let principal = AuthenticatedPrincipal {
+            principal_id: PrincipalId(4321),
+            firebase_uid: "u-identify".to_owned(),
+            expires_at_epoch: unix_timestamp_seconds() + 300,
+        };
+        let issued = state
+            .ws_ticket_store
+            .issue_ticket(principal, Duration::from_secs(60))
+            .await;
+
+        let key = identify_rate_limit_key(&state, "session-1", &issued.ticket).await;
+
+        assert_eq!(key.value, "identify:principal:4321");
+        assert_eq!(key.source, "ticket_principal");
+        assert_eq!(key.scope, "principal:4321");
+    }
+
+    #[tokio::test]
+    async fn identify_rate_limit_key_falls_back_to_session_when_ticket_is_unknown() {
+        let state = state_for_test_with_authorizer(Arc::new(StaticAllowAllAuthorizer)).await;
+
+        let key = identify_rate_limit_key(&state, "session-xyz", "unknown-ticket").await;
+
+        assert_eq!(key.value, "identify:session:session-xyz");
+        assert_eq!(key.source, "session_id_fallback");
+        assert_eq!(key.scope, "session:session-xyz");
+    }
+
+    #[tokio::test]
+    #[ignore = "requires TCP bind; sandbox denies listeners"]
+    async fn ws_identify_rate_limit_scopes_by_principal_for_same_origin() {
+        let app = app_for_test_with_authorizer_and_ws_identify_limit(
+            Arc::new(StaticAllowAllAuthorizer),
+            2,
+        )
+        .await;
+        let (address, server) = spawn_test_server(app).await;
+        let first_user_ticket_1 = issue_test_ws_ticket(address, "u-1").await;
+        let first_user_ticket_2 = issue_test_ws_ticket(address, "u-1").await;
+        let first_user_ticket_3 = issue_test_ws_ticket(address, "u-1").await;
+        let second_user_ticket = issue_test_ws_ticket(address, "u-3").await;
+
+        let mut first_socket =
+            connect_test_ws_without_authorization(address, Some("http://localhost:3000")).await;
+        send_identify_ticket(&mut first_socket, &first_user_ticket_1).await;
+        let first_ready = expect_ws_json_message(&mut first_socket).await;
+        assert_eq!(first_ready["type"], "auth.ready");
+        assert_eq!(first_ready["d"]["principalId"], 1001);
+
+        let mut second_socket =
+            connect_test_ws_without_authorization(address, Some("http://localhost:3000")).await;
+        send_identify_ticket(&mut second_socket, &first_user_ticket_2).await;
+        let second_ready = expect_ws_json_message(&mut second_socket).await;
+        assert_eq!(second_ready["type"], "auth.ready");
+        assert_eq!(second_ready["d"]["principalId"], 1001);
+
+        let mut blocked_socket =
+            connect_test_ws_without_authorization(address, Some("http://localhost:3000")).await;
+        send_identify_ticket(&mut blocked_socket, &first_user_ticket_3).await;
+        let (blocked_code, blocked_reason) = expect_ws_close_reason(&mut blocked_socket).await;
+        assert_eq!(blocked_code, CloseCode::Policy);
+        assert_eq!(blocked_reason, "identify_rate_limited");
+
+        let mut unaffected_socket =
+            connect_test_ws_without_authorization(address, Some("http://localhost:3000")).await;
+        send_identify_ticket(&mut unaffected_socket, &second_user_ticket).await;
+        let unaffected_ready = expect_ws_json_message(&mut unaffected_socket).await;
+        assert_eq!(unaffected_ready["type"], "auth.ready");
+        assert_eq!(unaffected_ready["d"]["principalId"], 1003);
+
+        let _ = first_socket.close(None).await;
+        let _ = second_socket.close(None).await;
+        let _ = unaffected_socket.close(None).await;
+        server.abort();
+    }
+
+    #[tokio::test]
+    #[ignore = "requires TCP bind; sandbox denies listeners"]
+    async fn ws_identify_rate_limit_scopes_by_session_when_origin_is_missing() {
+        let app = app_for_test_with_authorizer_and_ws_identify_limit(
+            Arc::new(StaticAllowAllAuthorizer),
+            1,
+        )
+        .await;
+        let (address, server) = spawn_test_server(app).await;
+        let first_ticket = issue_test_ws_ticket(address, "u-1").await;
+        let second_ticket = issue_test_ws_ticket(address, "u-3").await;
+
+        let mut first_socket = connect_test_ws_without_authorization(address, None).await;
+        send_identify_ticket(&mut first_socket, &first_ticket).await;
+        let first_ready = expect_ws_json_message(&mut first_socket).await;
+        assert_eq!(first_ready["type"], "auth.ready");
+        assert_eq!(first_ready["d"]["principalId"], 1001);
+
+        let mut second_socket = connect_test_ws_without_authorization(address, None).await;
+        send_identify_ticket(&mut second_socket, &second_ticket).await;
+        let second_ready = expect_ws_json_message(&mut second_socket).await;
+        assert_eq!(second_ready["type"], "auth.ready");
+        assert_eq!(second_ready["d"]["principalId"], 1003);
+
+        let _ = first_socket.close(None).await;
+        let _ = second_socket.close(None).await;
+        server.abort();
     }
 
     #[tokio::test]
@@ -5773,7 +6934,7 @@ mod tests {
                     .header("authorization", format!("Bearer {token}"))
                     .header("content-type", "application/json")
                     .body(Body::from(
-                        r#"{"target":"avatar","filename":"avatar.png","content_type":"image/png"}"#,
+                        r#"{"target":"avatar","filename":"avatar.png","content_type":"image/png","size_bytes":1048576}"#,
                     ))
                     .unwrap(),
             )
@@ -6102,7 +7263,8 @@ mod tests {
                     .method("PATCH")
                     .uri("/v1/moderation/guilds/10/members/9003")
                     .header("authorization", format!("Bearer {member_token}"))
-                    .body(Body::empty())
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"reason":"abuse"}"#))
                     .unwrap(),
             )
             .await
@@ -6114,9 +7276,10 @@ mod tests {
             .oneshot(
                 Request::builder()
                     .method("PATCH")
-                    .uri("/v1/moderation/guilds/10/members/9003")
+                    .uri("/v1/moderation/guilds/2001/members/1002")
                     .header("authorization", format!("Bearer {admin_token}"))
-                    .body(Body::empty())
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"reason":"abuse"}"#))
                     .unwrap(),
             )
             .await
@@ -7298,7 +8461,8 @@ mod tests {
                     .uri("/v1/moderation/guilds/10/members/9003")
                     .header("authorization", format!("Bearer {token}"))
                     .header("x-request-id", "moderation-authz-unavailable-test")
-                    .body(Body::empty())
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"reason":"abuse"}"#))
                     .unwrap(),
             )
             .await
@@ -7361,7 +8525,8 @@ mod tests {
                     .method("PATCH")
                     .uri("/v1/moderation/guilds/10/members/9003")
                     .header("authorization", format!("Bearer {token}"))
-                    .body(Body::empty())
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"reason":"abuse"}"#))
                     .unwrap(),
             )
             .await
@@ -7443,6 +8608,11 @@ mod tests {
             _ => panic!("channel path should map to channel resource"),
         }
 
+        match rest_authz_resource_from_path("/v1/guilds/10/invites") {
+            AuthzResource::Guild { guild_id } => assert_eq!(guild_id, 10),
+            _ => panic!("invite collection path should map to guild resource"),
+        }
+
         match rest_authz_resource_from_path("/v1/guilds/10/invites/invite-abc") {
             AuthzResource::Guild { guild_id } => assert_eq!(guild_id, 10),
             _ => panic!("invite path should map to guild resource"),
@@ -7470,10 +8640,35 @@ mod tests {
     }
 
     #[test]
-    fn rest_authz_action_maps_internal_cache_invalidation_post_to_view() {
+    fn rest_request_scope_maps_moderation_permission_snapshot_and_dm_paths() {
+        assert_eq!(
+            rest_request_scope_from_path("/v1/moderation/guilds/10/members/9003"),
+            RestRequestScope {
+                guild_id: Some(10),
+                channel_id: None,
+            }
+        );
+        assert_eq!(
+            rest_request_scope_from_path("/guilds/10/permission-snapshot"),
+            RestRequestScope {
+                guild_id: Some(10),
+                channel_id: None,
+            }
+        );
+        assert_eq!(
+            rest_request_scope_from_path("/v1/dms/55/messages"),
+            RestRequestScope {
+                guild_id: None,
+                channel_id: Some(55),
+            }
+        );
+    }
+
+    #[test]
+    fn rest_authz_action_maps_invite_and_message_commands() {
         assert!(matches!(
-            rest_authz_action_for_request(&Method::POST, "/internal/authz/cache/invalidate"),
-            AuthzAction::View
+            rest_authz_action_for_request(&Method::POST, "/v1/guilds/10/invites"),
+            AuthzAction::Manage
         ));
         assert!(matches!(
             rest_authz_action_for_request(&Method::POST, "/v1/dms/55/messages"),

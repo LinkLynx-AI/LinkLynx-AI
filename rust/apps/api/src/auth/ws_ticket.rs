@@ -104,6 +104,18 @@ impl WsTicketStore {
         Ok(entry.principal)
     }
 
+    /// WSワンタイムチケットに紐づく principal_id を非消費で参照する。
+    /// @param ticket 参照対象チケット
+    /// @returns active ticket に紐づく principal_id。取得できない場合は `None`
+    /// @throws なし
+    pub async fn peek_principal_id(&self, ticket: &str) -> Option<PrincipalId> {
+        let now_epoch = unix_timestamp_seconds();
+        self.cleanup_expired_entries(now_epoch).await;
+        let hashed_ticket = hash_ws_ticket(ticket);
+        let active = self.active_tickets.lock().await;
+        active.get(&hashed_ticket).map(|entry| entry.principal.principal_id)
+    }
+
     async fn cleanup_expired_entries(&self, now_epoch: u64) {
         {
             let mut active = self.active_tickets.lock().await;

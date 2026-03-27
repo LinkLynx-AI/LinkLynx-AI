@@ -637,7 +637,7 @@ pub fn rest_rate_limit_action_for_request(
     method: &Method,
     path: &str,
 ) -> Option<RestRateLimitAction> {
-    if *method == Method::GET && is_invite_access_path(path) {
+    if (*method == Method::GET || *method == Method::DELETE) && is_invite_access_path(path) {
         return Some(RestRateLimitAction::InviteAccess);
     }
     if *method == Method::POST && is_public_invite_join_path(path) {
@@ -683,7 +683,7 @@ fn is_dm_message_create_path(path: &str) -> bool {
 /// @throws なし
 fn is_invite_access_path(path: &str) -> bool {
     let segments = path.trim_matches('/').split('/').collect::<Vec<_>>();
-    (segments.len() == 5
+    ((segments.len() == 4 || segments.len() == 5)
         && segments[0] == "v1"
         && segments[1] == "guilds"
         && segments[3] == "invites")
@@ -863,7 +863,15 @@ mod tests {
     #[test]
     fn rest_rate_limit_action_maps_supported_paths() {
         assert_eq!(
+            rest_rate_limit_action_for_request(&Method::GET, "/v1/guilds/10/invites"),
+            Some(RestRateLimitAction::InviteAccess)
+        );
+        assert_eq!(
             rest_rate_limit_action_for_request(&Method::GET, "/v1/guilds/10/invites/invite-abc"),
+            Some(RestRateLimitAction::InviteAccess)
+        );
+        assert_eq!(
+            rest_rate_limit_action_for_request(&Method::DELETE, "/v1/guilds/10/invites/invite-abc"),
             Some(RestRateLimitAction::InviteAccess)
         );
         assert_eq!(

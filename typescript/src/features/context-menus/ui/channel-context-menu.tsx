@@ -19,6 +19,11 @@ export function ChannelContextMenu({ data }: { data: { channel: Channel; serverI
     requirement: "guild:create-channel",
     enabled: isCategory,
   });
+  const createInviteGuard = useActionGuard({
+    serverId: data.serverId,
+    requirement: "guild:create-invite",
+    enabled: !isCategory,
+  });
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(`/channels/${data.serverId}/${data.channel.id}`);
@@ -37,6 +42,7 @@ export function ChannelContextMenu({ data }: { data: { channel: Channel; serverI
             channelId: data.channel.id,
             channelName: data.channel.name,
             channelType: data.channel.type,
+            serverId: data.serverId,
           });
           hideContextMenu();
         }}
@@ -69,7 +75,18 @@ export function ChannelContextMenu({ data }: { data: { channel: Channel; serverI
           チャンネルを作成
         </MenuItem>
       ) : (
-        <MenuItem disabled>招待を作成</MenuItem>
+        <MenuItem
+          disabled={!createInviteGuard.isAllowed}
+          onClick={() => {
+            openModal("create-invite", {
+              serverId: data.serverId,
+              channelId: data.channel.id,
+            });
+            hideContextMenu();
+          }}
+        >
+          招待を作成
+        </MenuItem>
       )}
       <MenuItem
         danger
