@@ -76,6 +76,7 @@
 | 初期リージョン | **us-east1**（米国東部） |
 | マルチリージョン | Phase 1 では単一リージョン。拡張を妨げない設計 |
 | 長期方針 | クラウド非依存。将来の移行を前提に抽象化 |
+| Bootstrap / State | **`linklynx-bootstrap` project + GCS state bucket** を採用。runtime 環境とは分離 |
 
 ### 3. コンピュート
 
