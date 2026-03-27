@@ -12,4 +12,22 @@ terraform init -backend-config=backend.hcl
 terraform plan
 ```
 
-最初の LIN-962 時点では、backend と provider の雛形だけを用意している。
+## LIN-963 時点の構成
+
+- `network_foundation` module を呼び、次を staging project 内に作る
+  - custom mode VPC
+  - GKE node subnet + pods/services secondary ranges
+  - `db-private`, `proxy-only`, `psc` subnet
+  - private services access reserved range + peering
+  - Cloud Armor baseline policy
+  - Cloud DNS public zone, reserved global IPv4, Certificate Manager resources
+- GKE Ingress resource 自体はこの issue では作らず、後続 cluster / smoke deploy issue で attach する
+- main path に `API Gateway` は置かない
+
+## tfvars で埋める値
+
+- `public_dns_zone_name`
+- `public_dns_name`
+- `public_hostnames`
+
+staging の最小 smoke deploy は `api.<staging-domain>` だけ先に作れば十分。
