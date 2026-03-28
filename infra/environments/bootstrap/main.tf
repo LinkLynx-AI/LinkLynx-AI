@@ -118,6 +118,21 @@ resource "google_project_iam_member" "terraform_admin_project_roles" {
   member  = "serviceAccount:${google_service_account.terraform_admin.email}"
 }
 
+module "github_actions_artifact_publish" {
+  source = "../../modules/github_actions_artifact_publish"
+
+  bootstrap_project_id                = google_project.bootstrap.project_id
+  bootstrap_project_number            = google_project.bootstrap.number
+  environment_project_ids             = { for environment, project in module.environment_projects : environment => project.project_id }
+  github_repository                   = var.github_repository
+  github_repository_owner             = var.github_repository_owner
+  workload_identity_pool_id           = var.github_actions_workload_identity_pool_id
+  workload_identity_provider_id       = var.github_actions_workload_identity_provider_id
+  publisher_service_account_id_prefix = var.github_actions_publisher_service_account_id_prefix
+
+  depends_on = [google_project_service.bootstrap_services]
+}
+
 resource "local_file" "backend_config" {
   for_each = local.environment_specs
 

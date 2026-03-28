@@ -10,6 +10,8 @@
 - `staging` / `prod` project baseline
 - `infra/environments/staging/backend.hcl`
 - `infra/environments/prod/backend.hcl`
+- GitHub Actions 用 workload identity provider
+- `staging` / `prod` Artifact Registry publisher service account
 
 ## 手順
 
@@ -21,9 +23,14 @@ terraform apply
 ```
 
 apply が成功すると、後続 environment root が使う `backend.hcl` が生成される。
+加えて、GitHub Actions 側へ入れるべき次の output が取れる。
+
+- `github_actions_workload_identity_provider_name`
+- `github_artifact_publisher_service_account_emails`
 
 ## 必要な前提
 
 - billing account への紐付け権限
 - project 作成権限
 - target organization または folder への作成権限
+- GitHub repository `LinkLynx-AI/LinkLynx-AI` を workload identity provider に許可する前提

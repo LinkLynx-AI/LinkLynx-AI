@@ -12,6 +12,15 @@ module "network_foundation" {
   public_hostnames     = var.public_hostnames
 }
 
+module "artifact_registry_repository" {
+  source = "../../modules/artifact_registry_repository"
+
+  environment   = local.environment
+  location      = var.region
+  project_id    = var.project_id
+  repository_id = var.artifact_registry_repository_id
+}
+
 module "gke_autopilot_minimal" {
   count = var.enable_minimal_gke_cluster ? 1 : 0
 
@@ -36,6 +45,10 @@ output "project_id" {
 
 output "network_foundation" {
   value = module.network_foundation
+}
+
+output "artifact_registry_repository" {
+  value = module.artifact_registry_repository
 }
 
 output "gke_autopilot_minimal" {
