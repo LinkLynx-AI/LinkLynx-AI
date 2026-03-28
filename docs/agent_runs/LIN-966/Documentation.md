@@ -24,3 +24,4 @@
 - GitHub repository / environment variables を設定しないと TypeScript image build は完走しない
 - Artifact Registry repository apply と Actions 実行には実 GCP credentials が必要
 - image copy による staging -> prod promotion 自動化はこの issue では未実装
+- local runtime smoke (`docker compose build rust typescript -> /health`) は既存 build context が 5GiB 超まで膨らみ、`.dockerignore` 改善なしでは現実的な所要時間に収まらなかった
