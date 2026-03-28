@@ -1,5 +1,27 @@
 locals {
-  environment = "prod"
+  environment                   = "prod"
+  normalized_public_hostnames   = [for hostname in var.public_hostnames : trimsuffix(hostname, ".")]
+  rust_api_public_hostname      = var.rust_api_public_hostname != "" ? trimsuffix(var.rust_api_public_hostname, ".") : (length(local.normalized_public_hostnames) > 0 ? local.normalized_public_hostnames[0] : "")
+  enable_rust_api_smoke         = var.enable_rust_api_smoke_deploy && var.enable_minimal_gke_cluster
+  rust_api_smoke_inputs_are_set = var.rust_api_image_digest != "" && local.rust_api_public_hostname != ""
+  rust_api_smoke_edge_is_ready  = module.network_foundation.public_certificate_map_name != null && module.network_foundation.public_lb_ipv4_name != ""
+}
+
+check "rust_api_smoke_prerequisites" {
+  assert {
+    condition     = !var.enable_rust_api_smoke_deploy || var.enable_minimal_gke_cluster
+    error_message = "enable_rust_api_smoke_deploy requires enable_minimal_gke_cluster = true."
+  }
+
+  assert {
+    condition     = !var.enable_rust_api_smoke_deploy || local.rust_api_smoke_inputs_are_set
+    error_message = "enable_rust_api_smoke_deploy requires rust_api_image_digest and a public hostname."
+  }
+
+  assert {
+    condition     = !var.enable_rust_api_smoke_deploy || local.rust_api_smoke_edge_is_ready
+    error_message = "enable_rust_api_smoke_deploy requires LIN-963 edge resources (certificate map and named public IPv4) to be enabled."
+  }
 }
 
 module "network_foundation" {
@@ -35,6 +57,30 @@ module "gke_autopilot_minimal" {
   subnetwork_self_link          = module.network_foundation.gke_nodes_subnet_self_link
 }
 
+module "rust_api_smoke_deploy" {
+  count = local.enable_rust_api_smoke ? 1 : 0
+
+  source = "../../modules/rust_api_smoke_deploy"
+
+  certificate_map_name     = basename(module.network_foundation.public_certificate_map_name)
+  deployment_name          = "rust-api-smoke"
+  gateway_name             = "rust-api-gateway"
+  gateway_static_ip_name   = module.network_foundation.public_lb_ipv4_name
+  health_check_policy_name = "rust-api-healthcheck"
+  image                    = var.rust_api_image_digest
+  labels = {
+    environment = local.environment
+    issue       = "lin-1015"
+  }
+  namespace            = "rust-api-smoke"
+  public_hostname      = local.rust_api_public_hostname
+  route_name           = "rust-api-route"
+  service_account_name = "rust-api-smoke"
+  service_name         = "rust-api-smoke"
+
+  depends_on = [module.gke_autopilot_minimal]
+}
+
 output "environment" {
   value = local.environment
 }
@@ -53,4 +99,8 @@ output "artifact_registry_repository" {
 
 output "gke_autopilot_minimal" {
   value = var.enable_minimal_gke_cluster ? module.gke_autopilot_minimal[0] : null
+}
+
+output "rust_api_smoke_deploy" {
+  value = local.enable_rust_api_smoke ? module.rust_api_smoke_deploy[0] : null
 }
