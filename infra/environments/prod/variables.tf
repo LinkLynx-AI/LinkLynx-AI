@@ -33,3 +33,9 @@ variable "public_hostnames" {
   type        = set(string)
   default     = []
 }
+
+variable "enable_minimal_gke_cluster" {
+  description = "Whether to create the low-budget prod-only GKE Autopilot cluster baseline."
+  type        = bool
+  default     = true
+}

@@ -3,6 +3,7 @@ region     = "us-east1"
 
 # Optional: set when using service account impersonation.
 terraform_admin_service_account_email = "terraform-admin@linklynx-bootstrap.iam.gserviceaccount.com"
+enable_minimal_gke_cluster            = true
 
 # Fill these with the real production domain before plan/apply.
 public_dns_zone_name = "linklynx-prod-public"
