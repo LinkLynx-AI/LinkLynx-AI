@@ -96,11 +96,39 @@ default では `linklynx-prod-rust-api-smoke-runtime` という placeholder secr
 - secret value の rotation と audit log の見方は `docs/runbooks/workload-identity-secret-manager-operations-runbook.md` を使う
 - low-budget path では ESO を入れず、runtime が ADC で Secret Manager API を読む前提に寄せる
 
+## LIN-1017 prod-only Cloud SQL baseline
+
+`LIN-1017` は low-budget path 向けに、`prod` だけの Cloud SQL for PostgreSQL baseline を追加する。
+
+### 使う変数
+
+- `enable_minimal_cloud_sql_baseline`
+- `minimal_cloud_sql_tier`
+- `minimal_cloud_sql_database_name`
+- `minimal_cloud_sql_disk_size_gb`
+
+default では `enable_minimal_cloud_sql_baseline = false` にしている。
+Cloud SQL は low-budget path の中でも費用インパクトが大きいため、明示的に有効化したときだけ作る。
+
+### 作られるもの
+
+- Cloud SQL for PostgreSQL instance
+- application database (`linklynx`)
+- private IP / backup / PITR / maintenance / deletion protection baseline
+
+### 運用メモ
+
+- low-budget profile は `db-g1-small` を baseline にするが、これは bootstrap 用の暫定 profile として扱う
+- HA / read replica は含めない
+- DB password や runtime 接続方式はこの issue では作らず、後続で Secret Manager / app connectivity 側に分離する
+- migration 手順は `docs/runbooks/cloud-sql-postgres-migration-operations-runbook.md`、PITR は `docs/runbooks/postgres-pitr-runbook.md` を使う
+
 ## tfvars で埋める値
 
 - `public_dns_zone_name`
 - `public_dns_name`
 - `public_hostnames`
 - `artifact_registry_repository_id` (default `application-images`)
+- `enable_minimal_cloud_sql_baseline` とその profile 値
 
 prod は `api.<domain>` を起点にし、後続 issue で必要な host を追加する。

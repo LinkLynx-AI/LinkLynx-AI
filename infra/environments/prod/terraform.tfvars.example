@@ -6,8 +6,11 @@ artifact_registry_repository_id = "application-images"
 terraform_admin_service_account_email = "terraform-admin@linklynx-bootstrap.iam.gserviceaccount.com"
 enable_minimal_gke_cluster            = true
 enable_rust_api_smoke_deploy          = false
+enable_minimal_cloud_sql_baseline     = false
 rust_api_image_digest                 = "us-east1-docker.pkg.dev/linklynx-prod/application-images/rust@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 rust_api_public_hostname              = "api.example.com"
+minimal_cloud_sql_tier                = "db-g1-small"
+minimal_cloud_sql_database_name       = "linklynx"
 
 # Fill these with the real production domain before plan/apply.
 public_dns_zone_name = "linklynx-prod-public"

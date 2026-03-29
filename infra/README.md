@@ -273,3 +273,38 @@ low-budget path では `External Secrets Operator` をまだ入れず、`Workloa
 - secret の実値投入
 - External Secrets Operator
 - GitOps 連携
+
+## LIN-1017 prod-only Cloud SQL baseline
+
+low-budget path では `LIN-968` の `staging + prod / 4 vCPU + 16 GB` baseline をそのまま採らず、`prod-only` の単一 Cloud SQL instance から始める。
+
+### Why a sibling issue
+
+- `Cloud SQL` は low-budget path の中でもコスト影響が大きい
+- `LIN-1014` 以降の prod-only path と、標準 path の `staging + prod` baseline を混ぜたくない
+- まず `private IP + backup + PITR + deletion protection` を code 化して、app connectivity や HA は後続へ分離したい
+
+### Baseline
+
+- environment: `prod` only
+- instance count: 1
+- availability: `ZONAL`
+- read replica: none
+- private IP only
+- backup: enabled
+- PITR: enabled
+- maintenance window: fixed
+- deletion protection: enabled
+
+### Cost profile note
+
+- default tier は `db-g1-small` を bootstrap profile として置く
+- これは long-term production size ではなく、初期構築と最小運用線のための profile
+- traffic / migration risk / SLO が立ち上がったら、標準 path に寄せて dedicated-core + HA を検討する
+
+### What stays out of scope
+
+- DB password や runtime `DATABASE_URL` の実値管理
+- Cloud SQL Auth Proxy 導入
+- app runtime 側の TLS / connection change
+- staging 常設 instance

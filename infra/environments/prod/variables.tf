@@ -74,3 +74,27 @@ variable "rust_api_runtime_secret_ids" {
   type        = set(string)
   default     = ["linklynx-prod-rust-api-smoke-runtime"]
 }
+
+variable "enable_minimal_cloud_sql_baseline" {
+  description = "Whether to create the low-budget prod-only Cloud SQL baseline."
+  type        = bool
+  default     = false
+}
+
+variable "minimal_cloud_sql_database_name" {
+  description = "Application database name for the low-budget Cloud SQL baseline."
+  type        = string
+  default     = "linklynx"
+}
+
+variable "minimal_cloud_sql_tier" {
+  description = "Cloud SQL machine tier for the low-budget prod-only baseline."
+  type        = string
+  default     = "db-g1-small"
+}
+
+variable "minimal_cloud_sql_disk_size_gb" {
+  description = "Initial storage size for the low-budget Cloud SQL baseline."
+  type        = number
+  default     = 20
+}
