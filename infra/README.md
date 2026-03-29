@@ -286,6 +286,23 @@ optional inputs:
 - external Scylla cluster / network / backup / auth baseline は `LIN-970` に残す
 - verify / rollback は `docs/runbooks/scylla-low-budget-runtime-operations-runbook.md` を使う
 
+## LIN-1028 prod-only external Scylla ops / backup baseline
+
+low-budget path では Scylla cluster 自体の onboarding までは持たず、まずは backup / restore / ownership / monitoring seed を documented baseline として固定する。
+
+### What gets documented
+
+- external Scylla owner と LinkLynx の responsibility split
+- backup / restore / schema ownership の初期境界
+- connect timeout / node-loss / backup freshness の初期判断線
+- auth / TLS / network productionization を standard path に残す boundary
+
+### Boundary
+
+- runtime wiring baseline は `LIN-1023` を使う
+- provider onboarding / auth / TLS / secret rotation / connectivity smoke は `LIN-970` に残す
+- ownership / backup / incident triage baseline は `docs/runbooks/scylla-external-low-budget-operations-runbook.md` を使う
+
 ## LIN-1024 prod-only managed messaging secret baseline
 
 low-budget path では Redpanda / NATS の runtime client をまだ入れず、先に Secret Manager 上の connection material inventory を固定する。

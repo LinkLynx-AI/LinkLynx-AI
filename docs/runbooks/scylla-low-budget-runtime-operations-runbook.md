@@ -4,6 +4,7 @@
 - Related:
   - `database/contracts/lin589_scylla_sor_partition_baseline.md`
   - `docs/runbooks/scylla-node-loss-backup-runbook.md`
+  - `docs/runbooks/scylla-external-low-budget-operations-runbook.md`
   - `docs/runbooks/terraform-low-budget-prod-deploy-runbook.md`
   - `LIN-1023`
 
@@ -24,7 +25,11 @@ This baseline does **not** cover:
 - backup or restore automation
 - auth / TLS expansion beyond the current runtime contract
 
-Those remain in standard path `LIN-970`.
+Ownership / backup baseline is handled separately in:
+
+- `docs/runbooks/scylla-external-low-budget-operations-runbook.md`
+
+The remaining productionized onboarding work stays in standard path `LIN-970`.
 
 ## 2. Baseline shape
 
