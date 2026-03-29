@@ -6,6 +6,7 @@ locals {
   rust_api_smoke_inputs_are_set = var.rust_api_image_digest != "" && local.rust_api_public_hostname != ""
   rust_api_smoke_edge_is_ready  = module.network_foundation.public_certificate_map_name != null && module.network_foundation.public_lb_ipv4_name != ""
   enable_minimal_cloud_sql      = var.enable_minimal_cloud_sql_baseline
+  enable_minimal_monitoring     = var.enable_minimal_monitoring_baseline
 }
 
 check "rust_api_smoke_prerequisites" {
@@ -22,6 +23,23 @@ check "rust_api_smoke_prerequisites" {
   assert {
     condition     = !var.enable_rust_api_smoke_deploy || local.rust_api_smoke_edge_is_ready
     error_message = "enable_rust_api_smoke_deploy requires LIN-963 edge resources (certificate map and named public IPv4) to be enabled."
+  }
+}
+
+check "minimal_monitoring_prerequisites" {
+  assert {
+    condition     = !var.enable_minimal_monitoring_baseline || var.enable_minimal_gke_cluster
+    error_message = "enable_minimal_monitoring_baseline requires enable_minimal_gke_cluster = true."
+  }
+
+  assert {
+    condition     = !var.enable_minimal_monitoring_baseline || var.enable_rust_api_smoke_deploy
+    error_message = "enable_minimal_monitoring_baseline requires enable_rust_api_smoke_deploy = true."
+  }
+
+  assert {
+    condition     = !var.enable_minimal_monitoring_baseline || var.enable_minimal_cloud_sql_baseline
+    error_message = "enable_minimal_monitoring_baseline requires enable_minimal_cloud_sql_baseline = true."
   }
 }
 
@@ -141,6 +159,31 @@ module "cloud_sql_postgres_minimal" {
   depends_on = [module.network_foundation]
 }
 
+module "cloud_monitoring_minimal" {
+  count = local.enable_minimal_monitoring ? 1 : 0
+
+  source = "../../modules/cloud_monitoring_minimal"
+
+  cloud_sql_instance_name        = module.cloud_sql_postgres_minimal[0].instance_name
+  cluster_location               = module.gke_autopilot_minimal[0].cluster_location
+  cluster_name                   = module.gke_autopilot_minimal[0].cluster_name
+  environment                    = local.environment
+  existing_notification_channels = var.minimal_monitoring_existing_notification_channels
+  labels = {
+    environment = local.environment
+    issue       = "lin-1018"
+  }
+  notification_email_addresses = var.minimal_monitoring_alert_email_addresses
+  project_id                   = var.project_id
+  rust_api_namespace           = "rust-api-smoke"
+
+  depends_on = [
+    module.cloud_sql_postgres_minimal,
+    module.gke_autopilot_minimal,
+    module.rust_api_smoke_deploy,
+  ]
+}
+
 output "environment" {
   value = local.environment
 }
@@ -171,4 +214,8 @@ output "rust_api_smoke_deploy" {
 
 output "cloud_sql_postgres_minimal" {
   value = local.enable_minimal_cloud_sql ? module.cloud_sql_postgres_minimal[0] : null
+}
+
+output "cloud_monitoring_minimal" {
+  value = local.enable_minimal_monitoring ? module.cloud_monitoring_minimal[0] : null
 }

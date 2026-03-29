@@ -308,3 +308,26 @@ low-budget path では `LIN-968` の `staging + prod / 4 vCPU + 16 GB` baseline 
 - Cloud SQL Auth Proxy 導入
 - app runtime 側の TLS / connection change
 - staging 常設 instance
+
+## LIN-1018 prod-only Cloud Monitoring baseline
+
+low-budget path の observability は、まず `Cloud Monitoring + Cloud Logging` で始める。
+
+### Why GCP native first
+
+- `Prometheus + Grafana + Loki` を low-budget path に最初から載せると cluster 内常駐 workload が増える
+- GKE / Cloud SQL / uptime 系の基本指標は Cloud Monitoring で先に可視化できる
+- `prod-only` の最小運用では dashboard / alert / logs を先に成立させる方が効果が高い
+
+### Baseline
+
+- dashboard: GKE workload restart, Cloud SQL CPU
+- alerts: Rust API restart burst, Cloud SQL CPU high
+- notification routing: optional email channel or既存 channel attach
+- logs: Cloud Logging を前提に triage
+
+### What stays out of scope
+
+- Discord forwarder
+- self-hosted metrics / logs / tracing stack
+- Dragonfly / Scylla / messaging の observability
