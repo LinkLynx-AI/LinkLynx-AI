@@ -7,6 +7,7 @@
   - `docs/runbooks/observability-v0-structured-logs-metrics-runbook.md`
   - `docs/runbooks/cloud-sql-postgres-migration-operations-runbook.md`
   - `docs/runbooks/postgres-pitr-runbook.md`
+  - `docs/runbooks/external-dependency-observability-low-budget-runbook.md`
   - `LIN-1018`
 
 ## 1. Purpose and scope
@@ -23,7 +24,11 @@ Out of scope:
 
 - Discord forwarding automation
 - Prometheus / Grafana / Loki self-hosted stack
-- Dragonfly / Scylla / messaging observability
+- provider metrics ingestion for Scylla / messaging / search
+
+Manual handoff for external dependencies is documented separately in:
+
+- `docs/runbooks/external-dependency-observability-low-budget-runbook.md`
 
 ## 2. Stack choice
 
@@ -45,11 +50,13 @@ After apply, confirm:
 ## 4. Triage flow
 
 1. Check the dashboard first to decide whether the issue is cluster/workload-side or database-side.
-2. For Rust API restart alerts:
+2. If the symptom suggests an external dependency, switch to the manual check source defined in
+   `external-dependency-observability-low-budget-runbook.md`.
+3. For Rust API restart alerts:
    - confirm rollout or image change history
    - inspect pod logs in Cloud Logging
    - inspect recent config / secret / image digest changes
-3. For Cloud SQL CPU alerts:
+4. For Cloud SQL CPU alerts:
    - confirm query spike or migration activity
    - compare with connection pressure and recent deploys
    - decide whether to scale up, throttle, or enter incident handling

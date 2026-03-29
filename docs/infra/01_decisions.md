@@ -136,6 +136,7 @@
 | ダッシュボード | **Grafana**（標準 path） / **Cloud Monitoring dashboard**（low-budget path） |
 | アラート | **Alertmanager**（標準 path） / **Cloud Monitoring alert policy**（low-budget path） |
 | ログ | **Loki**（標準 path） / **Cloud Logging**（low-budget path） |
+| external dependency visibility | **provider manual checks + dependency-specific runbook**（low-budget path） |
 | トレーシング | **Tempo**（将来追加） |
 | 通知先 | 後で決定 |
 

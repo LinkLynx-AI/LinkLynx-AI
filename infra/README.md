@@ -495,6 +495,22 @@ low-budget path の observability は、まず `Cloud Monitoring + Cloud Logging
 - self-hosted metrics / logs / tracing stack
 - Dragonfly / Scylla / messaging の observability
 
+## LIN-1029 prod-only external dependency observability baseline
+
+low-budget path では Cloud Monitoring を GKE / API / Cloud SQL の基準線にしつつ、external dependency は provider-side visibility と dependency-specific runbook で handoff する。
+
+### What gets documented
+
+- Scylla / Redpanda Cloud / Synadia Cloud / Elastic Cloud の first check source
+- external dependency 向け alert seed
+- Cloud Monitoring baseline から provider manual check へ渡す triage 導線
+
+### Boundary
+
+- GCP native dashboard / alert baseline は `LIN-1018` を使う
+- provider onboarding や metrics ingestion automation は `LIN-972` に残す
+- external dependency handoff は `docs/runbooks/external-dependency-observability-low-budget-runbook.md` を使う
+
 ## LIN-1022 prod-only Dragonfly volatile baseline
 
 low-budget path の Dragonfly は、標準 path の stateful baseline をまだ採らず、`single replica + ClusterIP + volatile-only` で始める。
