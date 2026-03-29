@@ -169,3 +169,28 @@ variable "minimal_scylla_request_timeout_ms" {
     error_message = "minimal_scylla_request_timeout_ms must be a positive number."
   }
 }
+
+variable "enable_minimal_managed_messaging_secret_baseline" {
+  description = "Whether to create Secret Manager placeholders for the low-budget managed messaging baseline."
+  type        = bool
+  default     = false
+}
+
+variable "minimal_redpanda_secret_ids" {
+  description = "Secret Manager secret IDs reserved for low-budget Redpanda Cloud connection material."
+  type        = set(string)
+  default = [
+    "linklynx-prod-redpanda-bootstrap-servers",
+    "linklynx-prod-redpanda-sasl-password",
+    "linklynx-prod-redpanda-sasl-username",
+  ]
+}
+
+variable "minimal_nats_secret_ids" {
+  description = "Secret Manager secret IDs reserved for low-budget Synadia / NATS connection material."
+  type        = set(string)
+  default = [
+    "linklynx-prod-nats-creds",
+    "linklynx-prod-nats-url",
+  ]
+}
