@@ -1,6 +1,7 @@
 locals {
   environment                              = "prod"
   enable_standard_gke_cluster              = var.enable_standard_gke_cluster_baseline
+  enable_standard_workload_identities      = var.enable_standard_workload_identity_baseline
   normalized_public_hostnames              = [for hostname in var.public_hostnames : trimsuffix(hostname, ".")]
   rust_api_public_hostname                 = var.rust_api_public_hostname != "" ? trimsuffix(var.rust_api_public_hostname, ".") : (length(local.normalized_public_hostnames) > 0 ? local.normalized_public_hostnames[0] : "")
   enable_rust_api_smoke                    = var.enable_rust_api_smoke_deploy && var.enable_minimal_gke_cluster
@@ -19,6 +20,29 @@ locals {
     SCYLLA_SCHEMA_PATH        = var.minimal_scylla_schema_path
     SCYLLA_REQUEST_TIMEOUT_MS = tostring(var.minimal_scylla_request_timeout_ms)
   } : {}
+  standard_runtime_identities = {
+    frontend = {
+      google_service_account_account_id = "frontend-runtime"
+      kubernetes_namespace              = "frontend"
+      kubernetes_service_account_name   = "frontend-runtime"
+      secret_ids                        = lookup(var.standard_runtime_secret_ids, "frontend", [])
+      workload_name                     = "frontend-runtime"
+    }
+    api = {
+      google_service_account_account_id = "api-runtime"
+      kubernetes_namespace              = "api"
+      kubernetes_service_account_name   = "api-runtime"
+      secret_ids                        = lookup(var.standard_runtime_secret_ids, "api", [])
+      workload_name                     = "api-runtime"
+    }
+    ai = {
+      google_service_account_account_id = "ai-runtime"
+      kubernetes_namespace              = "ai"
+      kubernetes_service_account_name   = "ai-runtime"
+      secret_ids                        = lookup(var.standard_runtime_secret_ids, "ai", [])
+      workload_name                     = "ai-runtime"
+    }
+  }
 }
 
 check "rust_api_smoke_prerequisites" {
@@ -42,6 +66,18 @@ check "exclusive_cluster_paths" {
   assert {
     condition     = !(var.enable_standard_gke_cluster_baseline && var.enable_minimal_gke_cluster)
     error_message = "enable_standard_gke_cluster_baseline and enable_minimal_gke_cluster cannot both be true in prod."
+  }
+}
+
+check "standard_workload_identity_prerequisites" {
+  assert {
+    condition     = !var.enable_standard_workload_identity_baseline || var.enable_standard_gke_cluster_baseline
+    error_message = "enable_standard_workload_identity_baseline requires enable_standard_gke_cluster_baseline = true."
+  }
+
+  assert {
+    condition     = !var.enable_standard_workload_identity_baseline || length(setsubtract(toset(["frontend", "api", "ai"]), var.standard_gke_namespace_names)) == 0
+    error_message = "enable_standard_workload_identity_baseline requires frontend, api, and ai namespaces in standard_gke_namespace_names."
   }
 }
 
@@ -177,7 +213,7 @@ module "gke_autopilot_minimal" {
 }
 
 resource "google_project_iam_audit_config" "secret_manager_data_access" {
-  count = var.enable_minimal_gke_cluster ? 1 : 0
+  count = (var.enable_minimal_gke_cluster || var.enable_standard_workload_identity_baseline) ? 1 : 0
 
   project = var.project_id
   service = "secretmanager.googleapis.com"
@@ -189,6 +225,30 @@ resource "google_project_iam_audit_config" "secret_manager_data_access" {
   audit_log_config {
     log_type = "DATA_READ"
   }
+}
+
+module "standard_runtime_identities" {
+  for_each = local.enable_standard_workload_identities ? local.standard_runtime_identities : {}
+
+  source = "../../modules/workload_identity_secret_manager_baseline"
+
+  environment                       = local.environment
+  google_service_account_account_id = each.value.google_service_account_account_id
+  kubernetes_namespace              = each.value.kubernetes_namespace
+  kubernetes_service_account_name   = each.value.kubernetes_service_account_name
+  labels = {
+    environment = local.environment
+    issue       = "lin-965"
+  }
+  manage_kubernetes_service_account = true
+  project_id                        = var.project_id
+  secret_ids                        = toset(each.value.secret_ids)
+  workload_name                     = each.value.workload_name
+
+  depends_on = [
+    google_project_iam_audit_config.secret_manager_data_access,
+    module.gke_namespace_baseline,
+  ]
 }
 
 module "rust_api_runtime_identity" {
@@ -357,6 +417,17 @@ output "gke_autopilot_standard_cluster" {
 
 output "gke_namespace_baseline" {
   value = local.enable_standard_gke_cluster ? module.gke_namespace_baseline[0] : null
+}
+
+output "standard_runtime_identities" {
+  value = local.enable_standard_workload_identities ? {
+    for workload, identity in module.standard_runtime_identities : workload => {
+      google_service_account_email = identity.google_service_account_email
+      kubernetes_service_account   = identity.managed_kubernetes_service_account
+      secret_ids                   = identity.secret_ids
+      workload_identity_member     = identity.workload_identity_member
+    }
+  } : {}
 }
 
 output "rust_api_runtime_identity" {

@@ -193,6 +193,40 @@ standard path では `staging` / `prod` に 1 cluster ずつ置き、domain spli
 
 詳細な verify / rollback は `docs/runbooks/gke-autopilot-standard-operations-runbook.md` を参照する。
 
+## LIN-965 standard Workload Identity / Secret Manager baseline
+
+standard path では `frontend` / `api` / `ai` を最初の workload identity 対象とし、KSA / GSA / secret placeholder を workload 単位で分離する。
+
+### What gets created
+
+- workload-scoped Google service accounts
+  - `frontend-runtime`
+  - `api-runtime`
+  - `ai-runtime`
+- workload-scoped Kubernetes service accounts
+  - `frontend/frontend-runtime`
+  - `api/api-runtime`
+  - `ai/ai-runtime`
+- Secret Manager placeholder baseline
+  - `linklynx-<env>-frontend-runtime`
+  - `linklynx-<env>-api-runtime`
+  - `linklynx-<env>-ai-runtime`
+- secret-level `roles/secretmanager.secretAccessor`
+- `secretmanager.googleapis.com` audit log baseline
+
+### Current pattern
+
+- runtime secret retrieval は direct Secret Manager access
+- long-lived GCP key は repo / CI に置かない
+- `External Secrets Operator` は standard path でも後続検討に回す
+
+### Staging verify boundary
+
+- staging では KSA annotation, secret IAM, audit logs までを baseline verify とする
+- 実 secret value の注入や app-side retrieval smoke は後続 app issue に残す
+
+詳細な verify / rollback は `docs/runbooks/workload-identity-secret-manager-standard-operations-runbook.md` を参照する。
+
 ## LIN-966 Artifact Registry / CI publish baseline
 
 ### What gets created

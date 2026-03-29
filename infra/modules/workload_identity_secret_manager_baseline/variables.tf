@@ -34,6 +34,18 @@ variable "kubernetes_service_account_name" {
   type        = string
 }
 
+variable "manage_kubernetes_service_account" {
+  description = "Whether the module should create and annotate the Kubernetes service account."
+  type        = bool
+  default     = false
+}
+
+variable "kubernetes_service_account_automount_token" {
+  description = "Whether the managed Kubernetes service account should automount its token."
+  type        = bool
+  default     = true
+}
+
 variable "secret_ids" {
   description = "Secret Manager secret IDs created and granted to the workload."
   type        = set(string)

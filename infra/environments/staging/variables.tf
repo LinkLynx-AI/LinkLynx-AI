@@ -57,3 +57,19 @@ variable "standard_gke_namespace_names" {
   type        = set(string)
   default     = ["frontend", "api", "ai", "data", "ops", "observability"]
 }
+
+variable "enable_standard_workload_identity_baseline" {
+  description = "Whether to create the standard staging Workload Identity + Secret Manager baseline."
+  type        = bool
+  default     = false
+}
+
+variable "standard_runtime_secret_ids" {
+  description = "Per-workload Secret Manager secret IDs reserved for the standard staging baseline."
+  type        = map(list(string))
+  default = {
+    frontend = ["linklynx-staging-frontend-runtime"]
+    api      = ["linklynx-staging-api-runtime"]
+    ai       = ["linklynx-staging-ai-runtime"]
+  }
+}

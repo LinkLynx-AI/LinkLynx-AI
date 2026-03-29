@@ -49,6 +49,16 @@ terraform plan
 
 VPA/HPA 境界と verify / rollback は `docs/runbooks/gke-autopilot-standard-operations-runbook.md` を使う
 
+## LIN-965 standard Workload Identity / Secret Manager baseline
+
+- `enable_standard_workload_identity_baseline = true` で standard path の runtime identities を作る
+- baseline workload は次の 3 つ
+  - `frontend/frontend-runtime`
+  - `api/api-runtime`
+  - `ai/ai-runtime`
+- `standard_runtime_secret_ids` で workload ごとの placeholder secret ID を上書きできる
+- verify / rollback は `docs/runbooks/workload-identity-secret-manager-standard-operations-runbook.md` を使う
+
 ## tfvars で埋める値
 
 - `public_dns_zone_name`
@@ -58,5 +68,7 @@ VPA/HPA 境界と verify / rollback は `docs/runbooks/gke-autopilot-standard-op
 - `enable_standard_gke_cluster_baseline`
 - `standard_gke_release_channel`
 - `standard_gke_namespace_names`
+- `enable_standard_workload_identity_baseline`
+- `standard_runtime_secret_ids`
 
 staging の最小 smoke deploy は `api.<staging-domain>` だけ先に作れば十分。

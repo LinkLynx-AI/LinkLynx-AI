@@ -71,6 +71,29 @@ terraform plan
 - VPA primary / HPA later の方針で始める
 - verify / rollback は `docs/runbooks/gke-autopilot-standard-operations-runbook.md` を使う
 
+## LIN-965 standard Workload Identity / Secret Manager baseline
+
+`LIN-965` は standard path 向けに、`frontend` / `api` / `ai` の runtime identity を Terraform で固定する。
+
+### 使う変数
+
+- `enable_standard_workload_identity_baseline`
+- `standard_runtime_secret_ids`
+
+### 作られるもの
+
+- workload-scoped GSA
+- workload-scoped KSA
+- Secret Manager placeholder
+- secret-level accessor IAM
+- Secret Manager audit log baseline
+
+### 運用メモ
+
+- `enable_standard_workload_identity_baseline = true` の前に `enable_standard_gke_cluster_baseline = true` が必要
+- `frontend` / `api` / `ai` namespace が standard baseline に含まれている必要がある
+- verify / rollback は `docs/runbooks/workload-identity-secret-manager-standard-operations-runbook.md` を使う
+
 ## LIN-1015 prod-only Rust API smoke deploy
 
 `LIN-1015` は `LIN-1014` の cluster を使って、最初の Rust API workload を Terraform で出す。
