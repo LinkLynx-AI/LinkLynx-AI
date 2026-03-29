@@ -568,6 +568,28 @@ low-budget path の security は、まず `Cloud Armor + Trivy + Secret Manager 
 - DAST / bot management / VPC-SC / IAP
 - 標準 path の full security program
 
+## LIN-1030 prod-only CI security scan baseline
+
+low-budget path では edge 側の `Cloud Armor` だけでなく、merge 前に止められる `repo secret` / `infra misconfig`
+のチェックを CI に足す。
+
+### Baseline
+
+- repo secret scan: `Gitleaks`
+- infra misconfiguration scan: `Trivy config` against `infra/`
+- accepted temporary ignore:
+  - `AVD-GCP-0061` (`master_authorized_networks` 未設定)
+- deterministic test fixture ignore:
+  - `.gitleaksignore` に fingerprint 2件だけを登録
+
+### Why this stays narrow
+
+- container image scan は `LIN-966` で `Trivy` が入っている
+- low-budget path では false positive が強い scanner や browser-driven DAST をまだ持ち込まない
+- `AVD-GCP-0061` は real finding だが、現行の GitHub Actions -> public control plane deploy を崩さずに直すには別 issue が必要
+
+verify / triage / rollback は `docs/runbooks/ci-security-low-budget-operations-runbook.md` を参照する。
+
 ## LIN-1020 prod-only ops baseline
 
 low-budget path の運用は、まず「人が迷わず反応できる」ことを優先する。

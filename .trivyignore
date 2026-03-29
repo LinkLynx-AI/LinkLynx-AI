@@ -1,0 +1,3 @@
+# low-budget prod-only path keeps a public GKE control plane for GitHub Actions based Terraform apply.
+# Standard-path cluster access hardening remains in LIN-973 / LIN-964 follow-up work.
+AVD-GCP-0061

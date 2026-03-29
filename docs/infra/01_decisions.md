@@ -114,6 +114,7 @@
 | ロードバランサー | **GCP Global HTTP(S) LB**（WebSocket 対応） |
 | TLS | Cloudflare（エッジ）+ GCP managed cert（オリジン） |
 | ドメイン | 取得済み（具体名は別途確認） |
+| low-budget CI security scan | **Gitleaks（repo secret）+ Trivy config（`infra/` misconfig）** |
 
 ### 7. CI/CD・デプロイ
 
