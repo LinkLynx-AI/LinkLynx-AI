@@ -116,3 +116,9 @@ variable "minimal_monitoring_existing_notification_channels" {
   type        = list(string)
   default     = []
 }
+
+variable "enable_minimal_security_baseline" {
+  description = "Whether to attach the low-budget prod-only Cloud Armor security baseline."
+  type        = bool
+  default     = false
+}

@@ -13,3 +13,7 @@ output "gateway_name" {
 output "public_hostname" {
   value = var.public_hostname
 }
+
+output "backend_policy_name" {
+  value = local.backend_security_enabled ? kubernetes_manifest.backend_policy[0].manifest.metadata.name : null
+}

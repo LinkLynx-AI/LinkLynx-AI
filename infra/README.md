@@ -331,3 +331,27 @@ low-budget path の observability は、まず `Cloud Monitoring + Cloud Logging
 - Discord forwarder
 - self-hosted metrics / logs / tracing stack
 - Dragonfly / Scylla / messaging の observability
+
+## LIN-1019 prod-only security baseline
+
+low-budget path の security は、まず `Cloud Armor + Trivy + Secret Manager audit log` の組み合わせで始める。
+
+### Why this baseline
+
+- `Cloud Armor` policy は `LIN-963` で作られているが、backend attach と最小 WAF rule は別 issue で閉じる方が確認しやすい
+- image scan は `LIN-966` で既に `Trivy` が入っているので、low-budget path では重複投資せず verify 導線を整える
+- Secret access の監査は `LIN-1016` の audit log baseline を再利用する
+
+### Baseline
+
+- Cloud Armor backend attach: `GCPBackendPolicy`
+- managed WAF rules:
+  - `sqli-v33-stable` (`sensitivity = 1`)
+  - `xss-v33-stable` (`sensitivity = 1`)
+- image scan: `Trivy` `HIGH/CRITICAL` fail-fast
+- secret access audit: `secretmanager.googleapis.com` `ADMIN_READ` / `DATA_READ`
+
+### What stays out of scope
+
+- DAST / bot management / VPC-SC / IAP
+- 標準 path の full security program

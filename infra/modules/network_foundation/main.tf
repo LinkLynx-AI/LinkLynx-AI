@@ -112,9 +112,33 @@ resource "google_compute_security_policy" "edge" {
   description = "Baseline backend security policy for ${var.environment} public edge."
 
   rule {
+    action      = "deny(403)"
+    priority    = 1000
+    description = "Baseline SQL injection protection with low false-positive sensitivity."
+
+    match {
+      expr {
+        expression = "evaluatePreconfiguredWaf('sqli-v33-stable', {'sensitivity': 1})"
+      }
+    }
+  }
+
+  rule {
+    action      = "deny(403)"
+    priority    = 1010
+    description = "Baseline XSS protection with low false-positive sensitivity."
+
+    match {
+      expr {
+        expression = "evaluatePreconfiguredWaf('xss-v33-stable', {'sensitivity': 1})"
+      }
+    }
+  }
+
+  rule {
     action      = "allow"
     priority    = 2147483647
-    description = "Default allow. Managed WAF rules are added in LIN-973."
+    description = "Default allow after baseline managed WAF evaluation."
 
     match {
       versioned_expr = "SRC_IPS_V1"

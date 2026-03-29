@@ -88,3 +88,9 @@ variable "service_account_annotations" {
   type        = map(string)
   default     = {}
 }
+
+variable "backend_security_policy_name" {
+  description = "Optional Cloud Armor backend security policy name attached via GCPBackendPolicy."
+  type        = string
+  default     = ""
+}
