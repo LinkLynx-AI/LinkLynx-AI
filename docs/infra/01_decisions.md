@@ -151,6 +151,7 @@
 |------|------|
 | バックエンド | **GCP Secret Manager** |
 | low-budget baseline | **Workload Identity + direct Secret Manager access** |
+| standard baseline | **Workload Identity + direct Secret Manager access**（`frontend` / `api` / `ai` の workload-scoped identity） |
 | 標準 path 拡張 | **External Secrets Operator** を後続で検討 |
 | 方針 | Git にシークレットは入れない。初期は長期静的キーを排除し、secret-level IAM と audit log を優先する |
 

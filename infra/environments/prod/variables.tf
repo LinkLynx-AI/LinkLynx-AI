@@ -64,6 +64,22 @@ variable "standard_gke_namespace_names" {
   default     = ["frontend", "api", "ai", "data", "ops", "observability"]
 }
 
+variable "enable_standard_workload_identity_baseline" {
+  description = "Whether to create the standard prod Workload Identity + Secret Manager baseline."
+  type        = bool
+  default     = false
+}
+
+variable "standard_runtime_secret_ids" {
+  description = "Per-workload Secret Manager secret IDs reserved for the standard prod baseline."
+  type        = map(list(string))
+  default = {
+    frontend = ["linklynx-prod-frontend-runtime"]
+    api      = ["linklynx-prod-api-runtime"]
+    ai       = ["linklynx-prod-ai-runtime"]
+  }
+}
+
 variable "enable_rust_api_smoke_deploy" {
   description = "Whether to create the prod Rust API smoke workload on the minimal cluster."
   type        = bool
