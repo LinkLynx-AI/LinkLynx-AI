@@ -57,6 +57,39 @@ module "gke_autopilot_minimal" {
   subnetwork_self_link          = module.network_foundation.gke_nodes_subnet_self_link
 }
 
+resource "google_project_iam_audit_config" "secret_manager_data_access" {
+  count = var.enable_minimal_gke_cluster ? 1 : 0
+
+  project = var.project_id
+  service = "secretmanager.googleapis.com"
+
+  audit_log_config {
+    log_type = "ADMIN_READ"
+  }
+
+  audit_log_config {
+    log_type = "DATA_READ"
+  }
+}
+
+module "rust_api_runtime_identity" {
+  count = var.enable_minimal_gke_cluster ? 1 : 0
+
+  source = "../../modules/workload_identity_secret_manager_baseline"
+
+  environment                       = local.environment
+  google_service_account_account_id = "rust-api-smoke-runtime"
+  kubernetes_namespace              = "rust-api-smoke"
+  kubernetes_service_account_name   = "rust-api-smoke"
+  labels = {
+    environment = local.environment
+    issue       = "lin-1016"
+  }
+  project_id    = var.project_id
+  secret_ids    = var.rust_api_runtime_secret_ids
+  workload_name = "rust-api-smoke"
+}
+
 module "rust_api_smoke_deploy" {
   count = local.enable_rust_api_smoke ? 1 : 0
 
@@ -72,13 +105,18 @@ module "rust_api_smoke_deploy" {
     environment = local.environment
     issue       = "lin-1015"
   }
-  namespace            = "rust-api-smoke"
-  public_hostname      = local.rust_api_public_hostname
-  route_name           = "rust-api-route"
-  service_account_name = "rust-api-smoke"
-  service_name         = "rust-api-smoke"
+  namespace                   = "rust-api-smoke"
+  public_hostname             = local.rust_api_public_hostname
+  route_name                  = "rust-api-route"
+  service_account_annotations = var.enable_minimal_gke_cluster ? module.rust_api_runtime_identity[0].kubernetes_service_account_annotations : {}
+  service_account_name        = "rust-api-smoke"
+  service_name                = "rust-api-smoke"
 
-  depends_on = [module.gke_autopilot_minimal]
+  depends_on = [
+    google_project_iam_audit_config.secret_manager_data_access,
+    module.gke_autopilot_minimal,
+    module.rust_api_runtime_identity,
+  ]
 }
 
 output "environment" {
@@ -99,6 +137,10 @@ output "artifact_registry_repository" {
 
 output "gke_autopilot_minimal" {
   value = var.enable_minimal_gke_cluster ? module.gke_autopilot_minimal[0] : null
+}
+
+output "rust_api_runtime_identity" {
+  value = var.enable_minimal_gke_cluster ? module.rust_api_runtime_identity[0] : null
 }
 
 output "rust_api_smoke_deploy" {

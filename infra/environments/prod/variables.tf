@@ -68,3 +68,9 @@ variable "rust_api_image_digest" {
     error_message = "rust_api_image_digest must be empty or a full image reference ending with @sha256:<64 lowercase hex>."
   }
 }
+
+variable "rust_api_runtime_secret_ids" {
+  description = "Secret Manager secret IDs reserved for the prod Rust API runtime baseline."
+  type        = set(string)
+  default     = ["linklynx-prod-rust-api-smoke-runtime"]
+}
