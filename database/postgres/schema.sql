@@ -561,6 +561,7 @@ CREATE TABLE public.invites (
     uses integer DEFAULT 0 NOT NULL,
     is_disabled boolean DEFAULT false NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
+    channel_id bigint,
     CONSTRAINT chk_invites_max_uses_positive CHECK (((max_uses IS NULL) OR (max_uses > 0))),
     CONSTRAINT chk_invites_uses_lte_max CHECK (((max_uses IS NULL) OR (uses <= max_uses))),
     CONSTRAINT chk_invites_uses_non_negative CHECK ((uses >= 0))
@@ -997,6 +998,10 @@ CREATE INDEX idx_invites_guild ON public.invites USING btree (guild_id);
 
 
 
+CREATE INDEX idx_invites_guild_channel ON public.invites USING btree (guild_id, channel_id) WHERE (channel_id IS NOT NULL);
+
+
+
 CREATE INDEX idx_moderation_mutes_expires_at ON public.moderation_mutes USING btree (expires_at) WHERE (expires_at IS NOT NULL);
 
 
@@ -1230,6 +1235,11 @@ ALTER TABLE ONLY public.invite_uses
 
 ALTER TABLE ONLY public.invite_uses
     ADD CONSTRAINT invite_uses_used_by_fkey FOREIGN KEY (used_by) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY public.invites
+    ADD CONSTRAINT invites_channel_id_fkey FOREIGN KEY (channel_id) REFERENCES public.channels(id) ON DELETE SET NULL;
 
 
 

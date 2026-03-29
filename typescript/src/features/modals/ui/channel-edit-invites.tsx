@@ -24,7 +24,8 @@ export function ChannelEditInvites({
   channelId?: string;
 }) {
   const addToast = useUIStore((state) => state.addToast);
-  const invitesQuery = useInvites(serverId ?? "");
+  const normalizedChannelId = channelId?.trim() || undefined;
+  const invitesQuery = useInvites(serverId ?? "", normalizedChannelId);
   const revokeInvite = useRevokeInvite();
   const [submitError, setSubmitError] = useState<string | null>(null);
   const pendingInviteCode = revokeInvite.variables?.inviteCode ?? null;
@@ -34,11 +35,15 @@ export function ChannelEditInvites({
       setSubmitError("サーバー情報を解決できないため、招待を取り消せません。");
       return;
     }
+    if (normalizedChannelId === undefined) {
+      setSubmitError("チャンネル情報を解決できないため、招待を取り消せません。");
+      return;
+    }
 
     setSubmitError(null);
 
     try {
-      await revokeInvite.mutateAsync({ serverId, inviteCode });
+      await revokeInvite.mutateAsync({ serverId, inviteCode, channelId: normalizedChannelId });
       addToast({ message: "招待を取り消しました。", type: "success" });
     } catch (error: unknown) {
       setSubmitError(toDeleteActionErrorText(error, "招待の取消に失敗しました。"));
@@ -63,13 +68,6 @@ export function ChannelEditInvites({
 
   return (
     <div className="space-y-3">
-      <div className="rounded bg-discord-bg-tertiary px-3 py-2 text-xs text-discord-text-muted">
-        現在の招待はサーバー単位で管理されます。
-        {channelId !== undefined && channelId.trim().length > 0
-          ? " このチャンネルから発行した招待に限定した一覧ではありません。"
-          : ""}
-      </div>
-
       {errorMessage !== null && (
         <div className="rounded bg-discord-brand-red/10 px-3 py-2 text-sm text-discord-brand-red">
           {errorMessage}
@@ -81,7 +79,7 @@ export function ChannelEditInvites({
           <Link className="mb-3 h-10 w-10 text-discord-text-muted" />
           <p className="text-sm font-medium text-discord-text-normal">招待がありません</p>
           <p className="mt-1 text-xs text-discord-text-muted">
-            このサーバーにはアクティブな招待がありません
+            このチャンネルにはアクティブな招待がありません
           </p>
         </div>
       ) : (

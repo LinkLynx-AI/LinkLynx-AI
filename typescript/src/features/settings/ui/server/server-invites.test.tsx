@@ -16,12 +16,13 @@ vi.mock("@/shared/api/mutations", () => ({
 }));
 
 describe("ServerInvites", () => {
-  test("renders invite rows and revokes guild-scoped invite", async () => {
+  test("renders invite rows with channel metadata and revokes guild-scoped invite", async () => {
     const mutateAsync = vi.fn().mockResolvedValue(undefined);
     useInvitesMock.mockReturnValue({
       data: [
         {
           code: "DEVJOIN2026",
+          channel: { id: "3001", name: "general" },
           creator: { id: "1001", displayName: "Alice" },
           expiresAt: null,
           uses: 3,
@@ -41,6 +42,7 @@ describe("ServerInvites", () => {
     render(<ServerInvites serverId="2001" />);
 
     expect(screen.getByText("DEVJOIN2026")).not.toBeNull();
+    expect(screen.getByText("#general")).not.toBeNull();
     expect(screen.getByText("Alice")).not.toBeNull();
     expect(screen.queryByText("招待一覧の取得に失敗しました。")).toBeNull();
 

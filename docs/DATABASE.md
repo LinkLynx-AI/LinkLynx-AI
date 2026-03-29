@@ -43,6 +43,7 @@
 19. `0019_lin948_message_create_idempotency`
 20. `0020_lin941_channel_category_constraints`
 21. `0021_adhoc_invites_id_sequence_for_issuance`
+22. `0022_lin996_invites_channel_scope`
 
 ### 2.1 型（ENUM）
 
@@ -86,6 +87,7 @@
 - `guilds.id` / `channels.id` / `invites.id` はデフォルト採番（`guilds_id_seq` / `channels_id_seq` / `invites_id_seq`）を許容
 - `auth_identities(provider, provider_subject)` は外部認証主体（例: Firebase UID）を一意化し、`principal_id -> users.id` へ正規化
 - `guild_members(guild_id, user_id)` は `guilds/users` への多対多
+- `invites.channel_id` は LIN-996 で追加された招待ターゲットチャネルの SoR。既存互換のため NULL を許容しつつ、新規 invite は同一 guild の `channels.type='guild_text'` を参照する
 - `channels` は `channel_type` でギルドテキストチャネル/カテゴリコンテナ/DM を表現
 - `guilds.name` と `channels(type in ('guild_text', 'guild_category')).name` は空文字（空白のみ）を拒否
 - `dm_pairs` は `user_low < user_high` 制約と `channel_id` 一意制約で DM 1対1 を保証
@@ -131,7 +133,7 @@
 - `idx_channels_guild`（`type in ('guild_text', 'guild_category')` 条件付き）
 - `idx_channels_guild_created_id`（`type in ('guild_text', 'guild_category')` 条件付き）
 - `idx_dm_participants_user`
-- `idx_invites_guild`, `idx_invites_expires`
+- `idx_invites_guild`, `idx_invites_expires`, `idx_invites_guild_channel`
 - `idx_channel_hierarchies_v2_parent_pos`
 - `idx_channel_hierarchies_v2_guild_kind`
 - `idx_msg_refs_v2_channel_reply`
@@ -348,3 +350,10 @@ The source of truth for Scylla operations (SoR boundary, partition review criter
   - `database/contracts/lin948_message_create_idempotency_contract.md`
 - LIN-862 SpiceDB namespace/relation/permission model contract:
   - `database/contracts/lin862_spicedb_namespace_relation_permission_contract.md`
+
+
+### 2.17 Invite Channel Scope Contract (LIN-996)
+
+The source of truth for channel-scoped invite ownership and guild/channel admin list compatibility is:
+
+- `database/contracts/lin996_invite_channel_scope_contract.md`

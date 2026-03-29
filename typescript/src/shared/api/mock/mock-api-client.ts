@@ -567,12 +567,18 @@ export class MockAPIClient implements APIClient {
     };
   }
 
-  async getInvites(_serverId: string): Promise<InviteListItem[]> {
+  async getInvites(_serverId: string, options?: { channelId?: string }): Promise<InviteListItem[]> {
     await this.simulateDelay();
-    return mockInvites;
+    return options?.channelId
+      ? mockInvites.filter((invite) => invite.channel?.id === options.channelId)
+      : mockInvites;
   }
 
-  async revokeInvite(_serverId: string, _inviteCode: string): Promise<void> {
+  async revokeInvite(
+    _serverId: string,
+    _inviteCode: string,
+    _options?: { channelId?: string },
+  ): Promise<void> {
     await this.simulateDelay();
   }
 

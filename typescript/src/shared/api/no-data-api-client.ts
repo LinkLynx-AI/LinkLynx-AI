@@ -298,11 +298,15 @@ export class NoDataAPIClient implements APIClient {
     return unsupportedPromise("createInvite");
   }
 
-  getInvites(_serverId: string): Promise<InviteListItem[]> {
+  getInvites(_serverId: string, _options?: { channelId?: string }): Promise<InviteListItem[]> {
     return Promise.resolve([]);
   }
 
-  revokeInvite(_serverId: string, _inviteCode: string): Promise<void> {
+  revokeInvite(
+    _serverId: string,
+    _inviteCode: string,
+    _options?: { channelId?: string },
+  ): Promise<void> {
     return unsupportedPromise("revokeInvite");
   }
 
