@@ -150,6 +150,35 @@ terraform plan
 - migration / approval / rollback は `docs/runbooks/cloud-sql-postgres-standard-operations-runbook.md` を使う
 - PITR は `docs/runbooks/postgres-pitr-runbook.md` を使う
 
+## LIN-969 standard Dragonfly baseline
+
+`LIN-969` は standard path 向けに、Dragonfly を `StatefulSet + PVC + PDB` の baseline で追加する。
+
+### 使う変数
+
+- `enable_standard_dragonfly_baseline`
+- `standard_dragonfly_image`
+- `standard_dragonfly_storage_size`
+- `standard_dragonfly_allowed_client_namespaces`
+
+### baseline
+
+- namespace: `data`
+- service account: `dragonfly`
+- headless service + ClusterIP service
+- StatefulSet 1 replica
+- PVC: `20Gi`
+- PDB: `minAvailable=1`
+- ingress allowlist: default `api` namespace only
+
+### 運用メモ
+
+- Autopilot では dedicated pool を直接は作らない
+- 隔離は namespace / single-purpose StatefulSet / PDB / anti-affinity で表現する
+- Dragonfly は source of truth ではない
+- degraded / fallback は `docs/runbooks/dragonfly-ratelimit-operations-runbook.md` と `docs/runbooks/session-resume-dragonfly-operations-runbook.md` に従う
+- infra verify / rollback は `docs/runbooks/dragonfly-standard-operations-runbook.md` を使う
+
 ## LIN-1015 prod-only Rust API smoke deploy
 
 `LIN-1015` は `LIN-1014` の cluster を使って、最初の Rust API workload を Terraform で出す。

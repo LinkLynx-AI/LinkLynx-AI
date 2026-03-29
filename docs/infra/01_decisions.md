@@ -95,7 +95,7 @@
 |----|------------|------|
 | **PostgreSQL** | Cloud SQL（マネージド） | PITR/バックアップ自動。標準 path は `staging=ZONAL / prod=REGIONAL(HA)`、初期 read replica なし。low-budget path は `prod-only` 単一 instance から開始 |
 | **ScyllaDB** | ScyllaDB Cloud or GCE 専用 | K8s 外。Autopilot の制限回避。low-budget path は external Scylla の runtime wiring と ops baseline を先に整える |
-| **Dragonfly** | K8s 上（標準 path は StatefulSet、low-budget path は volatile single Deployment） | 軽量。Redis 互換 |
+| **Dragonfly** | K8s 上（標準 path は `StatefulSet + PVC + PDB`、low-budget path は volatile single Deployment） | 軽量。Redis 互換。Autopilot では dedicated pool の代わりに workload-scoped isolation を採る |
 | **Redpanda** | Redpanda Cloud（標準 path） | low-budget path は Secret Manager placeholder と ops baseline を先に整える |
 | **NATS** | Synadia Cloud（標準 path） | low-budget path は Secret Manager placeholder と ops baseline を先に整える |
 | **OpenSearch** | Elastic Cloud（初期） | 運用負荷回避。将来 K8s 上も可。low-budget path は Elastic Cloud secret placeholder と snapshot / lifecycle baseline を先に整える |

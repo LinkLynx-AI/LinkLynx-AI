@@ -76,6 +76,30 @@ variable "enable_standard_cloud_sql_baseline" {
   default     = false
 }
 
+variable "enable_standard_dragonfly_baseline" {
+  description = "Whether to create the standard staging Dragonfly StatefulSet baseline."
+  type        = bool
+  default     = false
+}
+
+variable "standard_dragonfly_image" {
+  description = "Dragonfly image used by the standard staging baseline."
+  type        = string
+  default     = ""
+}
+
+variable "standard_dragonfly_storage_size" {
+  description = "Persistent storage size for the standard staging Dragonfly baseline."
+  type        = string
+  default     = "20Gi"
+}
+
+variable "standard_dragonfly_allowed_client_namespaces" {
+  description = "Namespaces allowed to reach the standard staging Dragonfly service."
+  type        = set(string)
+  default     = ["api"]
+}
+
 variable "standard_cloud_sql_database_name" {
   description = "Application database name for the standard staging Cloud SQL baseline."
   type        = string
