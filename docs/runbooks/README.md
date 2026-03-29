@@ -20,6 +20,7 @@
 - `workload-identity-secret-manager-operations-runbook.md`: Workload Identity, secret-level IAM, audit-log verification, and secret rotation/rollback baseline for the low-budget prod-only path.
 - `workload-identity-secret-manager-standard-operations-runbook.md`: standard path の workload-scoped KSA / GSA / Secret Manager baseline、staging verify、rotation/rollback 手順。
 - `argocd-rollouts-standard-operations-runbook.md`: standard path の Argo CD / Argo Rollouts baseline、bootstrap apply、staging auto-sync / prod manual-sync、canary rollback 手順。
+- `cloud-sql-postgres-standard-operations-runbook.md`: standard path の Cloud SQL topology、`CI -> staging -> prod manual approval` migration gate、verify / rollback baseline。
 - `cloud-sql-postgres-migration-operations-runbook.md`: Cloud SQL-backed PostgreSQL forward-only migration gate, manual approval boundary, and failure-handling baseline for the low-budget prod-only path.
 - `cloud-monitoring-low-budget-operations-runbook.md`: Cloud Monitoring + Cloud Logging baseline, optional notification channel routing, and low-budget prod-only alert triage flow.
 - `external-dependency-observability-low-budget-runbook.md`: low-budget prod-only manual check sources and alert seeds for Scylla, Redpanda Cloud, Synadia Cloud / NATS, and Elastic Cloud.

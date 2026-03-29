@@ -1,6 +1,7 @@
 locals {
   environment                         = "staging"
   enable_standard_gke_cluster         = var.enable_standard_gke_cluster_baseline
+  enable_standard_cloud_sql           = var.enable_standard_cloud_sql_baseline
   enable_standard_gitops              = var.enable_standard_gitops_baseline
   enable_standard_workload_identities = var.enable_standard_workload_identity_baseline
   standard_runtime_identities = {
@@ -175,6 +176,29 @@ module "gitops_standard_baseline" {
   depends_on = [module.gke_namespace_baseline]
 }
 
+module "cloud_sql_postgres_standard" {
+  count = local.enable_standard_cloud_sql ? 1 : 0
+
+  source = "../../modules/cloud_sql_postgres_standard"
+
+  allocated_ip_range_name = module.network_foundation.private_service_access_range_name
+  availability_type       = "ZONAL"
+  database_name           = var.standard_cloud_sql_database_name
+  disk_size_gb            = var.standard_cloud_sql_disk_size_gb
+  environment             = local.environment
+  labels = {
+    environment = local.environment
+    issue       = "lin-968"
+  }
+  network_self_link = module.network_foundation.network_self_link
+  project_id        = var.project_id
+  region            = var.region
+  retained_backups  = var.standard_cloud_sql_staging_retained_backups
+  tier              = var.standard_cloud_sql_tier
+
+  depends_on = [module.network_foundation]
+}
+
 output "environment" {
   value = local.environment
 }
@@ -221,4 +245,8 @@ output "standard_gitops_baseline" {
   value = local.enable_standard_gitops ? merge(module.gitops_standard_baseline[0], {
     bootstrap_kustomize_path = "infra/gitops/bootstrap/staging"
   }) : null
+}
+
+output "cloud_sql_postgres_standard" {
+  value = local.enable_standard_cloud_sql ? module.cloud_sql_postgres_standard[0] : null
 }

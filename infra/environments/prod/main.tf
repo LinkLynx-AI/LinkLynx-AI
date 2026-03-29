@@ -1,6 +1,7 @@
 locals {
   environment                              = "prod"
   enable_standard_gke_cluster              = var.enable_standard_gke_cluster_baseline
+  enable_standard_cloud_sql                = var.enable_standard_cloud_sql_baseline
   enable_standard_gitops                   = var.enable_standard_gitops_baseline
   enable_standard_workload_identities      = var.enable_standard_workload_identity_baseline
   normalized_public_hostnames              = [for hostname in var.public_hostnames : trimsuffix(hostname, ".")]
@@ -67,6 +68,13 @@ check "exclusive_cluster_paths" {
   assert {
     condition     = !(var.enable_standard_gke_cluster_baseline && var.enable_minimal_gke_cluster)
     error_message = "enable_standard_gke_cluster_baseline and enable_minimal_gke_cluster cannot both be true in prod."
+  }
+}
+
+check "exclusive_cloud_sql_paths" {
+  assert {
+    condition     = !(var.enable_standard_cloud_sql_baseline && var.enable_minimal_cloud_sql_baseline)
+    error_message = "enable_standard_cloud_sql_baseline and enable_minimal_cloud_sql_baseline cannot both be true in prod."
   }
 }
 
@@ -155,6 +163,13 @@ check "minimal_search_secret_prerequisites" {
   assert {
     condition     = !var.enable_minimal_search_secret_baseline || length(var.minimal_search_secret_ids) > 0
     error_message = "enable_minimal_search_secret_baseline requires at least one Elastic Cloud secret ID."
+  }
+}
+
+check "standard_cloud_sql_prerequisites" {
+  assert {
+    condition     = !var.standard_cloud_sql_prod_read_replica_enabled
+    error_message = "LIN-968 standard baseline documents prod read replica as disabled. Keep standard_cloud_sql_prod_read_replica_enabled = false until a separate follow-up issue provisions it."
   }
 }
 
@@ -293,6 +308,29 @@ module "gitops_standard_baseline" {
   rollouts_release_name  = "argo-rollouts"
 
   depends_on = [module.gke_namespace_baseline]
+}
+
+module "cloud_sql_postgres_standard" {
+  count = local.enable_standard_cloud_sql ? 1 : 0
+
+  source = "../../modules/cloud_sql_postgres_standard"
+
+  allocated_ip_range_name = module.network_foundation.private_service_access_range_name
+  availability_type       = var.standard_cloud_sql_prod_ha_enabled ? "REGIONAL" : "ZONAL"
+  database_name           = var.standard_cloud_sql_database_name
+  disk_size_gb            = var.standard_cloud_sql_disk_size_gb
+  environment             = local.environment
+  labels = {
+    environment = local.environment
+    issue       = "lin-968"
+  }
+  network_self_link = module.network_foundation.network_self_link
+  project_id        = var.project_id
+  region            = var.region
+  retained_backups  = var.standard_cloud_sql_prod_retained_backups
+  tier              = var.standard_cloud_sql_tier
+
+  depends_on = [module.network_foundation]
 }
 
 module "rust_api_runtime_identity" {
@@ -494,6 +532,10 @@ output "cloud_sql_postgres_minimal" {
 
 output "cloud_monitoring_minimal" {
   value = local.enable_minimal_monitoring ? module.cloud_monitoring_minimal[0] : null
+}
+
+output "cloud_sql_postgres_standard" {
+  value = local.enable_standard_cloud_sql ? module.cloud_sql_postgres_standard[0] : null
 }
 
 output "minimal_security_baseline_enabled" {

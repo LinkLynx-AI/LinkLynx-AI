@@ -120,6 +120,36 @@ terraform plan
 - prod app は automated sync を有効にせず、manual sync gate を baseline にする
 - verify / rollback は `docs/runbooks/argocd-rollouts-standard-operations-runbook.md` を使う
 
+## LIN-968 standard Cloud SQL baseline
+
+`LIN-968` は standard path 向けに、`staging` / `prod` の Cloud SQL for PostgreSQL baseline を追加する。
+
+### 使う変数
+
+- `enable_standard_cloud_sql_baseline`
+- `standard_cloud_sql_database_name`
+- `standard_cloud_sql_tier`
+- `standard_cloud_sql_disk_size_gb`
+- `standard_cloud_sql_prod_retained_backups`
+- `standard_cloud_sql_prod_ha_enabled`
+- `standard_cloud_sql_prod_read_replica_enabled`
+
+### baseline
+
+- tier: `db-custom-4-16384`
+- storage: `PD_SSD`
+- private IP only
+- backup + PITR enabled
+- prod HA: enabled (`REGIONAL`)
+- prod read replica: disabled
+
+### 運用メモ
+
+- `prod` では low-budget Cloud SQL と standard Cloud SQL を同時に有効化しない
+- `standard_cloud_sql_prod_read_replica_enabled` は `false` 固定で始める
+- migration / approval / rollback は `docs/runbooks/cloud-sql-postgres-standard-operations-runbook.md` を使う
+- PITR は `docs/runbooks/postgres-pitr-runbook.md` を使う
+
 ## LIN-1015 prod-only Rust API smoke deploy
 
 `LIN-1015` は `LIN-1014` の cluster を使って、最初の Rust API workload を Terraform で出す。

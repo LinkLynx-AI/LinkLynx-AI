@@ -70,6 +70,36 @@ variable "enable_standard_gitops_baseline" {
   default     = false
 }
 
+variable "enable_standard_cloud_sql_baseline" {
+  description = "Whether to create the standard staging Cloud SQL baseline."
+  type        = bool
+  default     = false
+}
+
+variable "standard_cloud_sql_database_name" {
+  description = "Application database name for the standard staging Cloud SQL baseline."
+  type        = string
+  default     = "linklynx"
+}
+
+variable "standard_cloud_sql_tier" {
+  description = "Cloud SQL machine tier for the standard staging baseline."
+  type        = string
+  default     = "db-custom-4-16384"
+}
+
+variable "standard_cloud_sql_disk_size_gb" {
+  description = "Initial storage size for the standard staging Cloud SQL baseline."
+  type        = number
+  default     = 100
+}
+
+variable "standard_cloud_sql_staging_retained_backups" {
+  description = "Retained automated backups for the standard staging Cloud SQL baseline."
+  type        = number
+  default     = 7
+}
+
 variable "standard_gitops_repository_url" {
   description = "Repository URL watched by the standard staging GitOps baseline."
   type        = string

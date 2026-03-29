@@ -155,6 +155,8 @@ The source of truth for Postgres operations (forward-only migration, pool exhaus
 
 - `database/contracts/lin588_postgres_operations_baseline.md`
 - `docs/runbooks/postgres-pitr-runbook.md`
+- `docs/runbooks/cloud-sql-postgres-standard-operations-runbook.md`
+- `docs/runbooks/cloud-sql-postgres-migration-operations-runbook.md`
 
 ### 2.7 Session/Resume Runtime Baseline (LIN-587)
 

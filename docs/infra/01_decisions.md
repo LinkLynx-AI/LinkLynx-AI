@@ -93,7 +93,7 @@
 
 | DB | ホスティング | 理由 |
 |----|------------|------|
-| **PostgreSQL** | Cloud SQL（マネージド） | PITR/バックアップ自動。標準 path は HA を検討、low-budget path は `prod-only` 単一 instance から開始 |
+| **PostgreSQL** | Cloud SQL（マネージド） | PITR/バックアップ自動。標準 path は `staging=ZONAL / prod=REGIONAL(HA)`、初期 read replica なし。low-budget path は `prod-only` 単一 instance から開始 |
 | **ScyllaDB** | ScyllaDB Cloud or GCE 専用 | K8s 外。Autopilot の制限回避。low-budget path は external Scylla の runtime wiring と ops baseline を先に整える |
 | **Dragonfly** | K8s 上（標準 path は StatefulSet、low-budget path は volatile single Deployment） | 軽量。Redis 互換 |
 | **Redpanda** | Redpanda Cloud（標準 path） | low-budget path は Secret Manager placeholder と ops baseline を先に整える |
