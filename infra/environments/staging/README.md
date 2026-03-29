@@ -70,5 +70,19 @@ VPA/HPA 境界と verify / rollback は `docs/runbooks/gke-autopilot-standard-op
 - `standard_gke_namespace_names`
 - `enable_standard_workload_identity_baseline`
 - `standard_runtime_secret_ids`
+- `enable_standard_gitops_baseline`
+- `standard_gitops_repository_url`
+- `standard_gitops_target_revision`
+- `standard_gitops_argocd_chart_version`
+- `standard_gitops_rollouts_chart_version`
 
 staging の最小 smoke deploy は `api.<staging-domain>` だけ先に作れば十分。
+
+## LIN-967 standard GitOps / Rollouts baseline
+
+- `enable_standard_gitops_baseline = true` で `ops` namespace に Argo CD / Argo Rollouts を入れる
+- bootstrap manifest は `infra/gitops/bootstrap/staging` を使う
+- staging app は `staging-canary-smoke`
+  - source path: `infra/gitops/apps/staging/canary-smoke`
+  - sync policy: automated
+- verify / rollback は `docs/runbooks/argocd-rollouts-standard-operations-runbook.md` を使う

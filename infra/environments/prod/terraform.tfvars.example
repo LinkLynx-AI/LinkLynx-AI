@@ -13,6 +13,9 @@ enable_minimal_dragonfly_baseline     = false
 enable_minimal_scylla_runtime_baseline = false
 enable_minimal_managed_messaging_secret_baseline = false
 enable_minimal_search_secret_baseline = false
+enable_standard_gke_cluster_baseline   = false
+enable_standard_workload_identity_baseline = false
+enable_standard_gitops_baseline        = false
 rust_api_image_digest                 = "us-east1-docker.pkg.dev/linklynx-prod/application-images/rust@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 rust_api_public_hostname              = "api.example.com"
 minimal_dragonfly_image               = "docker.dragonflydb.io/dragonflydb/dragonfly:vX.Y.Z"
@@ -28,6 +31,8 @@ minimal_cloud_sql_database_name       = "linklynx"
 minimal_monitoring_alert_email_addresses = [
   "ops@example.com",
 ]
+standard_gitops_repository_url         = "https://github.com/LinkLynx-AI/LinkLynx-AI.git"
+standard_gitops_target_revision        = "main"
 
 # Fill these with the real production domain before plan/apply.
 public_dns_zone_name = "linklynx-prod-public"

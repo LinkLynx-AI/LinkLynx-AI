@@ -11,3 +11,11 @@ provider "kubernetes" {
   token                  = data.google_client_config.current.access_token
   cluster_ca_certificate = var.enable_standard_gke_cluster_baseline ? base64decode(module.gke_autopilot_standard_cluster[0].cluster_ca_certificate) : null
 }
+
+provider "helm" {
+  kubernetes = {
+    host                   = var.enable_standard_gke_cluster_baseline ? "https://${module.gke_autopilot_standard_cluster[0].cluster_endpoint}" : null
+    token                  = data.google_client_config.current.access_token
+    cluster_ca_certificate = var.enable_standard_gke_cluster_baseline ? base64decode(module.gke_autopilot_standard_cluster[0].cluster_ca_certificate) : null
+  }
+}
