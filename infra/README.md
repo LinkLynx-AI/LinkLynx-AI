@@ -14,10 +14,14 @@ LIN-962 で GCP bootstrap と Terraform remote state の最小土台を追加し
 infra/
 ├── modules/
 │   ├── artifact_registry_repository/
+│   ├── cloud_monitoring_minimal/
+│   ├── cloud_sql_postgres_minimal/
 │   ├── gke_autopilot_minimal/
 │   ├── github_actions_artifact_publish/
+│   ├── github_actions_terraform_deploy/
 │   ├── project_baseline/
 │   ├── network_foundation/
+│   ├── rust_api_smoke_deploy/
 │   └── state_backend/
 └── environments/
     ├── bootstrap/
@@ -250,6 +254,32 @@ Route baseline は次の通り。
 - `wss://<rust_api_public_hostname>/ws`
 
 deploy 後の rollback は `rust_api_image_digest` を直前 digest に戻して再 apply する。
+
+## LIN-1021 prod-only Terraform deploy workflow baseline
+
+low-budget path の deploy 実行経路は、当面 `Argo CD` ではなく GitHub Actions からの Terraform 実行に寄せる。
+
+### Why this path
+
+- `prod-only` の最小構成では GitOps controller 常駐コストをまだ増やしたくない
+- すでに low-budget path の cluster / workload / Cloud SQL / monitoring baseline は Terraform に揃っている
+- `manual approval + exact plan artifact` だけでも初期の deploy safety をかなり確保できる
+
+### What gets created
+
+- bootstrap project 内の `prod` 用 GitHub Terraform deployer service account
+- state bucket への限定的なアクセス
+- `terraform-admin` への impersonation 導線
+- GitHub Actions `Infra Deploy (prod)` workflow
+
+### Deploy contract
+
+- `plan` と `apply` は `workflow_dispatch` で明示的に分ける
+- `apply` は `main` からのみ実行可能
+- `apply` は GitHub `prod` environment の approval を必須にする
+- deploy input は `INFRA_PROD_TERRAFORM_TFVARS` と optional な `rust_api_image_digest` override で与える
+
+詳細な手順と rollback は `docs/runbooks/terraform-low-budget-prod-deploy-runbook.md` を参照する。
 
 ## LIN-1016 prod-only IAM / Workload Identity / Secret Manager baseline
 
