@@ -100,6 +100,12 @@ variable "enable_standard_managed_messaging_cloud_baseline" {
   default     = false
 }
 
+variable "enable_standard_search_baseline" {
+  description = "Whether to create the standard prod Elastic Cloud search connection baseline."
+  type        = bool
+  default     = false
+}
+
 variable "enable_standard_observability_baseline" {
   description = "Whether to create the standard prod observability baseline."
   type        = bool
@@ -215,6 +221,28 @@ variable "standard_nats_smoke_subject" {
   default     = "v0.ops.messaging_smoke"
 }
 
+variable "standard_search_runtime_workloads" {
+  description = "Standard runtime workloads that receive Elastic Cloud search secret access."
+  type        = set(string)
+  default     = ["api"]
+}
+
+variable "standard_search_secret_ids" {
+  description = "Secret Manager secret IDs keyed by logical role for the standard prod Elastic Cloud baseline."
+  type        = map(string)
+  default = {
+    api_key  = "linklynx-prod-search-elastic-api-key"
+    cloud_id = "linklynx-prod-search-elastic-cloud-id"
+    endpoint = "linklynx-prod-search-elastic-endpoint"
+  }
+}
+
+variable "standard_search_index_name" {
+  description = "Primary search index name for the standard prod Elastic Cloud baseline."
+  type        = string
+  default     = "messages"
+}
+
 variable "standard_cloud_sql_database_name" {
   description = "Application database name for the standard prod Cloud SQL baseline."
   type        = string
@@ -302,6 +330,12 @@ variable "standard_redpanda_probe_targets" {
 
 variable "standard_nats_probe_targets" {
   description = "NATS probe targets used by the standard prod blackbox baseline. Use host:port or provider-required URL form."
+  type        = set(string)
+  default     = []
+}
+
+variable "standard_search_probe_targets" {
+  description = "HTTPS probe targets used by the standard prod search baseline."
   type        = set(string)
   default     = []
 }

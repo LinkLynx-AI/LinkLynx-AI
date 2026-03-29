@@ -468,6 +468,36 @@ default では `enable_standard_managed_messaging_cloud_baseline = false` にし
 - provider account / cluster / allowlist / private connectivity、runtime client 実装はこの baseline では追加しない
 - verify / rollback / rotation / incident triage は `docs/runbooks/managed-messaging-cloud-standard-operations-runbook.md` を使う
 
+## LIN-975 standard Elastic Cloud search baseline
+
+`LIN-975` は standard path 向けに、Elastic Cloud search の hosting decision と secret/access baseline を追加する。
+
+### 使う変数
+
+- `enable_standard_search_baseline`
+- `standard_search_runtime_workloads`
+- `standard_search_secret_ids`
+- `standard_search_index_name`
+- `standard_search_probe_targets`
+
+### 作られるもの
+
+- Elastic Cloud 用 secret inventory
+  - `api_key`
+  - `cloud_id`
+  - `endpoint`
+- approved runtime workload への `roles/secretmanager.secretAccessor`
+- `messages` index を使う runtime contract output
+- observability baseline に渡す optional search HTTPS probe target
+
+### 運用メモ
+
+- Phase 1 の標準 hosting choice は `Elastic Cloud`
+- `api_key` は必須、locator は `cloud_id` 優先だが `endpoint` fallback も維持する
+- `enable_minimal_search_secret_baseline` と同時に有効化しない
+- provider-side deployment / allowlist / private connectivity、runtime search client 実装はこの baseline では追加しない
+- verify / rollback / snapshot / vendor boundary は `docs/runbooks/search-elastic-cloud-standard-operations-runbook.md` を使う
+
 ## LIN-972 standard observability baseline
 
 `LIN-972` は standard path 向けに、`observability` namespace へ self-hosted observability baseline を追加する。
@@ -480,6 +510,7 @@ default では `enable_standard_managed_messaging_cloud_baseline = false` にし
 - `standard_api_probe_targets`
 - `standard_redpanda_probe_targets`
 - `standard_nats_probe_targets`
+- `standard_search_probe_targets`
 - `standard_observability_kube_prometheus_stack_chart_version`
 - `standard_observability_loki_chart_version`
 - `standard_observability_alloy_chart_version`
@@ -504,6 +535,7 @@ default では `enable_standard_managed_messaging_cloud_baseline = false` にし
 
 - `enable_standard_observability_baseline = true` の前に standard GKE / GitOps / Cloud SQL / Dragonfly / Scylla / messaging baseline が必要
 - Cloud SQL / Dragonfly / Scylla / Redpanda / NATS は minimum reachability probe で先に覆う
+- search は optional HTTPS probe target と provider console checks を baseline にする
 - deeper provider metrics ingestion と tracing は follow-up に回す
 - verify / rollback は `docs/runbooks/observability-standard-operations-runbook.md` を使う
 
@@ -668,5 +700,11 @@ default では `enable_minimal_security_baseline = false` にしている。
 - `enable_minimal_security_baseline`
 - `enable_minimal_dragonfly_baseline`
 - `minimal_dragonfly_image`
+- standard path の search を使う場合:
+  - `enable_standard_search_baseline`
+  - `standard_search_runtime_workloads`
+  - `standard_search_secret_ids`
+  - `standard_search_index_name`
+  - `standard_search_probe_targets`
 
 prod は `api.<domain>` を起点にし、後続 issue で必要な host を追加する。
