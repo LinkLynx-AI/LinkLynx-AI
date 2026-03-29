@@ -2,6 +2,7 @@ locals {
   environment                         = "staging"
   enable_standard_gke_cluster         = var.enable_standard_gke_cluster_baseline
   enable_standard_cloud_sql           = var.enable_standard_cloud_sql_baseline
+  enable_standard_dragonfly           = var.enable_standard_dragonfly_baseline
   enable_standard_gitops              = var.enable_standard_gitops_baseline
   enable_standard_workload_identities = var.enable_standard_workload_identity_baseline
   standard_runtime_identities = {
@@ -50,6 +51,28 @@ check "standard_gitops_prerequisites" {
   assert {
     condition     = !var.enable_standard_gitops_baseline || length(setsubtract(toset(["api", "ops"]), var.standard_gke_namespace_names)) == 0
     error_message = "enable_standard_gitops_baseline requires api and ops namespaces in standard_gke_namespace_names."
+  }
+}
+
+check "standard_dragonfly_prerequisites" {
+  assert {
+    condition     = !var.enable_standard_dragonfly_baseline || var.enable_standard_gke_cluster_baseline
+    error_message = "enable_standard_dragonfly_baseline requires enable_standard_gke_cluster_baseline = true."
+  }
+
+  assert {
+    condition     = !var.enable_standard_dragonfly_baseline || contains(var.standard_gke_namespace_names, "data")
+    error_message = "enable_standard_dragonfly_baseline requires the data namespace in standard_gke_namespace_names."
+  }
+
+  assert {
+    condition     = !var.enable_standard_dragonfly_baseline || trimspace(var.standard_dragonfly_image) != ""
+    error_message = "enable_standard_dragonfly_baseline requires standard_dragonfly_image to be set."
+  }
+
+  assert {
+    condition     = !var.enable_standard_dragonfly_baseline || length(setsubtract(var.standard_dragonfly_allowed_client_namespaces, var.standard_gke_namespace_names)) == 0
+    error_message = "standard_dragonfly_allowed_client_namespaces must be included in standard_gke_namespace_names."
   }
 }
 
@@ -199,6 +222,26 @@ module "cloud_sql_postgres_standard" {
   depends_on = [module.network_foundation]
 }
 
+module "dragonfly_standard_stateful" {
+  count = local.enable_standard_dragonfly ? 1 : 0
+
+  source = "../../modules/dragonfly_standard_stateful"
+
+  allowed_client_namespaces = var.standard_dragonfly_allowed_client_namespaces
+  image                     = var.standard_dragonfly_image
+  labels = {
+    environment = local.environment
+    issue       = "lin-969"
+  }
+  namespace            = "data"
+  service_account_name = "dragonfly"
+  service_name         = "dragonfly"
+  statefulset_name     = "dragonfly"
+  storage_size         = var.standard_dragonfly_storage_size
+
+  depends_on = [module.gke_namespace_baseline]
+}
+
 output "environment" {
   value = local.environment
 }
@@ -249,4 +292,8 @@ output "standard_gitops_baseline" {
 
 output "cloud_sql_postgres_standard" {
   value = local.enable_standard_cloud_sql ? module.cloud_sql_postgres_standard[0] : null
+}
+
+output "dragonfly_standard_stateful" {
+  value = local.enable_standard_dragonfly ? module.dragonfly_standard_stateful[0] : null
 }

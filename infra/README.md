@@ -17,6 +17,7 @@ infra/
 │   ├── cloud_monitoring_minimal/
 │   ├── cloud_sql_postgres_minimal/
 │   ├── cloud_sql_postgres_standard/
+│   ├── dragonfly_standard_stateful/
 │   ├── dragonfly_minimal/
 │   ├── gke_autopilot_minimal/
 │   ├── gke_autopilot_standard_cluster/
@@ -284,6 +285,41 @@ standard path では `staging` / `prod` に Cloud SQL for PostgreSQL baseline �
   - `docs/runbooks/cloud-sql-postgres-standard-operations-runbook.md`
 - PITR:
   - `docs/runbooks/postgres-pitr-runbook.md`
+
+## LIN-969 standard Dragonfly baseline
+
+standard path では Dragonfly を `StatefulSet + PVC + PDB` で載せ、Autopilot の dedicated pool 要望は workload-scoped isolation に翻訳する。
+
+### Standard profile
+
+- namespace: `data`
+- service: `dragonfly.data.svc.cluster.local:6379`
+- StatefulSet: `1 replica`
+- PVC: `20Gi`
+- PDB: `minAvailable=1`
+- allowed client namespaces: `api` から開始
+
+### Autopilot translation
+
+- dedicated node pool は baseline に含めない
+- 代わりに次で isolation を表現する
+  - namespace boundary
+  - single-purpose StatefulSet
+  - ingress allowlist NetworkPolicy
+  - zone anti-affinity preference
+  - PDB for voluntary disruption control
+
+### Data boundary
+
+- Dragonfly は cache / session / rate-limit の volatile store として扱う
+- source of truth にしない
+- restart / recreate 時は degraded behavior と on-demand rehydration で吸収する
+
+### Validation / operations
+
+- `docs/runbooks/dragonfly-standard-operations-runbook.md`
+- `docs/runbooks/dragonfly-ratelimit-operations-runbook.md`
+- `docs/runbooks/session-resume-dragonfly-operations-runbook.md`
 
 ## LIN-966 Artifact Registry / CI publish baseline
 
