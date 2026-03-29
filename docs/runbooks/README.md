@@ -23,6 +23,7 @@
 - `cloud-sql-postgres-standard-operations-runbook.md`: standard path の Cloud SQL topology、`CI -> staging -> prod manual approval` migration gate、verify / rollback baseline。
 - `dragonfly-standard-operations-runbook.md`: standard path の Dragonfly `StatefulSet + PVC + PDB` baseline、Autopilot isolation translation、verify / rollback 手順。
 - `scylla-cloud-standard-operations-runbook.md`: standard path の ScyllaDB Cloud contact-point / Secret Manager / rotation baseline、責務分界、self-managed fallback 境界。
+- `managed-messaging-cloud-standard-operations-runbook.md`: standard path の Redpanda Cloud / Synadia Cloud secret inventory、smoke contract、rotation / incident triage、self-managed fallback 境界。
 - `cloud-sql-postgres-migration-operations-runbook.md`: Cloud SQL-backed PostgreSQL forward-only migration gate, manual approval boundary, and failure-handling baseline for the low-budget prod-only path.
 - `cloud-monitoring-low-budget-operations-runbook.md`: Cloud Monitoring + Cloud Logging baseline, optional notification channel routing, and low-budget prod-only alert triage flow.
 - `external-dependency-observability-low-budget-runbook.md`: low-budget prod-only manual check sources and alert seeds for Scylla, Redpanda Cloud, Synadia Cloud / NATS, and Elastic Cloud.

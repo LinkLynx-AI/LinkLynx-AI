@@ -436,6 +436,38 @@ connection material の保管先を先に固定したいときだけ明示的に
 - provider resource provisioning、network / auth onboarding、publish / subscribe smoke は `LIN-971` に残す
 - ownership / incident triage / monitoring seed は `docs/runbooks/managed-messaging-cloud-low-budget-operations-runbook.md` を使う
 
+## LIN-971 standard Redpanda Cloud / Synadia Cloud connection baseline
+
+`LIN-971` は standard path 向けに、Redpanda Cloud / Synadia Cloud の secret/access baseline と smoke contract を追加する。
+
+### 使う変数
+
+- `enable_standard_managed_messaging_cloud_baseline`
+- `standard_redpanda_runtime_workloads`
+- `standard_nats_runtime_workloads`
+- `standard_redpanda_secret_ids`
+- `standard_nats_secret_ids`
+- `standard_redpanda_smoke_topic`
+- `standard_nats_smoke_subject`
+
+default では `enable_standard_managed_messaging_cloud_baseline = false` にしている。
+
+### 作られるもの
+
+- Redpanda Cloud 用 secret inventory
+- Synadia Cloud / NATS 用 secret inventory
+- approved runtime GSA への secret accessor IAM
+- Redpanda smoke topic / NATS smoke subject contract
+
+### 運用メモ
+
+- default runtime accessor は `api`
+- Redpanda は extension stream path のまま維持し、source of truth にはしない
+- NATS outage 時は ADR-002 に従い realtime degraded + compensation path を維持する
+- `enable_minimal_managed_messaging_secret_baseline` と同時に有効化しない
+- provider account / cluster / allowlist / private connectivity、runtime client 実装はこの baseline では追加しない
+- verify / rollback / rotation / incident triage は `docs/runbooks/managed-messaging-cloud-standard-operations-runbook.md` を使う
+
 ## LIN-1025 prod-only Elastic Cloud secret baseline
 
 `LIN-1025` は low-budget path 向けに、検索基盤を `Elastic Cloud` 前提で受け入れる Secret Manager placeholder baseline を追加する。
