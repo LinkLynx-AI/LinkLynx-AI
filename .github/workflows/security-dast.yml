@@ -1,0 +1,63 @@
+name: Security DAST Baseline
+
+on:
+  workflow_dispatch:
+
+jobs:
+  dast-baseline:
+    name: DAST Baseline
+    runs-on: ubuntu-latest
+    env:
+      NEXT_PUBLIC_FIREBASE_API_KEY: ci-dummy-api-key
+      NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ci-dummy.firebaseapp.com
+      NEXT_PUBLIC_FIREBASE_PROJECT_ID: ci-dummy-project
+      NEXT_PUBLIC_FIREBASE_APP_ID: ci-dummy-app-id
+      NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ci-dummy-sender
+      NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: ci-dummy.appspot.com
+      FIREBASE_PROJECT_ID: ci-dummy-project
+      AUTH_ALLOW_POSTGRES_NOTLS: "true"
+      SPICEDB_PRESHARED_KEY: linklynx-dev-spicedb-key
+    steps:
+      - uses: actions/checkout@v4
+      - name: Start local smoke target
+        run: docker compose up -d postgres rust
+      - name: Wait for /health endpoint
+        run: |
+          set -euo pipefail
+
+          for i in {1..20}; do
+            if curl -fsS http://127.0.0.1:8080/health; then
+              exit 0
+            fi
+            sleep 3
+          done
+
+          echo "DAST baseline could not reach the local rust target." >&2
+          docker compose logs rust >&2
+          exit 1
+      - name: Run ZAP baseline scan
+        run: |
+          set -euo pipefail
+
+          mkdir -p dast-artifacts
+
+          docker run --rm \
+            --network host \
+            -v "${PWD}/dast-artifacts:/zap/wrk:rw" \
+            ghcr.io/zaproxy/zaproxy:stable \
+            zap-baseline.py \
+            -t http://127.0.0.1:8080 \
+            -I \
+            -m 3 \
+            -J /zap/wrk/zap-report.json \
+            -r /zap/wrk/zap-report.html \
+            -w /zap/wrk/zap-report.md
+      - name: Upload DAST artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dast-baseline-report
+          path: dast-artifacts
+      - name: Stop services
+        if: always()
+        run: docker compose down

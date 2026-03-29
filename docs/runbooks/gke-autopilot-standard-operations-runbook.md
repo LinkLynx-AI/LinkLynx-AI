@@ -113,4 +113,6 @@ gcloud container clusters describe <cluster-name> --region us-east1 --project <p
 - Pod Security Admission
 - `master_authorized_networks` や private control plane hardening
 
+`LIN-973` では security baseline と audit posture を先に固定し、control plane access model 自体の再設計はこの boundary に残す。
+
 これらは `LIN-965` / `LIN-967` / `LIN-972` / `LIN-973` へ渡す。

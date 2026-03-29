@@ -23,16 +23,11 @@
                         │   ユーザー    │
                         └──────┬──────┘
                                │
-                    ┌──────────▼──────────┐
-                    │    Cloudflare        │
-                    │  DNS + CDN + WAF     │
-                    │  + DDoS 防御         │
-                    └──────────┬──────────┘
-                               │
-                    ┌──────────▼──────────┐
-                    │  GCP Global LB (L7)  │
-                    │  WebSocket 対応       │
-                    └──────────┬──────────┘
+               ┌───────────────▼────────────────┐
+               │     GCP Native Edge             │
+               │ Cloud DNS + Certificate Manager │
+               │ Cloud Armor + External ALB      │
+               └───────────────┬────────────────┘
                                │
               ┌────────────────┼────────────────┐
               │                │                │
@@ -112,13 +107,16 @@
 
 | 項目 | 決定 |
 |------|------|
-| DNS + CDN | **Cloudflare** |
-| WAF + DDoS | **Cloudflare** |
-| ロードバランサー | **GCP Global HTTP(S) LB**（WebSocket 対応） |
-| TLS | Cloudflare（エッジ）+ GCP managed cert（オリジン） |
+| DNS | **Cloud DNS** |
+| CDN | **Cloud CDN**（静的配信のみ。必要時に attach） |
+| WAF + DDoS | **Cloud Armor + Google edge baseline** |
+| ロードバランサー | **External Application Load Balancer**（WebSocket 対応） |
+| TLS | **Certificate Manager** |
 | ドメイン | 取得済み（具体名は別途確認） |
 | low-budget CI security scan | **Gitleaks（repo secret）+ Trivy config（`infra/` misconfig）** |
 | low-budget cluster ingress isolation | **Kubernetes NetworkPolicy baseline**（`rust-api-smoke:8080 only`, `dragonfly:6379 only from rust-api-smoke`） |
+| standard security baseline | **Cloud Armor attach + Dependency Review + Semgrep changed-files + Trivy config + Trivy image + manual ZAP DAST** |
+| standard audit baseline | **Secret Manager / IAM Data Access audit + Terraform / GitOps change history** |
 
 ### 7. CI/CD・デプロイ
 
@@ -178,7 +176,7 @@
 
 ### Phase 2: アプリケーションデプロイ
 - Rust API / Next.js / Python を K8s にデプロイ
-- Cloud Load Balancer + Cloudflare 接続
+- External Application Load Balancer + Cloud Armor attach
 - External Secrets Operator セットアップ
 - DB マイグレーション自動化
 

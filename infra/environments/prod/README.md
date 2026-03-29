@@ -507,6 +507,35 @@ default では `enable_standard_managed_messaging_cloud_baseline = false` にし
 - deeper provider metrics ingestion と tracing は follow-up に回す
 - verify / rollback は `docs/runbooks/observability-standard-operations-runbook.md` を使う
 
+## LIN-973 standard security baseline
+
+`LIN-973` は standard path 向けに、edge attach / CI security / audit posture / fail-close boundary を最小面積で揃える。
+
+### baseline
+
+- `Cloud Armor` policy attach:
+  - `api/canary-smoke-stable`
+  - `api/canary-smoke-canary`
+- audit baseline:
+  - `secretmanager.googleapis.com` `ADMIN_READ` / `DATA_READ`
+  - `iam.googleapis.com` `ADMIN_READ` / `DATA_READ`
+- CI baseline:
+  - `Gitleaks`
+  - `Dependency Review`
+  - `Trivy config`
+  - changed-files `Semgrep`
+  - changed service image `Trivy image`
+- manual DAST:
+  - GitHub Actions `Security DAST Baseline`
+
+### 運用メモ
+
+- AuthZ fail-close は ADR-004 を維持する
+- Dragonfly outage 時の abuse continuity 境界は ADR-005 を維持する
+- DAST は advisory/manual gate であり、まだ merge-blocking にはしない
+- `master_authorized_networks` / private control plane は current Terraform / Helm access model と衝突するため、別 issue に残す
+- verify / rollback は `docs/runbooks/security-standard-operations-runbook.md` を使う
+
 ## LIN-1025 prod-only Elastic Cloud secret baseline
 
 `LIN-1025` は low-budget path 向けに、検索基盤を `Elastic Cloud` 前提で受け入れる Secret Manager placeholder baseline を追加する。
