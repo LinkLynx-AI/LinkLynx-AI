@@ -122,3 +122,15 @@ variable "enable_minimal_security_baseline" {
   type        = bool
   default     = false
 }
+
+variable "enable_minimal_dragonfly_baseline" {
+  description = "Whether to create the low-budget prod-only Dragonfly baseline."
+  type        = bool
+  default     = false
+}
+
+variable "minimal_dragonfly_image" {
+  description = "Dragonfly image used by the low-budget prod-only baseline."
+  type        = string
+  default     = ""
+}
