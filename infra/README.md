@@ -13,7 +13,9 @@ LIN-962 で GCP bootstrap と Terraform remote state の最小土台を追加し
 ```text
 infra/
 ├── modules/
+│   ├── artifact_registry_repository/
 │   ├── gke_autopilot_minimal/
+│   ├── github_actions_artifact_publish/
 │   ├── project_baseline/
 │   ├── network_foundation/
 │   └── state_backend/
@@ -143,3 +145,75 @@ domain が未確定でも code は先に用意し、environment ごとの `terra
 - staging 常設環境がないと deploy safety を維持できない
 - Next.js / Python が常時 production workload になった
 - autoscaling を固定 request では吸収しきれない
+
+## LIN-966 Artifact Registry / CI publish baseline
+
+### What gets created
+
+- runtime project (`staging` / `prod`) ごとに Docker repository `application-images`
+- bootstrap project に GitHub OIDC 用 workload identity pool / provider
+- bootstrap project に environment ごとの publish service account
+  - `github-artifact-publisher-staging`
+  - `github-artifact-publisher-prod`
+
+repository は `immutable_tags = true` を前提にする。
+
+### Image naming baseline
+
+service image name は次の形に統一する。
+
+```text
+<location>-docker.pkg.dev/<project-id>/<repository-id>/<service>
+```
+
+例:
+
+```text
+us-east1-docker.pkg.dev/linklynx-prod/application-images/rust
+us-east1-docker.pkg.dev/linklynx-prod/application-images/typescript
+us-east1-docker.pkg.dev/linklynx-prod/application-images/python
+```
+
+publish tag は mutable tag を避け、`sha-<commit>-run-<run_id>-attempt-<run_attempt>` を使う。
+deploy や promotion の参照は **digest (`@sha256:...`) を canonical** とする。
+
+### GitHub Actions settings baseline
+
+CD workflow は GitHub Actions `environment` を使って `staging` / `prod` を切り替える。
+
+repository variable:
+
+- `GCP_WORKLOAD_IDENTITY_PROVIDER`
+- `GCP_ARTIFACT_REGISTRY_LOCATION` (default `us-east1`)
+- `GCP_ARTIFACT_REGISTRY_REPOSITORY` (default `application-images`)
+
+environment variable (`staging`, `prod`):
+
+- `GCP_ARTIFACT_PUBLISHER_SERVICE_ACCOUNT`
+- `GCP_ARTIFACT_REGISTRY_PROJECT_ID`
+- `NEXT_PUBLIC_API_URL`
+- `NEXT_PUBLIC_FIREBASE_API_KEY`
+- `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`
+- `NEXT_PUBLIC_FIREBASE_PROJECT_ID`
+- `NEXT_PUBLIC_FIREBASE_APP_ID`
+- `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`
+- `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET`
+
+low-budget path でも image publish 自体は `staging` / `prod` の両 project を用意してよい。
+ただし、常設 GKE cluster は `LIN-1014` に従って `prod only` とする。
+
+### Vulnerability scanning baseline
+
+- runtime project では `containerscanning.googleapis.com` を enable する
+- GitHub Actions publish job では `Trivy` で `HIGH` / `CRITICAL` を fail-fast する
+
+これで GCP 側の継続監視と、workflow 側の即時 fail の両方を持てる。
+
+### Promotion flow baseline
+
+1. 検証ブランチ or manual dispatch で `staging` environment に publish する
+2. digest を artifact / workflow summary で記録する
+3. deploy 系 issue では tag ではなく digest を manifest / Terraform に渡す
+4. `prod` publish は protected branch merge または manual approval 付き workflow dispatch で行う
+
+この issue では image copy / promotion の完全自動化までは持たない。

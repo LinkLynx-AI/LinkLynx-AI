@@ -129,6 +129,7 @@ variable "bootstrap_project_services" {
     "logging.googleapis.com",
     "monitoring.googleapis.com",
     "serviceusage.googleapis.com",
+    "sts.googleapis.com",
     "storage.googleapis.com",
   ]
 }
@@ -142,6 +143,7 @@ variable "project_services" {
     "cloudbilling.googleapis.com",
     "compute.googleapis.com",
     "container.googleapis.com",
+    "containerscanning.googleapis.com",
     "dns.googleapis.com",
     "iam.googleapis.com",
     "iamcredentials.googleapis.com",
@@ -158,6 +160,36 @@ variable "terraform_admin_service_account_id" {
   description = "Account ID for the Terraform admin service account."
   type        = string
   default     = "terraform-admin"
+}
+
+variable "github_repository" {
+  description = "GitHub repository in owner/name format allowed to publish images."
+  type        = string
+  default     = "LinkLynx-AI/LinkLynx-AI"
+}
+
+variable "github_repository_owner" {
+  description = "GitHub repository owner or organization allowed by the workload identity provider."
+  type        = string
+  default     = "LinkLynx-AI"
+}
+
+variable "github_actions_workload_identity_pool_id" {
+  description = "Workload Identity Pool ID used by GitHub Actions."
+  type        = string
+  default     = "github-actions"
+}
+
+variable "github_actions_workload_identity_provider_id" {
+  description = "Workload Identity Provider ID used by GitHub Actions."
+  type        = string
+  default     = "linklynx-ai"
+}
+
+variable "github_actions_publisher_service_account_id_prefix" {
+  description = "Prefix used for per-environment GitHub Artifact Registry publisher service accounts."
+  type        = string
+  default     = "github-artifact-publisher"
 }
 
 variable "terraform_admin_bootstrap_roles" {

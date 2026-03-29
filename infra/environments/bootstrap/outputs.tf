@@ -21,6 +21,16 @@ output "environment_project_ids" {
   }
 }
 
+output "github_actions_workload_identity_provider_name" {
+  description = "Full Workload Identity Provider resource name for GitHub Actions."
+  value       = module.github_actions_artifact_publish.workload_identity_provider_name
+}
+
+output "github_artifact_publisher_service_account_emails" {
+  description = "GitHub Artifact Registry publisher service account emails keyed by environment."
+  value       = module.github_actions_artifact_publish.artifact_publisher_service_account_emails
+}
+
 output "backend_config_paths" {
   description = "Generated backend config file paths."
   value = {

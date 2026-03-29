@@ -34,6 +34,12 @@ variable "public_hostnames" {
   default     = []
 }
 
+variable "artifact_registry_repository_id" {
+  description = "Artifact Registry repository ID for deployable container images."
+  type        = string
+  default     = "application-images"
+}
+
 variable "enable_minimal_gke_cluster" {
   description = "Whether to create the low-budget prod-only GKE Autopilot cluster baseline."
   type        = bool

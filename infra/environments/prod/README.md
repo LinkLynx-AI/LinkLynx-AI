@@ -21,6 +21,7 @@ terraform plan
   - private services access reserved range + peering
   - Cloud Armor baseline policy
   - Cloud DNS public zone, reserved global IPv4, Certificate Manager resources
+- `artifact_registry_repository` module を呼び、`application-images` Docker repository を作る
 - GKE Ingress resource 自体はこの issue では作らず、後続 cluster / workload issue で attach する
 - main path に `API Gateway` は置かない
 
@@ -45,5 +46,6 @@ terraform plan
 - `public_dns_zone_name`
 - `public_dns_name`
 - `public_hostnames`
+- `artifact_registry_repository_id` (default `application-images`)
 
 prod は `api.<domain>` を起点にし、後続 issue で必要な host を追加する。

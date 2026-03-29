@@ -4,11 +4,33 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
+    inputs:
+      target_environment:
+        description: "Publish target environment"
+        required: true
+        default: prod
+        type: choice
+        options:
+          - staging
+          - prod
 
 jobs:
   build-and-smoke:
     name: Build and Smoke Test
     runs-on: ubuntu-latest
+    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.target_environment || 'prod' }}
+    env:
+      NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL || 'http://rust:8080' }}
+      NEXT_PUBLIC_FIREBASE_API_KEY: ${{ vars.NEXT_PUBLIC_FIREBASE_API_KEY || 'ci-dummy-api-key' }}
+      NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ${{ vars.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || 'ci-dummy.firebaseapp.com' }}
+      NEXT_PUBLIC_FIREBASE_PROJECT_ID: ${{ vars.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 'ci-dummy-project' }}
+      NEXT_PUBLIC_FIREBASE_APP_ID: ${{ vars.NEXT_PUBLIC_FIREBASE_APP_ID || 'ci-dummy-app-id' }}
+      NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ${{ vars.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || 'ci-dummy-sender' }}
+      NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: ${{ vars.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || 'ci-dummy.appspot.com' }}
+      FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID || 'ci-dummy-project' }}
+      AUTH_ALLOW_POSTGRES_NOTLS: "true"
+      SPICEDB_PRESHARED_KEY: linklynx-dev-spicedb-key
     steps:
       - uses: actions/checkout@v4
       - name: Build images for smoke test
@@ -30,10 +52,223 @@ jobs:
         if: always()
         run: docker compose down
 
-  deploy:
-    name: Deploy (Placeholder)
+  publish-images:
+    name: Publish Images
     runs-on: ubuntu-latest
     needs: build-and-smoke
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - rust
+          - typescript
+          - python
+    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.target_environment || 'prod' }}
+    env:
+      TARGET_ENV: ${{ github.event_name == 'workflow_dispatch' && inputs.target_environment || 'prod' }}
+      GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+      GCP_ARTIFACT_PUBLISHER_SERVICE_ACCOUNT: ${{ vars.GCP_ARTIFACT_PUBLISHER_SERVICE_ACCOUNT }}
+      GCP_ARTIFACT_REGISTRY_LOCATION: ${{ vars.GCP_ARTIFACT_REGISTRY_LOCATION || 'us-east1' }}
+      GCP_ARTIFACT_REGISTRY_PROJECT_ID: ${{ vars.GCP_ARTIFACT_REGISTRY_PROJECT_ID }}
+      GCP_ARTIFACT_REGISTRY_REPOSITORY: ${{ vars.GCP_ARTIFACT_REGISTRY_REPOSITORY || 'application-images' }}
+      NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL }}
+      NEXT_PUBLIC_FIREBASE_API_KEY: ${{ vars.NEXT_PUBLIC_FIREBASE_API_KEY }}
+      NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ${{ vars.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN }}
+      NEXT_PUBLIC_FIREBASE_PROJECT_ID: ${{ vars.NEXT_PUBLIC_FIREBASE_PROJECT_ID }}
+      NEXT_PUBLIC_FIREBASE_APP_ID: ${{ vars.NEXT_PUBLIC_FIREBASE_APP_ID }}
+      NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ${{ vars.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID }}
+      NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: ${{ vars.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET }}
     steps:
-      - name: Placeholder deploy step
-        run: echo "Deploy step is not connected yet. Build + Smoke completed."
+      - uses: actions/checkout@v4
+
+      - name: Validate publish settings
+        run: |
+          set -euo pipefail
+
+          if [ -z "${GCP_WORKLOAD_IDENTITY_PROVIDER:-}" ]; then
+            echo "::error::GCP_WORKLOAD_IDENTITY_PROVIDER is required." >&2
+            exit 1
+          fi
+
+          if [ -z "${GCP_ARTIFACT_PUBLISHER_SERVICE_ACCOUNT:-}" ]; then
+            echo "::error::GCP_ARTIFACT_PUBLISHER_SERVICE_ACCOUNT is required." >&2
+            exit 1
+          fi
+
+          if [ -z "${GCP_ARTIFACT_REGISTRY_PROJECT_ID:-}" ]; then
+            case "${TARGET_ENV}" in
+              staging)
+                echo "GCP_ARTIFACT_REGISTRY_PROJECT_ID=linklynx-staging" >> "${GITHUB_ENV}"
+                ;;
+              prod)
+                echo "GCP_ARTIFACT_REGISTRY_PROJECT_ID=linklynx-prod" >> "${GITHUB_ENV}"
+                ;;
+              *)
+                echo "::error::Unsupported TARGET_ENV=${TARGET_ENV}" >&2
+                exit 1
+                ;;
+            esac
+          fi
+
+      - name: Validate TypeScript build settings
+        if: matrix.service == 'typescript'
+        run: |
+          set -euo pipefail
+
+          for variable_name in \
+            NEXT_PUBLIC_API_URL \
+            NEXT_PUBLIC_FIREBASE_API_KEY \
+            NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN \
+            NEXT_PUBLIC_FIREBASE_PROJECT_ID \
+            NEXT_PUBLIC_FIREBASE_APP_ID \
+            NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID \
+            NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+          do
+            if [ -z "${!variable_name:-}" ]; then
+              echo "::error::${variable_name} is required for the TypeScript image build." >&2
+              exit 1
+            fi
+          done
+
+      - name: Prepare image metadata
+        id: image
+        run: |
+          set -euo pipefail
+
+          case "${{ matrix.service }}" in
+            rust)
+              echo "context=./rust" >> "${GITHUB_OUTPUT}"
+              echo "dockerfile=./rust/Dockerfile" >> "${GITHUB_OUTPUT}"
+              ;;
+            typescript)
+              echo "context=./typescript" >> "${GITHUB_OUTPUT}"
+              echo "dockerfile=./typescript/Dockerfile" >> "${GITHUB_OUTPUT}"
+              ;;
+            python)
+              echo "context=./python" >> "${GITHUB_OUTPUT}"
+              echo "dockerfile=./python/Dockerfile" >> "${GITHUB_OUTPUT}"
+              ;;
+            *)
+              echo "::error::Unsupported service ${{ matrix.service }}" >&2
+              exit 1
+              ;;
+          esac
+
+          image_name="${GCP_ARTIFACT_REGISTRY_LOCATION}-docker.pkg.dev/${GCP_ARTIFACT_REGISTRY_PROJECT_ID}/${GCP_ARTIFACT_REGISTRY_REPOSITORY}/${{ matrix.service }}"
+          image_tag="sha-${GITHUB_SHA::12}-run-${GITHUB_RUN_ID}-attempt-${GITHUB_RUN_ATTEMPT}"
+
+          echo "image_name=${image_name}" >> "${GITHUB_OUTPUT}"
+          echo "image_ref=${image_name}:${image_tag}" >> "${GITHUB_OUTPUT}"
+          echo "image_tag=${image_tag}" >> "${GITHUB_OUTPUT}"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build local image
+        if: matrix.service != 'typescript'
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ steps.image.outputs.context }}
+          file: ${{ steps.image.outputs.dockerfile }}
+          load: true
+          tags: ${{ steps.image.outputs.image_ref }}
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+
+      - name: Build local TypeScript image
+        if: matrix.service == 'typescript'
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ steps.image.outputs.context }}
+          file: ${{ steps.image.outputs.dockerfile }}
+          load: true
+          tags: ${{ steps.image.outputs.image_ref }}
+          build-args: |
+            NEXT_PUBLIC_API_URL=${{ env.NEXT_PUBLIC_API_URL }}
+            NEXT_PUBLIC_FIREBASE_API_KEY=${{ env.NEXT_PUBLIC_FIREBASE_API_KEY }}
+            NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=${{ env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN }}
+            NEXT_PUBLIC_FIREBASE_PROJECT_ID=${{ env.NEXT_PUBLIC_FIREBASE_PROJECT_ID }}
+            NEXT_PUBLIC_FIREBASE_APP_ID=${{ env.NEXT_PUBLIC_FIREBASE_APP_ID }}
+            NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=${{ env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID }}
+            NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=${{ env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET }}
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          token_format: access_token
+          workload_identity_provider: ${{ env.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.GCP_ARTIFACT_PUBLISHER_SERVICE_ACCOUNT }}
+
+      - name: Login to Artifact Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.GCP_ARTIFACT_REGISTRY_LOCATION }}-docker.pkg.dev
+          username: oauth2accesstoken
+          password: ${{ steps.auth.outputs.access_token }}
+
+      - name: Push image
+        run: docker push "${IMAGE_REF}"
+        env:
+          IMAGE_REF: ${{ steps.image.outputs.image_ref }}
+
+      - name: Resolve pushed digest
+        id: digest
+        run: |
+          set -euo pipefail
+
+          repo_digest="$(docker inspect --format='{{join .RepoDigests "\n"}}' "${IMAGE_REF}" | head -n 1)"
+          digest="${repo_digest#*@}"
+          image_with_digest="${IMAGE_NAME}@${digest}"
+
+          echo "image_digest=${digest}" >> "${GITHUB_OUTPUT}"
+          echo "image_with_digest=${image_with_digest}" >> "${GITHUB_OUTPUT}"
+
+          mkdir -p artifact-digests
+          {
+            echo "service=${{ matrix.service }}"
+            echo "environment=${TARGET_ENV}"
+            echo "image_ref=${IMAGE_REF}"
+            echo "image_digest=${digest}"
+            echo "image_with_digest=${image_with_digest}"
+          } > "artifact-digests/${{ matrix.service }}-${TARGET_ENV}.txt"
+        env:
+          IMAGE_NAME: ${{ steps.image.outputs.image_name }}
+          IMAGE_REF: ${{ steps.image.outputs.image_ref }}
+
+      - name: Scan published image
+        uses: aquasecurity/trivy-action@0.33.1
+        env:
+          TRIVY_USERNAME: oauth2accesstoken
+          TRIVY_PASSWORD: ${{ steps.auth.outputs.access_token }}
+        with:
+          image-ref: ${{ steps.digest.outputs.image_with_digest }}
+          format: table
+          exit-code: "1"
+          ignore-unfixed: true
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
+
+      - name: Upload digest manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: artifact-digests-${{ matrix.service }}-${{ env.TARGET_ENV }}
+          path: artifact-digests/${{ matrix.service }}-${{ env.TARGET_ENV }}.txt
+
+      - name: Append job summary
+        run: |
+          {
+            echo "### Published image"
+            echo ""
+            echo "- service: \`${{ matrix.service }}\`"
+            echo "- environment: \`${TARGET_ENV}\`"
+            echo "- tag: \`${IMAGE_REF}\`"
+            echo "- digest: \`${IMAGE_WITH_DIGEST}\`"
+          } >> "${GITHUB_STEP_SUMMARY}"
+        env:
+          IMAGE_REF: ${{ steps.image.outputs.image_ref }}
+          IMAGE_WITH_DIGEST: ${{ steps.digest.outputs.image_with_digest }}
