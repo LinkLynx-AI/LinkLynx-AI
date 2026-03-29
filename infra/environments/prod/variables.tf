@@ -194,3 +194,19 @@ variable "minimal_nats_secret_ids" {
     "linklynx-prod-nats-url",
   ]
 }
+
+variable "enable_minimal_search_secret_baseline" {
+  description = "Whether to create Secret Manager placeholders for the low-budget search baseline."
+  type        = bool
+  default     = false
+}
+
+variable "minimal_search_secret_ids" {
+  description = "Secret Manager secret IDs reserved for low-budget Elastic Cloud connection material."
+  type        = set(string)
+  default = [
+    "linklynx-prod-search-elastic-api-key",
+    "linklynx-prod-search-elastic-cloud-id",
+    "linklynx-prod-search-elastic-endpoint",
+  ]
+}

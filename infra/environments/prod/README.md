@@ -228,6 +228,30 @@ connection material の保管先を先に固定したいときだけ明示的に
 - secret rotation / audit log の見方は `docs/runbooks/workload-identity-secret-manager-operations-runbook.md` を使う
 - inventory / fill / rollback は `docs/runbooks/managed-messaging-low-budget-operations-runbook.md` を使う
 
+## LIN-1025 prod-only Elastic Cloud secret baseline
+
+`LIN-1025` は low-budget path 向けに、検索基盤を `Elastic Cloud` 前提で受け入れる Secret Manager placeholder baseline を追加する。
+
+### 使う変数
+
+- `enable_minimal_search_secret_baseline`
+- `minimal_search_secret_ids`
+
+default では `enable_minimal_search_secret_baseline = false` にしている。
+search connection material の保管先を先に固定したいときだけ明示的に有効化する。
+
+### 作られるもの
+
+- Elastic Cloud 用 secret placeholder
+
+### 運用メモ
+
+- `linklynx-prod-search-elastic-api-key` は必須
+- `linklynx-prod-search-elastic-cloud-id` と `linklynx-prod-search-elastic-endpoint` は、runtime がどちらで接続するかに応じて片方または両方を使う
+- index name は runtime contract の `messages` を使い、この baseline では secret 化しない
+- runtime wiring / connectivity smoke / snapshot lifecycle は standard path の `LIN-975` に残す
+- inventory / fill / rollback は `docs/runbooks/search-low-budget-operations-runbook.md` を使う
+
 ## LIN-1019 prod-only security baseline
 
 `LIN-1019` は low-budget path 向けに、`Cloud Armor + Trivy + Secret Manager audit log` をつないだ最小 security baseline を追加する。

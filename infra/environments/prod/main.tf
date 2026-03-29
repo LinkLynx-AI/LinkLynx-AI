@@ -11,6 +11,7 @@ locals {
   enable_minimal_dragonfly                 = var.enable_minimal_dragonfly_baseline
   enable_minimal_scylla_runtime            = var.enable_minimal_scylla_runtime_baseline
   enable_minimal_managed_messaging_secrets = var.enable_minimal_managed_messaging_secret_baseline
+  enable_minimal_search_secrets            = var.enable_minimal_search_secret_baseline
   minimal_scylla_runtime_env = local.enable_minimal_scylla_runtime ? {
     SCYLLA_HOSTS              = join(",", sort(tolist(var.minimal_scylla_hosts)))
     SCYLLA_KEYSPACE           = var.minimal_scylla_keyspace
@@ -90,6 +91,13 @@ check "minimal_managed_messaging_secret_prerequisites" {
       length(var.minimal_redpanda_secret_ids) + length(var.minimal_nats_secret_ids)
     ) > 0
     error_message = "enable_minimal_managed_messaging_secret_baseline requires at least one Redpanda or NATS secret ID."
+  }
+}
+
+check "minimal_search_secret_prerequisites" {
+  assert {
+    condition     = !var.enable_minimal_search_secret_baseline || length(var.minimal_search_secret_ids) > 0
+    error_message = "enable_minimal_search_secret_baseline requires at least one Elastic Cloud secret ID."
   }
 }
 
@@ -243,6 +251,19 @@ module "managed_messaging_secret_placeholders" {
   }
 }
 
+module "search_secret_placeholders" {
+  count = local.enable_minimal_search_secrets ? 1 : 0
+
+  source = "../../modules/search_secret_placeholders"
+
+  elastic_secret_ids = var.minimal_search_secret_ids
+  environment        = local.environment
+  labels = {
+    environment = local.environment
+    issue       = "lin-1025"
+  }
+}
+
 module "cloud_monitoring_minimal" {
   count = local.enable_minimal_monitoring ? 1 : 0
 
@@ -318,4 +339,8 @@ output "minimal_scylla_runtime_baseline_enabled" {
 
 output "managed_messaging_secret_placeholders" {
   value = local.enable_minimal_managed_messaging_secrets ? module.managed_messaging_secret_placeholders[0] : null
+}
+
+output "search_secret_placeholders" {
+  value = local.enable_minimal_search_secrets ? module.search_secret_placeholders[0] : null
 }
