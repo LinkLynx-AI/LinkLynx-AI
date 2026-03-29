@@ -82,3 +82,9 @@ variable "labels" {
   type        = map(string)
   default     = {}
 }
+
+variable "service_account_annotations" {
+  description = "Optional annotations applied to the Kubernetes service account."
+  type        = map(string)
+  default     = {}
+}

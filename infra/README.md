@@ -250,3 +250,26 @@ Route baseline は次の通り。
 - `wss://<rust_api_public_hostname>/ws`
 
 deploy 後の rollback は `rust_api_image_digest` を直前 digest に戻して再 apply する。
+
+## LIN-1016 prod-only IAM / Workload Identity / Secret Manager baseline
+
+low-budget path では `External Secrets Operator` をまだ入れず、`Workload Identity + direct Secret Manager access` を最初の標準パターンにする。
+
+### Why this pattern
+
+- `prod-only` 1 cluster でまず最小権限と長期静的キー排除を成立させたい
+- `LIN-1015` の Rust API smoke workload にそのままつなげられる
+- 将来 `staging` や標準 path を足すときも、GSA / KSA / secret-level IAM の module を横展開しやすい
+
+### What gets created
+
+- workload ごとの Google service account
+- KSA -> GSA binding (`roles/iam.workloadIdentityUser`)
+- secret placeholder と secret-level `roles/secretmanager.secretAccessor`
+- `secretmanager.googleapis.com` の `ADMIN_READ` / `DATA_READ` audit log baseline
+
+### What stays out of scope
+
+- secret の実値投入
+- External Secrets Operator
+- GitOps 連携

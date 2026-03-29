@@ -17,3 +17,4 @@
 - `gcs-signed-url-retention-operations-runbook.md`: GCS attachment signed URL issuance/reissue flow, accidental deletion recovery, and retention policy change baseline.
 - `profile-media-gcs-operations-runbook.md`: Profile avatar/banner signed URL issuance, same-bucket upload/download verification, and runtime credential triage baseline.
 - `redpanda-topic-retention-replay-runbook.md`: Redpanda topic naming/retention change controls, replay execution, outage recovery, and rollback baseline for v1 event stream operations.
+- `workload-identity-secret-manager-operations-runbook.md`: Workload Identity, secret-level IAM, audit-log verification, and secret rotation/rollback baseline for the low-budget prod-only path.

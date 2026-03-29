@@ -7,6 +7,7 @@ locals {
     },
     var.labels,
   )
+  workload_identity_enabled = length(var.service_account_annotations) > 0
 }
 
 resource "kubernetes_namespace_v1" "this" {
@@ -18,12 +19,13 @@ resource "kubernetes_namespace_v1" "this" {
 
 resource "kubernetes_service_account_v1" "this" {
   metadata {
-    name      = var.service_account_name
-    namespace = kubernetes_namespace_v1.this.metadata[0].name
-    labels    = local.app_labels
+    annotations = var.service_account_annotations
+    labels      = local.app_labels
+    name        = var.service_account_name
+    namespace   = kubernetes_namespace_v1.this.metadata[0].name
   }
 
-  automount_service_account_token = false
+  automount_service_account_token = local.workload_identity_enabled
 }
 
 resource "kubernetes_deployment_v1" "this" {
@@ -47,7 +49,7 @@ resource "kubernetes_deployment_v1" "this" {
 
       spec {
         service_account_name             = kubernetes_service_account_v1.this.metadata[0].name
-        automount_service_account_token  = false
+        automount_service_account_token  = local.workload_identity_enabled
         termination_grace_period_seconds = 120
 
         container {
