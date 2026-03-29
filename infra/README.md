@@ -16,6 +16,7 @@ infra/
 │   ├── artifact_registry_repository/
 │   ├── cloud_monitoring_minimal/
 │   ├── cloud_sql_postgres_minimal/
+│   ├── dragonfly_minimal/
 │   ├── gke_autopilot_minimal/
 │   ├── github_actions_artifact_publish/
 │   ├── github_actions_terraform_deploy/
@@ -361,6 +362,39 @@ low-budget path の observability は、まず `Cloud Monitoring + Cloud Logging
 - Discord forwarder
 - self-hosted metrics / logs / tracing stack
 - Dragonfly / Scylla / messaging の observability
+
+## LIN-1022 prod-only Dragonfly volatile baseline
+
+low-budget path の Dragonfly は、標準 path の stateful baseline をまだ採らず、`single replica + ClusterIP + volatile-only` で始める。
+
+### Why this path
+
+- Dragonfly は source of truth ではない
+- low-budget path では persistence や replication より固定費削減を優先する
+- ADR-005 と session/resume contract により、Dragonfly restart 時の degraded / fallback が既に定義されている
+
+### Baseline
+
+- namespace: `dragonfly`
+- workload kind: `Deployment`
+- service: `dragonfly.dragonfly.svc.cluster.local:6379`
+- requests:
+  - CPU `250m`
+  - Memory `512Mi`
+  - Ephemeral storage `1Gi`
+- limits:
+  - CPU `500m`
+  - Memory `1Gi`
+  - Ephemeral storage `2Gi`
+
+### Scope boundary
+
+- persistence なし
+- replication なし
+- PDB なし
+- application runtime wiring なし
+
+詳細な verify / rollback は `docs/runbooks/dragonfly-low-budget-operations-runbook.md` を参照する。
 
 ## LIN-1019 prod-only security baseline
 

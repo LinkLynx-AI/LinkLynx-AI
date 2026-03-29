@@ -8,6 +8,7 @@ locals {
   enable_minimal_cloud_sql      = var.enable_minimal_cloud_sql_baseline
   enable_minimal_monitoring     = var.enable_minimal_monitoring_baseline
   enable_minimal_security       = var.enable_minimal_security_baseline
+  enable_minimal_dragonfly      = var.enable_minimal_dragonfly_baseline
 }
 
 check "rust_api_smoke_prerequisites" {
@@ -48,6 +49,18 @@ check "minimal_security_prerequisites" {
   assert {
     condition     = !var.enable_minimal_security_baseline || var.enable_rust_api_smoke_deploy
     error_message = "enable_minimal_security_baseline requires enable_rust_api_smoke_deploy = true."
+  }
+}
+
+check "minimal_dragonfly_prerequisites" {
+  assert {
+    condition     = !var.enable_minimal_dragonfly_baseline || var.enable_minimal_gke_cluster
+    error_message = "enable_minimal_dragonfly_baseline requires enable_minimal_gke_cluster = true."
+  }
+
+  assert {
+    condition     = !var.enable_minimal_dragonfly_baseline || trimspace(var.minimal_dragonfly_image) != ""
+    error_message = "enable_minimal_dragonfly_baseline requires minimal_dragonfly_image to be set."
   }
 }
 
@@ -168,6 +181,24 @@ module "cloud_sql_postgres_minimal" {
   depends_on = [module.network_foundation]
 }
 
+module "dragonfly_minimal" {
+  count = local.enable_minimal_dragonfly ? 1 : 0
+
+  source = "../../modules/dragonfly_minimal"
+
+  deployment_name = "dragonfly"
+  image           = var.minimal_dragonfly_image
+  labels = {
+    environment = local.environment
+    issue       = "lin-1022"
+  }
+  namespace            = "dragonfly"
+  service_account_name = "dragonfly"
+  service_name         = "dragonfly"
+
+  depends_on = [module.gke_autopilot_minimal]
+}
+
 module "cloud_monitoring_minimal" {
   count = local.enable_minimal_monitoring ? 1 : 0
 
@@ -231,4 +262,8 @@ output "cloud_monitoring_minimal" {
 
 output "minimal_security_baseline_enabled" {
   value = local.enable_minimal_security
+}
+
+output "dragonfly_minimal" {
+  value = local.enable_minimal_dragonfly ? module.dragonfly_minimal[0] : null
 }
