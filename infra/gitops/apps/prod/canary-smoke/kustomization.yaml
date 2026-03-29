@@ -3,6 +3,8 @@ kind: Kustomization
 namespace: api
 resources:
   - ../../base/canary-smoke
+  - gcp-backend-policy-stable.yaml
+  - gcp-backend-policy-canary.yaml
 labels:
   - pairs:
       linklynx.ai/environment: prod

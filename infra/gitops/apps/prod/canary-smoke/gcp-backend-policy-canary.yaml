@@ -1,0 +1,11 @@
+apiVersion: networking.gke.io/v1
+kind: GCPBackendPolicy
+metadata:
+  name: canary-smoke-canary-backend-policy
+spec:
+  default:
+    securityPolicy: linklynx-prod-edge-baseline
+  targetRef:
+    group: ""
+    kind: Service
+    name: canary-smoke-canary
