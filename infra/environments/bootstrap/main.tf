@@ -133,6 +133,25 @@ module "github_actions_artifact_publish" {
   depends_on = [google_project_service.bootstrap_services]
 }
 
+module "github_actions_terraform_deploy" {
+  source = "../../modules/github_actions_terraform_deploy"
+
+  bootstrap_project_id                 = google_project.bootstrap.project_id
+  bootstrap_project_number             = google_project.bootstrap.number
+  deployer_service_account_id_prefix   = var.github_actions_terraform_deployer_service_account_id_prefix
+  environment_names                    = toset(["prod"])
+  github_repository                    = var.github_repository
+  state_bucket_name                    = module.state_backend.bucket_name
+  terraform_admin_service_account_name = google_service_account.terraform_admin.name
+  workload_identity_pool_id            = var.github_actions_workload_identity_pool_id
+
+  depends_on = [
+    google_project_service.bootstrap_services,
+    module.github_actions_artifact_publish,
+    module.state_backend,
+  ]
+}
+
 resource "local_file" "backend_config" {
   for_each = local.environment_specs
 

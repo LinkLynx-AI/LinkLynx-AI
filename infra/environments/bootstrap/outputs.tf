@@ -31,6 +31,11 @@ output "github_artifact_publisher_service_account_emails" {
   value       = module.github_actions_artifact_publish.artifact_publisher_service_account_emails
 }
 
+output "github_terraform_deployer_service_account_emails" {
+  description = "GitHub Terraform deployer service account emails keyed by environment."
+  value       = module.github_actions_terraform_deploy.terraform_deployer_service_account_emails
+}
+
 output "backend_config_paths" {
   description = "Generated backend config file paths."
   value = {

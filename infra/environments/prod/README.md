@@ -187,6 +187,31 @@ default では `enable_minimal_security_baseline = false` にしている。
 - low-budget path では observed traffic と latency regression を基準に scale trigger を判断する
 - Chaos Engineering は固定日ではなく readiness 条件が揃ってから開始する
 
+## LIN-1021 prod-only Terraform deploy workflow
+
+`LIN-1021` は low-budget path 向けに、`Argo CD` を入れず Terraform apply の実行経路を GitHub Actions に固定する。
+
+### 使う GitHub variables
+
+- `GCP_WORKLOAD_IDENTITY_PROVIDER`
+- `GCP_TERRAFORM_DEPLOYER_SERVICE_ACCOUNT`
+- `GCP_TERRAFORM_ADMIN_SERVICE_ACCOUNT_EMAIL`
+- `GCP_TERRAFORM_STATE_BUCKET`
+- `GCP_TERRAFORM_STATE_PREFIX_PROD`
+
+### 使う GitHub secrets
+
+- `INFRA_PROD_TERRAFORM_TFVARS`
+
+### 運用メモ
+
+- workflow は `.github/workflows/infra-deploy-prod.yml`
+- `plan` は approval なしで実行できる
+- `apply` は `main` からのみ実行でき、GitHub `prod` environment approval が必要
+- `rust_api_image_digest` は workflow input から一時的に上書きできる
+- rollback は直前の digest または前の tfvars 内容に戻して再 apply する
+- 詳細手順は `docs/runbooks/terraform-low-budget-prod-deploy-runbook.md` を使う
+
 ## tfvars で埋める値
 
 - `public_dns_zone_name`

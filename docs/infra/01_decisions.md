@@ -126,6 +126,7 @@
 | マニフェスト管理 | **Helm（サードパーティ）+ Kustomize（自社アプリ）** |
 | デプロイ方式 | **Canary（Argo Rollouts）** |
 | DB マイグレーション | CI 検証 → staging 自動 → prod 手動承認 → 自動実行 |
+| low-budget deploy path | **GitHub Actions + Terraform plan/apply + `prod` manual approval** |
 
 ### 8. 監視・オブザーバビリティ
 
