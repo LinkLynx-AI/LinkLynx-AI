@@ -336,6 +336,23 @@ low-budget path の検索基盤は、最初から OpenSearch self-managed を抱
 - index name は runtime contract の `messages` に固定し、Secret Manager へ逃がさない
 - verify / rollback は `docs/runbooks/search-low-budget-operations-runbook.md` を使う
 
+## LIN-1026 prod-only Elastic Cloud snapshot / lifecycle ops baseline
+
+low-budget path では Elastic Cloud の deployment provisioning までは持たず、まずは default snapshot behavior と restore boundary を documented baseline として固定する。
+
+### What gets documented
+
+- default `found-snapshots` repository と `cloud-snapshot-policy` を維持する方針
+- same-region restore を初期復旧経路にする方針
+- vendor responsibility と LinkLynx responsibility の分界
+- snapshot / lifecycle / search-health の monitoring seed
+
+### Boundary
+
+- custom repository, cross-region restore, connectivity smoke, and full hosting comparison は `LIN-975` に残す
+- secret inventory baseline は `LIN-1025` を使う
+- snapshot / restore / lifecycle の verify は `docs/runbooks/search-elastic-cloud-low-budget-operations-runbook.md` を使う
+
 ## LIN-1021 prod-only Terraform deploy workflow baseline
 
 low-budget path の deploy 実行経路は、当面 `Argo CD` ではなく GitHub Actions からの Terraform 実行に寄せる。

@@ -6,6 +6,7 @@
 - References:
   - [ADR-003 Search Consistency Model, Lag SLO, and Reindex Strategy](../adr/ADR-003-search-consistency-slo-reindex.md)
   - [Search Reindex Runbook (Draft)](./search-reindex-runbook.md)
+  - [Search Elastic Cloud Low-budget Operations Runbook](./search-elastic-cloud-low-budget-operations-runbook.md)
   - [LIN-139 runtime contracts](../../database/contracts/lin139_runtime_contracts.md)
   - [Workload Identity Secret Manager Operations Runbook](./workload-identity-secret-manager-operations-runbook.md)
 
@@ -25,6 +26,8 @@ Out of scope:
 - OpenSearch self-managed provisioning
 - Runtime client wiring and smoke tests
 - Index lifecycle, snapshot, and reindex execution details
+
+Lifecycle / snapshot / restore baseline is documented in `search-elastic-cloud-low-budget-operations-runbook.md`.
 
 ## 2. Baseline choice
 
