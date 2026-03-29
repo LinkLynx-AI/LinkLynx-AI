@@ -21,3 +21,5 @@
 - `cloud-sql-postgres-migration-operations-runbook.md`: Cloud SQL-backed PostgreSQL forward-only migration gate, manual approval boundary, and failure-handling baseline for the low-budget prod-only path.
 - `cloud-monitoring-low-budget-operations-runbook.md`: Cloud Monitoring + Cloud Logging baseline, optional notification channel routing, and low-budget prod-only alert triage flow.
 - `cloud-armor-low-budget-operations-runbook.md`: Cloud Armor backend attachment, baseline WAF rules, and low-budget prod-only security verify/rollback flow.
+- `incident-low-budget-operations-runbook.md`: low-budget prod-only incident flow, Discord mention baseline, capacity assumptions, and chaos readiness checklist.
+- `postmortem-low-budget-template.md`: reusable low-budget postmortem template for incident close-out and follow-up actions.

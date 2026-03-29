@@ -147,6 +147,15 @@
 | 標準 path 拡張 | **External Secrets Operator** を後続で検討 |
 | 方針 | Git にシークレットは入れない。初期は長期静的キーを排除し、secret-level IAM と audit log を優先する |
 
+### 10. 運用 baseline
+
+| 項目 | 決定 |
+|------|------|
+| low-budget incident flow | **Discord thread + `hirwatan` / `sabe` / `miwasa` mention** |
+| postmortem | **軽量 template を使って毎回残す** |
+| capacity trigger | **登録者数ではなく observed traffic / latency / DB pressure を優先** |
+| Chaos Engineering | **固定日ではなく readiness 条件が揃ってから開始** |
+
 ---
 
 ## フェーズ計画（概要）
