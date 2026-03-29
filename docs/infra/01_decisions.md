@@ -94,7 +94,7 @@
 | DB | ホスティング | 理由 |
 |----|------------|------|
 | **PostgreSQL** | Cloud SQL（マネージド） | PITR/バックアップ自動。標準 path は `staging=ZONAL / prod=REGIONAL(HA)`、初期 read replica なし。low-budget path は `prod-only` 単一 instance から開始 |
-| **ScyllaDB** | ScyllaDB Cloud or GCE 専用 | K8s 外。Autopilot の制限回避。low-budget path は external Scylla の runtime wiring と ops baseline を先に整える |
+| **ScyllaDB** | ScyllaDB Cloud or GCE 専用 | K8s 外。Autopilot の制限回避。standard path は ScyllaDB Cloud の contact-point / Secret Manager / accessor baseline を整え、low-budget path は external Scylla の runtime wiring と ops baseline を先に整える |
 | **Dragonfly** | K8s 上（標準 path は `StatefulSet + PVC + PDB`、low-budget path は volatile single Deployment） | 軽量。Redis 互換。Autopilot では dedicated pool の代わりに workload-scoped isolation を採る |
 | **Redpanda** | Redpanda Cloud（標準 path） | low-budget path は Secret Manager placeholder と ops baseline を先に整える |
 | **NATS** | Synadia Cloud（標準 path） | low-budget path は Secret Manager placeholder と ops baseline を先に整える |
@@ -185,7 +185,7 @@
 ### Phase 3: データストア・ミドルウェア
 - Dragonfly を K8s にデプロイ
 - Redpanda Cloud / Synadia Cloud 接続 / ops baseline を整備
-- ScyllaDB セットアップ / ops baseline（K8s 外）
+- ScyllaDB Cloud 接続 / secret / ops baseline（K8s 外）
 - Elastic Cloud 接続 / snapshot baseline
 
 ### Phase 4: GitOps・監視

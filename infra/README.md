@@ -28,6 +28,7 @@ infra/
 │   ├── network_foundation/
 │   ├── project_baseline/
 │   ├── rust_api_smoke_deploy/
+│   ├── scylla_cloud_standard_baseline/
 │   ├── search_secret_placeholders/
 │   └── state_backend/
 └── environments/
@@ -320,6 +321,41 @@ standard path では Dragonfly を `StatefulSet + PVC + PDB` で載せ、Autopil
 - `docs/runbooks/dragonfly-standard-operations-runbook.md`
 - `docs/runbooks/dragonfly-ratelimit-operations-runbook.md`
 - `docs/runbooks/session-resume-dragonfly-operations-runbook.md`
+
+## LIN-970 standard ScyllaDB Cloud connection baseline
+
+standard path では ScyllaDB Cloud cluster 自体を Terraform provision せず、`staging` / `prod` の connection contract と secret/access baseline を Terraform で固定する。
+
+### What gets created
+
+- Secret Manager placeholder
+  - `username`
+  - `password`
+  - `ca_bundle`
+- runtime accessor IAM
+  - default: `api-runtime` GSA
+- runtime connection contract output
+  - `hosts`
+  - `keyspace`
+  - `schema_path`
+  - `request_timeout_ms`
+  - `disallow_shard_aware_port`
+
+### Why this issue stops here
+
+- provider account / cluster lifecycle は Terraform scope 外
+- network allowlist / private connectivity は provider-side evidence が必要
+- standard path runtime workload 自体は別 issue で rollout される
+
+### Current standard posture
+
+- env split: `staging` と `prod` は別 cluster
+- auth: required
+- TLS: required
+- shard-aware port: disabled by default until the network path is proven safe
+- default accessor workload: `api`
+
+verify / rollback / rotation / self-managed fallback は `docs/runbooks/scylla-cloud-standard-operations-runbook.md` を参照する。
 
 ## LIN-966 Artifact Registry / CI publish baseline
 

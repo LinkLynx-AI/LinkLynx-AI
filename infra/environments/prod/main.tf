@@ -4,6 +4,7 @@ locals {
   enable_standard_cloud_sql                = var.enable_standard_cloud_sql_baseline
   enable_standard_dragonfly                = var.enable_standard_dragonfly_baseline
   enable_standard_gitops                   = var.enable_standard_gitops_baseline
+  enable_standard_scylla_cloud             = var.enable_standard_scylla_cloud_baseline
   enable_standard_workload_identities      = var.enable_standard_workload_identity_baseline
   normalized_public_hostnames              = [for hostname in var.public_hostnames : trimsuffix(hostname, ".")]
   rust_api_public_hostname                 = var.rust_api_public_hostname != "" ? trimsuffix(var.rust_api_public_hostname, ".") : (length(local.normalized_public_hostnames) > 0 ? local.normalized_public_hostnames[0] : "")
@@ -46,6 +47,9 @@ locals {
       workload_name                     = "ai-runtime"
     }
   }
+  standard_scylla_accessor_service_account_emails = local.enable_standard_scylla_cloud ? toset([
+    for workload in sort(tolist(var.standard_scylla_runtime_workloads)) : module.standard_runtime_identities[workload].google_service_account_email
+  ]) : toset([])
 }
 
 check "rust_api_smoke_prerequisites" {
@@ -122,6 +126,33 @@ check "standard_dragonfly_prerequisites" {
   assert {
     condition     = !var.enable_standard_dragonfly_baseline || length(setsubtract(var.standard_dragonfly_allowed_client_namespaces, var.standard_gke_namespace_names)) == 0
     error_message = "standard_dragonfly_allowed_client_namespaces must be included in standard_gke_namespace_names."
+  }
+}
+
+check "standard_scylla_cloud_prerequisites" {
+  assert {
+    condition     = !var.enable_standard_scylla_cloud_baseline || var.enable_standard_workload_identity_baseline
+    error_message = "enable_standard_scylla_cloud_baseline requires enable_standard_workload_identity_baseline = true."
+  }
+
+  assert {
+    condition     = !var.enable_standard_scylla_cloud_baseline || length(var.standard_scylla_hosts) > 0
+    error_message = "enable_standard_scylla_cloud_baseline requires at least one standard_scylla_hosts entry."
+  }
+
+  assert {
+    condition     = !var.enable_standard_scylla_cloud_baseline || length(setsubtract(var.standard_scylla_runtime_workloads, toset(keys(local.standard_runtime_identities)))) == 0
+    error_message = "standard_scylla_runtime_workloads must reference known standard runtime workloads."
+  }
+
+  assert {
+    condition     = !var.enable_standard_scylla_cloud_baseline || length(setsubtract(var.standard_scylla_runtime_workloads, var.standard_gke_namespace_names)) == 0
+    error_message = "standard_scylla_runtime_workloads must map to namespaces included in standard_gke_namespace_names."
+  }
+
+  assert {
+    condition     = !var.enable_standard_scylla_cloud_baseline || length(setsubtract(toset(["username", "password", "ca_bundle"]), toset(keys(var.standard_scylla_secret_ids)))) == 0
+    error_message = "standard_scylla_secret_ids must define username, password, and ca_bundle entries."
   }
 }
 
@@ -376,6 +407,29 @@ module "dragonfly_standard_stateful" {
   depends_on = [module.gke_namespace_baseline]
 }
 
+module "scylla_cloud_standard_baseline" {
+  count = local.enable_standard_scylla_cloud ? 1 : 0
+
+  source = "../../modules/scylla_cloud_standard_baseline"
+
+  accessor_service_account_emails = local.standard_scylla_accessor_service_account_emails
+  auth_enabled                    = true
+  disallow_shard_aware_port       = var.standard_scylla_disallow_shard_aware_port
+  environment                     = local.environment
+  hosts                           = var.standard_scylla_hosts
+  keyspace                        = var.standard_scylla_keyspace
+  labels = {
+    environment = local.environment
+    issue       = "lin-970"
+  }
+  request_timeout_ms = var.standard_scylla_request_timeout_ms
+  schema_path        = var.standard_scylla_schema_path
+  secret_ids         = var.standard_scylla_secret_ids
+  tls_enabled        = true
+
+  depends_on = [module.standard_runtime_identities]
+}
+
 module "rust_api_runtime_identity" {
   count = var.enable_minimal_gke_cluster ? 1 : 0
 
@@ -583,6 +637,10 @@ output "cloud_sql_postgres_standard" {
 
 output "dragonfly_standard_stateful" {
   value = local.enable_standard_dragonfly ? module.dragonfly_standard_stateful[0] : null
+}
+
+output "scylla_cloud_standard_baseline" {
+  value = local.enable_standard_scylla_cloud ? module.scylla_cloud_standard_baseline[0] : null
 }
 
 output "minimal_security_baseline_enabled" {
