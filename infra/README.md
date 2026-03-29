@@ -16,6 +16,7 @@ infra/
 │   ├── artifact_registry_repository/
 │   ├── cloud_monitoring_minimal/
 │   ├── cloud_sql_postgres_minimal/
+│   ├── cloud_sql_postgres_standard/
 │   ├── dragonfly_minimal/
 │   ├── gke_autopilot_minimal/
 │   ├── gke_autopilot_standard_cluster/
@@ -257,6 +258,32 @@ standard path では Argo CD / Argo Rollouts を `ops` namespace に入れ、Git
 Terraform では controller install までを担当し、Argo CD custom resources は repo 側 bootstrap manifest として保持する。これは CRD timing を避けつつ、project / application 定義を Git に残すため。
 
 詳細な verify / rollback は `docs/runbooks/argocd-rollouts-standard-operations-runbook.md` を参照する。
+
+## LIN-968 standard Cloud SQL baseline
+
+standard path では `staging` / `prod` に Cloud SQL for PostgreSQL baseline を置き、migration / PITR / approval boundary を low-budget path と分けて固定する。
+
+### Standard profile
+
+- tier: `db-custom-4-16384`
+- storage: `PD_SSD`
+- private IP only
+- backup + PITR enabled
+- staging availability: `ZONAL`
+- prod availability: `REGIONAL`
+- prod read replica: none at baseline
+
+### Why no initial read replica
+
+- `LIN-968` の対象はまず write-safe な primary baseline と migration / PITR 運用を閉じること
+- read replica は read pressure, failover owner, replication lag alert を揃えてから別 issue で追加する
+
+### Validation / operations
+
+- standard path migration / approval / rollback:
+  - `docs/runbooks/cloud-sql-postgres-standard-operations-runbook.md`
+- PITR:
+  - `docs/runbooks/postgres-pitr-runbook.md`
 
 ## LIN-966 Artifact Registry / CI publish baseline
 
