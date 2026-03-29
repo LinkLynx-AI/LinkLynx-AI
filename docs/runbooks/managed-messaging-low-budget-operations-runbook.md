@@ -6,6 +6,7 @@
   - `docs/runbooks/realtime-nats-core-subject-subscription-runbook.md`
   - `docs/runbooks/redpanda-topic-retention-replay-runbook.md`
   - `docs/runbooks/workload-identity-secret-manager-operations-runbook.md`
+  - `docs/runbooks/managed-messaging-cloud-low-budget-operations-runbook.md`
   - `LIN-1024`
 
 ## 1. Purpose
@@ -17,6 +18,10 @@ This baseline only covers:
 - Redpanda / NATS secret inventory
 - placeholder creation via Terraform
 - fill / verify / rollback procedure
+
+Ownership / incident-triage baseline is handled separately in:
+
+- `docs/runbooks/managed-messaging-cloud-low-budget-operations-runbook.md`
 
 This baseline does **not** cover:
 
