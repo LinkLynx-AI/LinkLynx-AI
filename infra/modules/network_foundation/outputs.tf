@@ -58,6 +58,10 @@ output "public_lb_ipv4_address" {
   value = google_compute_global_address.public_lb_ipv4.address
 }
 
+output "public_lb_ipv4_name" {
+  value = google_compute_global_address.public_lb_ipv4.name
+}
+
 output "public_dns_zone_name" {
   value = local.public_dns_enabled ? google_dns_managed_zone.public[0].name : null
 }

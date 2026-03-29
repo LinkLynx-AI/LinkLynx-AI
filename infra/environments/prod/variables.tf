@@ -45,3 +45,26 @@ variable "enable_minimal_gke_cluster" {
   type        = bool
   default     = true
 }
+
+variable "enable_rust_api_smoke_deploy" {
+  description = "Whether to create the prod Rust API smoke workload on the minimal cluster."
+  type        = bool
+  default     = false
+}
+
+variable "rust_api_public_hostname" {
+  description = "Public hostname without a trailing dot for the Rust API smoke route. Defaults to the first public hostname when empty."
+  type        = string
+  default     = ""
+}
+
+variable "rust_api_image_digest" {
+  description = "Artifact Registry image digest reference for the Rust API smoke workload."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = var.rust_api_image_digest == "" || can(regex("^.+@sha256:[a-f0-9]{64}$", var.rust_api_image_digest))
+    error_message = "rust_api_image_digest must be empty or a full image reference ending with @sha256:<64 lowercase hex>."
+  }
+}

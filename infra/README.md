@@ -217,3 +217,36 @@ low-budget path でも image publish 自体は `staging` / `prod` の両 project
 4. `prod` publish は protected branch merge または manual approval 付き workflow dispatch で行う
 
 この issue では image copy / promotion の完全自動化までは持たない。
+
+## LIN-1015 prod-only Rust API smoke deploy baseline
+
+low-budget path の最初の workload deploy は `prod` の Rust API 1本に絞る。
+
+### Why default-off
+
+`infra/environments/prod` では smoke workload resource を持つが、default は `enable_rust_api_smoke_deploy = false` にする。
+
+- cluster 作成 (`LIN-1014`) と workload deploy (`LIN-1015`) を分離したい
+- image digest と public host が埋まってから明示的に有効化したい
+- local validation では cluster 未作成状態でも `terraform validate` / `plan` を通したい
+
+`enable_rust_api_smoke_deploy = true` にした状態で digest / host / edge prerequisites が足りないときは、Terraform `check` で fail-fast する。
+
+### Required inputs
+
+- `enable_rust_api_smoke_deploy = true`
+- `rust_api_image_digest = us-east1-docker.pkg.dev/.../rust@sha256:...`
+- `rust_api_public_hostname = api.<domain>`
+
+### What gets created
+
+- Kubernetes namespace / service account / deployment / service
+- GKE Gateway API resource (`Gateway`, `HTTPRoute`)
+- `HealthCheckPolicy` with `/health`
+
+Route baseline は次の通り。
+
+- `https://<rust_api_public_hostname>/health`
+- `wss://<rust_api_public_hostname>/ws`
+
+deploy 後の rollback は `rust_api_image_digest` を直前 digest に戻して再 apply する。

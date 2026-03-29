@@ -41,6 +41,36 @@ terraform plan
 - Next.js / Python が常時稼働前提になり、prod only 1 cluster では運用しづらくなったとき
 - HPA を入れたいだけの観測データが揃ったとき
 
+## LIN-1015 prod-only Rust API smoke deploy
+
+`LIN-1015` は `LIN-1014` の cluster を使って、最初の Rust API workload を Terraform で出す。
+
+### 使う変数
+
+- `enable_rust_api_smoke_deploy`
+- `rust_api_image_digest`
+- `rust_api_public_hostname`
+
+default では `enable_rust_api_smoke_deploy = false` にしている。
+cluster 作成後に digest と hostname が揃ってから明示的に `true` へ切り替える。
+`true` のまま前提値が足りない場合は Terraform `check` で apply を止める。
+
+### 作られるもの
+
+- namespace: `rust-api-smoke`
+- Kubernetes ServiceAccount / Deployment / Service
+- Gateway API:
+  - `Gateway`
+  - `HTTPRoute`
+  - `HealthCheckPolicy`
+
+### 運用メモ
+
+- Gateway は `LIN-963` で確保した named static IP と certificate map を使う
+- 最初の有効化は `LIN-1014` cluster apply 後の 2 段階目 apply として実施する
+- image は tag ではなく Artifact Registry digest を使う
+- rollback は `rust_api_image_digest` を直前 digest に戻して `terraform apply` する
+
 ## tfvars で埋める値
 
 - `public_dns_zone_name`
