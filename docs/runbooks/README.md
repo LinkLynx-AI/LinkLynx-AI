@@ -20,6 +20,7 @@
 - `workload-identity-secret-manager-operations-runbook.md`: Workload Identity, secret-level IAM, audit-log verification, and secret rotation/rollback baseline for the low-budget prod-only path.
 - `cloud-sql-postgres-migration-operations-runbook.md`: Cloud SQL-backed PostgreSQL forward-only migration gate, manual approval boundary, and failure-handling baseline for the low-budget prod-only path.
 - `cloud-monitoring-low-budget-operations-runbook.md`: Cloud Monitoring + Cloud Logging baseline, optional notification channel routing, and low-budget prod-only alert triage flow.
+- `external-dependency-observability-low-budget-runbook.md`: low-budget prod-only manual check sources and alert seeds for Scylla, Redpanda Cloud, Synadia Cloud / NATS, and Elastic Cloud.
 - `cloud-armor-low-budget-operations-runbook.md`: Cloud Armor backend attachment, baseline WAF rules, and low-budget prod-only security verify/rollback flow.
 - `dragonfly-low-budget-operations-runbook.md`: low-budget prod-only Dragonfly volatile baseline, internal endpoint, verify/rollback flow, and upgrade trigger.
 - `scylla-low-budget-runtime-operations-runbook.md`: low-budget prod-only Scylla runtime env wiring, bundled schema artifact path, verify/rollback flow, and standard-path handoff boundary.
