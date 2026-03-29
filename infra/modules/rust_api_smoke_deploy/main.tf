@@ -141,6 +141,45 @@ resource "kubernetes_service_v1" "this" {
   }
 }
 
+resource "kubernetes_network_policy_v1" "default_deny_ingress" {
+  metadata {
+    name      = "${var.deployment_name}-default-deny-ingress"
+    namespace = kubernetes_namespace_v1.this.metadata[0].name
+    labels    = local.app_labels
+  }
+
+  spec {
+    pod_selector {
+      match_labels = local.app_labels
+    }
+
+    policy_types = ["Ingress"]
+  }
+}
+
+resource "kubernetes_network_policy_v1" "allow_http_ingress" {
+  metadata {
+    name      = "${var.deployment_name}-allow-http-ingress"
+    namespace = kubernetes_namespace_v1.this.metadata[0].name
+    labels    = local.app_labels
+  }
+
+  spec {
+    pod_selector {
+      match_labels = local.app_labels
+    }
+
+    ingress {
+      ports {
+        port     = "8080"
+        protocol = "TCP"
+      }
+    }
+
+    policy_types = ["Ingress"]
+  }
+}
+
 resource "kubernetes_manifest" "gateway" {
   manifest = {
     apiVersion = "gateway.networking.k8s.io/v1"

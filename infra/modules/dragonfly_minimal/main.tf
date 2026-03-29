@@ -119,3 +119,54 @@ resource "kubernetes_service_v1" "this" {
     type = "ClusterIP"
   }
 }
+
+resource "kubernetes_network_policy_v1" "default_deny_ingress" {
+  metadata {
+    name      = "${var.deployment_name}-default-deny-ingress"
+    namespace = kubernetes_namespace_v1.this.metadata[0].name
+    labels    = local.app_labels
+  }
+
+  spec {
+    pod_selector {
+      match_labels = local.app_labels
+    }
+
+    policy_types = ["Ingress"]
+  }
+}
+
+resource "kubernetes_network_policy_v1" "allow_client_ingress" {
+  metadata {
+    name      = "${var.deployment_name}-allow-client-ingress"
+    namespace = kubernetes_namespace_v1.this.metadata[0].name
+    labels    = local.app_labels
+  }
+
+  spec {
+    pod_selector {
+      match_labels = local.app_labels
+    }
+
+    ingress {
+      dynamic "from" {
+        for_each = var.allowed_client_namespaces
+
+        content {
+          namespace_selector {
+            match_labels = {
+              "kubernetes.io/metadata.name" = from.value
+            }
+          }
+        }
+      }
+
+      ports {
+        port     = tostring(var.port)
+        protocol = "TCP"
+      }
+    }
+
+    policy_types = ["Ingress"]
+  }
+}

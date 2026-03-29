@@ -115,6 +115,7 @@
 | TLS | Cloudflare（エッジ）+ GCP managed cert（オリジン） |
 | ドメイン | 取得済み（具体名は別途確認） |
 | low-budget CI security scan | **Gitleaks（repo secret）+ Trivy config（`infra/` misconfig）** |
+| low-budget cluster ingress isolation | **Kubernetes NetworkPolicy baseline**（`rust-api-smoke:8080 only`, `dragonfly:6379 only from rust-api-smoke`） |
 
 ### 7. CI/CD・デプロイ
 

@@ -70,3 +70,14 @@ variable "labels" {
   type        = map(string)
   default     = {}
 }
+
+variable "allowed_client_namespaces" {
+  description = "Namespaces allowed to reach the Dragonfly service port."
+  type        = set(string)
+  default     = ["rust-api-smoke"]
+
+  validation {
+    condition     = length(var.allowed_client_namespaces) > 0
+    error_message = "allowed_client_namespaces must contain at least one namespace."
+  }
+}

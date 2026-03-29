@@ -326,6 +326,25 @@ default では `enable_minimal_security_baseline = false` にしている。
 - secret access の audit 確認は `docs/runbooks/workload-identity-secret-manager-operations-runbook.md` を使う
 - Cloud Armor の verify / rollback は `docs/runbooks/cloud-armor-low-budget-operations-runbook.md` を使う
 
+## LIN-1031 prod-only cluster network policy baseline
+
+`LIN-1031` は low-budget path 向けに、`rust-api-smoke` と `dragonfly` の ingress 面だけを narrow に絞る。
+
+### 作られるもの
+
+- `rust-api-smoke`
+  - default deny ingress
+  - TCP `8080` を許可する NetworkPolicy
+- `dragonfly`
+  - default deny ingress
+  - TCP `6379` を `rust-api-smoke` namespace からのみ許可する NetworkPolicy
+
+### 運用メモ
+
+- egress 制御はこの baseline に含めない
+- namespace をまたいで Dragonfly client を追加する場合は module variable `allowed_client_namespaces` を増やす
+- verify / rollback は `docs/runbooks/cluster-network-policy-low-budget-operations-runbook.md` を使う
+
 ## LIN-1020 prod-only ops baseline
 
 `LIN-1020` は low-budget path 向けに、初期 incident flow / postmortem / capacity assumption を整理する。

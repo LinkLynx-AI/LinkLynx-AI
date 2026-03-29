@@ -23,6 +23,7 @@
 - `external-dependency-observability-low-budget-runbook.md`: low-budget prod-only manual check sources and alert seeds for Scylla, Redpanda Cloud, Synadia Cloud / NATS, and Elastic Cloud.
 - `cloud-armor-low-budget-operations-runbook.md`: Cloud Armor backend attachment, baseline WAF rules, and low-budget prod-only security verify/rollback flow.
 - `ci-security-low-budget-operations-runbook.md`: low-budget prod-only CI secret scan and infra misconfiguration scan baseline, accepted ignores, and local reproduction flow.
+- `cluster-network-policy-low-budget-operations-runbook.md`: low-budget prod-only namespace-local ingress isolation baseline for `rust-api-smoke` and `dragonfly`, plus verify/rollback flow.
 - `dragonfly-low-budget-operations-runbook.md`: low-budget prod-only Dragonfly volatile baseline, internal endpoint, verify/rollback flow, and upgrade trigger.
 - `scylla-low-budget-runtime-operations-runbook.md`: low-budget prod-only Scylla runtime env wiring, bundled schema artifact path, verify/rollback flow, and standard-path handoff boundary.
 - `scylla-external-low-budget-operations-runbook.md`: low-budget prod-only external Scylla ownership boundary, backup/restore baseline, monitoring seed, and standard-path handoff boundary.
