@@ -3,3 +3,10 @@ region     = "us-east1"
 
 # Optional: set when using service account impersonation.
 terraform_admin_service_account_email = "terraform-admin@linklynx-bootstrap.iam.gserviceaccount.com"
+
+# Fill these with the real staging domain before plan/apply.
+public_dns_zone_name = "linklynx-staging-public"
+public_dns_name      = "staging.example.com."
+public_hostnames = [
+  "api.staging.example.com.",
+]
