@@ -85,6 +85,9 @@
 | 基盤 | **GKE Autopilot** |
 | 段階 | Autopilot → Standard → Self-hosted (成長に応じて) |
 | 環境 | **dev + staging + prod**（3環境、GCPプロジェクト分離） |
+| 標準 path cluster baseline | **`staging` / `prod` に 1 cluster ずつ** |
+| 標準 path namespace baseline | **`frontend` / `api` / `ai` / `data` / `ops` / `observability`** |
+| autoscaling baseline | **VPA primary / HPA later**。`ai` は spot-ready、core path は通常 capacity |
 
 ### 4. データストア
 

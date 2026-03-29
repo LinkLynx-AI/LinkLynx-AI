@@ -1,5 +1,6 @@
 locals {
   environment                              = "prod"
+  enable_standard_gke_cluster              = var.enable_standard_gke_cluster_baseline
   normalized_public_hostnames              = [for hostname in var.public_hostnames : trimsuffix(hostname, ".")]
   rust_api_public_hostname                 = var.rust_api_public_hostname != "" ? trimsuffix(var.rust_api_public_hostname, ".") : (length(local.normalized_public_hostnames) > 0 ? local.normalized_public_hostnames[0] : "")
   enable_rust_api_smoke                    = var.enable_rust_api_smoke_deploy && var.enable_minimal_gke_cluster
@@ -34,6 +35,13 @@ check "rust_api_smoke_prerequisites" {
   assert {
     condition     = !var.enable_rust_api_smoke_deploy || local.rust_api_smoke_edge_is_ready
     error_message = "enable_rust_api_smoke_deploy requires LIN-963 edge resources (certificate map and named public IPv4) to be enabled."
+  }
+}
+
+check "exclusive_cluster_paths" {
+  assert {
+    condition     = !(var.enable_standard_gke_cluster_baseline && var.enable_minimal_gke_cluster)
+    error_message = "enable_standard_gke_cluster_baseline and enable_minimal_gke_cluster cannot both be true in prod."
   }
 }
 
@@ -118,6 +126,40 @@ module "artifact_registry_repository" {
   location      = var.region
   project_id    = var.project_id
   repository_id = var.artifact_registry_repository_id
+}
+
+module "gke_autopilot_standard_cluster" {
+  count = local.enable_standard_gke_cluster ? 1 : 0
+
+  source = "../../modules/gke_autopilot_standard_cluster"
+
+  environment = local.environment
+  labels = {
+    environment = local.environment
+    issue       = "lin-964"
+  }
+  network_self_link             = module.network_foundation.network_self_link
+  pods_secondary_range_name     = module.network_foundation.gke_pods_secondary_range_name
+  project_id                    = var.project_id
+  region                        = var.region
+  release_channel               = var.standard_gke_release_channel
+  services_secondary_range_name = module.network_foundation.gke_services_secondary_range_name
+  subnetwork_self_link          = module.network_foundation.gke_nodes_subnet_self_link
+}
+
+module "gke_namespace_baseline" {
+  count = local.enable_standard_gke_cluster ? 1 : 0
+
+  source = "../../modules/gke_namespace_baseline"
+
+  environment     = local.environment
+  namespace_names = var.standard_gke_namespace_names
+  labels = {
+    environment = local.environment
+    issue       = "lin-964"
+  }
+
+  depends_on = [module.gke_autopilot_standard_cluster]
 }
 
 module "gke_autopilot_minimal" {
@@ -307,6 +349,14 @@ output "artifact_registry_repository" {
 
 output "gke_autopilot_minimal" {
   value = var.enable_minimal_gke_cluster ? module.gke_autopilot_minimal[0] : null
+}
+
+output "gke_autopilot_standard_cluster" {
+  value = local.enable_standard_gke_cluster ? module.gke_autopilot_standard_cluster[0] : null
+}
+
+output "gke_namespace_baseline" {
+  value = local.enable_standard_gke_cluster ? module.gke_namespace_baseline[0] : null
 }
 
 output "rust_api_runtime_identity" {
