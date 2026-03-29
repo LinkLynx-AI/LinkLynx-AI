@@ -468,6 +468,45 @@ default では `enable_standard_managed_messaging_cloud_baseline = false` にし
 - provider account / cluster / allowlist / private connectivity、runtime client 実装はこの baseline では追加しない
 - verify / rollback / rotation / incident triage は `docs/runbooks/managed-messaging-cloud-standard-operations-runbook.md` を使う
 
+## LIN-972 standard observability baseline
+
+`LIN-972` は standard path 向けに、`observability` namespace へ self-hosted observability baseline を追加する。
+
+### 使う変数
+
+- `enable_standard_observability_baseline`
+- `standard_observability_discord_webhook_url`
+- `standard_observability_discord_mention`
+- `standard_api_probe_targets`
+- `standard_redpanda_probe_targets`
+- `standard_nats_probe_targets`
+- `standard_observability_kube_prometheus_stack_chart_version`
+- `standard_observability_loki_chart_version`
+- `standard_observability_alloy_chart_version`
+- `standard_observability_blackbox_chart_version`
+- `standard_observability_prometheus_retention`
+- `standard_observability_prometheus_storage_size`
+- `standard_observability_alertmanager_storage_size`
+- `standard_observability_grafana_storage_size`
+- `standard_observability_loki_storage_size`
+- `standard_observability_loki_retention_period`
+
+### baseline
+
+- `Prometheus + Grafana + Alertmanager`
+- `Loki + Grafana Alloy`
+- `prometheus-blackbox-exporter`
+- Discord webhook alert route
+- API / WS SLO dashboard
+- dependency probe dashboard
+
+### 運用メモ
+
+- `enable_standard_observability_baseline = true` の前に standard GKE / GitOps / Cloud SQL / Dragonfly / Scylla / messaging baseline が必要
+- Cloud SQL / Dragonfly / Scylla / Redpanda / NATS は minimum reachability probe で先に覆う
+- deeper provider metrics ingestion と tracing は follow-up に回す
+- verify / rollback は `docs/runbooks/observability-standard-operations-runbook.md` を使う
+
 ## LIN-1025 prod-only Elastic Cloud secret baseline
 
 `LIN-1025` は low-budget path 向けに、検索基盤を `Elastic Cloud` 前提で受け入れる Secret Manager placeholder baseline を追加する。

@@ -100,6 +100,12 @@ variable "enable_standard_managed_messaging_cloud_baseline" {
   default     = false
 }
 
+variable "enable_standard_observability_baseline" {
+  description = "Whether to create the standard prod observability baseline."
+  type        = bool
+  default     = false
+}
+
 variable "standard_dragonfly_image" {
   description = "Dragonfly image used by the standard prod baseline."
   type        = string
@@ -267,6 +273,97 @@ variable "standard_gitops_rollouts_chart_version" {
   description = "Optional pinned Argo Rollouts chart version for the standard prod GitOps baseline."
   type        = string
   default     = ""
+}
+
+variable "standard_observability_discord_webhook_url" {
+  description = "Discord webhook URL used by the standard prod Alertmanager baseline."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "standard_observability_discord_mention" {
+  description = "Optional Discord mention text prepended to standard prod alerts."
+  type        = string
+  default     = "@here"
+}
+
+variable "standard_api_probe_targets" {
+  description = "HTTP(S) healthcheck URLs used by the standard prod blackbox probe baseline."
+  type        = set(string)
+  default     = []
+}
+
+variable "standard_redpanda_probe_targets" {
+  description = "Redpanda probe targets used by the standard prod blackbox baseline. Use host:port form."
+  type        = set(string)
+  default     = []
+}
+
+variable "standard_nats_probe_targets" {
+  description = "NATS probe targets used by the standard prod blackbox baseline. Use host:port or provider-required URL form."
+  type        = set(string)
+  default     = []
+}
+
+variable "standard_observability_kube_prometheus_stack_chart_version" {
+  description = "Optional pinned kube-prometheus-stack chart version for the standard prod observability baseline."
+  type        = string
+  default     = ""
+}
+
+variable "standard_observability_loki_chart_version" {
+  description = "Optional pinned Loki chart version for the standard prod observability baseline."
+  type        = string
+  default     = ""
+}
+
+variable "standard_observability_alloy_chart_version" {
+  description = "Optional pinned Alloy chart version for the standard prod observability baseline."
+  type        = string
+  default     = ""
+}
+
+variable "standard_observability_blackbox_chart_version" {
+  description = "Optional pinned Prometheus Blackbox Exporter chart version for the standard prod observability baseline."
+  type        = string
+  default     = ""
+}
+
+variable "standard_observability_prometheus_retention" {
+  description = "Prometheus retention period for the standard prod observability baseline."
+  type        = string
+  default     = "15d"
+}
+
+variable "standard_observability_prometheus_storage_size" {
+  description = "Prometheus PVC size for the standard prod observability baseline."
+  type        = string
+  default     = "50Gi"
+}
+
+variable "standard_observability_alertmanager_storage_size" {
+  description = "Alertmanager PVC size for the standard prod observability baseline."
+  type        = string
+  default     = "10Gi"
+}
+
+variable "standard_observability_grafana_storage_size" {
+  description = "Grafana PVC size for the standard prod observability baseline."
+  type        = string
+  default     = "10Gi"
+}
+
+variable "standard_observability_loki_storage_size" {
+  description = "Loki PVC size for the standard prod observability baseline."
+  type        = string
+  default     = "20Gi"
+}
+
+variable "standard_observability_loki_retention_period" {
+  description = "Loki retention period for the standard prod observability baseline."
+  type        = string
+  default     = "168h"
 }
 
 variable "standard_runtime_secret_ids" {

@@ -5,6 +5,7 @@ locals {
   enable_standard_dragonfly           = var.enable_standard_dragonfly_baseline
   enable_standard_gitops              = var.enable_standard_gitops_baseline
   enable_standard_managed_messaging   = var.enable_standard_managed_messaging_cloud_baseline
+  enable_standard_observability       = var.enable_standard_observability_baseline
   enable_standard_scylla_cloud        = var.enable_standard_scylla_cloud_baseline
   enable_standard_workload_identities = var.enable_standard_workload_identity_baseline
   standard_runtime_identities = {
@@ -154,6 +155,58 @@ check "standard_managed_messaging_prerequisites" {
       toset(keys(var.standard_nats_secret_ids)),
     )) == 0
     error_message = "standard_nats_secret_ids must define url, creds, and ca_bundle entries."
+  }
+}
+
+check "standard_observability_prerequisites" {
+  assert {
+    condition     = !var.enable_standard_observability_baseline || var.enable_standard_gke_cluster_baseline
+    error_message = "enable_standard_observability_baseline requires enable_standard_gke_cluster_baseline = true."
+  }
+
+  assert {
+    condition     = !var.enable_standard_observability_baseline || var.enable_standard_gitops_baseline
+    error_message = "enable_standard_observability_baseline requires enable_standard_gitops_baseline = true."
+  }
+
+  assert {
+    condition     = !var.enable_standard_observability_baseline || var.enable_standard_cloud_sql_baseline
+    error_message = "enable_standard_observability_baseline requires enable_standard_cloud_sql_baseline = true."
+  }
+
+  assert {
+    condition     = !var.enable_standard_observability_baseline || var.enable_standard_dragonfly_baseline
+    error_message = "enable_standard_observability_baseline requires enable_standard_dragonfly_baseline = true."
+  }
+
+  assert {
+    condition     = !var.enable_standard_observability_baseline || var.enable_standard_scylla_cloud_baseline
+    error_message = "enable_standard_observability_baseline requires enable_standard_scylla_cloud_baseline = true."
+  }
+
+  assert {
+    condition     = !var.enable_standard_observability_baseline || var.enable_standard_managed_messaging_cloud_baseline
+    error_message = "enable_standard_observability_baseline requires enable_standard_managed_messaging_cloud_baseline = true."
+  }
+
+  assert {
+    condition     = !var.enable_standard_observability_baseline || trimspace(var.standard_observability_discord_webhook_url) != ""
+    error_message = "enable_standard_observability_baseline requires standard_observability_discord_webhook_url."
+  }
+
+  assert {
+    condition     = !var.enable_standard_observability_baseline || length(var.standard_api_probe_targets) > 0
+    error_message = "enable_standard_observability_baseline requires at least one standard_api_probe_targets entry."
+  }
+
+  assert {
+    condition     = !var.enable_standard_observability_baseline || length(var.standard_redpanda_probe_targets) > 0
+    error_message = "enable_standard_observability_baseline requires at least one standard_redpanda_probe_targets entry."
+  }
+
+  assert {
+    condition     = !var.enable_standard_observability_baseline || length(var.standard_nats_probe_targets) > 0
+    error_message = "enable_standard_observability_baseline requires at least one standard_nats_probe_targets entry."
   }
 }
 
@@ -363,6 +416,42 @@ module "managed_messaging_cloud_standard_baseline" {
   depends_on = [module.standard_runtime_identities]
 }
 
+module "observability_standard_baseline" {
+  count = local.enable_standard_observability ? 1 : 0
+
+  source = "../../modules/observability_standard_baseline"
+
+  alertmanager_storage_size           = var.standard_observability_alertmanager_storage_size
+  alloy_chart_version                 = var.standard_observability_alloy_chart_version
+  api_http_probe_targets              = var.standard_api_probe_targets
+  blackbox_chart_version              = var.standard_observability_blackbox_chart_version
+  cloud_sql_tcp_targets               = toset(["${module.cloud_sql_postgres_standard[0].private_ip_address}:5432"])
+  discord_mention                     = var.standard_observability_discord_mention
+  discord_webhook_url                 = var.standard_observability_discord_webhook_url
+  dragonfly_tcp_targets               = toset([module.dragonfly_standard_stateful[0].internal_endpoint])
+  environment                         = local.environment
+  grafana_storage_size                = var.standard_observability_grafana_storage_size
+  kube_prometheus_stack_chart_version = var.standard_observability_kube_prometheus_stack_chart_version
+  labels                              = { environment = local.environment, issue = "lin-972" }
+  loki_chart_version                  = var.standard_observability_loki_chart_version
+  loki_retention_period               = var.standard_observability_loki_retention_period
+  loki_storage_size                   = var.standard_observability_loki_storage_size
+  monitored_app_namespaces            = toset(["frontend", "api", "ai", "data"])
+  nats_tcp_targets                    = var.standard_nats_probe_targets
+  prometheus_retention                = var.standard_observability_prometheus_retention
+  prometheus_storage_size             = var.standard_observability_prometheus_storage_size
+  redpanda_tcp_targets                = var.standard_redpanda_probe_targets
+  scylla_tcp_targets                  = var.standard_scylla_hosts
+
+  depends_on = [
+    module.cloud_sql_postgres_standard,
+    module.dragonfly_standard_stateful,
+    module.gitops_standard_baseline,
+    module.managed_messaging_cloud_standard_baseline,
+    module.scylla_cloud_standard_baseline,
+  ]
+}
+
 output "environment" {
   value = local.environment
 }
@@ -425,4 +514,8 @@ output "scylla_cloud_standard_baseline" {
 
 output "managed_messaging_cloud_standard_baseline" {
   value = local.enable_standard_managed_messaging ? module.managed_messaging_cloud_standard_baseline[0] : null
+}
+
+output "observability_standard_baseline" {
+  value = local.enable_standard_observability ? module.observability_standard_baseline[0] : null
 }

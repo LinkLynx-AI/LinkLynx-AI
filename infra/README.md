@@ -27,6 +27,7 @@ infra/
 │   ├── managed_messaging_cloud_standard_baseline/
 │   ├── managed_messaging_secret_placeholders/
 │   ├── network_foundation/
+│   ├── observability_standard_baseline/
 │   ├── project_baseline/
 │   ├── rust_api_smoke_deploy/
 │   ├── scylla_cloud_standard_baseline/
@@ -260,6 +261,34 @@ inventory と accessor IAM、smoke contract を Terraform で固定する。
 - `prod` では low-budget managed messaging secret baseline と同時に有効化しない
 
 詳細な verify / rollback は `docs/runbooks/managed-messaging-cloud-standard-operations-runbook.md` を参照する。
+
+## LIN-972 standard observability baseline
+
+standard path では `Prometheus + Grafana + Alertmanager + Loki + Alloy + blackbox exporter`
+を baseline にし、managed dependency までは minimum reachability probes で先に覆う。
+
+### What gets created
+
+- `observability_standard_baseline` module
+- `observability` namespace への次の Helm releases
+  - `kube-prometheus-stack`
+  - `loki`
+  - `alloy`
+  - `prometheus-blackbox-exporter`
+- Grafana dashboard ConfigMap
+  - API / WS SLO baseline
+  - dependency probe baseline
+- Alertmanager Discord webhook route
+
+### Current pattern
+
+- standard path では `Cloud Monitoring` を主監視にせず、portable な self-hosted stack を主軸にする
+- Cloud SQL / Dragonfly / Scylla / Redpanda / NATS は最初に blackbox probe で reachability を取る
+- アプリ contract metrics は `docs/runbooks/observability-v0-structured-logs-metrics-runbook.md` に合わせる
+- Loki は single-binary で始め、長期 retention / object storage は後続へ回す
+- `Tempo` は follow-up issue に残す
+
+詳細な verify / rollback は `docs/runbooks/observability-standard-operations-runbook.md` を参照する。
 
 ## LIN-967 standard GitOps / Rollouts baseline
 
