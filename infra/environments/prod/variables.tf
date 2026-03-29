@@ -70,6 +70,36 @@ variable "enable_standard_workload_identity_baseline" {
   default     = false
 }
 
+variable "enable_standard_gitops_baseline" {
+  description = "Whether to install Argo CD / Argo Rollouts and expose the standard GitOps bootstrap path."
+  type        = bool
+  default     = false
+}
+
+variable "standard_gitops_repository_url" {
+  description = "Repository URL watched by the standard prod GitOps baseline."
+  type        = string
+  default     = "https://github.com/LinkLynx-AI/LinkLynx-AI.git"
+}
+
+variable "standard_gitops_target_revision" {
+  description = "Git revision watched by the standard prod GitOps baseline."
+  type        = string
+  default     = "main"
+}
+
+variable "standard_gitops_argocd_chart_version" {
+  description = "Optional pinned Argo CD chart version for the standard prod GitOps baseline."
+  type        = string
+  default     = ""
+}
+
+variable "standard_gitops_rollouts_chart_version" {
+  description = "Optional pinned Argo Rollouts chart version for the standard prod GitOps baseline."
+  type        = string
+  default     = ""
+}
+
 variable "standard_runtime_secret_ids" {
   description = "Per-workload Secret Manager secret IDs reserved for the standard prod baseline."
   type        = map(list(string))

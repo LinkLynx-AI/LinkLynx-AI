@@ -70,6 +70,8 @@ jobs:
         run: make infra-fmt
       - name: Terraform validate
         run: make infra-validate
+      - name: GitOps manifest validate
+        run: make infra-gitops-validate
 
   spicedb-runtime:
     name: SpiceDB Runtime Foundation

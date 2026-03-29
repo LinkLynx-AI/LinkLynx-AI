@@ -1,6 +1,7 @@
 locals {
   environment                              = "prod"
   enable_standard_gke_cluster              = var.enable_standard_gke_cluster_baseline
+  enable_standard_gitops                   = var.enable_standard_gitops_baseline
   enable_standard_workload_identities      = var.enable_standard_workload_identity_baseline
   normalized_public_hostnames              = [for hostname in var.public_hostnames : trimsuffix(hostname, ".")]
   rust_api_public_hostname                 = var.rust_api_public_hostname != "" ? trimsuffix(var.rust_api_public_hostname, ".") : (length(local.normalized_public_hostnames) > 0 ? local.normalized_public_hostnames[0] : "")
@@ -78,6 +79,18 @@ check "standard_workload_identity_prerequisites" {
   assert {
     condition     = !var.enable_standard_workload_identity_baseline || length(setsubtract(toset(["frontend", "api", "ai"]), var.standard_gke_namespace_names)) == 0
     error_message = "enable_standard_workload_identity_baseline requires frontend, api, and ai namespaces in standard_gke_namespace_names."
+  }
+}
+
+check "standard_gitops_prerequisites" {
+  assert {
+    condition     = !var.enable_standard_gitops_baseline || var.enable_standard_gke_cluster_baseline
+    error_message = "enable_standard_gitops_baseline requires enable_standard_gke_cluster_baseline = true."
+  }
+
+  assert {
+    condition     = !var.enable_standard_gitops_baseline || length(setsubtract(toset(["api", "ops"]), var.standard_gke_namespace_names)) == 0
+    error_message = "enable_standard_gitops_baseline requires api and ops namespaces in standard_gke_namespace_names."
   }
 }
 
@@ -249,6 +262,37 @@ module "standard_runtime_identities" {
     google_project_iam_audit_config.secret_manager_data_access,
     module.gke_namespace_baseline,
   ]
+}
+
+module "gitops_standard_baseline" {
+  count = local.enable_standard_gitops ? 1 : 0
+
+  source = "../../modules/gitops_standard_baseline"
+
+  app_project_name = "linklynx-platform"
+  applications = {
+    "prod-canary-smoke" = {
+      destination_namespace = "api"
+      path                  = "infra/gitops/apps/prod/canary-smoke"
+      sync_policy = {
+        automated = false
+      }
+    }
+  }
+  argocd_chart_version   = var.standard_gitops_argocd_chart_version
+  argocd_namespace       = "ops"
+  argocd_release_name    = "argocd"
+  environment            = local.environment
+  gitops_repository_url  = var.standard_gitops_repository_url
+  gitops_target_revision = var.standard_gitops_target_revision
+  labels = {
+    environment = local.environment
+    issue       = "lin-967"
+  }
+  rollouts_chart_version = var.standard_gitops_rollouts_chart_version
+  rollouts_release_name  = "argo-rollouts"
+
+  depends_on = [module.gke_namespace_baseline]
 }
 
 module "rust_api_runtime_identity" {
@@ -428,6 +472,12 @@ output "standard_runtime_identities" {
       workload_identity_member     = identity.workload_identity_member
     }
   } : {}
+}
+
+output "standard_gitops_baseline" {
+  value = local.enable_standard_gitops ? merge(module.gitops_standard_baseline[0], {
+    bootstrap_kustomize_path = "infra/gitops/bootstrap/prod"
+  }) : null
 }
 
 output "rust_api_runtime_identity" {

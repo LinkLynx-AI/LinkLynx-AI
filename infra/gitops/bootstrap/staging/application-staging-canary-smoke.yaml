@@ -1,0 +1,20 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: staging-canary-smoke
+  namespace: ops
+spec:
+  project: linklynx-platform
+  source:
+    repoURL: https://github.com/LinkLynx-AI/LinkLynx-AI.git
+    targetRevision: main
+    path: infra/gitops/apps/staging/canary-smoke
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: api
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false

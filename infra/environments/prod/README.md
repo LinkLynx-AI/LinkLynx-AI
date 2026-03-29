@@ -94,6 +94,32 @@ terraform plan
 - `frontend` / `api` / `ai` namespace が standard baseline に含まれている必要がある
 - verify / rollback は `docs/runbooks/workload-identity-secret-manager-standard-operations-runbook.md` を使う
 
+## LIN-967 standard GitOps / Rollouts baseline
+
+`LIN-967` は standard path 向けに、`ops` namespace へ Argo CD / Argo Rollouts を install し、GitOps repo layout を固定する。
+
+### 使う変数
+
+- `enable_standard_gitops_baseline`
+- `standard_gitops_repository_url`
+- `standard_gitops_target_revision`
+- `standard_gitops_argocd_chart_version`
+- `standard_gitops_rollouts_chart_version`
+
+### 作られるもの
+
+- `ops/argocd`
+- `ops/argo-rollouts`
+- bootstrap path: `infra/gitops/bootstrap/prod`
+- documented prod app: `prod-canary-smoke`
+
+### 運用メモ
+
+- `enable_standard_gitops_baseline = true` の前に `enable_standard_gke_cluster_baseline = true` が必要
+- `api` / `ops` namespace が standard baseline に含まれている必要がある
+- prod app は automated sync を有効にせず、manual sync gate を baseline にする
+- verify / rollback は `docs/runbooks/argocd-rollouts-standard-operations-runbook.md` を使う
+
 ## LIN-1015 prod-only Rust API smoke deploy
 
 `LIN-1015` は `LIN-1014` の cluster を使って、最初の Rust API workload を Terraform で出す。

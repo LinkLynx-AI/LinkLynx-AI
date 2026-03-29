@@ -1,6 +1,7 @@
 locals {
   environment                         = "staging"
   enable_standard_gke_cluster         = var.enable_standard_gke_cluster_baseline
+  enable_standard_gitops              = var.enable_standard_gitops_baseline
   enable_standard_workload_identities = var.enable_standard_workload_identity_baseline
   standard_runtime_identities = {
     frontend = {
@@ -36,6 +37,18 @@ check "standard_workload_identity_prerequisites" {
   assert {
     condition     = !var.enable_standard_workload_identity_baseline || length(setsubtract(toset(["frontend", "api", "ai"]), var.standard_gke_namespace_names)) == 0
     error_message = "enable_standard_workload_identity_baseline requires frontend, api, and ai namespaces in standard_gke_namespace_names."
+  }
+}
+
+check "standard_gitops_prerequisites" {
+  assert {
+    condition     = !var.enable_standard_gitops_baseline || var.enable_standard_gke_cluster_baseline
+    error_message = "enable_standard_gitops_baseline requires enable_standard_gke_cluster_baseline = true."
+  }
+
+  assert {
+    condition     = !var.enable_standard_gitops_baseline || length(setsubtract(toset(["api", "ops"]), var.standard_gke_namespace_names)) == 0
+    error_message = "enable_standard_gitops_baseline requires api and ops namespaces in standard_gke_namespace_names."
   }
 }
 
@@ -131,6 +144,37 @@ module "standard_runtime_identities" {
   ]
 }
 
+module "gitops_standard_baseline" {
+  count = local.enable_standard_gitops ? 1 : 0
+
+  source = "../../modules/gitops_standard_baseline"
+
+  app_project_name = "linklynx-platform"
+  applications = {
+    "staging-canary-smoke" = {
+      destination_namespace = "api"
+      path                  = "infra/gitops/apps/staging/canary-smoke"
+      sync_policy = {
+        automated = true
+      }
+    }
+  }
+  argocd_chart_version   = var.standard_gitops_argocd_chart_version
+  argocd_namespace       = "ops"
+  argocd_release_name    = "argocd"
+  environment            = local.environment
+  gitops_repository_url  = var.standard_gitops_repository_url
+  gitops_target_revision = var.standard_gitops_target_revision
+  labels = {
+    environment = local.environment
+    issue       = "lin-967"
+  }
+  rollouts_chart_version = var.standard_gitops_rollouts_chart_version
+  rollouts_release_name  = "argo-rollouts"
+
+  depends_on = [module.gke_namespace_baseline]
+}
+
 output "environment" {
   value = local.environment
 }
@@ -171,4 +215,10 @@ output "standard_runtime_identities" {
       workload_identity_member     = identity.workload_identity_member
     }
   } : {}
+}
+
+output "standard_gitops_baseline" {
+  value = local.enable_standard_gitops ? merge(module.gitops_standard_baseline[0], {
+    bootstrap_kustomize_path = "infra/gitops/bootstrap/staging"
+  }) : null
 }
