@@ -355,3 +355,29 @@ low-budget path の security は、まず `Cloud Armor + Trivy + Secret Manager 
 
 - DAST / bot management / VPC-SC / IAP
 - 標準 path の full security program
+
+## LIN-1020 prod-only ops baseline
+
+low-budget path の運用は、まず「人が迷わず反応できる」ことを優先する。
+
+### Baseline
+
+- incident routing: Discord thread + `hirwatan` / `sabe` / `miwasa`
+- primary signals:
+  - Cloud Monitoring alert
+  - Cloud Armor false positive / block
+  - DB restore decision
+- postmortem: lightweight template を必須化
+- capacity planning: account count ではなく observed traffic と SLO regression を基準に見直す
+
+### Initial assumptions
+
+- registered users: `10,000 - 100,000`
+- peak concurrent WebSocket connections: `500 - 2,000`
+- sustained message ingress: `50 - 200 msg/s`
+- REST latency target: `P95 <= 300ms`, `P99 <= 800ms`
+
+### Chaos readiness
+
+- 固定日ではなく readiness 条件で開始する
+- single-cluster `prod-only` の間は、fault injection より tabletop を優先する

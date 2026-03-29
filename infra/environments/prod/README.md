@@ -172,6 +172,21 @@ default では `enable_minimal_security_baseline = false` にしている。
 - secret access の audit 確認は `docs/runbooks/workload-identity-secret-manager-operations-runbook.md` を使う
 - Cloud Armor の verify / rollback は `docs/runbooks/cloud-armor-low-budget-operations-runbook.md` を使う
 
+## LIN-1020 prod-only ops baseline
+
+`LIN-1020` は low-budget path 向けに、初期 incident flow / postmortem / capacity assumption を整理する。
+
+### 追加される docs
+
+- `docs/runbooks/incident-low-budget-operations-runbook.md`
+- `docs/runbooks/postmortem-low-budget-template.md`
+
+### 運用メモ
+
+- 初期 incident のメンション先は `hirwatan` / `sabe` / `miwasa`
+- low-budget path では observed traffic と latency regression を基準に scale trigger を判断する
+- Chaos Engineering は固定日ではなく readiness 条件が揃ってから開始する
+
 ## tfvars で埋める値
 
 - `public_dns_zone_name`
