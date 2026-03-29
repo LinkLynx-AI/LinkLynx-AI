@@ -228,6 +228,18 @@ connection material の保管先を先に固定したいときだけ明示的に
 - secret rotation / audit log の見方は `docs/runbooks/workload-identity-secret-manager-operations-runbook.md` を使う
 - inventory / fill / rollback は `docs/runbooks/managed-messaging-low-budget-operations-runbook.md` を使う
 
+## LIN-1027 prod-only Redpanda Cloud / Synadia Cloud ops baseline
+
+`LIN-1027` は low-budget path 向けに、Redpanda Cloud / Synadia Cloud の運用責務と incident triage baseline を docs で固定する。
+
+### 運用メモ
+
+- Redpanda は extension stream path であり、core write path の source of truth にはしない
+- NATS outage 時は realtime を degraded にし、Class A は history refetch / state resync で補償する
+- credential rotation は Secret Manager version で行い、runtime adoption は後続 issue で閉じる
+- provider resource provisioning、network / auth onboarding、publish / subscribe smoke は `LIN-971` に残す
+- ownership / incident triage / monitoring seed は `docs/runbooks/managed-messaging-cloud-low-budget-operations-runbook.md` を使う
+
 ## LIN-1025 prod-only Elastic Cloud secret baseline
 
 `LIN-1025` は low-budget path 向けに、検索基盤を `Elastic Cloud` 前提で受け入れる Secret Manager placeholder baseline を追加する。

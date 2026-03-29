@@ -24,6 +24,7 @@
 - `dragonfly-low-budget-operations-runbook.md`: low-budget prod-only Dragonfly volatile baseline, internal endpoint, verify/rollback flow, and upgrade trigger.
 - `scylla-low-budget-runtime-operations-runbook.md`: low-budget prod-only Scylla runtime env wiring, bundled schema artifact path, verify/rollback flow, and standard-path handoff boundary.
 - `managed-messaging-low-budget-operations-runbook.md`: low-budget prod-only Redpanda/NATS secret inventory, expected payload semantics, fill/verify/rollback flow, and standard-path handoff boundary.
+- `managed-messaging-cloud-low-budget-operations-runbook.md`: low-budget prod-only Redpanda Cloud / Synadia Cloud ownership boundary, incident-triage baseline, monitoring seed, and standard-path handoff boundary.
 - `search-low-budget-operations-runbook.md`: low-budget prod-only Elastic Cloud secret inventory, expected payload semantics, fill/verify/rollback flow, and standard-path handoff boundary.
 - `search-elastic-cloud-low-budget-operations-runbook.md`: low-budget prod-only Elastic Cloud snapshot / restore / lifecycle / incident-triage baseline and standard-path handoff boundary.
 - `incident-low-budget-operations-runbook.md`: low-budget prod-only incident flow, Discord mention baseline, capacity assumptions, and chaos readiness checklist.

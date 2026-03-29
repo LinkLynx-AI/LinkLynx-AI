@@ -93,8 +93,8 @@
 | **PostgreSQL** | Cloud SQL（マネージド） | PITR/バックアップ自動。標準 path は HA を検討、low-budget path は `prod-only` 単一 instance から開始 |
 | **ScyllaDB** | ScyllaDB Cloud or GCE 専用 | K8s 外。Autopilot の制限回避。low-budget path は external Scylla の runtime wiring を先に整える |
 | **Dragonfly** | K8s 上（標準 path は StatefulSet、low-budget path は volatile single Deployment） | 軽量。Redis 互換 |
-| **Redpanda** | Redpanda Cloud（標準 path） | low-budget path は Secret Manager placeholder を先に整える |
-| **NATS** | Synadia Cloud（標準 path） | low-budget path は Secret Manager placeholder を先に整える |
+| **Redpanda** | Redpanda Cloud（標準 path） | low-budget path は Secret Manager placeholder と ops baseline を先に整える |
+| **NATS** | Synadia Cloud（標準 path） | low-budget path は Secret Manager placeholder と ops baseline を先に整える |
 | **OpenSearch** | Elastic Cloud（初期） | 運用負荷回避。将来 K8s 上も可。low-budget path は Elastic Cloud secret placeholder と snapshot / lifecycle baseline を先に整える |
 
 ### 5. 認証・認可
@@ -176,7 +176,7 @@
 
 ### Phase 3: データストア・ミドルウェア
 - Dragonfly を K8s にデプロイ
-- Redpanda Cloud / Synadia Cloud 接続基盤を整備
+- Redpanda Cloud / Synadia Cloud 接続 / ops baseline を整備
 - ScyllaDB セットアップ（K8s 外）
 - Elastic Cloud 接続 / snapshot baseline
 
