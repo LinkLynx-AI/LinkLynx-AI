@@ -95,7 +95,7 @@
 | **Dragonfly** | K8s 上（標準 path は StatefulSet、low-budget path は volatile single Deployment） | 軽量。Redis 互換 |
 | **Redpanda** | Redpanda Cloud（標準 path） | low-budget path は Secret Manager placeholder を先に整える |
 | **NATS** | Synadia Cloud（標準 path） | low-budget path は Secret Manager placeholder を先に整える |
-| **OpenSearch** | Elastic Cloud（初期） | 運用負荷回避。将来 K8s 上も可 |
+| **OpenSearch** | Elastic Cloud（初期） | 運用負荷回避。将来 K8s 上も可。low-budget path は Elastic Cloud secret placeholder を先に整える |
 
 ### 5. 認証・認可
 
@@ -178,7 +178,7 @@
 - Dragonfly を K8s にデプロイ
 - Redpanda Cloud / Synadia Cloud 接続基盤を整備
 - ScyllaDB セットアップ（K8s 外）
-- OpenSearch 接続
+- Elastic Cloud 接続
 
 ### Phase 4: GitOps・監視
 - ArgoCD + Argo Rollouts セットアップ
