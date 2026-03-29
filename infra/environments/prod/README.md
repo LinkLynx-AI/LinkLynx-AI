@@ -179,6 +179,40 @@ terraform plan
 - degraded / fallback は `docs/runbooks/dragonfly-ratelimit-operations-runbook.md` と `docs/runbooks/session-resume-dragonfly-operations-runbook.md` に従う
 - infra verify / rollback は `docs/runbooks/dragonfly-standard-operations-runbook.md` を使う
 
+## LIN-970 standard ScyllaDB Cloud connection baseline
+
+`LIN-970` は standard path 向けに、ScyllaDB Cloud への connection contract と secret/access baseline を固定する。
+
+### 使う変数
+
+- `enable_standard_scylla_cloud_baseline`
+- `standard_scylla_hosts`
+- `standard_scylla_keyspace`
+- `standard_scylla_schema_path`
+- `standard_scylla_request_timeout_ms`
+- `standard_scylla_disallow_shard_aware_port`
+- `standard_scylla_runtime_workloads`
+- `standard_scylla_secret_ids`
+
+### baseline
+
+- env split: `staging` と `prod` は別 cluster
+- accessor workload: default `api`
+- required secrets:
+  - `username`
+  - `password`
+  - `ca_bundle`
+- auth: required
+- TLS: required
+- shard-aware port: disabled by default
+
+### 運用メモ
+
+- `enable_standard_scylla_cloud_baseline = true` の前に `enable_standard_workload_identity_baseline = true` が必要
+- `standard_scylla_runtime_workloads` は standard namespace baseline に含まれている必要がある
+- provider-side account / cluster / network allowlist は Terraform scope 外
+- verify / rollback / rotation / self-managed fallback は `docs/runbooks/scylla-cloud-standard-operations-runbook.md` を使う
+
 ## LIN-1015 prod-only Rust API smoke deploy
 
 `LIN-1015` は `LIN-1014` の cluster を使って、最初の Rust API workload を Terraform で出す。

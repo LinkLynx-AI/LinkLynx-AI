@@ -82,6 +82,12 @@ variable "enable_standard_dragonfly_baseline" {
   default     = false
 }
 
+variable "enable_standard_scylla_cloud_baseline" {
+  description = "Whether to create the standard staging ScyllaDB Cloud connection baseline."
+  type        = bool
+  default     = false
+}
+
 variable "standard_dragonfly_image" {
   description = "Dragonfly image used by the standard staging baseline."
   type        = string
@@ -98,6 +104,52 @@ variable "standard_dragonfly_allowed_client_namespaces" {
   description = "Namespaces allowed to reach the standard staging Dragonfly service."
   type        = set(string)
   default     = ["api"]
+}
+
+variable "standard_scylla_hosts" {
+  description = "ScyllaDB Cloud contact points for the standard staging baseline."
+  type        = set(string)
+  default     = []
+}
+
+variable "standard_scylla_keyspace" {
+  description = "Scylla keyspace for the standard staging baseline."
+  type        = string
+  default     = "chat"
+}
+
+variable "standard_scylla_schema_path" {
+  description = "Schema artifact path expected by the standard staging Scylla runtime contract."
+  type        = string
+  default     = "/app/database/scylla/001_lin139_messages.cql"
+}
+
+variable "standard_scylla_request_timeout_ms" {
+  description = "Runtime request timeout for the standard staging Scylla baseline."
+  type        = number
+  default     = 1000
+}
+
+variable "standard_scylla_disallow_shard_aware_port" {
+  description = "Whether the standard staging Scylla baseline disables shard-aware ports by default."
+  type        = bool
+  default     = true
+}
+
+variable "standard_scylla_runtime_workloads" {
+  description = "Standard runtime workloads that receive Scylla secret access."
+  type        = set(string)
+  default     = ["api"]
+}
+
+variable "standard_scylla_secret_ids" {
+  description = "Secret Manager secret IDs keyed by logical role for the standard staging Scylla baseline."
+  type        = map(string)
+  default = {
+    username  = "linklynx-staging-scylla-username"
+    password  = "linklynx-staging-scylla-password"
+    ca_bundle = "linklynx-staging-scylla-ca-bundle"
+  }
 }
 
 variable "standard_cloud_sql_database_name" {

@@ -297,6 +297,7 @@ The source of truth for Scylla operations (SoR boundary, partition review criter
 
 - `database/contracts/lin589_scylla_sor_partition_baseline.md`
 - `docs/runbooks/scylla-node-loss-backup-runbook.md`
+- `docs/runbooks/scylla-cloud-standard-operations-runbook.md` (standard path connection / secret / provider boundary)
 
 ## 4. 変更時の運用ルール
 
@@ -321,6 +322,8 @@ The source of truth for Scylla operations (SoR boundary, partition review criter
 - LIN-589 Scylla operations baseline:
   - `database/contracts/lin589_scylla_sor_partition_baseline.md`
   - `docs/runbooks/scylla-node-loss-backup-runbook.md`
+- LIN-970 standard ScyllaDB Cloud connection baseline:
+  - `docs/runbooks/scylla-cloud-standard-operations-runbook.md`
 - LIN-590 GCS attachment operations baseline:
   - `database/contracts/lin590_gcs_signed_url_and_retention_baseline.md`
   - `docs/runbooks/gcs-signed-url-retention-operations-runbook.md`
