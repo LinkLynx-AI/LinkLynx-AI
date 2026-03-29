@@ -4,6 +4,7 @@ locals {
   enable_standard_cloud_sql           = var.enable_standard_cloud_sql_baseline
   enable_standard_dragonfly           = var.enable_standard_dragonfly_baseline
   enable_standard_gitops              = var.enable_standard_gitops_baseline
+  enable_standard_managed_messaging   = var.enable_standard_managed_messaging_cloud_baseline
   enable_standard_scylla_cloud        = var.enable_standard_scylla_cloud_baseline
   enable_standard_workload_identities = var.enable_standard_workload_identity_baseline
   standard_runtime_identities = {
@@ -31,6 +32,12 @@ locals {
   }
   standard_scylla_accessor_service_account_emails = local.enable_standard_scylla_cloud ? toset([
     for workload in sort(tolist(var.standard_scylla_runtime_workloads)) : module.standard_runtime_identities[workload].google_service_account_email
+  ]) : toset([])
+  standard_redpanda_accessor_service_account_emails = local.enable_standard_managed_messaging ? toset([
+    for workload in sort(tolist(var.standard_redpanda_runtime_workloads)) : module.standard_runtime_identities[workload].google_service_account_email
+  ]) : toset([])
+  standard_nats_accessor_service_account_emails = local.enable_standard_managed_messaging ? toset([
+    for workload in sort(tolist(var.standard_nats_runtime_workloads)) : module.standard_runtime_identities[workload].google_service_account_email
   ]) : toset([])
 }
 
@@ -104,6 +111,49 @@ check "standard_scylla_cloud_prerequisites" {
   assert {
     condition     = !var.enable_standard_scylla_cloud_baseline || length(setsubtract(toset(["username", "password", "ca_bundle"]), toset(keys(var.standard_scylla_secret_ids)))) == 0
     error_message = "standard_scylla_secret_ids must define username, password, and ca_bundle entries."
+  }
+}
+
+check "standard_managed_messaging_prerequisites" {
+  assert {
+    condition     = !var.enable_standard_managed_messaging_cloud_baseline || var.enable_standard_workload_identity_baseline
+    error_message = "enable_standard_managed_messaging_cloud_baseline requires enable_standard_workload_identity_baseline = true."
+  }
+
+  assert {
+    condition     = !var.enable_standard_managed_messaging_cloud_baseline || length(setsubtract(var.standard_redpanda_runtime_workloads, toset(keys(local.standard_runtime_identities)))) == 0
+    error_message = "standard_redpanda_runtime_workloads must reference known standard runtime workloads."
+  }
+
+  assert {
+    condition     = !var.enable_standard_managed_messaging_cloud_baseline || length(setsubtract(var.standard_nats_runtime_workloads, toset(keys(local.standard_runtime_identities)))) == 0
+    error_message = "standard_nats_runtime_workloads must reference known standard runtime workloads."
+  }
+
+  assert {
+    condition     = !var.enable_standard_managed_messaging_cloud_baseline || length(setsubtract(var.standard_redpanda_runtime_workloads, var.standard_gke_namespace_names)) == 0
+    error_message = "standard_redpanda_runtime_workloads must map to namespaces included in standard_gke_namespace_names."
+  }
+
+  assert {
+    condition     = !var.enable_standard_managed_messaging_cloud_baseline || length(setsubtract(var.standard_nats_runtime_workloads, var.standard_gke_namespace_names)) == 0
+    error_message = "standard_nats_runtime_workloads must map to namespaces included in standard_gke_namespace_names."
+  }
+
+  assert {
+    condition = !var.enable_standard_managed_messaging_cloud_baseline || length(setsubtract(
+      toset(["bootstrap_servers", "sasl_username", "sasl_password", "ca_bundle"]),
+      toset(keys(var.standard_redpanda_secret_ids)),
+    )) == 0
+    error_message = "standard_redpanda_secret_ids must define bootstrap_servers, sasl_username, sasl_password, and ca_bundle entries."
+  }
+
+  assert {
+    condition = !var.enable_standard_managed_messaging_cloud_baseline || length(setsubtract(
+      toset(["url", "creds", "ca_bundle"]),
+      toset(keys(var.standard_nats_secret_ids)),
+    )) == 0
+    error_message = "standard_nats_secret_ids must define url, creds, and ca_bundle entries."
   }
 }
 
@@ -296,6 +346,23 @@ module "scylla_cloud_standard_baseline" {
   depends_on = [module.standard_runtime_identities]
 }
 
+module "managed_messaging_cloud_standard_baseline" {
+  count = local.enable_standard_managed_messaging ? 1 : 0
+
+  source = "../../modules/managed_messaging_cloud_standard_baseline"
+
+  environment                              = local.environment
+  labels                                   = { environment = local.environment, issue = "lin-971" }
+  nats_accessor_service_account_emails     = local.standard_nats_accessor_service_account_emails
+  nats_secret_ids                          = var.standard_nats_secret_ids
+  nats_smoke_subject                       = var.standard_nats_smoke_subject
+  redpanda_accessor_service_account_emails = local.standard_redpanda_accessor_service_account_emails
+  redpanda_secret_ids                      = var.standard_redpanda_secret_ids
+  redpanda_smoke_topic                     = var.standard_redpanda_smoke_topic
+
+  depends_on = [module.standard_runtime_identities]
+}
+
 output "environment" {
   value = local.environment
 }
@@ -354,4 +421,8 @@ output "dragonfly_standard_stateful" {
 
 output "scylla_cloud_standard_baseline" {
   value = local.enable_standard_scylla_cloud ? module.scylla_cloud_standard_baseline[0] : null
+}
+
+output "managed_messaging_cloud_standard_baseline" {
+  value = local.enable_standard_managed_messaging ? module.managed_messaging_cloud_standard_baseline[0] : null
 }

@@ -19,6 +19,7 @@ enable_standard_gitops_baseline        = false
 enable_standard_cloud_sql_baseline     = false
 enable_standard_dragonfly_baseline     = false
 enable_standard_scylla_cloud_baseline  = false
+enable_standard_managed_messaging_cloud_baseline = false
 standard_cloud_sql_tier                = "db-custom-4-16384"
 standard_cloud_sql_database_name       = "linklynx"
 standard_cloud_sql_prod_ha_enabled     = true

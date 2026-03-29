@@ -185,6 +185,7 @@ The source of truth for v1 Redpanda event stream operations (topic naming, reten
 
 - `database/contracts/lin601_redpanda_event_stream_baseline.md`
 - `docs/runbooks/redpanda-topic-retention-replay-runbook.md`
+- `docs/runbooks/managed-messaging-cloud-standard-operations-runbook.md`
 
 ### 2.11 Auth Schema Gap Correction (LIN-631)
 

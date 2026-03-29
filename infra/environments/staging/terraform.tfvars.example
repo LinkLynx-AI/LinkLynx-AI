@@ -18,6 +18,7 @@ enable_standard_gitops_baseline        = true
 enable_standard_cloud_sql_baseline     = true
 enable_standard_dragonfly_baseline     = true
 enable_standard_scylla_cloud_baseline  = true
+enable_standard_managed_messaging_cloud_baseline = true
 standard_cloud_sql_tier                = "db-custom-4-16384"
 standard_cloud_sql_database_name       = "linklynx"
 standard_dragonfly_image               = "docker.dragonflydb.io/dragonflydb/dragonfly:v1.29.0"

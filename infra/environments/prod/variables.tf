@@ -94,6 +94,12 @@ variable "enable_standard_scylla_cloud_baseline" {
   default     = false
 }
 
+variable "enable_standard_managed_messaging_cloud_baseline" {
+  description = "Whether to create the standard prod Redpanda Cloud / Synadia Cloud connection baseline."
+  type        = bool
+  default     = false
+}
+
 variable "standard_dragonfly_image" {
   description = "Dragonfly image used by the standard prod baseline."
   type        = string
@@ -156,6 +162,51 @@ variable "standard_scylla_secret_ids" {
     password  = "linklynx-prod-scylla-password"
     ca_bundle = "linklynx-prod-scylla-ca-bundle"
   }
+}
+
+variable "standard_redpanda_runtime_workloads" {
+  description = "Standard runtime workloads that receive Redpanda secret access."
+  type        = set(string)
+  default     = ["api"]
+}
+
+variable "standard_nats_runtime_workloads" {
+  description = "Standard runtime workloads that receive NATS secret access."
+  type        = set(string)
+  default     = ["api"]
+}
+
+variable "standard_redpanda_secret_ids" {
+  description = "Secret Manager secret IDs keyed by logical role for the standard prod Redpanda baseline."
+  type        = map(string)
+  default = {
+    bootstrap_servers = "linklynx-prod-redpanda-bootstrap-servers"
+    sasl_username     = "linklynx-prod-redpanda-sasl-username"
+    sasl_password     = "linklynx-prod-redpanda-sasl-password"
+    ca_bundle         = "linklynx-prod-redpanda-ca-bundle"
+  }
+}
+
+variable "standard_nats_secret_ids" {
+  description = "Secret Manager secret IDs keyed by logical role for the standard prod NATS baseline."
+  type        = map(string)
+  default = {
+    url       = "linklynx-prod-nats-url"
+    creds     = "linklynx-prod-nats-creds"
+    ca_bundle = "linklynx-prod-nats-ca-bundle"
+  }
+}
+
+variable "standard_redpanda_smoke_topic" {
+  description = "Dedicated Redpanda smoke topic for the standard prod baseline."
+  type        = string
+  default     = "llx.prod.v1.derived.ops.messaging_smoke.v1"
+}
+
+variable "standard_nats_smoke_subject" {
+  description = "Dedicated NATS smoke subject for the standard prod baseline."
+  type        = string
+  default     = "v0.ops.messaging_smoke"
 }
 
 variable "standard_cloud_sql_database_name" {
