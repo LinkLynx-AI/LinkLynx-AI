@@ -41,6 +41,36 @@ terraform plan
 - Next.js / Python が常時稼働前提になり、prod only 1 cluster では運用しづらくなったとき
 - HPA を入れたいだけの観測データが揃ったとき
 
+## LIN-964 standard GKE Autopilot baseline
+
+`LIN-964` は standard path 向けに、`prod` に 1 つの Autopilot cluster と namespace baseline を作る。
+
+### 使う変数
+
+- `enable_standard_gke_cluster_baseline`
+- `standard_gke_release_channel`
+- `standard_gke_namespace_names`
+
+### 作られるもの
+
+- standard Autopilot cluster
+- namespace baseline
+  - `frontend`
+  - `api`
+  - `ai`
+  - `data`
+  - `ops`
+  - `observability`
+- `ops/ops-viewer` read-only service account
+- `data` / `ops` / `observability` restricted ingress baseline
+
+### 運用メモ
+
+- `prod` では low-budget cluster と standard cluster を同時に有効化しない
+- standard path に切り替えるときは `enable_minimal_gke_cluster = false` にする
+- VPA primary / HPA later の方針で始める
+- verify / rollback は `docs/runbooks/gke-autopilot-standard-operations-runbook.md` を使う
+
 ## LIN-1015 prod-only Rust API smoke deploy
 
 `LIN-1015` は `LIN-1014` の cluster を使って、最初の Rust API workload を Terraform で出す。

@@ -18,6 +18,8 @@ infra/
 │   ├── cloud_sql_postgres_minimal/
 │   ├── dragonfly_minimal/
 │   ├── gke_autopilot_minimal/
+│   ├── gke_autopilot_standard_cluster/
+│   ├── gke_namespace_baseline/
 │   ├── github_actions_artifact_publish/
 │   ├── github_actions_terraform_deploy/
 │   ├── managed_messaging_secret_placeholders/
@@ -152,6 +154,44 @@ domain が未確定でも code は先に用意し、environment ごとの `terra
 - staging 常設環境がないと deploy safety を維持できない
 - Next.js / Python が常時 production workload になった
 - autoscaling を固定 request では吸収しきれない
+
+## LIN-964 standard GKE Autopilot cluster baseline
+
+standard path では `staging` / `prod` に 1 cluster ずつ置き、domain split 前の namespace / RBAC / restricted ingress baseline を先に固定する。
+
+### What gets created
+
+- standard Autopilot cluster
+  - `staging`
+  - `prod`
+- namespace baseline
+  - `frontend`
+  - `api`
+  - `ai`
+  - `data`
+  - `ops`
+  - `observability`
+- read-only ops service account
+  - `ops/ops-viewer`
+- restricted ingress baseline
+  - `data`
+  - `ops`
+  - `observability`
+
+### Autoscaling posture
+
+- `frontend` / `api`: VPA primary, HPA later
+- `ai`: spot-ready だが、この issue では placement まで入れない
+- `data` / `ops` / `observability`: manual first
+
+この issue では workload target がまだないため、`VerticalPodAutoscaler` object までは作らない。VPA/HPA 境界と namespace label で先に運用ルールを固定する。
+
+### Prod coexistence rule
+
+`prod` では low-budget cluster (`LIN-1014`) と standard cluster (`LIN-964`) を同時に有効化しない。
+`enable_standard_gke_cluster_baseline = true` にする場合は `enable_minimal_gke_cluster = false` に切り替える。
+
+詳細な verify / rollback は `docs/runbooks/gke-autopilot-standard-operations-runbook.md` を参照する。
 
 ## LIN-966 Artifact Registry / CI publish baseline
 

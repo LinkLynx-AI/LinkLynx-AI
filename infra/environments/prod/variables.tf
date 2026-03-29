@@ -46,6 +46,24 @@ variable "enable_minimal_gke_cluster" {
   default     = true
 }
 
+variable "enable_standard_gke_cluster_baseline" {
+  description = "Whether to create the standard prod GKE Autopilot cluster and namespace baseline."
+  type        = bool
+  default     = false
+}
+
+variable "standard_gke_release_channel" {
+  description = "Release channel used by the standard prod GKE cluster baseline."
+  type        = string
+  default     = "REGULAR"
+}
+
+variable "standard_gke_namespace_names" {
+  description = "Namespaces created by the standard prod cluster baseline."
+  type        = set(string)
+  default     = ["frontend", "api", "ai", "data", "ops", "observability"]
+}
+
 variable "enable_rust_api_smoke_deploy" {
   description = "Whether to create the prod Rust API smoke workload on the minimal cluster."
   type        = bool
