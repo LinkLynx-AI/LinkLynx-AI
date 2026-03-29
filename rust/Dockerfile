@@ -14,6 +14,7 @@ RUN apk add --no-cache ca-certificates
 WORKDIR /app
 
 COPY --from=builder /app/target/release/linklynx_backend /app/linklynx_backend
+COPY --from=builder /app/database/scylla /app/database/scylla
 
 EXPOSE 8080
 

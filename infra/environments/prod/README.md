@@ -175,6 +175,34 @@ default では `enable_minimal_dragonfly_baseline = false` にしている。
 - fallback / degraded behavior は `docs/runbooks/dragonfly-ratelimit-operations-runbook.md` と `docs/runbooks/session-resume-dragonfly-operations-runbook.md` に従う
 - infra verify / rollback は `docs/runbooks/dragonfly-low-budget-operations-runbook.md` を使う
 
+## LIN-1023 prod-only Scylla runtime baseline
+
+`LIN-1023` は low-budget path 向けに、`rust-api-smoke` workload が外部 Scylla へ接続するための runtime baseline を追加する。
+
+### 使う変数
+
+- `enable_minimal_scylla_runtime_baseline`
+- `minimal_scylla_hosts`
+- `minimal_scylla_keyspace`
+- `minimal_scylla_schema_path`
+- `minimal_scylla_request_timeout_ms`
+
+default では `enable_minimal_scylla_runtime_baseline = false` にしている。
+`Rust API smoke` workload が有効で、接続先 host が埋まっているときだけ明示的に有効化する。
+
+### 追加されるもの
+
+- Rust image 内の bundled schema artifact:
+  - `/app/database/scylla/001_lin139_messages.cql`
+- `rust-api-smoke` Pod への `SCYLLA_*` env injection
+
+### 運用メモ
+
+- この baseline は external Scylla cluster 自体は作らない
+- `GET /internal/scylla/health` で wiring 後の状態を確認する
+- network / backup / auth / recovery は standard path の `LIN-970` に残す
+- verify / rollback は `docs/runbooks/scylla-low-budget-runtime-operations-runbook.md` を使う
+
 ## LIN-1019 prod-only security baseline
 
 `LIN-1019` は low-budget path 向けに、`Cloud Armor + Trivy + Secret Manager audit log` をつないだ最小 security baseline を追加する。

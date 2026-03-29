@@ -256,6 +256,34 @@ Route baseline は次の通り。
 
 deploy 後の rollback は `rust_api_image_digest` を直前 digest に戻して再 apply する。
 
+## LIN-1023 prod-only Scylla runtime baseline
+
+low-budget path では standard `LIN-970` の外部 Scylla provision をまだ行わず、先に Rust workload 側の runtime baseline を閉じる。
+
+### What gets added
+
+- Rust image に `/app/database/scylla/001_lin139_messages.cql` を同梱
+- `rust_api_smoke_deploy` module から `SCYLLA_*` env を opt-in inject
+- `prod` root に Scylla runtime 用 prerequisite check を追加
+
+### Required inputs
+
+- `enable_rust_api_smoke_deploy = true`
+- `enable_minimal_scylla_runtime_baseline = true`
+- `minimal_scylla_hosts = ["<host>:9042", ...]`
+
+optional inputs:
+
+- `minimal_scylla_keyspace`
+- `minimal_scylla_schema_path`
+- `minimal_scylla_request_timeout_ms`
+
+### Responsibility boundary
+
+- this issue covers workload-side runtime wiring only
+- external Scylla cluster / network / backup / auth baseline は `LIN-970` に残す
+- verify / rollback は `docs/runbooks/scylla-low-budget-runtime-operations-runbook.md` を使う
+
 ## LIN-1021 prod-only Terraform deploy workflow baseline
 
 low-budget path の deploy 実行経路は、当面 `Argo CD` ではなく GitHub Actions からの Terraform 実行に寄せる。

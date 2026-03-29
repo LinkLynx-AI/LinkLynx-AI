@@ -9,6 +9,7 @@ locals {
   )
   workload_identity_enabled = length(var.service_account_annotations) > 0
   backend_security_enabled  = trimspace(var.backend_security_policy_name) != ""
+  scylla_runtime_env        = { for key in sort(keys(var.scylla_runtime_env)) : key => var.scylla_runtime_env[key] if trimspace(var.scylla_runtime_env[key]) != "" }
 }
 
 resource "kubernetes_namespace_v1" "this" {
@@ -66,6 +67,15 @@ resource "kubernetes_deployment_v1" "this" {
           env {
             name  = "RUST_LOG"
             value = "info"
+          }
+
+          dynamic "env" {
+            for_each = local.scylla_runtime_env
+
+            content {
+              name  = env.key
+              value = env.value
+            }
           }
 
           readiness_probe {
