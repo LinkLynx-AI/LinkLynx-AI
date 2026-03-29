@@ -7,6 +7,7 @@ locals {
   rust_api_smoke_edge_is_ready  = module.network_foundation.public_certificate_map_name != null && module.network_foundation.public_lb_ipv4_name != ""
   enable_minimal_cloud_sql      = var.enable_minimal_cloud_sql_baseline
   enable_minimal_monitoring     = var.enable_minimal_monitoring_baseline
+  enable_minimal_security       = var.enable_minimal_security_baseline
 }
 
 check "rust_api_smoke_prerequisites" {
@@ -40,6 +41,13 @@ check "minimal_monitoring_prerequisites" {
   assert {
     condition     = !var.enable_minimal_monitoring_baseline || var.enable_minimal_cloud_sql_baseline
     error_message = "enable_minimal_monitoring_baseline requires enable_minimal_cloud_sql_baseline = true."
+  }
+}
+
+check "minimal_security_prerequisites" {
+  assert {
+    condition     = !var.enable_minimal_security_baseline || var.enable_rust_api_smoke_deploy
+    error_message = "enable_minimal_security_baseline requires enable_rust_api_smoke_deploy = true."
   }
 }
 
@@ -114,12 +122,13 @@ module "rust_api_smoke_deploy" {
 
   source = "../../modules/rust_api_smoke_deploy"
 
-  certificate_map_name     = basename(module.network_foundation.public_certificate_map_name)
-  deployment_name          = "rust-api-smoke"
-  gateway_name             = "rust-api-gateway"
-  gateway_static_ip_name   = module.network_foundation.public_lb_ipv4_name
-  health_check_policy_name = "rust-api-healthcheck"
-  image                    = var.rust_api_image_digest
+  certificate_map_name         = basename(module.network_foundation.public_certificate_map_name)
+  deployment_name              = "rust-api-smoke"
+  backend_security_policy_name = local.enable_minimal_security ? module.network_foundation.cloud_armor_policy_name : ""
+  gateway_name                 = "rust-api-gateway"
+  gateway_static_ip_name       = module.network_foundation.public_lb_ipv4_name
+  health_check_policy_name     = "rust-api-healthcheck"
+  image                        = var.rust_api_image_digest
   labels = {
     environment = local.environment
     issue       = "lin-1015"
@@ -218,4 +227,8 @@ output "cloud_sql_postgres_minimal" {
 
 output "cloud_monitoring_minimal" {
   value = local.enable_minimal_monitoring ? module.cloud_monitoring_minimal[0] : null
+}
+
+output "minimal_security_baseline_enabled" {
+  value = local.enable_minimal_security
 }

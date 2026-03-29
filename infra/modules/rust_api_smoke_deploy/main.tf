@@ -8,6 +8,7 @@ locals {
     var.labels,
   )
   workload_identity_enabled = length(var.service_account_annotations) > 0
+  backend_security_enabled  = trimspace(var.backend_security_policy_name) != ""
 }
 
 resource "kubernetes_namespace_v1" "this" {
@@ -246,4 +247,30 @@ resource "kubernetes_manifest" "health_check_policy" {
   }
 
   depends_on = [kubernetes_manifest.route]
+}
+
+resource "kubernetes_manifest" "backend_policy" {
+  count = local.backend_security_enabled ? 1 : 0
+
+  manifest = {
+    apiVersion = "networking.gke.io/v1"
+    kind       = "GCPBackendPolicy"
+    metadata = {
+      name      = "${var.service_name}-backend-policy"
+      namespace = kubernetes_namespace_v1.this.metadata[0].name
+      labels    = local.app_labels
+    }
+    spec = {
+      default = {
+        securityPolicy = var.backend_security_policy_name
+      }
+      targetRef = {
+        group = ""
+        kind  = "Service"
+        name  = kubernetes_service_v1.this.metadata[0].name
+      }
+    }
+  }
+
+  depends_on = [kubernetes_service_v1.this]
 }

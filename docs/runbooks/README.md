@@ -20,3 +20,4 @@
 - `workload-identity-secret-manager-operations-runbook.md`: Workload Identity, secret-level IAM, audit-log verification, and secret rotation/rollback baseline for the low-budget prod-only path.
 - `cloud-sql-postgres-migration-operations-runbook.md`: Cloud SQL-backed PostgreSQL forward-only migration gate, manual approval boundary, and failure-handling baseline for the low-budget prod-only path.
 - `cloud-monitoring-low-budget-operations-runbook.md`: Cloud Monitoring + Cloud Logging baseline, optional notification channel routing, and low-budget prod-only alert triage flow.
+- `cloud-armor-low-budget-operations-runbook.md`: Cloud Armor backend attachment, baseline WAF rules, and low-budget prod-only security verify/rollback flow.
