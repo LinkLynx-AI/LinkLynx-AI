@@ -131,10 +131,10 @@
 
 | 項目 | 決定 |
 |------|------|
-| メトリクス | **Prometheus** |
-| ダッシュボード | **Grafana** |
-| アラート | **Alertmanager** |
-| ログ | **Loki** |
+| メトリクス | **Prometheus**（標準 path） / **Cloud Monitoring**（low-budget `prod-only` path） |
+| ダッシュボード | **Grafana**（標準 path） / **Cloud Monitoring dashboard**（low-budget path） |
+| アラート | **Alertmanager**（標準 path） / **Cloud Monitoring alert policy**（low-budget path） |
+| ログ | **Loki**（標準 path） / **Cloud Logging**（low-budget path） |
 | トレーシング | **Tempo**（将来追加） |
 | 通知先 | 後で決定 |
 

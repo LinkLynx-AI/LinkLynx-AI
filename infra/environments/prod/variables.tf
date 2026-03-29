@@ -98,3 +98,21 @@ variable "minimal_cloud_sql_disk_size_gb" {
   type        = number
   default     = 20
 }
+
+variable "enable_minimal_monitoring_baseline" {
+  description = "Whether to create the low-budget prod-only Cloud Monitoring baseline."
+  type        = bool
+  default     = false
+}
+
+variable "minimal_monitoring_alert_email_addresses" {
+  description = "Email notification channels to create for the low-budget monitoring baseline."
+  type        = set(string)
+  default     = []
+}
+
+variable "minimal_monitoring_existing_notification_channels" {
+  description = "Existing Cloud Monitoring notification channel resource names to attach."
+  type        = list(string)
+  default     = []
+}
