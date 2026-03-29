@@ -23,6 +23,7 @@
 - `cloud-armor-low-budget-operations-runbook.md`: Cloud Armor backend attachment, baseline WAF rules, and low-budget prod-only security verify/rollback flow.
 - `dragonfly-low-budget-operations-runbook.md`: low-budget prod-only Dragonfly volatile baseline, internal endpoint, verify/rollback flow, and upgrade trigger.
 - `scylla-low-budget-runtime-operations-runbook.md`: low-budget prod-only Scylla runtime env wiring, bundled schema artifact path, verify/rollback flow, and standard-path handoff boundary.
+- `scylla-external-low-budget-operations-runbook.md`: low-budget prod-only external Scylla ownership boundary, backup/restore baseline, monitoring seed, and standard-path handoff boundary.
 - `managed-messaging-low-budget-operations-runbook.md`: low-budget prod-only Redpanda/NATS secret inventory, expected payload semantics, fill/verify/rollback flow, and standard-path handoff boundary.
 - `managed-messaging-cloud-low-budget-operations-runbook.md`: low-budget prod-only Redpanda Cloud / Synadia Cloud ownership boundary, incident-triage baseline, monitoring seed, and standard-path handoff boundary.
 - `search-low-budget-operations-runbook.md`: low-budget prod-only Elastic Cloud secret inventory, expected payload semantics, fill/verify/rollback flow, and standard-path handoff boundary.
