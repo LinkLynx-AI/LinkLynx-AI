@@ -94,3 +94,9 @@ variable "backend_security_policy_name" {
   type        = string
   default     = ""
 }
+
+variable "scylla_runtime_env" {
+  description = "Optional Scylla runtime environment variables injected into the workload."
+  type        = map(string)
+  default     = {}
+}

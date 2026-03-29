@@ -134,3 +134,38 @@ variable "minimal_dragonfly_image" {
   type        = string
   default     = ""
 }
+
+variable "enable_minimal_scylla_runtime_baseline" {
+  description = "Whether to inject the low-budget Scylla runtime baseline into the Rust API smoke workload."
+  type        = bool
+  default     = false
+}
+
+variable "minimal_scylla_hosts" {
+  description = "External Scylla contact points for the low-budget runtime baseline."
+  type        = set(string)
+  default     = []
+}
+
+variable "minimal_scylla_keyspace" {
+  description = "Scylla keyspace used by the low-budget runtime baseline."
+  type        = string
+  default     = "chat"
+}
+
+variable "minimal_scylla_schema_path" {
+  description = "Scylla schema file path inside the Rust API container image."
+  type        = string
+  default     = "/app/database/scylla/001_lin139_messages.cql"
+}
+
+variable "minimal_scylla_request_timeout_ms" {
+  description = "Scylla request timeout in milliseconds for the low-budget runtime baseline."
+  type        = number
+  default     = 1000
+
+  validation {
+    condition     = var.minimal_scylla_request_timeout_ms > 0
+    error_message = "minimal_scylla_request_timeout_ms must be a positive number."
+  }
+}

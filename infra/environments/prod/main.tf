@@ -9,6 +9,13 @@ locals {
   enable_minimal_monitoring     = var.enable_minimal_monitoring_baseline
   enable_minimal_security       = var.enable_minimal_security_baseline
   enable_minimal_dragonfly      = var.enable_minimal_dragonfly_baseline
+  enable_minimal_scylla_runtime = var.enable_minimal_scylla_runtime_baseline
+  minimal_scylla_runtime_env = local.enable_minimal_scylla_runtime ? {
+    SCYLLA_HOSTS              = join(",", sort(tolist(var.minimal_scylla_hosts)))
+    SCYLLA_KEYSPACE           = var.minimal_scylla_keyspace
+    SCYLLA_SCHEMA_PATH        = var.minimal_scylla_schema_path
+    SCYLLA_REQUEST_TIMEOUT_MS = tostring(var.minimal_scylla_request_timeout_ms)
+  } : {}
 }
 
 check "rust_api_smoke_prerequisites" {
@@ -61,6 +68,18 @@ check "minimal_dragonfly_prerequisites" {
   assert {
     condition     = !var.enable_minimal_dragonfly_baseline || trimspace(var.minimal_dragonfly_image) != ""
     error_message = "enable_minimal_dragonfly_baseline requires minimal_dragonfly_image to be set."
+  }
+}
+
+check "minimal_scylla_runtime_prerequisites" {
+  assert {
+    condition     = !var.enable_minimal_scylla_runtime_baseline || var.enable_rust_api_smoke_deploy
+    error_message = "enable_minimal_scylla_runtime_baseline requires enable_rust_api_smoke_deploy = true."
+  }
+
+  assert {
+    condition     = !var.enable_minimal_scylla_runtime_baseline || length(var.minimal_scylla_hosts) > 0
+    error_message = "enable_minimal_scylla_runtime_baseline requires at least one minimal_scylla_hosts entry."
   }
 }
 
@@ -149,6 +168,7 @@ module "rust_api_smoke_deploy" {
   namespace                   = "rust-api-smoke"
   public_hostname             = local.rust_api_public_hostname
   route_name                  = "rust-api-route"
+  scylla_runtime_env          = local.minimal_scylla_runtime_env
   service_account_annotations = var.enable_minimal_gke_cluster ? module.rust_api_runtime_identity[0].kubernetes_service_account_annotations : {}
   service_account_name        = "rust-api-smoke"
   service_name                = "rust-api-smoke"
@@ -266,4 +286,8 @@ output "minimal_security_baseline_enabled" {
 
 output "dragonfly_minimal" {
   value = local.enable_minimal_dragonfly ? module.dragonfly_minimal[0] : null
+}
+
+output "minimal_scylla_runtime_baseline_enabled" {
+  value = local.enable_minimal_scylla_runtime
 }
