@@ -5,6 +5,7 @@ locals {
   enable_rust_api_smoke         = var.enable_rust_api_smoke_deploy && var.enable_minimal_gke_cluster
   rust_api_smoke_inputs_are_set = var.rust_api_image_digest != "" && local.rust_api_public_hostname != ""
   rust_api_smoke_edge_is_ready  = module.network_foundation.public_certificate_map_name != null && module.network_foundation.public_lb_ipv4_name != ""
+  enable_minimal_cloud_sql      = var.enable_minimal_cloud_sql_baseline
 }
 
 check "rust_api_smoke_prerequisites" {
@@ -119,6 +120,27 @@ module "rust_api_smoke_deploy" {
   ]
 }
 
+module "cloud_sql_postgres_minimal" {
+  count = local.enable_minimal_cloud_sql ? 1 : 0
+
+  source = "../../modules/cloud_sql_postgres_minimal"
+
+  allocated_ip_range_name = module.network_foundation.private_service_access_range_name
+  database_name           = var.minimal_cloud_sql_database_name
+  disk_size_gb            = var.minimal_cloud_sql_disk_size_gb
+  environment             = local.environment
+  labels = {
+    environment = local.environment
+    issue       = "lin-1017"
+  }
+  network_self_link = module.network_foundation.network_self_link
+  project_id        = var.project_id
+  region            = var.region
+  tier              = var.minimal_cloud_sql_tier
+
+  depends_on = [module.network_foundation]
+}
+
 output "environment" {
   value = local.environment
 }
@@ -145,4 +167,8 @@ output "rust_api_runtime_identity" {
 
 output "rust_api_smoke_deploy" {
   value = local.enable_rust_api_smoke ? module.rust_api_smoke_deploy[0] : null
+}
+
+output "cloud_sql_postgres_minimal" {
+  value = local.enable_minimal_cloud_sql ? module.cloud_sql_postgres_minimal[0] : null
 }

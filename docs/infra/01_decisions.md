@@ -90,7 +90,7 @@
 
 | DB | ホスティング | 理由 |
 |----|------------|------|
-| **PostgreSQL** | Cloud SQL（マネージド） | PITR/HA/バックアップ自動。運用負荷最小 |
+| **PostgreSQL** | Cloud SQL（マネージド） | PITR/バックアップ自動。標準 path は HA を検討、low-budget path は `prod-only` 単一 instance から開始 |
 | **ScyllaDB** | ScyllaDB Cloud or GCE 専用 | K8s 外。Autopilot の制限回避 |
 | **Dragonfly** | K8s 上 StatefulSet | 軽量。Redis 互換 |
 | **Redpanda** | K8s 上 Helm chart | 公式 Operator あり |
