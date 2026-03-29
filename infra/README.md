@@ -20,6 +20,7 @@ infra/
 │   ├── gke_autopilot_minimal/
 │   ├── github_actions_artifact_publish/
 │   ├── github_actions_terraform_deploy/
+│   ├── managed_messaging_secret_placeholders/
 │   ├── project_baseline/
 │   ├── network_foundation/
 │   ├── rust_api_smoke_deploy/
@@ -283,6 +284,32 @@ optional inputs:
 - this issue covers workload-side runtime wiring only
 - external Scylla cluster / network / backup / auth baseline は `LIN-970` に残す
 - verify / rollback は `docs/runbooks/scylla-low-budget-runtime-operations-runbook.md` を使う
+
+## LIN-1024 prod-only managed messaging secret baseline
+
+low-budget path では Redpanda / NATS の runtime client をまだ入れず、先に Secret Manager 上の connection material inventory を固定する。
+
+### What gets added
+
+- `managed_messaging_secret_placeholders` module
+- Redpanda Cloud 用 secret placeholder
+- Synadia / NATS 用 secret placeholder
+
+### Default inventory
+
+- Redpanda:
+  - `linklynx-prod-redpanda-bootstrap-servers`
+  - `linklynx-prod-redpanda-sasl-username`
+  - `linklynx-prod-redpanda-sasl-password`
+- NATS:
+  - `linklynx-prod-nats-url`
+  - `linklynx-prod-nats-creds`
+
+### Responsibility boundary
+
+- this issue covers Secret Manager inventory only
+- runtime env wiring / publish / subscribe smoke は `LIN-971` に残す
+- verify / rollback は `docs/runbooks/managed-messaging-low-budget-operations-runbook.md` を使う
 
 ## LIN-1021 prod-only Terraform deploy workflow baseline
 
