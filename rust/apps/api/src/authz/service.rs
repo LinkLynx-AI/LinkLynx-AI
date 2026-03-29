@@ -584,7 +584,21 @@ impl SpiceDbHttpAuthorizer {
                 },
                 "can_view".to_owned(),
             ),
-            (AuthzResource::RestPath { .. }, _) => {
+            (AuthzResource::RestPath { path }, AuthzAction::Post) => (
+                SpiceDbObjectReference {
+                    object_type: "api_path".to_owned(),
+                    object_id: path.clone(),
+                },
+                "can_post".to_owned(),
+            ),
+            (AuthzResource::RestPath { path }, AuthzAction::Manage) => (
+                SpiceDbObjectReference {
+                    object_type: "api_path".to_owned(),
+                    object_id: path.clone(),
+                },
+                "can_manage".to_owned(),
+            ),
+            (AuthzResource::RestPath { .. }, AuthzAction::Connect) => {
                 return Err(AuthzError::denied("rest_path_action_not_supported"));
             }
         };
