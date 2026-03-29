@@ -105,6 +105,12 @@ variable "nats_tcp_targets" {
   default     = []
 }
 
+variable "search_http_probe_targets" {
+  description = "HTTP(S) targets for Elastic Cloud reachability probes."
+  type        = set(string)
+  default     = []
+}
+
 variable "discord_webhook_url" {
   description = "Discord webhook URL used by Alertmanager."
   type        = string

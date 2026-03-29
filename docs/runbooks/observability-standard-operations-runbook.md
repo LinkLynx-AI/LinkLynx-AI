@@ -10,6 +10,7 @@
   - [Dragonfly Standard Operations Runbook](./dragonfly-standard-operations-runbook.md)
   - [Scylla Cloud Standard Operations Runbook](./scylla-cloud-standard-operations-runbook.md)
   - [Managed Messaging Cloud Standard Operations Runbook](./managed-messaging-cloud-standard-operations-runbook.md)
+  - [Search Elastic Cloud Standard Operations Runbook](./search-elastic-cloud-standard-operations-runbook.md)
   - `LIN-972`
 
 ## 1. Purpose and scope
@@ -20,7 +21,7 @@ In scope:
 
 - in-cluster metrics stack (`Prometheus + Grafana + Alertmanager`)
 - in-cluster logs path (`Loki + Grafana Alloy`)
-- dependency reachability probes for API / Cloud SQL / Dragonfly / Scylla / Redpanda / NATS
+- dependency reachability probes for API / Cloud SQL / Dragonfly / Scylla / Redpanda / NATS / search
 - Discord initial alert route
 - API / WebSocket SLO dashboard baseline
 - verify / rollback flow and future expansion boundary
@@ -100,6 +101,7 @@ Blackbox reachability probes cover:
 - Scylla contact points
 - Redpanda bootstrap targets
 - NATS targets
+- optional Elastic Cloud HTTPS endpoint targets
 
 This issue intentionally uses reachability probes as the minimum standard baseline.
 Provider-native deep metrics ingestion remains a follow-up.
@@ -143,6 +145,7 @@ This path avoids privileged host mounts in the baseline issue.
 1. `terraform plan` shows the observability module only after standard GKE / GitOps / Cloud SQL / Dragonfly / Scylla / messaging baselines are enabled.
 2. the Discord webhook input is non-empty
 3. API / Redpanda / NATS probe targets are non-empty
+4. search baseline is also enabled, `standard_search_probe_targets` is non-empty
 
 ### 7.2 Runtime verify
 
@@ -160,6 +163,7 @@ After apply:
    - `scylla`
    - `redpanda`
    - `nats`
+   - `search` when Elastic Cloud probe targets are configured
 4. fire a test alert and confirm Discord delivery
 5. confirm Loki receives pod logs from at least one namespace
 
@@ -187,4 +191,4 @@ Keep these contracts stable while expanding:
 
 - the v0 metric names
 - the Discord route as the initial human notification path
-- dependency reachability coverage for the six baseline target groups
+- dependency reachability coverage for the configured baseline target groups
