@@ -13,6 +13,7 @@ LIN-962 で GCP bootstrap と Terraform remote state の最小土台を追加し
 ```text
 infra/
 ├── modules/
+│   ├── gke_autopilot_minimal/
 │   ├── project_baseline/
 │   ├── network_foundation/
 │   └── state_backend/
@@ -112,3 +113,33 @@ domain が未確定でも code は先に用意し、environment ごとの `terra
 - DNS authorization record
 - Google-managed certificate
 - certificate map / entry
+
+## LIN-1014 low-budget GKE path
+
+月額 `1万円` 前後の初期予算では、まず `prod only` の Autopilot cluster 1つに寄せる。
+
+### Why prod only
+
+- GKE cluster management fee は `1 cluster あたり $0.10/hour` だが、Autopilot / zonal cluster には billing account ごとに `月 $74.40` の free tier credit がある
+- そのため、**常設 1 cluster** なら management fee はほぼ吸収できるが、`staging + prod` 常設は edge / DNS / traffic と合わせて初期予算に対して重くなりやすい
+- low-budget path では `Rust API` を先に成立させ、常設 staging は後から足す
+
+### Baseline
+
+- prod: Autopilot cluster 1つ
+- staging: 常設 cluster なし
+- initial workload: Rust API のみ
+- fixed request baseline:
+  - CPU: `500m`
+  - Memory: `512Mi`
+  - Ephemeral storage: `1Gi`
+- VPA: recommendation-only
+- HPA: 未導入
+
+### Upgrade path
+
+次の条件を満たしたら標準 path の `LIN-964` へ移る。
+
+- staging 常設環境がないと deploy safety を維持できない
+- Next.js / Python が常時 production workload になった
+- autoscaling を固定 request では吸収しきれない
