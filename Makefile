@@ -4,6 +4,7 @@
 .PHONY: authz-spicedb-up authz-spicedb-down authz-spicedb-health
 .PHONY: scylla-wait scylla-bootstrap scylla-health
 .PHONY: message-scylla-integration
+.PHONY: infra-fmt infra-validate infra-gitops-validate
 
 # 色設定
 GREEN  := \033[0;32m
@@ -52,6 +53,9 @@ help: ## ヘルプを表示
 	@echo "  $(GREEN)lint$(NC)               リントを実行 (ts / rust / py)"
 	@echo "  $(GREEN)test$(NC)               テストを実行 (ts / rust / py)"
 	@echo "  $(GREEN)validate$(NC)           format / lint / test"
+	@echo "  $(GREEN)infra-fmt$(NC)          Terraform format check"
+	@echo "  $(GREEN)infra-validate$(NC)     Terraform init(-backend=false) + validate"
+	@echo "  $(GREEN)infra-gitops-validate$(NC) GitOps kustomize render validate"
 	@echo ""
 	@echo "$(YELLOW)言語別ショートカット$(NC)"
 	@echo "  $(GREEN)ts-*$(NC)               ts-dev / ts-build / ts-format / ts-lint / ts-test / ts-validate / ts-fsd-check"
@@ -301,6 +305,40 @@ lint: ts-lint rust-lint py-lint ## Lintを実行
 ci: lint ## CI相当のチェックを実行
 
 validate: format lint test ## format / lint / test をすべて実行
+
+infra-fmt: ## Terraform format check を実行
+	@if ! command -v terraform >/dev/null 2>&1; then \
+		echo "$(RED)terraform が見つかりません。Terraform をインストールしてください$(NC)"; \
+		exit 1; \
+	fi
+	terraform fmt -check -recursive infra
+
+infra-validate: ## Terraform init(-backend=false) + validate を実行
+	@if ! command -v terraform >/dev/null 2>&1; then \
+		echo "$(RED)terraform が見つかりません。Terraform をインストールしてください$(NC)"; \
+		exit 1; \
+	fi
+	@set -e; \
+	for dir in infra/environments/bootstrap infra/environments/staging infra/environments/prod; do \
+		echo "$(BLUE)Terraform validate: $$dir$(NC)"; \
+		terraform -chdir=$$dir init -backend=false >/dev/null; \
+		terraform -chdir=$$dir validate; \
+	done
+
+infra-gitops-validate: ## GitOps kustomize render validate を実行
+	@if ! command -v kubectl >/dev/null 2>&1; then \
+		echo "$(RED)kubectl が見つかりません。kubectl をインストールしてください$(NC)"; \
+		exit 1; \
+	fi
+	@set -e; \
+	for dir in \
+		infra/gitops/apps/staging/canary-smoke \
+		infra/gitops/apps/prod/canary-smoke \
+		infra/gitops/bootstrap/staging \
+		infra/gitops/bootstrap/prod; do \
+		echo "$(BLUE)GitOps render validate: $$dir$(NC)"; \
+		kubectl kustomize $$dir >/dev/null; \
+	done
 
 # ============================================
 # Python コマンド

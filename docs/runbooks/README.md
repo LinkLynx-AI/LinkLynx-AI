@@ -17,3 +17,33 @@
 - `gcs-signed-url-retention-operations-runbook.md`: GCS attachment signed URL issuance/reissue flow, accidental deletion recovery, and retention policy change baseline.
 - `profile-media-gcs-operations-runbook.md`: Profile avatar/banner signed URL issuance, same-bucket upload/download verification, and runtime credential triage baseline.
 - `redpanda-topic-retention-replay-runbook.md`: Redpanda topic naming/retention change controls, replay execution, outage recovery, and rollback baseline for v1 event stream operations.
+- `workload-identity-secret-manager-operations-runbook.md`: Workload Identity, secret-level IAM, audit-log verification, and secret rotation/rollback baseline for the low-budget prod-only path.
+- `workload-identity-secret-manager-standard-operations-runbook.md`: standard path の workload-scoped KSA / GSA / Secret Manager baseline、staging verify、rotation/rollback 手順。
+- `argocd-rollouts-standard-operations-runbook.md`: standard path の Argo CD / Argo Rollouts baseline、bootstrap apply、staging auto-sync / prod manual-sync、canary rollback 手順。
+- `cloud-sql-postgres-standard-operations-runbook.md`: standard path の Cloud SQL topology、`CI -> staging -> prod manual approval` migration gate、verify / rollback baseline。
+- `dragonfly-standard-operations-runbook.md`: standard path の Dragonfly `StatefulSet + PVC + PDB` baseline、Autopilot isolation translation、verify / rollback 手順。
+- `scylla-cloud-standard-operations-runbook.md`: standard path の ScyllaDB Cloud contact-point / Secret Manager / rotation baseline、責務分界、self-managed fallback 境界。
+- `managed-messaging-cloud-standard-operations-runbook.md`: standard path の Redpanda Cloud / Synadia Cloud secret inventory、smoke contract、rotation / incident triage、self-managed fallback 境界。
+- `search-elastic-cloud-standard-operations-runbook.md`: standard path の Elastic Cloud hosting decision、Secret Manager / accessor IAM、snapshot / restore / connectivity smoke、vendor boundary baseline。
+- `observability-standard-operations-runbook.md`: standard path の `Prometheus + Grafana + Loki + Alloy + blackbox` baseline、Discord alert route、SLO dashboard、verify / rollback 手順。
+- `security-standard-operations-runbook.md`: standard path の Cloud Armor attach、CI security scan baseline、manual DAST、audit posture、fail-close / manual-relief 境界。
+- `incident-standard-operations-runbook.md`: standard path の Discord incident flow、IC / comms / scribe role baseline、capacity trigger、tabletop / Chaos readiness 条件。
+- `postmortem-standard-template.md`: standard path の postmortem template。SEV-1、長引く SEV-2、rollback / restore / reindex 実施時の close-out に使う。
+- `cloud-sql-postgres-migration-operations-runbook.md`: Cloud SQL-backed PostgreSQL forward-only migration gate, manual approval boundary, and failure-handling baseline for the low-budget prod-only path.
+- `cloud-monitoring-low-budget-operations-runbook.md`: Cloud Monitoring + Cloud Logging baseline, optional notification channel routing, and low-budget prod-only alert triage flow.
+- `external-dependency-observability-low-budget-runbook.md`: low-budget prod-only manual check sources and alert seeds for Scylla, Redpanda Cloud, Synadia Cloud / NATS, and Elastic Cloud.
+- `cloud-armor-low-budget-operations-runbook.md`: Cloud Armor backend attachment, baseline WAF rules, and low-budget prod-only security verify/rollback flow.
+- `ci-security-low-budget-operations-runbook.md`: low-budget prod-only CI secret scan and infra misconfiguration scan baseline, accepted ignores, and local reproduction flow.
+- `cluster-network-policy-low-budget-operations-runbook.md`: low-budget prod-only namespace-local ingress isolation baseline for `rust-api-smoke` and `dragonfly`, plus verify/rollback flow.
+- `dragonfly-low-budget-operations-runbook.md`: low-budget prod-only Dragonfly volatile baseline, internal endpoint, verify/rollback flow, and upgrade trigger.
+- `scylla-low-budget-runtime-operations-runbook.md`: low-budget prod-only Scylla runtime env wiring, bundled schema artifact path, verify/rollback flow, and standard-path handoff boundary.
+- `scylla-external-low-budget-operations-runbook.md`: low-budget prod-only external Scylla ownership boundary, backup/restore baseline, monitoring seed, and standard-path handoff boundary.
+- `managed-messaging-low-budget-operations-runbook.md`: low-budget prod-only Redpanda/NATS secret inventory, expected payload semantics, fill/verify/rollback flow, and standard-path handoff boundary.
+- `managed-messaging-cloud-low-budget-operations-runbook.md`: low-budget prod-only Redpanda Cloud / Synadia Cloud ownership boundary, incident-triage baseline, monitoring seed, and standard-path handoff boundary.
+- `search-low-budget-operations-runbook.md`: low-budget prod-only Elastic Cloud secret inventory, expected payload semantics, fill/verify/rollback flow, and standard-path handoff boundary.
+- `search-elastic-cloud-low-budget-operations-runbook.md`: low-budget prod-only Elastic Cloud snapshot / restore / lifecycle / incident-triage baseline and standard-path handoff boundary.
+- `incident-low-budget-operations-runbook.md`: low-budget prod-only incident flow, Discord mention baseline, capacity assumptions, and chaos readiness checklist.
+- `postmortem-low-budget-template.md`: reusable low-budget postmortem template for incident close-out and follow-up actions.
+- `terraform-low-budget-prod-deploy-runbook.md`: GitHub Actions + Workload Identity Federation + manual approval based Terraform deploy/rollback flow for the low-budget prod-only path.
+- `gke-autopilot-standard-operations-runbook.md`: standard path の GKE Autopilot cluster / namespace / RBAC / restricted ingress baseline、VPA/HPA 境界、verify/rollback 手順。
+- `staging-rust-api-smoke-deploy-operations-runbook.md`: standard path の staging Rust API smoke deploy baseline、Terraform apply、`/health` と `/ws` verify、digest rollback 手順。

@@ -7,3 +7,4 @@
 - `ADR-003-search-consistency-slo-reindex.md`: Search consistency baseline, lag SLO/SLI, reindex trigger conditions, and completion criteria.
 - `ADR-004-authz-fail-close-and-cache-strategy.md`: AuthZ fail-close baseline, REST/WS deny vs unavailable mapping, authorization cache TTL/invalidation strategy, and propagation SLO.
 - `ADR-005-dragonfly-ratelimit-failure-policy.md`: Dragonfly outage rate-limit hybrid policy, degraded enter/exit thresholds, and recovery warm-up/resynchronization baseline.
+- `ADR-006-phase1-edge-baseline-gcp-native-edge.md`: Phase 1 edge baseline, GCP native edge responsibility boundary, Cloudflare 不採用理由, and rollback order.

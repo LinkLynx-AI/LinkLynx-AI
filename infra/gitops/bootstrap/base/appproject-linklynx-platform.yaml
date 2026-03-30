@@ -1,0 +1,26 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: linklynx-platform
+  namespace: ops
+spec:
+  description: LinkLynx standard path GitOps baseline for application namespaces.
+  sourceRepos:
+    - https://github.com/LinkLynx-AI/LinkLynx-AI.git
+  destinations:
+    - namespace: frontend
+      server: https://kubernetes.default.svc
+    - namespace: api
+      server: https://kubernetes.default.svc
+    - namespace: ai
+      server: https://kubernetes.default.svc
+    - namespace: ops
+      server: https://kubernetes.default.svc
+    - namespace: observability
+      server: https://kubernetes.default.svc
+  clusterResourceWhitelist:
+    - group: "*"
+      kind: "*"
+  namespaceResourceWhitelist:
+    - group: "*"
+      kind: "*"

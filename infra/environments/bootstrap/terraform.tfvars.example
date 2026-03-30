@@ -1,0 +1,22 @@
+billing_account_id = "000000-000000-000000"
+
+# Set exactly one of these in your real terraform.tfvars.
+folder_id = "123456789012"
+org_id    = ""
+
+project_prefix             = "linklynx"
+project_display_name_prefix = "LinkLynx"
+bootstrap_project_id       = "linklynx-bootstrap"
+bootstrap_project_name     = "LinkLynx Bootstrap"
+default_region             = "us-east1"
+state_bucket_location      = "us-east1"
+state_bucket_kms_key_name  = ""
+
+environment_budgets = {
+  staging = 300000
+  prod    = 1500000
+}
+
+budget_alert_thresholds                 = [0.5, 0.8, 1.0]
+budget_monitoring_notification_channels = []
+disable_default_budget_alert_recipients = false

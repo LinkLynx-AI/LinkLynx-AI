@@ -6,16 +6,8 @@ import { RouteGuardScreen } from "@/features/route-guard";
 import { getActionGuardScreenKind, useActionGuard } from "@/shared/api/queries";
 import { cn } from "@/shared/lib/cn";
 import { ServerOverview } from "./server/server-overview";
-import { ServerRoles } from "./server/server-roles";
 import { ServerMembers } from "./server/server-members";
-import { ServerEmoji } from "./server/server-emoji";
-import { ServerStickers } from "./server/server-stickers";
-import { ServerBoost } from "./server/server-boost";
-import { ServerAutomod } from "./server/server-automod";
-import { ServerAuditLog } from "./server/server-audit-log";
 import { ServerInvites } from "./server/server-invites";
-import { ServerBans } from "./server/server-bans";
-import { ServerAnalytics } from "./server/server-analytics";
 import { UserAccount } from "./user/user-account";
 import { UserProfile } from "./user/user-profile";
 import { UserNitro } from "./user/user-nitro";
@@ -35,29 +27,9 @@ const serverNav: NavSection[] = [
   {
     items: [
       { id: "overview", label: "概要" },
-      { id: "roles", label: "ロール" },
-      { id: "emoji", label: "絵文字" },
-      { id: "stickers", label: "スタンプ" },
-      { id: "boost", label: "サーバーブースト" },
-    ],
-  },
-  {
-    label: "モデレーション",
-    items: [
-      { id: "automod", label: "AutoMod" },
-      { id: "audit-log", label: "監査ログ" },
-    ],
-  },
-  {
-    items: [
       { id: "members", label: "メンバー" },
       { id: "invites", label: "招待" },
-      { id: "bans", label: "BAN" },
     ],
-  },
-  {
-    label: "コミュニティ",
-    items: [{ id: "analytics", label: "サーバーインサイト" }],
   },
 ];
 
@@ -146,26 +118,10 @@ export function SettingsLayout({
       switch (activePage) {
         case "overview":
           return <ServerOverview serverId={serverId ?? ""} onDeleted={onClose} />;
-        case "roles":
-          return <ServerRoles serverId={serverId ?? ""} />;
-        case "emoji":
-          return <ServerEmoji serverId={serverId ?? ""} />;
-        case "stickers":
-          return <ServerStickers serverId={serverId ?? ""} />;
-        case "boost":
-          return <ServerBoost serverId={serverId ?? ""} />;
-        case "automod":
-          return <ServerAutomod serverId={serverId ?? ""} />;
-        case "audit-log":
-          return <ServerAuditLog serverId={serverId ?? ""} />;
         case "members":
           return <ServerMembers serverId={serverId ?? ""} />;
         case "invites":
           return <ServerInvites serverId={serverId ?? ""} />;
-        case "bans":
-          return <ServerBans serverId={serverId ?? ""} />;
-        case "analytics":
-          return <ServerAnalytics serverId={serverId ?? ""} />;
         default:
           return <PlaceholderPage />;
       }

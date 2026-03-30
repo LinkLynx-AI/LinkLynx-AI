@@ -1,0 +1,27 @@
+title = "LinkLynx gitleaks configuration"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Local build outputs and tool state that are not part of CI checkout"
+paths = [
+  '''^\.git/''',
+  '''^rust/target/''',
+  '''^typescript/node_modules/''',
+  '''^typescript/\.next/''',
+  '''^python/\.venv/''',
+  '''^infra/\.terraform/''',
+]
+
+[[allowlists]]
+description = "Deterministic WebSocket sample key used in API tests"
+paths = ['''^rust/apps/api/src/main/tests\.rs$''']
+regexTarget = "match"
+regexes = ['''sec-websocket-key''']
+
+[[allowlists]]
+description = "Embedded PEM fixture used only for local profile media signer tests"
+paths = ['''^rust/apps/api/src/profile/tests\.rs$''']
+regexTarget = "match"
+regexes = ['''-----BEGIN PRIVATE KEY-----''']

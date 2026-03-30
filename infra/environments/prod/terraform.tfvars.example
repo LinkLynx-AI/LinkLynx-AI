@@ -1,0 +1,59 @@
+project_id = "linklynx-prod"
+region     = "us-east1"
+artifact_registry_repository_id = "application-images"
+
+# Optional: set when using service account impersonation.
+terraform_admin_service_account_email = "terraform-admin@linklynx-bootstrap.iam.gserviceaccount.com"
+enable_minimal_gke_cluster            = true
+enable_rust_api_smoke_deploy          = false
+enable_minimal_cloud_sql_baseline     = false
+enable_minimal_monitoring_baseline    = false
+enable_minimal_security_baseline      = false
+enable_minimal_dragonfly_baseline     = false
+enable_minimal_scylla_runtime_baseline = false
+enable_minimal_managed_messaging_secret_baseline = false
+enable_minimal_search_secret_baseline = false
+enable_standard_gke_cluster_baseline   = false
+enable_standard_workload_identity_baseline = false
+enable_standard_gitops_baseline        = false
+enable_standard_cloud_sql_baseline     = false
+enable_standard_dragonfly_baseline     = false
+enable_standard_scylla_cloud_baseline  = false
+enable_standard_managed_messaging_cloud_baseline = false
+enable_standard_search_baseline        = false
+enable_standard_observability_baseline = false
+standard_cloud_sql_tier                = "db-custom-4-16384"
+standard_cloud_sql_database_name       = "linklynx"
+standard_cloud_sql_prod_ha_enabled     = true
+standard_cloud_sql_prod_read_replica_enabled = false
+standard_dragonfly_image               = "docker.dragonflydb.io/dragonflydb/dragonfly:v1.29.0"
+standard_scylla_hosts                  = ["db.prod.example.scylla.cloud:9142"]
+rust_api_image_digest                 = "us-east1-docker.pkg.dev/linklynx-prod/application-images/rust@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+rust_api_public_hostname              = "api.example.com"
+minimal_dragonfly_image               = "docker.dragonflydb.io/dragonflydb/dragonfly:vX.Y.Z"
+minimal_scylla_hosts                  = ["10.80.0.10:9042"]
+minimal_scylla_keyspace               = "chat"
+minimal_scylla_schema_path            = "/app/database/scylla/001_lin139_messages.cql"
+minimal_scylla_request_timeout_ms     = 1000
+minimal_redpanda_secret_ids           = ["linklynx-prod-redpanda-bootstrap-servers", "linklynx-prod-redpanda-sasl-username", "linklynx-prod-redpanda-sasl-password"]
+minimal_nats_secret_ids               = ["linklynx-prod-nats-url", "linklynx-prod-nats-creds"]
+minimal_search_secret_ids             = ["linklynx-prod-search-elastic-api-key", "linklynx-prod-search-elastic-cloud-id", "linklynx-prod-search-elastic-endpoint"]
+minimal_cloud_sql_tier                = "db-g1-small"
+minimal_cloud_sql_database_name       = "linklynx"
+minimal_monitoring_alert_email_addresses = [
+  "ops@example.com",
+]
+standard_gitops_repository_url         = "https://github.com/LinkLynx-AI/LinkLynx-AI.git"
+standard_gitops_target_revision        = "main"
+standard_observability_discord_webhook_url = "https://discord.com/api/webhooks/fill-me"
+standard_api_probe_targets             = ["https://api.example.com/health"]
+standard_redpanda_probe_targets        = ["redpanda.prod.example.com:9092"]
+standard_nats_probe_targets            = ["nats.prod.example.com:4222"]
+standard_search_probe_targets          = ["https://cluster-id.us-east1.gcp.cloud.es.io:443"]
+
+# Fill these with the real production domain before plan/apply.
+public_dns_zone_name = "linklynx-prod-public"
+public_dns_name      = "example.com."
+public_hostnames = [
+  "api.example.com.",
+]

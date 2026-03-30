@@ -2489,10 +2489,22 @@ mod tests {
                 60,
                 Duration::from_secs(60),
             )),
+            auth_attempt_rate_limiter: Arc::new(FixedWindowRateLimiter::new(
+                20,
+                Duration::from_secs(60),
+            )),
             ws_origin_allowlist: Arc::new(WsOriginAllowlist::new(HashSet::from([
                 "http://localhost:3000".to_owned(),
                 "http://127.0.0.1:3000".to_owned(),
             ]))),
+            http_allowed_origins: Arc::new(vec![
+                "http://localhost:3000".parse().unwrap(),
+                "http://127.0.0.1:3000".parse().unwrap(),
+            ]),
+            ws_query_ticket_enabled: false,
+            ws_preauth_message_max_bytes: 16 * 1024,
+            ws_preauth_limit: 100,
+            ws_preauth_connections: Arc::new(Semaphore::new(100)),
             public_invite_trusted_proxy_shared_secret: None,
             rest_rate_limit_service: Arc::new(RestRateLimitService::new(
                 RestRateLimitConfig::default(),
@@ -2597,7 +2609,9 @@ mod tests {
             .unwrap_or_else(|error| panic!("failed to bind test listener: {error}"));
         let address = listener.local_addr().unwrap();
         let server = tokio::spawn(async move {
-            axum::serve(listener, app).await.unwrap();
+            axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>())
+                .await
+                .unwrap();
         });
         (address, server)
     }
@@ -3386,13 +3400,13 @@ mod tests {
 
         let response = last_response.unwrap();
         assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
-        assert_eq!(
-            response
-                .headers()
-                .get(RETRY_AFTER)
-                .and_then(|value| value.to_str().ok()),
-            Some("60")
-        );
+        let retry_after = response
+            .headers()
+            .get(RETRY_AFTER)
+            .and_then(|value| value.to_str().ok())
+            .unwrap();
+        let retry_after_seconds = retry_after.parse::<u64>().unwrap();
+        assert!((1..=60).contains(&retry_after_seconds));
     }
 
     #[tokio::test]
@@ -3541,13 +3555,13 @@ mod tests {
             .unwrap();
 
         assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
-        assert_eq!(
-            response
-                .headers()
-                .get(RETRY_AFTER)
-                .and_then(|value| value.to_str().ok()),
-            Some("60")
-        );
+        let retry_after = response
+            .headers()
+            .get(RETRY_AFTER)
+            .and_then(|value| value.to_str().ok())
+            .unwrap();
+        let retry_after_seconds = retry_after.parse::<u64>().unwrap();
+        assert!((1..=60).contains(&retry_after_seconds));
     }
 
     #[tokio::test]
@@ -3744,7 +3758,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn dm_list_endpoint_returns_channels_without_rest_authz_gate() {
+    async fn dm_list_endpoint_denies_when_rest_authz_denies() {
         let app = app_for_test_with_authorizer(Arc::new(StaticDenyAuthorizer)).await;
         let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
         let response = app
@@ -3758,17 +3772,11 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(response.status(), StatusCode::OK);
-        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
-            .await
-            .unwrap();
-        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
-        assert_eq!(json["channels"][0]["channel_id"], 55);
-        assert_eq!(json["channels"][0]["recipient"]["user_id"], 1002);
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
     }
 
     #[tokio::test]
-    async fn dm_open_or_create_endpoint_returns_created_channel() {
+    async fn dm_open_or_create_endpoint_denies_when_rest_authz_denies() {
         let app = app_for_test_with_authorizer(Arc::new(StaticDenyAuthorizer)).await;
         let token = format!("u-1:{}", unix_timestamp_seconds() + 300);
         let response = app
@@ -3784,13 +3792,7 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(response.status(), StatusCode::CREATED);
-        let body = to_bytes(response.into_body(), MAX_RESPONSE_BYTES)
-            .await
-            .unwrap();
-        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
-        assert_eq!(json["channel"]["channel_id"], 55);
-        assert_eq!(json["channel"]["recipient"]["user_id"], 1002);
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
     }
 
     #[tokio::test]
@@ -3817,13 +3819,13 @@ mod tests {
 
         let response = last_response.unwrap();
         assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
-        assert_eq!(
-            response
-                .headers()
-                .get(RETRY_AFTER)
-                .and_then(|value| value.to_str().ok()),
-            Some("60")
-        );
+        let retry_after = response
+            .headers()
+            .get(RETRY_AFTER)
+            .and_then(|value| value.to_str().ok())
+            .unwrap();
+        let retry_after_seconds = retry_after.parse::<u64>().unwrap();
+        assert!((1..=60).contains(&retry_after_seconds));
     }
 
     #[tokio::test]
@@ -3890,13 +3892,13 @@ mod tests {
             .unwrap();
 
         assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
-        assert_eq!(
-            response
-                .headers()
-                .get(RETRY_AFTER)
-                .and_then(|value| value.to_str().ok()),
-            Some("60")
-        );
+        let retry_after = response
+            .headers()
+            .get(RETRY_AFTER)
+            .and_then(|value| value.to_str().ok())
+            .unwrap();
+        let retry_after_seconds = retry_after.parse::<u64>().unwrap();
+        assert!((1..=60).contains(&retry_after_seconds));
     }
 
     #[tokio::test]
@@ -6023,6 +6025,143 @@ mod tests {
             .unwrap();
 
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn ws_ticket_endpoint_rate_limits_repeated_invalid_tokens() {
+        let app = app_for_test().await;
+        let mut last_response = None;
+
+        for _ in 0..21 {
+            last_response = Some(
+                app.clone()
+                    .oneshot(
+                        Request::builder()
+                            .method("POST")
+                            .uri("/auth/ws-ticket")
+                            .header("authorization", "Bearer invalid-token")
+                            .body(Body::empty())
+                            .unwrap(),
+                    )
+                    .await
+                    .unwrap(),
+            );
+        }
+
+        let response = last_response.unwrap();
+        assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
+        let retry_after = response
+            .headers()
+            .get(RETRY_AFTER)
+            .and_then(|value| value.to_str().ok())
+            .unwrap();
+        let retry_after_seconds = retry_after.parse::<u64>().unwrap();
+        assert!((1..=60).contains(&retry_after_seconds));
+    }
+
+    #[tokio::test]
+    async fn protected_route_rate_limits_repeated_invalid_tokens() {
+        let app = app_for_test().await;
+        let mut last_response = None;
+
+        for _ in 0..21 {
+            last_response = Some(
+                app.clone()
+                    .oneshot(
+                        Request::builder()
+                            .uri("/v1/protected/ping")
+                            .header("authorization", "Bearer invalid-token")
+                            .body(Body::empty())
+                            .unwrap(),
+                    )
+                    .await
+                    .unwrap(),
+            );
+        }
+
+        let response = last_response.unwrap();
+        assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
+    }
+
+    #[tokio::test]
+    async fn ws_handshake_rejects_missing_origin() {
+        let app = app_for_test().await;
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/ws")
+                    .header("host", "localhost")
+                    .header("connection", "Upgrade")
+                    .header("upgrade", "websocket")
+                    .header("sec-websocket-version", "13")
+                    .header("sec-websocket-key", "dGhlIHNhbXBsZSBub25jZQ==")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::UPGRADE_REQUIRED);
+    }
+
+    #[tokio::test]
+    async fn ws_query_ticket_is_disabled_by_default() {
+        let app = app_for_test_with_authorizer(Arc::new(StaticAllowAllAuthorizer)).await;
+        let response = app
+            .oneshot(ws_upgrade_request("/ws?ticket=abc", None))
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::UPGRADE_REQUIRED);
+    }
+
+    #[tokio::test]
+    async fn protected_preflight_rejects_unknown_origin() {
+        let app = app_for_test().await;
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method(Method::OPTIONS)
+                    .uri("/v1/protected/ping")
+                    .header(ORIGIN, "https://evil.example")
+                    .header("access-control-request-method", "GET")
+                    .header("access-control-request-headers", "authorization")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        assert!(response.headers().get("access-control-allow-origin").is_none());
+    }
+
+    #[tokio::test]
+    async fn protected_preflight_allows_configured_origin() {
+        let app = app_for_test().await;
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method(Method::OPTIONS)
+                    .uri("/v1/protected/ping")
+                    .header(ORIGIN, "http://localhost:3000")
+                    .header("access-control-request-method", "GET")
+                    .header("access-control-request-headers", "authorization")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            response
+                .headers()
+                .get("access-control-allow-origin")
+                .and_then(|value| value.to_str().ok()),
+            Some("http://localhost:3000")
+        );
     }
 
     #[tokio::test]
@@ -8839,6 +8978,16 @@ mod tests {
 
     #[test]
     fn rest_authz_resource_maps_invite_dm_and_moderation_paths() {
+        match rest_authz_resource_from_path("/guilds/10/channels") {
+            AuthzResource::Guild { guild_id } => assert_eq!(guild_id, 10),
+            _ => panic!("guild channel collection path should map to guild resource"),
+        }
+
+        match rest_authz_resource_from_path("/channels/55") {
+            AuthzResource::Channel { channel_id } => assert_eq!(channel_id, 55),
+            _ => panic!("channel path should map to channel resource"),
+        }
+
         match rest_authz_resource_from_path("/v1/guilds/10/invites") {
             AuthzResource::Guild { guild_id } => assert_eq!(guild_id, 10),
             _ => panic!("invite collection path should map to guild resource"),

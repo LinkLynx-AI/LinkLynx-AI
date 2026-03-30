@@ -96,7 +96,11 @@ async fn ws_handler(
             decision = "deny",
             request_id = %request_id,
             error_class = "origin_not_allowed",
-            reason = "ws_origin_not_allowed",
+            reason = if origin_header.is_some() {
+                "ws_origin_not_allowed"
+            } else {
+                "ws_origin_missing"
+            },
             has_origin = origin_header.is_some(),
             "WS connection rejected by origin allowlist"
         );
@@ -114,6 +118,18 @@ async fn ws_handler(
         match bearer_token_from_headers(&headers) {
             Ok(token) => Some(token),
             Err(error) => {
+                if auth_error_counts_toward_attempt_limit(&error) {
+                    if let Some(response) =
+                        enforce_auth_attempt_rate_limit(
+                            &state,
+                            &request_id,
+                            &auth_attempt_rate_limit_key(&headers, None),
+                        )
+                        .await
+                    {
+                        return response;
+                    }
+                }
                 tracing::warn!(
                     decision = %error.decision(),
                     request_id = %request_id,
@@ -133,6 +149,17 @@ async fn ws_handler(
         .map(str::trim)
         .filter(|value| !value.is_empty());
 
+    if query_ticket.is_some() && !state.ws_query_ticket_enabled {
+        tracing::warn!(
+            decision = "deny",
+            request_id = %request_id,
+            error_class = "query_ticket_disabled",
+            reason = "ws_query_ticket_disabled",
+            "WS query-ticket authentication rejected"
+        );
+        return ws_upgrade_with_close(ws, 1008, "query_ticket_disabled");
+    }
+
     if query_ticket_raw.is_some() && query_ticket.is_none() && header_token.is_none() {
         return ws_upgrade_with_close(ws, 1008, "identify_invalid_ticket");
     }
@@ -141,6 +168,18 @@ async fn ws_handler(
         let authenticated = match state.auth_service.authenticate_token(&token).await {
             Ok(authenticated) => authenticated,
             Err(error) => {
+                if auth_error_counts_toward_attempt_limit(&error) {
+                    if let Some(response) =
+                        enforce_auth_attempt_rate_limit(
+                            &state,
+                            &request_id,
+                            &auth_attempt_rate_limit_key(&headers, Some(&token)),
+                        )
+                        .await
+                    {
+                        return response;
+                    }
+                }
                 tracing::warn!(
                     decision = %error.decision(),
                     request_id = %request_id,
@@ -166,7 +205,7 @@ async fn ws_handler(
         );
 
         return ws
-            .on_upgrade(move |socket| handle_socket(socket, state, Some(authenticated), request_id))
+            .on_upgrade(move |socket| handle_socket(socket, state, Some(authenticated), request_id, None))
             .into_response();
     }
 
@@ -204,11 +243,15 @@ async fn ws_handler(
         );
 
         return ws
-            .on_upgrade(move |socket| handle_socket(socket, state, Some(authenticated), request_id))
+            .on_upgrade(move |socket| handle_socket(socket, state, Some(authenticated), request_id, None))
             .into_response();
     }
 
-    ws.on_upgrade(move |socket| handle_socket(socket, state, None, request_id))
+    let Some(preauth_permit) = try_acquire_ws_preauth_permit(&state, &request_id) else {
+        return ws_upgrade_with_close(ws, 1008, "preauth_connection_limited");
+    };
+
+    ws.on_upgrade(move |socket| handle_socket(socket, state, None, request_id, Some(preauth_permit)))
         .into_response()
 }
 
@@ -224,6 +267,7 @@ async fn handle_socket(
     state: AppState,
     mut authenticated: Option<AuthenticatedPrincipal>,
     request_id: String,
+    mut preauth_permit: Option<OwnedSemaphorePermit>,
 ) {
     let session_id = uuid::Uuid::new_v4().to_string();
     let (outbound_tx, mut outbound_rx) =
@@ -241,6 +285,7 @@ async fn handle_socket(
             };
 
             if Instant::now() >= deadline {
+                state.auth_service.metrics().record_ws_preauth_timeout();
                 let _ = close_socket(&mut socket, 1008, "identify_timeout").await;
                 break;
             }
@@ -268,10 +313,14 @@ async fn handle_socket(
                         break;
                     }
                     if authenticated.is_some() {
+                        if preauth_permit.take().is_some() {
+                            state.auth_service.metrics().record_ws_preauth_close();
+                        }
                         identify_deadline = None;
                     }
                 }
                 _ = tokio::time::sleep(timeout) => {
+                    state.auth_service.metrics().record_ws_preauth_timeout();
                     let _ = close_socket(&mut socket, 1008, "identify_timeout").await;
                     break;
                 }
@@ -385,6 +434,10 @@ async fn handle_socket(
         }
     }
 
+    if preauth_permit.take().is_some() {
+        state.auth_service.metrics().record_ws_preauth_close();
+    }
+
     state
         .message_realtime_hub
         .disconnect_session(&session_id)
@@ -411,6 +464,19 @@ async fn handle_identify_message(
     match message {
         Message::Text(text) => {
             let text = text.to_string();
+            if text.len() > state.ws_preauth_message_max_bytes {
+                tracing::warn!(
+                    decision = "deny",
+                    request_id = %request_id,
+                    error_class = "payload_too_large",
+                    reason = "identify_message_too_large",
+                    max_bytes = state.ws_preauth_message_max_bytes,
+                    observed_bytes = text.len(),
+                    "WS identify rejected due to oversized payload"
+                );
+                let _ = close_socket(socket, 1009, "message_too_large").await;
+                return false;
+            }
             let Some(payload) = parse_identify_payload(&text) else {
                 let _ = close_socket(socket, 1008, "identify_required").await;
                 return false;
@@ -493,7 +559,20 @@ async fn handle_identify_message(
             *authenticated = Some(next_principal);
             true
         }
-        Message::Binary(_) => {
+        Message::Binary(payload) => {
+            if payload.len() > state.ws_preauth_message_max_bytes {
+                tracing::warn!(
+                    decision = "deny",
+                    request_id = %request_id,
+                    error_class = "payload_too_large",
+                    reason = "identify_message_too_large",
+                    max_bytes = state.ws_preauth_message_max_bytes,
+                    observed_bytes = payload.len(),
+                    "WS identify rejected due to oversized binary payload"
+                );
+                let _ = close_socket(socket, 1009, "message_too_large").await;
+                return false;
+            }
             let _ = close_socket(socket, 1008, "identify_required").await;
             false
         }
@@ -815,7 +894,6 @@ async fn identify_rate_limit_key(
         scope: format!("session:{session_id}"),
     }
 }
-
 fn ws_upgrade_with_close(ws: WebSocketUpgrade, code: u16, reason: &'static str) -> Response {
     ws.on_upgrade(move |mut socket| async move {
         let _ = close_socket(&mut socket, code, reason).await;

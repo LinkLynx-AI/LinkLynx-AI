@@ -6,6 +6,212 @@ on:
       - main
 
 jobs:
+  repo-secret-scan:
+    name: Repo Secret Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Gitleaks against the working tree
+        run: |
+          set -euo pipefail
+
+          temp_repo="$(mktemp -d)"
+          cleanup() {
+            rm -rf "${temp_repo}"
+          }
+          trap cleanup EXIT
+
+          git ls-files -z | rsync -a --files-from=- --from0 ./ "${temp_repo}/"
+
+          docker run --rm \
+            -v "${temp_repo}:/repo" \
+            -v "${PWD}/.gitleaks.toml:/config/.gitleaks.toml:ro" \
+            -v "${PWD}/.gitleaksignore:/config/.gitleaksignore:ro" \
+            ghcr.io/gitleaks/gitleaks:v8.24.2 \
+            detect \
+            --no-git \
+            --source /repo \
+            --config /config/.gitleaks.toml \
+            --gitleaks-ignore-path /config/.gitleaksignore \
+            --redact \
+            --exit-code 1 \
+            --no-banner \
+            --no-color \
+            --max-target-megabytes 5
+
+  dependency-review:
+    name: Dependency Review
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
+
+  application-sast:
+    name: Application SAST
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Run Semgrep on changed application files
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          base_sha="${{ github.event.pull_request.base.sha }}"
+          head_sha="${{ github.sha }}"
+
+          mapfile -t changed_files < <(
+            git diff --name-only "${base_sha}" "${head_sha}" \
+              | rg '^(rust/.+\.rs|typescript/.+\.(ts|tsx)|python/.+\.py)$' || true
+          )
+
+          if [ "${#changed_files[@]}" -eq 0 ]; then
+            echo "No changed application files detected; skipping Semgrep."
+            exit 0
+          fi
+
+          printf 'Scanning application files with Semgrep:\n%s\n' "${changed_files[@]}"
+
+          docker run --rm \
+            -v "${PWD}:/src" \
+            -w /src \
+            returntocorp/semgrep:1.87.0 \
+            semgrep \
+            --config p/security-audit \
+            --error \
+            --metrics=off \
+            "${changed_files[@]}"
+
+  infra-config-scan:
+    name: Infra Config Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Trivy misconfiguration scan for infra
+        run: |
+          set -euo pipefail
+
+          docker run --rm \
+            -v "${PWD}:/src" \
+            -w /src \
+            aquasec/trivy:0.63.0 \
+            config \
+            --severity HIGH,CRITICAL \
+            --exit-code 1 \
+            --ignorefile .trivyignore \
+            infra
+
+  image-security-scan:
+    name: Image Security Scan (${{ matrix.service }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: rust
+            context: ./rust
+            dockerfile: ./rust/Dockerfile
+            change_pattern: "^(rust/|database/scylla/)"
+          - service: typescript
+            context: ./typescript
+            dockerfile: ./typescript/Dockerfile
+            change_pattern: "^typescript/"
+          - service: python
+            context: ./python
+            dockerfile: ./python/Dockerfile
+            change_pattern: "^python/"
+    env:
+      NEXT_PUBLIC_API_URL: http://rust:8080
+      NEXT_PUBLIC_FIREBASE_API_KEY: ci-dummy-api-key
+      NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ci-dummy.firebaseapp.com
+      NEXT_PUBLIC_FIREBASE_PROJECT_ID: ci-dummy-project
+      NEXT_PUBLIC_FIREBASE_APP_ID: ci-dummy-app-id
+      NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ci-dummy-sender
+      NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: ci-dummy.appspot.com
+      FIREBASE_PROJECT_ID: ci-dummy-project
+      IMAGE_REF: linklynx-ci-${{ matrix.service }}:${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check whether image scan is needed
+        id: image-scope
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          base_sha="${{ github.event.pull_request.base.sha }}"
+          head_sha="${{ github.sha }}"
+
+          if git diff --name-only "${base_sha}" "${head_sha}" | rg -q '${{ matrix.change_pattern }}'; then
+            echo "run_scan=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "run_scan=false" >> "${GITHUB_OUTPUT}"
+          fi
+      - uses: docker/setup-buildx-action@v3
+        if: steps.image-scope.outputs.run_scan == 'true'
+      - name: Build local image
+        if: steps.image-scope.outputs.run_scan == 'true' && matrix.service != 'typescript'
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          load: true
+          tags: ${{ env.IMAGE_REF }}
+      - name: Build local TypeScript image
+        if: steps.image-scope.outputs.run_scan == 'true' && matrix.service == 'typescript'
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          load: true
+          tags: ${{ env.IMAGE_REF }}
+          build-args: |
+            NEXT_PUBLIC_API_URL=${{ env.NEXT_PUBLIC_API_URL }}
+            NEXT_PUBLIC_FIREBASE_API_KEY=${{ env.NEXT_PUBLIC_FIREBASE_API_KEY }}
+            NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=${{ env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN }}
+            NEXT_PUBLIC_FIREBASE_PROJECT_ID=${{ env.NEXT_PUBLIC_FIREBASE_PROJECT_ID }}
+            NEXT_PUBLIC_FIREBASE_APP_ID=${{ env.NEXT_PUBLIC_FIREBASE_APP_ID }}
+            NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=${{ env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID }}
+            NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=${{ env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET }}
+      - name: Scan local image
+        if: steps.image-scope.outputs.run_scan == 'true'
+        run: |
+          set -euo pipefail
+
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy:0.63.0 \
+            image \
+            --severity HIGH,CRITICAL \
+            --exit-code 1 \
+            --ignore-unfixed \
+            --vuln-type os,library \
+            "${IMAGE_REF}"
+      - name: Skip image scan
+        if: steps.image-scope.outputs.run_scan != 'true'
+        run: echo "No relevant image changes detected; skipping ${{ matrix.service }} image scan."
+
+  terraform-validate:
+    name: Terraform Validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.6
+      - name: Terraform format check
+        run: make infra-fmt
+      - name: Terraform validate
+        run: make infra-validate
+      - name: GitOps manifest validate
+        run: make infra-gitops-validate
+
   spicedb-runtime:
     name: SpiceDB Runtime Foundation
     runs-on: ubuntu-latest
