@@ -384,7 +384,6 @@ check "standard_cloud_sql_prerequisites" {
     error_message = "LIN-968 standard baseline documents prod read replica as disabled. Keep standard_cloud_sql_prod_read_replica_enabled = false until a separate follow-up issue provisions it."
   }
 }
-
 module "network_foundation" {
   source = "../../modules/network_foundation"
 
