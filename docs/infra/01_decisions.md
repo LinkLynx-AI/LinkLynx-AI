@@ -116,6 +116,8 @@
 | ドメイン | 取得済み（具体名は別途確認） |
 | low-budget CI security scan | **Gitleaks（repo secret）+ Trivy config（`infra/` misconfig）** |
 | low-budget cluster ingress isolation | **Kubernetes NetworkPolicy baseline**（`rust-api-smoke:8080 only`, `dragonfly:6379 only from rust-api-smoke`） |
+| standard security baseline | **Cloud Armor attach + Dependency Review + Semgrep changed-files + Trivy config + Trivy image + manual ZAP DAST** |
+| standard audit baseline | **Secret Manager / IAM Data Access audit + Terraform / GitOps change history** |
 
 ### 7. CI/CD・デプロイ
 

@@ -421,6 +421,21 @@ resource "google_project_iam_audit_config" "secret_manager_data_access" {
   }
 }
 
+resource "google_project_iam_audit_config" "iam_data_access" {
+  count = local.enable_standard_gke_cluster ? 1 : 0
+
+  project = var.project_id
+  service = "iam.googleapis.com"
+
+  audit_log_config {
+    log_type = "ADMIN_READ"
+  }
+
+  audit_log_config {
+    log_type = "DATA_READ"
+  }
+}
+
 module "standard_runtime_identities" {
   for_each = local.enable_standard_workload_identities ? local.standard_runtime_identities : {}
 
@@ -440,6 +455,7 @@ module "standard_runtime_identities" {
   workload_name                     = each.value.workload_name
 
   depends_on = [
+    google_project_iam_audit_config.iam_data_access,
     google_project_iam_audit_config.secret_manager_data_access,
     module.gke_namespace_baseline,
   ]
