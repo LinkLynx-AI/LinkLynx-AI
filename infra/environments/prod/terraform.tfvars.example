@@ -13,6 +13,20 @@ enable_minimal_dragonfly_baseline     = false
 enable_minimal_scylla_runtime_baseline = false
 enable_minimal_managed_messaging_secret_baseline = false
 enable_minimal_search_secret_baseline = false
+enable_standard_gke_cluster_baseline   = false
+enable_standard_workload_identity_baseline = false
+enable_standard_gitops_baseline        = false
+enable_standard_cloud_sql_baseline     = false
+enable_standard_dragonfly_baseline     = false
+enable_standard_scylla_cloud_baseline  = false
+enable_standard_managed_messaging_cloud_baseline = false
+enable_standard_observability_baseline = false
+standard_cloud_sql_tier                = "db-custom-4-16384"
+standard_cloud_sql_database_name       = "linklynx"
+standard_cloud_sql_prod_ha_enabled     = true
+standard_cloud_sql_prod_read_replica_enabled = false
+standard_dragonfly_image               = "docker.dragonflydb.io/dragonflydb/dragonfly:v1.29.0"
+standard_scylla_hosts                  = ["db.prod.example.scylla.cloud:9142"]
 rust_api_image_digest                 = "us-east1-docker.pkg.dev/linklynx-prod/application-images/rust@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 rust_api_public_hostname              = "api.example.com"
 minimal_dragonfly_image               = "docker.dragonflydb.io/dragonflydb/dragonfly:vX.Y.Z"
@@ -28,6 +42,12 @@ minimal_cloud_sql_database_name       = "linklynx"
 minimal_monitoring_alert_email_addresses = [
   "ops@example.com",
 ]
+standard_gitops_repository_url         = "https://github.com/LinkLynx-AI/LinkLynx-AI.git"
+standard_gitops_target_revision        = "main"
+standard_observability_discord_webhook_url = "https://discord.com/api/webhooks/fill-me"
+standard_api_probe_targets             = ["https://api.example.com/health"]
+standard_redpanda_probe_targets        = ["redpanda.prod.example.com:9092"]
+standard_nats_probe_targets            = ["nats.prod.example.com:4222"]
 
 # Fill these with the real production domain before plan/apply.
 public_dns_zone_name = "linklynx-prod-public"

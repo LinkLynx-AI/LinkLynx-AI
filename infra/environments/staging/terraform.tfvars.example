@@ -11,3 +11,22 @@ public_dns_name      = "staging.example.com."
 public_hostnames = [
   "api.staging.example.com.",
 ]
+
+enable_standard_gke_cluster_baseline   = true
+enable_standard_workload_identity_baseline = true
+enable_standard_gitops_baseline        = true
+enable_standard_cloud_sql_baseline     = true
+enable_standard_dragonfly_baseline     = true
+enable_standard_scylla_cloud_baseline  = true
+enable_standard_managed_messaging_cloud_baseline = true
+enable_standard_observability_baseline = true
+standard_cloud_sql_tier                = "db-custom-4-16384"
+standard_cloud_sql_database_name       = "linklynx"
+standard_dragonfly_image               = "docker.dragonflydb.io/dragonflydb/dragonfly:v1.29.0"
+standard_scylla_hosts                  = ["db.staging.example.scylla.cloud:9142"]
+standard_gitops_repository_url         = "https://github.com/LinkLynx-AI/LinkLynx-AI.git"
+standard_gitops_target_revision        = "main"
+standard_observability_discord_webhook_url = "https://discord.com/api/webhooks/fill-me"
+standard_api_probe_targets             = ["https://api.staging.example.com/health"]
+standard_redpanda_probe_targets        = ["redpanda.staging.example.com:9092"]
+standard_nats_probe_targets            = ["nats.staging.example.com:4222"]

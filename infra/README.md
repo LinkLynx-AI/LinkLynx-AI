@@ -16,14 +16,21 @@ infra/
 │   ├── artifact_registry_repository/
 │   ├── cloud_monitoring_minimal/
 │   ├── cloud_sql_postgres_minimal/
+│   ├── cloud_sql_postgres_standard/
+│   ├── dragonfly_standard_stateful/
 │   ├── dragonfly_minimal/
 │   ├── gke_autopilot_minimal/
+│   ├── gke_autopilot_standard_cluster/
+│   ├── gke_namespace_baseline/
 │   ├── github_actions_artifact_publish/
 │   ├── github_actions_terraform_deploy/
+│   ├── managed_messaging_cloud_standard_baseline/
 │   ├── managed_messaging_secret_placeholders/
 │   ├── network_foundation/
+│   ├── observability_standard_baseline/
 │   ├── project_baseline/
 │   ├── rust_api_smoke_deploy/
+│   ├── scylla_cloud_standard_baseline/
 │   ├── search_secret_placeholders/
 │   └── state_backend/
 └── environments/
@@ -152,6 +159,263 @@ domain が未確定でも code は先に用意し、environment ごとの `terra
 - staging 常設環境がないと deploy safety を維持できない
 - Next.js / Python が常時 production workload になった
 - autoscaling を固定 request では吸収しきれない
+
+## LIN-964 standard GKE Autopilot cluster baseline
+
+standard path では `staging` / `prod` に 1 cluster ずつ置き、domain split 前の namespace / RBAC / restricted ingress baseline を先に固定する。
+
+### What gets created
+
+- standard Autopilot cluster
+  - `staging`
+  - `prod`
+- namespace baseline
+  - `frontend`
+  - `api`
+  - `ai`
+  - `data`
+  - `ops`
+  - `observability`
+- read-only ops service account
+  - `ops/ops-viewer`
+- restricted ingress baseline
+  - `data`
+  - `ops`
+  - `observability`
+
+### Autoscaling posture
+
+- `frontend` / `api`: VPA primary, HPA later
+- `ai`: spot-ready だが、この issue では placement まで入れない
+- `data` / `ops` / `observability`: manual first
+
+この issue では workload target がまだないため、`VerticalPodAutoscaler` object までは作らない。VPA/HPA 境界と namespace label で先に運用ルールを固定する。
+
+### Prod coexistence rule
+
+`prod` では low-budget cluster (`LIN-1014`) と standard cluster (`LIN-964`) を同時に有効化しない。
+`enable_standard_gke_cluster_baseline = true` にする場合は `enable_minimal_gke_cluster = false` に切り替える。
+
+詳細な verify / rollback は `docs/runbooks/gke-autopilot-standard-operations-runbook.md` を参照する。
+
+## LIN-965 standard Workload Identity / Secret Manager baseline
+
+standard path では `frontend` / `api` / `ai` を最初の workload identity 対象とし、KSA / GSA / secret placeholder を workload 単位で分離する。
+
+### What gets created
+
+- workload-scoped Google service accounts
+  - `frontend-runtime`
+  - `api-runtime`
+  - `ai-runtime`
+- workload-scoped Kubernetes service accounts
+  - `frontend/frontend-runtime`
+  - `api/api-runtime`
+  - `ai/ai-runtime`
+- Secret Manager placeholder baseline
+  - `linklynx-<env>-frontend-runtime`
+  - `linklynx-<env>-api-runtime`
+  - `linklynx-<env>-ai-runtime`
+- secret-level `roles/secretmanager.secretAccessor`
+- `secretmanager.googleapis.com` audit log baseline
+
+### Current pattern
+
+- runtime secret retrieval は direct Secret Manager access
+- long-lived GCP key は repo / CI に置かない
+- `External Secrets Operator` は standard path でも後続検討に回す
+
+### Staging verify boundary
+
+- staging では KSA annotation, secret IAM, audit logs までを baseline verify とする
+- 実 secret value の注入や app-side retrieval smoke は後続 app issue に残す
+
+詳細な verify / rollback は `docs/runbooks/workload-identity-secret-manager-standard-operations-runbook.md` を参照する。
+
+## LIN-971 standard Redpanda Cloud / Synadia Cloud connection baseline
+
+standard path では managed messaging provider 自体の provisioning ではなく、まず connection material
+inventory と accessor IAM、smoke contract を Terraform で固定する。
+
+### What gets created
+
+- `managed_messaging_cloud_standard_baseline` module
+- Redpanda Cloud 用 secret inventory
+  - `bootstrap_servers`
+  - `sasl_username`
+  - `sasl_password`
+  - `ca_bundle`
+- Synadia Cloud / NATS 用 secret inventory
+  - `url`
+  - `creds`
+  - `ca_bundle`
+- approved runtime GSA に対する secret-level accessor IAM
+- Redpanda smoke topic / NATS smoke subject contract
+
+### Current pattern
+
+- default runtime accessor は `api`
+- Redpanda は extension stream path のまま維持し、source of truth に昇格させない
+- NATS outage 時は ADR-002 に沿って realtime degraded + compensation path を維持する
+- provider account / cluster / allowlist / private connectivity は Terraform scope 外
+- `prod` では low-budget managed messaging secret baseline と同時に有効化しない
+
+詳細な verify / rollback は `docs/runbooks/managed-messaging-cloud-standard-operations-runbook.md` を参照する。
+
+## LIN-972 standard observability baseline
+
+standard path では `Prometheus + Grafana + Alertmanager + Loki + Alloy + blackbox exporter`
+を baseline にし、managed dependency までは minimum reachability probes で先に覆う。
+
+### What gets created
+
+- `observability_standard_baseline` module
+- `observability` namespace への次の Helm releases
+  - `kube-prometheus-stack`
+  - `loki`
+  - `alloy`
+  - `prometheus-blackbox-exporter`
+- Grafana dashboard ConfigMap
+  - API / WS SLO baseline
+  - dependency probe baseline
+- Alertmanager Discord webhook route
+
+### Current pattern
+
+- standard path では `Cloud Monitoring` を主監視にせず、portable な self-hosted stack を主軸にする
+- Cloud SQL / Dragonfly / Scylla / Redpanda / NATS は最初に blackbox probe で reachability を取る
+- アプリ contract metrics は `docs/runbooks/observability-v0-structured-logs-metrics-runbook.md` に合わせる
+- Loki は single-binary で始め、長期 retention / object storage は後続へ回す
+- `Tempo` は follow-up issue に残す
+
+詳細な verify / rollback は `docs/runbooks/observability-standard-operations-runbook.md` を参照する。
+
+## LIN-967 standard GitOps / Rollouts baseline
+
+standard path では Argo CD / Argo Rollouts を `ops` namespace に入れ、GitOps repo layout は `infra/gitops/` に固定する。
+
+### What gets created
+
+- Helm release
+  - `ops/argocd`
+  - `ops/argo-rollouts`
+- GitOps repo layout
+  - `infra/gitops/apps/base/canary-smoke`
+  - `infra/gitops/apps/staging/canary-smoke`
+  - `infra/gitops/apps/prod/canary-smoke`
+  - `infra/gitops/bootstrap/staging`
+  - `infra/gitops/bootstrap/prod`
+
+### Promotion boundary
+
+- `staging` application は automated sync
+- `prod` application は manual sync
+- promotion は staging overlay merge -> verify -> prod overlay merge -> manual sync の順
+
+### Validation
+
+- `make infra-gitops-validate`
+- `kubectl apply -k infra/gitops/bootstrap/<env>` で bootstrap manifest を apply
+
+Terraform では controller install までを担当し、Argo CD custom resources は repo 側 bootstrap manifest として保持する。これは CRD timing を避けつつ、project / application 定義を Git に残すため。
+
+詳細な verify / rollback は `docs/runbooks/argocd-rollouts-standard-operations-runbook.md` を参照する。
+
+## LIN-968 standard Cloud SQL baseline
+
+standard path では `staging` / `prod` に Cloud SQL for PostgreSQL baseline を置き、migration / PITR / approval boundary を low-budget path と分けて固定する。
+
+### Standard profile
+
+- tier: `db-custom-4-16384`
+- storage: `PD_SSD`
+- private IP only
+- backup + PITR enabled
+- staging availability: `ZONAL`
+- prod availability: `REGIONAL`
+- prod read replica: none at baseline
+
+### Why no initial read replica
+
+- `LIN-968` の対象はまず write-safe な primary baseline と migration / PITR 運用を閉じること
+- read replica は read pressure, failover owner, replication lag alert を揃えてから別 issue で追加する
+
+### Validation / operations
+
+- standard path migration / approval / rollback:
+  - `docs/runbooks/cloud-sql-postgres-standard-operations-runbook.md`
+- PITR:
+  - `docs/runbooks/postgres-pitr-runbook.md`
+
+## LIN-969 standard Dragonfly baseline
+
+standard path では Dragonfly を `StatefulSet + PVC + PDB` で載せ、Autopilot の dedicated pool 要望は workload-scoped isolation に翻訳する。
+
+### Standard profile
+
+- namespace: `data`
+- service: `dragonfly.data.svc.cluster.local:6379`
+- StatefulSet: `1 replica`
+- PVC: `20Gi`
+- PDB: `minAvailable=1`
+- allowed client namespaces: `api` から開始
+
+### Autopilot translation
+
+- dedicated node pool は baseline に含めない
+- 代わりに次で isolation を表現する
+  - namespace boundary
+  - single-purpose StatefulSet
+  - ingress allowlist NetworkPolicy
+  - zone anti-affinity preference
+  - PDB for voluntary disruption control
+
+### Data boundary
+
+- Dragonfly は cache / session / rate-limit の volatile store として扱う
+- source of truth にしない
+- restart / recreate 時は degraded behavior と on-demand rehydration で吸収する
+
+### Validation / operations
+
+- `docs/runbooks/dragonfly-standard-operations-runbook.md`
+- `docs/runbooks/dragonfly-ratelimit-operations-runbook.md`
+- `docs/runbooks/session-resume-dragonfly-operations-runbook.md`
+
+## LIN-970 standard ScyllaDB Cloud connection baseline
+
+standard path では ScyllaDB Cloud cluster 自体を Terraform provision せず、`staging` / `prod` の connection contract と secret/access baseline を Terraform で固定する。
+
+### What gets created
+
+- Secret Manager placeholder
+  - `username`
+  - `password`
+  - `ca_bundle`
+- runtime accessor IAM
+  - default: `api-runtime` GSA
+- runtime connection contract output
+  - `hosts`
+  - `keyspace`
+  - `schema_path`
+  - `request_timeout_ms`
+  - `disallow_shard_aware_port`
+
+### Why this issue stops here
+
+- provider account / cluster lifecycle は Terraform scope 外
+- network allowlist / private connectivity は provider-side evidence が必要
+- standard path runtime workload 自体は別 issue で rollout される
+
+### Current standard posture
+
+- env split: `staging` と `prod` は別 cluster
+- auth: required
+- TLS: required
+- shard-aware port: disabled by default until the network path is proven safe
+- default accessor workload: `api`
+
+verify / rollback / rotation / self-managed fallback は `docs/runbooks/scylla-cloud-standard-operations-runbook.md` を参照する。
 
 ## LIN-966 Artifact Registry / CI publish baseline
 

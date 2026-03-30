@@ -41,6 +41,178 @@ terraform plan
 - Next.js / Python が常時稼働前提になり、prod only 1 cluster では運用しづらくなったとき
 - HPA を入れたいだけの観測データが揃ったとき
 
+## LIN-964 standard GKE Autopilot baseline
+
+`LIN-964` は standard path 向けに、`prod` に 1 つの Autopilot cluster と namespace baseline を作る。
+
+### 使う変数
+
+- `enable_standard_gke_cluster_baseline`
+- `standard_gke_release_channel`
+- `standard_gke_namespace_names`
+
+### 作られるもの
+
+- standard Autopilot cluster
+- namespace baseline
+  - `frontend`
+  - `api`
+  - `ai`
+  - `data`
+  - `ops`
+  - `observability`
+- `ops/ops-viewer` read-only service account
+- `data` / `ops` / `observability` restricted ingress baseline
+
+### 運用メモ
+
+- `prod` では low-budget cluster と standard cluster を同時に有効化しない
+- standard path に切り替えるときは `enable_minimal_gke_cluster = false` にする
+- VPA primary / HPA later の方針で始める
+- verify / rollback は `docs/runbooks/gke-autopilot-standard-operations-runbook.md` を使う
+
+## LIN-965 standard Workload Identity / Secret Manager baseline
+
+`LIN-965` は standard path 向けに、`frontend` / `api` / `ai` の runtime identity を Terraform で固定する。
+
+### 使う変数
+
+- `enable_standard_workload_identity_baseline`
+- `standard_runtime_secret_ids`
+
+### 作られるもの
+
+- workload-scoped GSA
+- workload-scoped KSA
+- Secret Manager placeholder
+- secret-level accessor IAM
+- Secret Manager audit log baseline
+
+### 運用メモ
+
+- `enable_standard_workload_identity_baseline = true` の前に `enable_standard_gke_cluster_baseline = true` が必要
+- `frontend` / `api` / `ai` namespace が standard baseline に含まれている必要がある
+- verify / rollback は `docs/runbooks/workload-identity-secret-manager-standard-operations-runbook.md` を使う
+
+## LIN-967 standard GitOps / Rollouts baseline
+
+`LIN-967` は standard path 向けに、`ops` namespace へ Argo CD / Argo Rollouts を install し、GitOps repo layout を固定する。
+
+### 使う変数
+
+- `enable_standard_gitops_baseline`
+- `standard_gitops_repository_url`
+- `standard_gitops_target_revision`
+- `standard_gitops_argocd_chart_version`
+- `standard_gitops_rollouts_chart_version`
+
+### 作られるもの
+
+- `ops/argocd`
+- `ops/argo-rollouts`
+- bootstrap path: `infra/gitops/bootstrap/prod`
+- documented prod app: `prod-canary-smoke`
+
+### 運用メモ
+
+- `enable_standard_gitops_baseline = true` の前に `enable_standard_gke_cluster_baseline = true` が必要
+- `api` / `ops` namespace が standard baseline に含まれている必要がある
+- prod app は automated sync を有効にせず、manual sync gate を baseline にする
+- verify / rollback は `docs/runbooks/argocd-rollouts-standard-operations-runbook.md` を使う
+
+## LIN-968 standard Cloud SQL baseline
+
+`LIN-968` は standard path 向けに、`staging` / `prod` の Cloud SQL for PostgreSQL baseline を追加する。
+
+### 使う変数
+
+- `enable_standard_cloud_sql_baseline`
+- `standard_cloud_sql_database_name`
+- `standard_cloud_sql_tier`
+- `standard_cloud_sql_disk_size_gb`
+- `standard_cloud_sql_prod_retained_backups`
+- `standard_cloud_sql_prod_ha_enabled`
+- `standard_cloud_sql_prod_read_replica_enabled`
+
+### baseline
+
+- tier: `db-custom-4-16384`
+- storage: `PD_SSD`
+- private IP only
+- backup + PITR enabled
+- prod HA: enabled (`REGIONAL`)
+- prod read replica: disabled
+
+### 運用メモ
+
+- `prod` では low-budget Cloud SQL と standard Cloud SQL を同時に有効化しない
+- `standard_cloud_sql_prod_read_replica_enabled` は `false` 固定で始める
+- migration / approval / rollback は `docs/runbooks/cloud-sql-postgres-standard-operations-runbook.md` を使う
+- PITR は `docs/runbooks/postgres-pitr-runbook.md` を使う
+
+## LIN-969 standard Dragonfly baseline
+
+`LIN-969` は standard path 向けに、Dragonfly を `StatefulSet + PVC + PDB` の baseline で追加する。
+
+### 使う変数
+
+- `enable_standard_dragonfly_baseline`
+- `standard_dragonfly_image`
+- `standard_dragonfly_storage_size`
+- `standard_dragonfly_allowed_client_namespaces`
+
+### baseline
+
+- namespace: `data`
+- service account: `dragonfly`
+- headless service + ClusterIP service
+- StatefulSet 1 replica
+- PVC: `20Gi`
+- PDB: `minAvailable=1`
+- ingress allowlist: default `api` namespace only
+
+### 運用メモ
+
+- Autopilot では dedicated pool を直接は作らない
+- 隔離は namespace / single-purpose StatefulSet / PDB / anti-affinity で表現する
+- Dragonfly は source of truth ではない
+- degraded / fallback は `docs/runbooks/dragonfly-ratelimit-operations-runbook.md` と `docs/runbooks/session-resume-dragonfly-operations-runbook.md` に従う
+- infra verify / rollback は `docs/runbooks/dragonfly-standard-operations-runbook.md` を使う
+
+## LIN-970 standard ScyllaDB Cloud connection baseline
+
+`LIN-970` は standard path 向けに、ScyllaDB Cloud への connection contract と secret/access baseline を固定する。
+
+### 使う変数
+
+- `enable_standard_scylla_cloud_baseline`
+- `standard_scylla_hosts`
+- `standard_scylla_keyspace`
+- `standard_scylla_schema_path`
+- `standard_scylla_request_timeout_ms`
+- `standard_scylla_disallow_shard_aware_port`
+- `standard_scylla_runtime_workloads`
+- `standard_scylla_secret_ids`
+
+### baseline
+
+- env split: `staging` と `prod` は別 cluster
+- accessor workload: default `api`
+- required secrets:
+  - `username`
+  - `password`
+  - `ca_bundle`
+- auth: required
+- TLS: required
+- shard-aware port: disabled by default
+
+### 運用メモ
+
+- `enable_standard_scylla_cloud_baseline = true` の前に `enable_standard_workload_identity_baseline = true` が必要
+- `standard_scylla_runtime_workloads` は standard namespace baseline に含まれている必要がある
+- provider-side account / cluster / network allowlist は Terraform scope 外
+- verify / rollback / rotation / self-managed fallback は `docs/runbooks/scylla-cloud-standard-operations-runbook.md` を使う
+
 ## LIN-1015 prod-only Rust API smoke deploy
 
 `LIN-1015` は `LIN-1014` の cluster を使って、最初の Rust API workload を Terraform で出す。
@@ -263,6 +435,77 @@ connection material の保管先を先に固定したいときだけ明示的に
 - credential rotation は Secret Manager version で行い、runtime adoption は後続 issue で閉じる
 - provider resource provisioning、network / auth onboarding、publish / subscribe smoke は `LIN-971` に残す
 - ownership / incident triage / monitoring seed は `docs/runbooks/managed-messaging-cloud-low-budget-operations-runbook.md` を使う
+
+## LIN-971 standard Redpanda Cloud / Synadia Cloud connection baseline
+
+`LIN-971` は standard path 向けに、Redpanda Cloud / Synadia Cloud の secret/access baseline と smoke contract を追加する。
+
+### 使う変数
+
+- `enable_standard_managed_messaging_cloud_baseline`
+- `standard_redpanda_runtime_workloads`
+- `standard_nats_runtime_workloads`
+- `standard_redpanda_secret_ids`
+- `standard_nats_secret_ids`
+- `standard_redpanda_smoke_topic`
+- `standard_nats_smoke_subject`
+
+default では `enable_standard_managed_messaging_cloud_baseline = false` にしている。
+
+### 作られるもの
+
+- Redpanda Cloud 用 secret inventory
+- Synadia Cloud / NATS 用 secret inventory
+- approved runtime GSA への secret accessor IAM
+- Redpanda smoke topic / NATS smoke subject contract
+
+### 運用メモ
+
+- default runtime accessor は `api`
+- Redpanda は extension stream path のまま維持し、source of truth にはしない
+- NATS outage 時は ADR-002 に従い realtime degraded + compensation path を維持する
+- `enable_minimal_managed_messaging_secret_baseline` と同時に有効化しない
+- provider account / cluster / allowlist / private connectivity、runtime client 実装はこの baseline では追加しない
+- verify / rollback / rotation / incident triage は `docs/runbooks/managed-messaging-cloud-standard-operations-runbook.md` を使う
+
+## LIN-972 standard observability baseline
+
+`LIN-972` は standard path 向けに、`observability` namespace へ self-hosted observability baseline を追加する。
+
+### 使う変数
+
+- `enable_standard_observability_baseline`
+- `standard_observability_discord_webhook_url`
+- `standard_observability_discord_mention`
+- `standard_api_probe_targets`
+- `standard_redpanda_probe_targets`
+- `standard_nats_probe_targets`
+- `standard_observability_kube_prometheus_stack_chart_version`
+- `standard_observability_loki_chart_version`
+- `standard_observability_alloy_chart_version`
+- `standard_observability_blackbox_chart_version`
+- `standard_observability_prometheus_retention`
+- `standard_observability_prometheus_storage_size`
+- `standard_observability_alertmanager_storage_size`
+- `standard_observability_grafana_storage_size`
+- `standard_observability_loki_storage_size`
+- `standard_observability_loki_retention_period`
+
+### baseline
+
+- `Prometheus + Grafana + Alertmanager`
+- `Loki + Grafana Alloy`
+- `prometheus-blackbox-exporter`
+- Discord webhook alert route
+- API / WS SLO dashboard
+- dependency probe dashboard
+
+### 運用メモ
+
+- `enable_standard_observability_baseline = true` の前に standard GKE / GitOps / Cloud SQL / Dragonfly / Scylla / messaging baseline が必要
+- Cloud SQL / Dragonfly / Scylla / Redpanda / NATS は minimum reachability probe で先に覆う
+- deeper provider metrics ingestion と tracing は follow-up に回す
+- verify / rollback は `docs/runbooks/observability-standard-operations-runbook.md` を使う
 
 ## LIN-1025 prod-only Elastic Cloud secret baseline
 

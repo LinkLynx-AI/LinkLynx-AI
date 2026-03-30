@@ -22,6 +22,21 @@ resource "google_service_account_iam_member" "workload_identity_user" {
   member             = local.workload_identity_member
 }
 
+resource "kubernetes_service_account_v1" "this" {
+  count = var.manage_kubernetes_service_account ? 1 : 0
+
+  metadata {
+    annotations = {
+      "iam.gke.io/gcp-service-account" = google_service_account.this.email
+    }
+    labels    = local.secret_labels
+    name      = var.kubernetes_service_account_name
+    namespace = var.kubernetes_namespace
+  }
+
+  automount_service_account_token = var.kubernetes_service_account_automount_token
+}
+
 resource "google_secret_manager_secret" "this" {
   for_each = var.secret_ids
 

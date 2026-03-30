@@ -124,6 +124,8 @@ Escalate immediately when any of the following is true:
 ## 9. Cloud SQL-specific notes
 
 - `LIN-1017` low-budget baseline assumes a single prod instance with backup + PITR enabled and no HA.
+- `LIN-968` standard baseline assumes `staging=ZONAL` and `prod=REGIONAL` with backup + PITR enabled.
+- `LIN-968` standard baseline keeps prod read replica disabled until a dedicated follow-up issue adds lag / ownership / failover handling.
 - PITR should restore into a separate instance, then cut over after validation.
 - Schema rollback still follows the forward-only rule. PITR is reserved for data-loss or consistency incidents that corrective forward migration cannot address in time.
 

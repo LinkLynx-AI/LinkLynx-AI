@@ -155,6 +155,8 @@ The source of truth for Postgres operations (forward-only migration, pool exhaus
 
 - `database/contracts/lin588_postgres_operations_baseline.md`
 - `docs/runbooks/postgres-pitr-runbook.md`
+- `docs/runbooks/cloud-sql-postgres-standard-operations-runbook.md`
+- `docs/runbooks/cloud-sql-postgres-migration-operations-runbook.md`
 
 ### 2.7 Session/Resume Runtime Baseline (LIN-587)
 
@@ -183,6 +185,7 @@ The source of truth for v1 Redpanda event stream operations (topic naming, reten
 
 - `database/contracts/lin601_redpanda_event_stream_baseline.md`
 - `docs/runbooks/redpanda-topic-retention-replay-runbook.md`
+- `docs/runbooks/managed-messaging-cloud-standard-operations-runbook.md`
 
 ### 2.11 Auth Schema Gap Correction (LIN-631)
 
@@ -295,6 +298,7 @@ The source of truth for Scylla operations (SoR boundary, partition review criter
 
 - `database/contracts/lin589_scylla_sor_partition_baseline.md`
 - `docs/runbooks/scylla-node-loss-backup-runbook.md`
+- `docs/runbooks/scylla-cloud-standard-operations-runbook.md` (standard path connection / secret / provider boundary)
 
 ## 4. 変更時の運用ルール
 
@@ -319,6 +323,8 @@ The source of truth for Scylla operations (SoR boundary, partition review criter
 - LIN-589 Scylla operations baseline:
   - `database/contracts/lin589_scylla_sor_partition_baseline.md`
   - `docs/runbooks/scylla-node-loss-backup-runbook.md`
+- LIN-970 standard ScyllaDB Cloud connection baseline:
+  - `docs/runbooks/scylla-cloud-standard-operations-runbook.md`
 - LIN-590 GCS attachment operations baseline:
   - `database/contracts/lin590_gcs_signed_url_and_retention_baseline.md`
   - `docs/runbooks/gcs-signed-url-retention-operations-runbook.md`
