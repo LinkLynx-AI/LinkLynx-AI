@@ -24,7 +24,7 @@
 - Acceptance criteria:
   - [x] agent memory を更新する
   - [x] validation を通す
-  - [ ] PR / Linear 更新まで完了する
+  - [x] PR / Linear 更新まで完了する
 - Validation:
   - `terraform fmt -check -recursive infra`
   - `PATH=/tmp/terraform_1.6.6:$PATH make infra-validate`

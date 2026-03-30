@@ -2,9 +2,9 @@
 
 ## Current status
 - Now:
-  - `LIN-1013` の implementation と validation が完了
+  - `LIN-1013` の implementation / validation / PR / Linear 更新が完了
 - Next:
-  - PR / Linear 更新を行う
+  - human review を待つ
 
 ## Decisions
 - `staging` smoke deploy は既存の `rust_api_smoke_deploy` module を再利用する。
@@ -42,3 +42,5 @@
 ## Known issues / follow-ups
 - runtime secret access と DB connectivity は後続 issue に残す。
 - GitOps 化は `LIN-967` で扱う。
+- PR: `#1321`
+- Linear: `LIN-1013` は `In Review` に更新済み
