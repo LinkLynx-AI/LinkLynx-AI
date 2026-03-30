@@ -171,7 +171,6 @@ default では `enable_minimal_security_baseline = false` にしている。
 - image scan 自体は既存の CD workflow の `Trivy` を使う
 - secret access の audit 確認は `docs/runbooks/workload-identity-secret-manager-operations-runbook.md` を使う
 - Cloud Armor の verify / rollback は `docs/runbooks/cloud-armor-low-budget-operations-runbook.md` を使う
-
 ## tfvars で埋める値
 
 - `public_dns_zone_name`

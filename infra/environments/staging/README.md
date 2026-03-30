@@ -33,7 +33,6 @@ terraform plan
   - preview 環境
   - 必要時のみの一時 cluster
 - 常設 staging cluster が必要になったら、標準 path の `LIN-964` 相当へ拡張する
-
 ## tfvars で埋める値
 
 - `public_dns_zone_name`

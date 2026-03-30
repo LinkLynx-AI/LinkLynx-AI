@@ -20,7 +20,6 @@ module "artifact_registry_repository" {
   project_id    = var.project_id
   repository_id = var.artifact_registry_repository_id
 }
-
 output "environment" {
   value = local.environment
 }
