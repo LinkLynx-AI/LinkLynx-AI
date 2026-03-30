@@ -13,6 +13,10 @@ pub struct AuthMetrics {
     principal_provision_retry_total: AtomicU64,
     ws_reauth_success_total: AtomicU64,
     ws_reauth_failure_total: AtomicU64,
+    auth_attempt_limited_total: AtomicU64,
+    ws_preauth_connection_current: AtomicU64,
+    ws_preauth_rejected_total: AtomicU64,
+    ws_preauth_timeout_total: AtomicU64,
 }
 
 /// メトリクス出力スナップショットを保持する。
@@ -30,6 +34,10 @@ pub struct AuthMetricsSnapshot {
     pub principal_provision_retry_total: u64,
     pub ws_reauth_success_total: u64,
     pub ws_reauth_failure_total: u64,
+    pub auth_attempt_limited_total: u64,
+    pub ws_preauth_connection_current: u64,
+    pub ws_preauth_rejected_total: u64,
+    pub ws_preauth_timeout_total: u64,
 }
 
 impl AuthMetrics {
@@ -114,6 +122,54 @@ impl AuthMetrics {
         }
     }
 
+    /// 認証試行のレート制限ヒットを記録する。
+    /// @param なし
+    /// @returns なし
+    /// @throws なし
+    pub fn record_auth_attempt_limited(&self) {
+        self.auth_attempt_limited_total
+            .fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// pre-auth WS 接続数を加算する。
+    /// @param なし
+    /// @returns なし
+    /// @throws なし
+    pub fn record_ws_preauth_open(&self) {
+        self.ws_preauth_connection_current
+            .fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// pre-auth WS 接続数を減算する。
+    /// @param なし
+    /// @returns なし
+    /// @throws なし
+    pub fn record_ws_preauth_close(&self) {
+        self.ws_preauth_connection_current
+            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |current| {
+                Some(current.saturating_sub(1))
+            })
+            .ok();
+    }
+
+    /// pre-auth WS 接続拒否を記録する。
+    /// @param なし
+    /// @returns なし
+    /// @throws なし
+    pub fn record_ws_preauth_rejected(&self) {
+        self.ws_preauth_rejected_total
+            .fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// pre-auth WS timeout を記録する。
+    /// @param なし
+    /// @returns なし
+    /// @throws なし
+    pub fn record_ws_preauth_timeout(&self) {
+        self.ws_preauth_timeout_total
+            .fetch_add(1, Ordering::Relaxed);
+    }
+
     /// 現在メトリクスのスナップショットを返す。
     /// @param なし
     /// @returns メトリクススナップショット
@@ -154,6 +210,12 @@ impl AuthMetrics {
                 .load(Ordering::Relaxed),
             ws_reauth_success_total: self.ws_reauth_success_total.load(Ordering::Relaxed),
             ws_reauth_failure_total: self.ws_reauth_failure_total.load(Ordering::Relaxed),
+            auth_attempt_limited_total: self.auth_attempt_limited_total.load(Ordering::Relaxed),
+            ws_preauth_connection_current: self
+                .ws_preauth_connection_current
+                .load(Ordering::Relaxed),
+            ws_preauth_rejected_total: self.ws_preauth_rejected_total.load(Ordering::Relaxed),
+            ws_preauth_timeout_total: self.ws_preauth_timeout_total.load(Ordering::Relaxed),
         }
     }
 }

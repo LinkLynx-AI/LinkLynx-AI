@@ -73,7 +73,6 @@ VPA/HPA 境界と verify / rollback は `docs/runbooks/gke-autopilot-standard-op
   - `ai/ai-runtime`
 - `standard_runtime_secret_ids` で workload ごとの placeholder secret ID を上書きできる
 - verify / rollback は `docs/runbooks/workload-identity-secret-manager-standard-operations-runbook.md` を使う
-
 ## tfvars で埋める値
 
 - `public_dns_zone_name`

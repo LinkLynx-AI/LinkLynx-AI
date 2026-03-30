@@ -567,7 +567,6 @@ module "observability_standard_baseline" {
     module.scylla_cloud_standard_baseline,
   ]
 }
-
 output "environment" {
   value = local.environment
 }
