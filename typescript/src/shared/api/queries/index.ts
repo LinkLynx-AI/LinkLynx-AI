@@ -10,6 +10,7 @@ export { useRoles } from "./use-roles";
 export { useInvites } from "./use-invites";
 export { useWebhooks } from "./use-webhooks";
 export { useAuditLog } from "./use-audit-log";
+export { useChannelPermissions } from "./use-channel-permissions";
 export { useModerationReports, useModerationReport } from "./use-moderation-reports";
 export {
   getActionGuardMessage,

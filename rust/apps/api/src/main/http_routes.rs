@@ -69,7 +69,22 @@ fn app_with_state(state: AppState) -> Router {
         .route("/v1/guilds/{guild_id}", get(get_guild))
         .route("/v1/guilds/{guild_id}", axum::routing::patch(update_guild))
         .route("/v1/guilds/{guild_id}/members", get(get_guild_members))
-        .route("/v1/guilds/{guild_id}/roles", get(get_guild_roles))
+        .route(
+            "/v1/guilds/{guild_id}/members/{member_id}/roles",
+            put(replace_member_roles),
+        )
+        .route(
+            "/v1/guilds/{guild_id}/roles",
+            get(get_guild_roles).post(create_guild_role),
+        )
+        .route(
+            "/v1/guilds/{guild_id}/roles/reorder",
+            put(reorder_guild_roles),
+        )
+        .route(
+            "/v1/guilds/{guild_id}/roles/{role_key}",
+            axum::routing::patch(update_guild_role).delete(delete_guild_role),
+        )
         .route(
             "/v1/guilds/{guild_id}/invites",
             get(list_guild_invites).post(create_guild_invite),
@@ -81,6 +96,10 @@ fn app_with_state(state: AppState) -> Router {
         .route(
             "/v1/guilds/{guild_id}/channels/{channel_id}",
             get(get_guild_channel),
+        )
+        .route(
+            "/v1/guilds/{guild_id}/channels/{channel_id}/permissions",
+            get(get_channel_permissions).put(replace_channel_permissions),
         )
         .route(
             "/v1/guilds/{guild_id}/channels/{channel_id}/messages",
@@ -1562,6 +1581,17 @@ fn build_authz_cache_invalidation_event(
     Ok(AuthzCacheInvalidationEvent { kind, occurred_at })
 }
 
+/// 認可キャッシュ invalidation イベント群を適用する。
+/// @param state アプリケーション状態
+/// @param events 適用対象イベント
+/// @returns なし
+/// @throws なし
+async fn invalidate_authz_cache_events(state: &AppState, events: &[AuthzCacheInvalidationEvent]) {
+    for event in events {
+        state.authorizer.invalidate_cache(event).await;
+    }
+}
+
 #[derive(Debug, Serialize)]
 struct WsTicketResponse {
     ticket: String,
@@ -1892,6 +1922,58 @@ struct GuildRolesResponse {
     roles: Vec<user_directory::GuildRoleDirectoryEntry>,
 }
 
+#[derive(Debug, Serialize)]
+struct GuildMemberResponse {
+    member: user_directory::GuildMemberDirectoryEntry,
+}
+
+#[derive(Debug, Serialize)]
+struct GuildRoleResponse {
+    role: user_directory::GuildRoleDirectoryEntry,
+}
+
+#[derive(Debug, Serialize)]
+struct ChannelPermissionsResponse {
+    permissions: user_directory::ChannelPermissionDirectoryEntry,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CreateGuildRoleRequest {
+    name: String,
+    allow_view: bool,
+    allow_post: bool,
+    allow_manage: bool,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PatchGuildRoleRequest {
+    name: Option<String>,
+    allow_view: Option<bool>,
+    allow_post: Option<bool>,
+    allow_manage: Option<bool>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ReorderGuildRolesRequest {
+    role_keys: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ReplaceMemberRolesRequest {
+    role_keys: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ReplaceChannelPermissionsRequest {
+    role_overrides: Vec<user_directory::ChannelRolePermissionOverrideInput>,
+    user_overrides: Vec<user_directory::ChannelUserPermissionOverrideInput>,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct ProfileMediaUploadUrlRequest {
@@ -1924,6 +2006,18 @@ struct ModerationGuildPathParams {
 #[derive(Debug, Deserialize)]
 struct UserPathParams {
     user_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct GuildMemberPathParams {
+    guild_id: String,
+    member_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct GuildRolePathParams {
+    guild_id: String,
+    role_key: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -3416,6 +3510,323 @@ async fn get_guild_roles(
     }
 }
 
+/// guild role を作成する。
+/// @param state アプリケーション状態
+/// @param auth_context 認証文脈
+/// @param params guild_id を含むパスパラメータ
+/// @param request 作成入力
+/// @returns guild role レスポンス
+/// @throws なし
+async fn create_guild_role(
+    State(state): State<AppState>,
+    Extension(auth_context): Extension<AuthContext>,
+    Path(params): Path<GuildPathParams>,
+    Json(request): Json<CreateGuildRoleRequest>,
+) -> Response {
+    let request_id = auth_context.request_id.clone();
+    let guild_id = match parse_user_directory_guild_id(&params.guild_id) {
+        Ok(value) => value,
+        Err(error) => return user_directory_error_response(&error, request_id),
+    };
+
+    match state
+        .user_directory_service
+        .create_guild_role(
+            auth_context.principal_id,
+            guild_id,
+            user_directory::CreateGuildRoleInput {
+                name: request.name,
+                allow_view: request.allow_view,
+                allow_post: request.allow_post,
+                allow_manage: request.allow_manage,
+            },
+        )
+        .await
+    {
+        Ok(role) => {
+            invalidate_authz_cache_events(
+                &state,
+                &[AuthzCacheInvalidationEvent {
+                    kind: AuthzCacheInvalidationEventKind::GuildRoleChanged { guild_id },
+                    occurred_at: std::time::SystemTime::now(),
+                }],
+            )
+            .await;
+            (StatusCode::CREATED, Json(GuildRoleResponse { role })).into_response()
+        }
+        Err(error) => user_directory_error_response(&error, request_id),
+    }
+}
+
+/// guild role を更新する。
+/// @param state アプリケーション状態
+/// @param auth_context 認証文脈
+/// @param params guild_id/role_key を含むパスパラメータ
+/// @param request 更新入力
+/// @returns guild role レスポンス
+/// @throws なし
+async fn update_guild_role(
+    State(state): State<AppState>,
+    Extension(auth_context): Extension<AuthContext>,
+    Path(params): Path<GuildRolePathParams>,
+    Json(request): Json<PatchGuildRoleRequest>,
+) -> Response {
+    let request_id = auth_context.request_id.clone();
+    let guild_id = match parse_user_directory_guild_id(&params.guild_id) {
+        Ok(value) => value,
+        Err(error) => return user_directory_error_response(&error, request_id),
+    };
+
+    match state
+        .user_directory_service
+        .update_guild_role(
+            auth_context.principal_id,
+            guild_id,
+            &params.role_key,
+            user_directory::GuildRolePatchInput {
+                name: request.name,
+                allow_view: request.allow_view,
+                allow_post: request.allow_post,
+                allow_manage: request.allow_manage,
+            },
+        )
+        .await
+    {
+        Ok(role) => {
+            invalidate_authz_cache_events(
+                &state,
+                &[AuthzCacheInvalidationEvent {
+                    kind: AuthzCacheInvalidationEventKind::GuildRoleChanged { guild_id },
+                    occurred_at: std::time::SystemTime::now(),
+                }],
+            )
+            .await;
+            Json(GuildRoleResponse { role }).into_response()
+        }
+        Err(error) => user_directory_error_response(&error, request_id),
+    }
+}
+
+/// guild role を削除する。
+/// @param state アプリケーション状態
+/// @param auth_context 認証文脈
+/// @param params guild_id/role_key を含むパスパラメータ
+/// @returns no content
+/// @throws なし
+async fn delete_guild_role(
+    State(state): State<AppState>,
+    Extension(auth_context): Extension<AuthContext>,
+    Path(params): Path<GuildRolePathParams>,
+) -> Response {
+    let request_id = auth_context.request_id.clone();
+    let guild_id = match parse_user_directory_guild_id(&params.guild_id) {
+        Ok(value) => value,
+        Err(error) => return user_directory_error_response(&error, request_id),
+    };
+
+    match state
+        .user_directory_service
+        .delete_guild_role(auth_context.principal_id, guild_id, &params.role_key)
+        .await
+    {
+        Ok(()) => {
+            invalidate_authz_cache_events(
+                &state,
+                &[AuthzCacheInvalidationEvent {
+                    kind: AuthzCacheInvalidationEventKind::GuildRoleChanged { guild_id },
+                    occurred_at: std::time::SystemTime::now(),
+                }],
+            )
+            .await;
+            StatusCode::NO_CONTENT.into_response()
+        }
+        Err(error) => user_directory_error_response(&error, request_id),
+    }
+}
+
+/// guild custom role の順序を置換する。
+/// @param state アプリケーション状態
+/// @param auth_context 認証文脈
+/// @param params guild_id を含むパスパラメータ
+/// @param request 並び替え入力
+/// @returns guild role 一覧レスポンス
+/// @throws なし
+async fn reorder_guild_roles(
+    State(state): State<AppState>,
+    Extension(auth_context): Extension<AuthContext>,
+    Path(params): Path<GuildPathParams>,
+    Json(request): Json<ReorderGuildRolesRequest>,
+) -> Response {
+    let request_id = auth_context.request_id.clone();
+    let guild_id = match parse_user_directory_guild_id(&params.guild_id) {
+        Ok(value) => value,
+        Err(error) => return user_directory_error_response(&error, request_id),
+    };
+
+    match state
+        .user_directory_service
+        .reorder_guild_roles(auth_context.principal_id, guild_id, request.role_keys)
+        .await
+    {
+        Ok(roles) => {
+            invalidate_authz_cache_events(
+                &state,
+                &[AuthzCacheInvalidationEvent {
+                    kind: AuthzCacheInvalidationEventKind::GuildRoleChanged { guild_id },
+                    occurred_at: std::time::SystemTime::now(),
+                }],
+            )
+            .await;
+            Json(GuildRolesResponse { roles }).into_response()
+        }
+        Err(error) => user_directory_error_response(&error, request_id),
+    }
+}
+
+/// guild member の role 割当を置換する。
+/// @param state アプリケーション状態
+/// @param auth_context 認証文脈
+/// @param params guild_id/member_id を含むパスパラメータ
+/// @param request 割当入力
+/// @returns guild member レスポンス
+/// @throws なし
+async fn replace_member_roles(
+    State(state): State<AppState>,
+    Extension(auth_context): Extension<AuthContext>,
+    Path(params): Path<GuildMemberPathParams>,
+    Json(request): Json<ReplaceMemberRolesRequest>,
+) -> Response {
+    let request_id = auth_context.request_id.clone();
+    let guild_id = match parse_user_directory_guild_id(&params.guild_id) {
+        Ok(value) => value,
+        Err(error) => return user_directory_error_response(&error, request_id),
+    };
+    let member_id = match parse_user_id(&params.member_id) {
+        Ok(value) => value,
+        Err(error) => return user_directory_error_response(&error, request_id),
+    };
+
+    match state
+        .user_directory_service
+        .replace_member_roles(auth_context.principal_id, guild_id, member_id, request.role_keys)
+        .await
+    {
+        Ok(member) => {
+            invalidate_authz_cache_events(
+                &state,
+                &[AuthzCacheInvalidationEvent {
+                    kind: AuthzCacheInvalidationEventKind::GuildMemberRoleChanged {
+                        guild_id,
+                        user_id: member_id,
+                    },
+                    occurred_at: std::time::SystemTime::now(),
+                }],
+            )
+            .await;
+            Json(GuildMemberResponse { member }).into_response()
+        }
+        Err(error) => user_directory_error_response(&error, request_id),
+    }
+}
+
+/// channel permission を返す。
+/// @param state アプリケーション状態
+/// @param auth_context 認証文脈
+/// @param params guild_id/channel_id を含むパスパラメータ
+/// @returns channel permission レスポンス
+/// @throws なし
+async fn get_channel_permissions(
+    State(state): State<AppState>,
+    Extension(auth_context): Extension<AuthContext>,
+    Path(params): Path<GuildChannelPathParams>,
+) -> Response {
+    let request_id = auth_context.request_id.clone();
+    let guild_id = match parse_user_directory_guild_id(&params.guild_id) {
+        Ok(value) => value,
+        Err(error) => return user_directory_error_response(&error, request_id),
+    };
+    let channel_id = match parse_channel_id(&params.channel_id) {
+        Ok(value) => value,
+        Err(error) => return guild_channel_error_response(&error, request_id),
+    };
+
+    match state
+        .user_directory_service
+        .get_channel_permissions(auth_context.principal_id, guild_id, channel_id)
+        .await
+    {
+        Ok(permissions) => Json(ChannelPermissionsResponse { permissions }).into_response(),
+        Err(error) => user_directory_error_response(&error, request_id),
+    }
+}
+
+/// channel permission を置換する。
+/// @param state アプリケーション状態
+/// @param auth_context 認証文脈
+/// @param params guild_id/channel_id を含むパスパラメータ
+/// @param request override 入力
+/// @returns channel permission レスポンス
+/// @throws なし
+async fn replace_channel_permissions(
+    State(state): State<AppState>,
+    Extension(auth_context): Extension<AuthContext>,
+    Path(params): Path<GuildChannelPathParams>,
+    Json(request): Json<ReplaceChannelPermissionsRequest>,
+) -> Response {
+    let request_id = auth_context.request_id.clone();
+    let guild_id = match parse_user_directory_guild_id(&params.guild_id) {
+        Ok(value) => value,
+        Err(error) => return user_directory_error_response(&error, request_id),
+    };
+    let channel_id = match parse_channel_id(&params.channel_id) {
+        Ok(value) => value,
+        Err(error) => return guild_channel_error_response(&error, request_id),
+    };
+
+    match state
+        .user_directory_service
+        .replace_channel_permissions(
+            auth_context.principal_id,
+            guild_id,
+            channel_id,
+            user_directory::ReplaceChannelPermissionsInput {
+                role_overrides: request.role_overrides,
+                user_overrides: request.user_overrides,
+            },
+        )
+        .await
+    {
+        Ok(result) => {
+            let mut events = Vec::new();
+            if result.changed_role_overrides {
+                events.push(AuthzCacheInvalidationEvent {
+                    kind: AuthzCacheInvalidationEventKind::ChannelRoleOverrideChanged {
+                        guild_id,
+                        channel_id,
+                    },
+                    occurred_at: std::time::SystemTime::now(),
+                });
+            }
+            for user_id in result.changed_user_ids {
+                events.push(AuthzCacheInvalidationEvent {
+                    kind: AuthzCacheInvalidationEventKind::ChannelUserOverrideChanged {
+                        guild_id,
+                        channel_id,
+                        user_id,
+                    },
+                    occurred_at: std::time::SystemTime::now(),
+                });
+            }
+            invalidate_authz_cache_events(&state, &events).await;
+            Json(ChannelPermissionsResponse {
+                permissions: result.permissions,
+            })
+            .into_response()
+        }
+        Err(error) => user_directory_error_response(&error, request_id),
+    }
+}
+
 /// REST認証ミドルウェアを実行する。
 /// @param state アプリケーション状態
 /// @param request HTTPリクエスト
@@ -3586,6 +3997,9 @@ async fn rest_auth_middleware(
 /// @returns AuthZ action
 /// @throws なし
 fn rest_authz_action_for_request(method: &axum::http::Method, path: &str) -> AuthzAction {
+    if is_guild_manage_route(path) || is_channel_manage_route(path) {
+        return AuthzAction::Manage;
+    }
     if *method == axum::http::Method::POST && is_guild_invite_create_path(path) {
         return AuthzAction::Manage;
     }
@@ -3692,6 +4106,25 @@ fn is_message_command_path(path: &str) -> bool {
     path.starts_with("/v1/guilds/") && path.contains("/channels/") && path.contains("/messages/")
 }
 
+fn is_guild_manage_route(path: &str) -> bool {
+    matches!(
+        path.trim_matches('/').split('/').collect::<Vec<_>>().as_slice(),
+        ["guilds", _, "channels"]
+            | ["v1", "guilds", _, "members"]
+            | ["v1", "guilds", _, "members", _, "roles"]
+            | ["v1", "guilds", _, "roles"]
+            | ["v1", "guilds", _, "roles", "reorder"]
+            | ["v1", "guilds", _, "roles", _]
+    )
+}
+
+fn is_channel_manage_route(path: &str) -> bool {
+    matches!(
+        path.trim_matches('/').split('/').collect::<Vec<_>>().as_slice(),
+        ["channels", _] | ["v1", "guilds", _, "channels", _, "permissions"]
+    )
+}
+
 /// ギルドパスから guild_id を抽出する。
 /// @param path リクエストパス
 /// @returns guild_id
@@ -3712,8 +4145,10 @@ fn parse_guild_path(path: &str) -> Option<i64> {
         ["guilds", guild_id, "moderation", "mutes"] => guild_id.parse::<i64>().ok(),
         ["guilds", guild_id, "permission-snapshot"] => guild_id.parse::<i64>().ok(),
         ["v1", "guilds", guild_id] => guild_id.parse::<i64>().ok(),
-        ["v1", "guilds", guild_id, "members"] => guild_id.parse::<i64>().ok(),
-        ["v1", "guilds", guild_id, "roles"] => guild_id.parse::<i64>().ok(),
+        ["v1", "guilds", guild_id, "members"]
+        | ["v1", "guilds", guild_id, "members", _, "roles"]
+        | ["v1", "guilds", guild_id, "roles"]
+        | ["v1", "guilds", guild_id, "roles", _] => guild_id.parse::<i64>().ok(),
         _ => None,
     }
 }

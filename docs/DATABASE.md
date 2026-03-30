@@ -264,6 +264,12 @@ The source of truth for SpiceDB namespace/relation/permission design aligned wit
 The source of truth for Postgres `*_v2` permission data to canonical SpiceDB tuple conversion, initial backfill contract, outbox delta-sync semantics, and full-resync operational hook is:
 
 - `database/contracts/lin864_postgres_spicedb_tuple_sync_contract.md`
+
+### 2.24 v2 Server Role / Channel Permission / AuthZ Contract (LIN-950)
+
+The source of truth for v2 minimal server role fields, member role assignment rules, channel permission override transport, system role protection, and downstream AuthZ integration points is:
+
+- `database/contracts/lin950_v2_server_role_authz_contract.md`
 ## 3. ScyllaDB の現在状態
 
 基準: `database/scylla/001_lin139_messages.cql`
@@ -354,3 +360,5 @@ The source of truth for Scylla operations (SoR boundary, partition review criter
   - `database/contracts/lin948_message_create_idempotency_contract.md`
 - LIN-862 SpiceDB namespace/relation/permission model contract:
   - `database/contracts/lin862_spicedb_namespace_relation_permission_contract.md`
+- LIN-950 v2 server role / channel permission / AuthZ contract:
+  - `database/contracts/lin950_v2_server_role_authz_contract.md`

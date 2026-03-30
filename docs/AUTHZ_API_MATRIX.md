@@ -176,3 +176,39 @@
   - backend に等価な `v1` alias を追加しても AuthN/AuthZ/監査ログ契約が変わらないこと
   - FE / client query が `v1` alias へ移行済みであること
   - 監査ダッシュボード / runbook が新旧 path の混在を不要と判断できること
+
+## 7. LIN-950 planned v2 role-management additions (not yet implemented)
+
+この節は current implementation ではなく、`LIN-950` で固定した downstream 実装前提を記録する。
+
+### 7.1 Planned protected endpoints
+
+- `GET /v1/guilds/:guild_id/roles`
+- `POST /v1/guilds/:guild_id/roles`
+- `PATCH /v1/guilds/:guild_id/roles/:role_key`
+- `DELETE /v1/guilds/:guild_id/roles/:role_key`
+- `PUT /v1/guilds/:guild_id/roles/reorder`
+- `GET /v1/guilds/:guild_id/members`
+- `PUT /v1/guilds/:guild_id/members/:member_id/roles`
+- `GET /v1/guilds/:guild_id/channels/:channel_id/permissions`
+- `PUT /v1/guilds/:guild_id/channels/:channel_id/permissions`
+
+### 7.2 Planned action mapping
+
+| Surface | Operation | Principal | Resource | Action | Planned decision handling |
+| --- | --- | --- | --- | --- | --- |
+| REST | `GET /v1/guilds/:guild_id/roles` | AuthN済み `principal_id` | `AuthzResource::Guild { guild_id }` | `Manage` | settings read を一般 member に開かず、deny=`403`, unavailable=`503` |
+| REST | `POST /v1/guilds/:guild_id/roles` | AuthN済み `principal_id` | `AuthzResource::Guild { guild_id }` | `Manage` | custom role create のみ許可 |
+| REST | `PATCH /v1/guilds/:guild_id/roles/:role_key` | AuthN済み `principal_id` | `AuthzResource::Guild { guild_id }` | `Manage` | system role update は deterministic deny |
+| REST | `DELETE /v1/guilds/:guild_id/roles/:role_key` | AuthN済み `principal_id` | `AuthzResource::Guild { guild_id }` | `Manage` | system role delete と owner lock-out は deterministic deny |
+| REST | `PUT /v1/guilds/:guild_id/roles/reorder` | AuthN済み `principal_id` | `AuthzResource::Guild { guild_id }` | `Manage` | pinned system role 順序は維持 |
+| REST | `GET /v1/guilds/:guild_id/members` | AuthN済み `principal_id` | `AuthzResource::Guild { guild_id }` | `Manage` | settings read として manage 保護へ引き上げる |
+| REST | `PUT /v1/guilds/:guild_id/members/:member_id/roles` | AuthN済み `principal_id` | `AuthzResource::Guild { guild_id }` | `Manage` | `member` baseline、`owner` 制約、cross-guild 拒否を fail-close 適用する |
+| REST | `GET /v1/guilds/:guild_id/channels/:channel_id/permissions` | AuthN済み `principal_id` | `AuthzResource::GuildChannel { guild_id, channel_id }` | `Manage` | role/user override editor の read |
+| REST | `PUT /v1/guilds/:guild_id/channels/:channel_id/permissions` | AuthN済み `principal_id` | `AuthzResource::GuildChannel { guild_id, channel_id }` | `Manage` | role/user override replacement write。deny=`403`, unavailable=`503` |
+
+### 7.3 Planned FE/API alignment
+
+- settings route の role list / member list / role assignment は `guild.can_manage_settings` 前提で guarded にする。
+- channel permission editor は `channel.can_manage` 前提で guarded にする。
+- `member` role は UI で `@everyone` として表示し、backend transport では `member` を送る。

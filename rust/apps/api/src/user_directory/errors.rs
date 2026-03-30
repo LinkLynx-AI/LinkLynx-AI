@@ -3,6 +3,9 @@
 pub enum UserDirectoryErrorKind {
     Validation,
     UserNotFound,
+    MemberNotFound,
+    RoleNotFound,
+    ChannelNotFound,
     GuildNotFound,
     Forbidden,
     DependencyUnavailable,
@@ -34,6 +37,39 @@ impl UserDirectoryError {
     pub fn user_not_found(reason: impl Into<String>) -> Self {
         Self {
             kind: UserDirectoryErrorKind::UserNotFound,
+            reason: reason.into(),
+        }
+    }
+
+    /// member未存在エラーを生成する。
+    /// @param reason 失敗理由
+    /// @returns member未存在エラー
+    /// @throws なし
+    pub fn member_not_found(reason: impl Into<String>) -> Self {
+        Self {
+            kind: UserDirectoryErrorKind::MemberNotFound,
+            reason: reason.into(),
+        }
+    }
+
+    /// role未存在エラーを生成する。
+    /// @param reason 失敗理由
+    /// @returns role未存在エラー
+    /// @throws なし
+    pub fn role_not_found(reason: impl Into<String>) -> Self {
+        Self {
+            kind: UserDirectoryErrorKind::RoleNotFound,
+            reason: reason.into(),
+        }
+    }
+
+    /// channel未存在エラーを生成する。
+    /// @param reason 失敗理由
+    /// @returns channel未存在エラー
+    /// @throws なし
+    pub fn channel_not_found(reason: impl Into<String>) -> Self {
+        Self {
+            kind: UserDirectoryErrorKind::ChannelNotFound,
             reason: reason.into(),
         }
     }
@@ -79,6 +115,9 @@ impl UserDirectoryError {
         match self.kind {
             UserDirectoryErrorKind::Validation => StatusCode::BAD_REQUEST,
             UserDirectoryErrorKind::UserNotFound => StatusCode::NOT_FOUND,
+            UserDirectoryErrorKind::MemberNotFound => StatusCode::NOT_FOUND,
+            UserDirectoryErrorKind::RoleNotFound => StatusCode::NOT_FOUND,
+            UserDirectoryErrorKind::ChannelNotFound => StatusCode::NOT_FOUND,
             UserDirectoryErrorKind::GuildNotFound => StatusCode::NOT_FOUND,
             UserDirectoryErrorKind::Forbidden => StatusCode::FORBIDDEN,
             UserDirectoryErrorKind::DependencyUnavailable => StatusCode::SERVICE_UNAVAILABLE,
@@ -93,6 +132,9 @@ impl UserDirectoryError {
         match self.kind {
             UserDirectoryErrorKind::Validation => "VALIDATION_ERROR",
             UserDirectoryErrorKind::UserNotFound => "USER_NOT_FOUND",
+            UserDirectoryErrorKind::MemberNotFound => "MEMBER_NOT_FOUND",
+            UserDirectoryErrorKind::RoleNotFound => "ROLE_NOT_FOUND",
+            UserDirectoryErrorKind::ChannelNotFound => "CHANNEL_NOT_FOUND",
             UserDirectoryErrorKind::GuildNotFound => "GUILD_NOT_FOUND",
             UserDirectoryErrorKind::Forbidden => "AUTHZ_DENIED",
             UserDirectoryErrorKind::DependencyUnavailable => "AUTHZ_UNAVAILABLE",
@@ -107,6 +149,9 @@ impl UserDirectoryError {
         match self.kind {
             UserDirectoryErrorKind::Validation => "request payload is invalid",
             UserDirectoryErrorKind::UserNotFound => "user resource was not found",
+            UserDirectoryErrorKind::MemberNotFound => "member resource was not found",
+            UserDirectoryErrorKind::RoleNotFound => "role resource was not found",
+            UserDirectoryErrorKind::ChannelNotFound => "channel resource was not found",
             UserDirectoryErrorKind::GuildNotFound => "guild resource was not found",
             UserDirectoryErrorKind::Forbidden => "access is denied by authorization policy",
             UserDirectoryErrorKind::DependencyUnavailable => {
