@@ -5,7 +5,7 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
 
-const MODE_SCHEMA = z.enum(["happy-path", "dependency-unavailable"]);
+const MODE_SCHEMA = z.enum(["happy-path", "dependency-unavailable", "full-discord-flow"]);
 const ENV_SCHEMA = z.object({
   NEXT_PUBLIC_API_URL: z.string().url(),
   NEXT_PUBLIC_FIREBASE_API_KEY: z.string().trim().min(1),
@@ -26,6 +26,57 @@ const BACKEND_ERROR_SCHEMA = z.object({
   code: z.string().trim().min(1),
   message: z.string().trim().min(1),
   request_id: z.string().trim().min(1),
+});
+const GUILD_CREATE_RESPONSE_SCHEMA = z.object({
+  guild: z.object({
+    guild_id: z.number().int().positive(),
+    name: z.string().trim().min(1),
+    owner_id: z.number().int().positive(),
+  }),
+});
+const CHANNEL_SUMMARY_SCHEMA = z.object({
+  channel_id: z.number().int().positive(),
+  guild_id: z.number().int().positive(),
+  name: z.string().trim().min(1),
+});
+const CHANNEL_LIST_RESPONSE_SCHEMA = z.object({
+  channels: z.array(CHANNEL_SUMMARY_SCHEMA),
+});
+const CHANNEL_CREATE_RESPONSE_SCHEMA = z.object({
+  channel: CHANNEL_SUMMARY_SCHEMA,
+});
+const MESSAGE_ITEM_SCHEMA = z.object({
+  message_id: z.number().int().positive(),
+  guild_id: z.number().int().positive(),
+  channel_id: z.number().int().positive(),
+  author_id: z.number().int().positive(),
+  content: z.string(),
+  created_at: z.string().trim().min(1),
+  version: z.number().int().positive(),
+  edited_at: z.string().trim().min(1).nullable().optional(),
+  is_deleted: z.boolean().optional(),
+});
+const MESSAGE_CREATE_RESPONSE_SCHEMA = z.object({
+  message: MESSAGE_ITEM_SCHEMA,
+});
+const MESSAGE_LIST_RESPONSE_SCHEMA = z.object({
+  items: z.array(MESSAGE_ITEM_SCHEMA),
+  next_before: z.string().trim().min(1).nullable(),
+  next_after: z.string().trim().min(1).nullable(),
+  has_more: z.boolean(),
+});
+const MODERATION_REPORT_RESPONSE_SCHEMA = z.object({
+  report: z.object({
+    report_id: z.number().int().positive(),
+    guild_id: z.number().int().positive(),
+    reporter_id: z.number().int().positive(),
+    target_type: z.enum(["message", "user"]),
+    target_id: z.number().int().positive(),
+    reason: z.string().trim().min(1),
+    status: z.enum(["open", "resolved"]),
+    created_at: z.string().trim().min(1),
+    updated_at: z.string().trim().min(1),
+  }),
 });
 const WS_TICKET_SUCCESS_SCHEMA = z.object({
   ticket: z.string().trim().min(1),
@@ -51,6 +102,10 @@ function logStep(message) {
 
 function fail(message) {
   throw new Error(message);
+}
+
+function isSuccessMode(mode) {
+  return mode === "happy-path" || mode === "full-discord-flow";
 }
 
 export function parseArgs(argv) {
@@ -288,7 +343,7 @@ async function waitForSocketResult(params) {
     });
 
     socket.addEventListener("message", (event) => {
-      if (mode !== "happy-path") {
+      if (!isSuccessMode(mode)) {
         finish(() => {
           socket.close();
           rejectPromise(
@@ -341,7 +396,7 @@ async function waitForSocketResult(params) {
     });
 
     socket.addEventListener("close", (event) => {
-      if (mode === "happy-path") {
+      if (isSuccessMode(mode)) {
         if (settled) {
           return;
         }
@@ -370,6 +425,253 @@ async function waitForSocketResult(params) {
       });
     });
   });
+}
+
+async function authorizedJsonRequest(params) {
+  const { apiBaseUrl, idToken, path, method, schema, expectedStatus, body, extraHeaders } = params;
+  const headers = new Headers({
+    Authorization: `Bearer ${idToken}`,
+  });
+  if (body !== undefined) {
+    headers.set("content-type", "application/json");
+  }
+  if (extraHeaders !== undefined) {
+    new Headers(extraHeaders).forEach((value, key) => {
+      headers.set(key, value);
+    });
+  }
+
+  const response = await fetch(createApiUrl(apiBaseUrl, path), {
+    method,
+    headers,
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const payload = await parseJsonResponse(response);
+
+  if (!response.ok) {
+    const parsedError = BACKEND_ERROR_SCHEMA.safeParse(payload);
+    if (parsedError.success) {
+      fail(
+        `${method} ${path} failed with status ${response.status}: ${parsedError.data.code} (request_id: ${parsedError.data.request_id}).`,
+      );
+    }
+    fail(`${method} ${path} failed with unexpected response status ${response.status}.`);
+  }
+
+  if (response.status !== expectedStatus) {
+    fail(`${method} ${path} returned ${response.status}, expected ${expectedStatus}.`);
+  }
+
+  const parsed = schema.safeParse(payload);
+  if (!parsed.success) {
+    fail(`${method} ${path} response shape is invalid.`);
+  }
+
+  return parsed.data;
+}
+
+async function authorizedNoContentRequest(params) {
+  const { apiBaseUrl, idToken, path, method } = params;
+  const response = await fetch(createApiUrl(apiBaseUrl, path), {
+    method,
+    headers: {
+      Authorization: `Bearer ${idToken}`,
+    },
+  });
+
+  if (response.status === 204) {
+    return;
+  }
+
+  let payload = null;
+  try {
+    payload = await response.json();
+  } catch {
+    fail(`${method} ${path} failed with unexpected response status ${response.status}.`);
+  }
+
+  const parsedError = BACKEND_ERROR_SCHEMA.safeParse(payload);
+  if (parsedError.success) {
+    fail(
+      `${method} ${path} failed with status ${response.status}: ${parsedError.data.code} (request_id: ${parsedError.data.request_id}).`,
+    );
+  }
+  fail(`${method} ${path} failed with unexpected response status ${response.status}.`);
+}
+
+async function createGuild(apiBaseUrl, idToken) {
+  const name = `auth-smoke-${Date.now()}`;
+  logStep(`Creating smoke guild ${name}.`);
+
+  return await authorizedJsonRequest({
+    apiBaseUrl,
+    idToken,
+    path: "/guilds",
+    method: "POST",
+    schema: GUILD_CREATE_RESPONSE_SCHEMA,
+    expectedStatus: 201,
+    body: { name },
+  });
+}
+
+async function createGuildChannel(apiBaseUrl, idToken, guildId) {
+  const name = `smoke-${Date.now()}`;
+  logStep(`Creating smoke channel ${name} in guild ${guildId}.`);
+
+  return await authorizedJsonRequest({
+    apiBaseUrl,
+    idToken,
+    path: `/guilds/${guildId}/channels`,
+    method: "POST",
+    schema: CHANNEL_CREATE_RESPONSE_SCHEMA,
+    expectedStatus: 201,
+    body: { name, type: "guild_text" },
+  });
+}
+
+async function listGuildChannels(apiBaseUrl, idToken, guildId) {
+  logStep(`Listing channels for guild ${guildId}.`);
+
+  return await authorizedJsonRequest({
+    apiBaseUrl,
+    idToken,
+    path: `/guilds/${guildId}/channels`,
+    method: "GET",
+    schema: CHANNEL_LIST_RESPONSE_SCHEMA,
+    expectedStatus: 200,
+  });
+}
+
+async function listChannelMessages(apiBaseUrl, idToken, guildId, channelId) {
+  logStep(`Listing messages for guild ${guildId} channel ${channelId}.`);
+
+  return await authorizedJsonRequest({
+    apiBaseUrl,
+    idToken,
+    path: `/v1/guilds/${guildId}/channels/${channelId}/messages`,
+    method: "GET",
+    schema: MESSAGE_LIST_RESPONSE_SCHEMA,
+    expectedStatus: 200,
+  });
+}
+
+async function createChannelMessage(apiBaseUrl, idToken, guildId, channelId, principalId) {
+  const content = `full-discord-flow ${Date.now()}`;
+  logStep(`Creating smoke message in guild ${guildId} channel ${channelId}.`);
+
+  return await authorizedJsonRequest({
+    apiBaseUrl,
+    idToken,
+    path: `/v1/guilds/${guildId}/channels/${channelId}/messages`,
+    method: "POST",
+    schema: MESSAGE_CREATE_RESPONSE_SCHEMA,
+    expectedStatus: 201,
+    body: { content },
+    extraHeaders: {
+      "Idempotency-Key": `auth-smoke-${principalId}-${Date.now()}`,
+    },
+  });
+}
+
+async function createModerationReport(apiBaseUrl, idToken, guildId, messageId) {
+  logStep(`Creating moderation report for message ${messageId}.`);
+
+  return await authorizedJsonRequest({
+    apiBaseUrl,
+    idToken,
+    path: `/guilds/${guildId}/moderation/reports`,
+    method: "POST",
+    schema: MODERATION_REPORT_RESPONSE_SCHEMA,
+    expectedStatus: 201,
+    body: {
+      target_type: "message",
+      target_id: messageId,
+      reason: "auth smoke moderation flow",
+    },
+  });
+}
+
+async function resolveModerationReport(apiBaseUrl, idToken, guildId, reportId) {
+  logStep(`Resolving moderation report ${reportId}.`);
+
+  return await authorizedJsonRequest({
+    apiBaseUrl,
+    idToken,
+    path: `/guilds/${guildId}/moderation/reports/${reportId}/resolve`,
+    method: "POST",
+    schema: MODERATION_REPORT_RESPONSE_SCHEMA,
+    expectedStatus: 200,
+  });
+}
+
+async function deleteGuild(apiBaseUrl, idToken, guildId) {
+  logStep(`Cleaning up smoke guild ${guildId}.`);
+
+  await authorizedNoContentRequest({
+    apiBaseUrl,
+    idToken,
+    path: `/guilds/${guildId}`,
+    method: "DELETE",
+  });
+}
+
+async function runFullDiscordFlow(params) {
+  const { apiBaseUrl, idToken, principalId } = params;
+  let guildId = null;
+
+  try {
+    const createdGuild = await createGuild(apiBaseUrl, idToken);
+    guildId = createdGuild.guild.guild_id;
+    const createdChannel = await createGuildChannel(apiBaseUrl, idToken, guildId);
+    const channelId = createdChannel.channel.channel_id;
+
+    const channels = await listGuildChannels(apiBaseUrl, idToken, guildId);
+    if (!channels.channels.some((channel) => channel.channel_id === channelId)) {
+      fail(`Created channel ${channelId} was not returned by list_guild_channels.`);
+    }
+
+    await listChannelMessages(apiBaseUrl, idToken, guildId, channelId);
+    const createdMessage = await createChannelMessage(
+      apiBaseUrl,
+      idToken,
+      guildId,
+      channelId,
+      principalId,
+    );
+    const messageId = createdMessage.message.message_id;
+
+    const messages = await listChannelMessages(apiBaseUrl, idToken, guildId, channelId);
+    if (!messages.items.some((message) => message.message_id === messageId)) {
+      fail(`Created message ${messageId} was not returned by list_channel_messages.`);
+    }
+
+    const createdReport = await createModerationReport(apiBaseUrl, idToken, guildId, messageId);
+    if (createdReport.report.target_id !== messageId) {
+      fail(
+        `Moderation report target mismatch: expected ${messageId}, got ${createdReport.report.target_id}.`,
+      );
+    }
+
+    const resolvedReport = await resolveModerationReport(
+      apiBaseUrl,
+      idToken,
+      guildId,
+      createdReport.report.report_id,
+    );
+    if (resolvedReport.report.status !== "resolved") {
+      fail(
+        `Moderation report ${createdReport.report.report_id} status was ${resolvedReport.report.status}, expected resolved.`,
+      );
+    }
+
+    logStep(
+      `Full discord flow passed (guild_id: ${guildId}, channel_id: ${channelId}, message_id: ${messageId}, report_id: ${createdReport.report.report_id}).`,
+    );
+  } finally {
+    if (guildId !== null) {
+      await deleteGuild(apiBaseUrl, idToken, guildId);
+    }
+  }
 }
 
 function assertHappyPathPing(result, localId) {
@@ -435,7 +737,7 @@ async function main() {
   const loginResult = await loginWithFirebase(env);
   const protectedPingResult = await callProtectedPing(env.NEXT_PUBLIC_API_URL, loginResult.idToken);
 
-  if (mode === "happy-path") {
+  if (isSuccessMode(mode)) {
     const protectedPing = assertHappyPathPing(protectedPingResult, loginResult.localId);
     const wsTicket = await issueWsTicket(env.NEXT_PUBLIC_API_URL, loginResult.idToken);
     const wsResult = await waitForSocketResult({
@@ -446,6 +748,13 @@ async function main() {
     });
 
     logStep(`WS identify passed (principal_id: ${wsResult.principalId}).`);
+    if (mode === "full-discord-flow") {
+      await runFullDiscordFlow({
+        apiBaseUrl: env.NEXT_PUBLIC_API_URL,
+        idToken: loginResult.idToken,
+        principalId: protectedPing.principal_id,
+      });
+    }
     logStep("Smoke test completed successfully.");
     return;
   }

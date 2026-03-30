@@ -48,6 +48,8 @@
 | GET | `/v1/dms/:channel_id` | Protected | 必須 | 必須 | DM channel参照 |
 | GET | `/v1/dms/:channel_id/messages` | Protected | 必須 | 必須 | DM message一覧参照 |
 | POST | `/v1/dms/:channel_id/messages` | Protected | 必須 | 必須 | DM message投稿 |
+| GET | `/users/me/dms` | Protected | 必須 | 必須 | DM bootstrap 一覧。implicit bypass を禁止 |
+| POST | `/users/me/dms` | Protected | 必須 | 必須 | DM bootstrap open/create |
 | PATCH | `/v1/moderation/guilds/:guild_id/members/:member_id` | Protected | 必須 | 必須 | Moderation操作 |
 
 ### 2.2 WebSocket endpoint
@@ -95,6 +97,8 @@
 - `GET /v1/dms/:channel_id`
 - `GET /v1/dms/:channel_id/messages`
 - `POST /v1/dms/:channel_id/messages`
+- `GET /users/me/dms`
+- `POST /users/me/dms`
 - `PATCH /v1/moderation/guilds/:guild_id/members/:member_id`
 - `GET /ws`（upgrade handshake）
 - `auth.reauthenticate` 処理時の再認証 AuthZ
@@ -129,6 +133,8 @@
 | REST | `GET /v1/dms/:channel_id` | AuthN済み `principal_id` | `AuthzResource::Channel { channel_id }` | `View` | deny=`403/AUTHZ_DENIED`, unavailable=`503/AUTHZ_UNAVAILABLE` |
 | REST | `GET /v1/dms/:channel_id/messages` | AuthN済み `principal_id` | `AuthzResource::Channel { channel_id }` | `View` | deny=`403/AUTHZ_DENIED`, unavailable=`503/AUTHZ_UNAVAILABLE` |
 | REST | `POST /v1/dms/:channel_id/messages` | AuthN済み `principal_id` | `AuthzResource::Channel { channel_id }` | `Post` | deny=`403/AUTHZ_DENIED`, unavailable=`503/AUTHZ_UNAVAILABLE` |
+| REST | `GET /users/me/dms` | AuthN済み `principal_id` | `AuthzResource::RestPath { path: "/users/me/dms" }` | `View` | DM bootstrap を protected 化。deny=`403/AUTHZ_DENIED`, unavailable=`503/AUTHZ_UNAVAILABLE` |
+| REST | `POST /users/me/dms` | AuthN済み `principal_id` | `AuthzResource::RestPath { path: "/users/me/dms" }` | `Post` | DM bootstrap create。deny=`403/AUTHZ_DENIED`, unavailable=`503/AUTHZ_UNAVAILABLE` |
 | REST | `PATCH /v1/moderation/guilds/:guild_id/members/:member_id` | AuthN済み `principal_id` | `AuthzResource::Guild { guild_id }` | `Manage` | deny=`403/AUTHZ_DENIED`, unavailable=`503/AUTHZ_UNAVAILABLE`。rate limit は `RestRateLimitAction::ModerationAction` を適用し、Dragonfly degraded 時は `429` fail-close |
 | WS | `/ws` handshake | AuthN済み `principal_id` | `AuthzResource::Session` | `Connect` | unauthenticated upgrade 後の `auth.identify` は active ws-ticket から principal を引ける場合は principal 単位、引けない場合は session 単位で rate limit を適用する。`Origin` は allowlist 判定のみに使い、deny=`1008`, unavailable=`1011` |
 | WS | `auth.reauthenticate` | AuthN済み `principal_id` | `AuthzResource::Session` | `Connect` | deny=`1008`, unavailable=`1011` |
@@ -170,3 +176,39 @@
   - backend に等価な `v1` alias を追加しても AuthN/AuthZ/監査ログ契約が変わらないこと
   - FE / client query が `v1` alias へ移行済みであること
   - 監査ダッシュボード / runbook が新旧 path の混在を不要と判断できること
+
+## 7. LIN-950 planned v2 role-management additions (not yet implemented)
+
+この節は current implementation ではなく、`LIN-950` で固定した downstream 実装前提を記録する。
+
+### 7.1 Planned protected endpoints
+
+- `GET /v1/guilds/:guild_id/roles`
+- `POST /v1/guilds/:guild_id/roles`
+- `PATCH /v1/guilds/:guild_id/roles/:role_key`
+- `DELETE /v1/guilds/:guild_id/roles/:role_key`
+- `PUT /v1/guilds/:guild_id/roles/reorder`
+- `GET /v1/guilds/:guild_id/members`
+- `PUT /v1/guilds/:guild_id/members/:member_id/roles`
+- `GET /v1/guilds/:guild_id/channels/:channel_id/permissions`
+- `PUT /v1/guilds/:guild_id/channels/:channel_id/permissions`
+
+### 7.2 Planned action mapping
+
+| Surface | Operation | Principal | Resource | Action | Planned decision handling |
+| --- | --- | --- | --- | --- | --- |
+| REST | `GET /v1/guilds/:guild_id/roles` | AuthN済み `principal_id` | `AuthzResource::Guild { guild_id }` | `Manage` | settings read を一般 member に開かず、deny=`403`, unavailable=`503` |
+| REST | `POST /v1/guilds/:guild_id/roles` | AuthN済み `principal_id` | `AuthzResource::Guild { guild_id }` | `Manage` | custom role create のみ許可 |
+| REST | `PATCH /v1/guilds/:guild_id/roles/:role_key` | AuthN済み `principal_id` | `AuthzResource::Guild { guild_id }` | `Manage` | system role update は deterministic deny |
+| REST | `DELETE /v1/guilds/:guild_id/roles/:role_key` | AuthN済み `principal_id` | `AuthzResource::Guild { guild_id }` | `Manage` | system role delete と owner lock-out は deterministic deny |
+| REST | `PUT /v1/guilds/:guild_id/roles/reorder` | AuthN済み `principal_id` | `AuthzResource::Guild { guild_id }` | `Manage` | pinned system role 順序は維持 |
+| REST | `GET /v1/guilds/:guild_id/members` | AuthN済み `principal_id` | `AuthzResource::Guild { guild_id }` | `Manage` | settings read として manage 保護へ引き上げる |
+| REST | `PUT /v1/guilds/:guild_id/members/:member_id/roles` | AuthN済み `principal_id` | `AuthzResource::Guild { guild_id }` | `Manage` | `member` baseline、`owner` 制約、cross-guild 拒否を fail-close 適用する |
+| REST | `GET /v1/guilds/:guild_id/channels/:channel_id/permissions` | AuthN済み `principal_id` | `AuthzResource::GuildChannel { guild_id, channel_id }` | `Manage` | role/user override editor の read |
+| REST | `PUT /v1/guilds/:guild_id/channels/:channel_id/permissions` | AuthN済み `principal_id` | `AuthzResource::GuildChannel { guild_id, channel_id }` | `Manage` | role/user override replacement write。deny=`403`, unavailable=`503` |
+
+### 7.3 Planned FE/API alignment
+
+- settings route の role list / member list / role assignment は `guild.can_manage_settings` 前提で guarded にする。
+- channel permission editor は `channel.can_manage` 前提で guarded にする。
+- `member` role は UI で `@everyone` として表示し、backend transport では `member` を送る。

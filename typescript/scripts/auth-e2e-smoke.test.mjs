@@ -8,6 +8,12 @@ describe("auth-e2e-smoke", () => {
     });
   });
 
+  test("parseArgs parses full discord flow mode", () => {
+    expect(parseArgs(["--mode", "full-discord-flow"])).toEqual({
+      mode: "full-discord-flow",
+    });
+  });
+
   test("parseArgs rejects unknown flags", () => {
     expect(() => parseArgs(["--unexpected"])).toThrow("Unknown argument");
   });

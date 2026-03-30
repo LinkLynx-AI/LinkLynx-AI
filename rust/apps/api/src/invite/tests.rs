@@ -612,7 +612,7 @@ mod tests {
                     uses,
                     is_disabled
                  )
-                 VALUES ($1, $2, $3, $4, now() + interval '7 days', 5, 0, FALSE)",
+                 VALUES ($1, $2, NULL, $3, $4, now() + interval '7 days', 5, 0, FALSE)",
                 &[&invite_id, &guild_id, &owner_id, &invite_code],
             )
             .await

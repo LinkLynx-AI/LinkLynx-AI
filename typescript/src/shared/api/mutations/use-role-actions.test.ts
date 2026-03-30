@@ -13,6 +13,10 @@ const mockCreateRole = vi.fn().mockResolvedValue({
   hoist: false,
   mentionable: false,
   memberCount: 0,
+  allowView: true,
+  allowPost: true,
+  allowManage: false,
+  isSystem: false,
 });
 
 const mockUpdateRole = vi.fn().mockResolvedValue({
@@ -24,6 +28,10 @@ const mockUpdateRole = vi.fn().mockResolvedValue({
   hoist: true,
   mentionable: false,
   memberCount: 2,
+  allowView: true,
+  allowPost: true,
+  allowManage: true,
+  isSystem: false,
 });
 
 vi.mock("@/shared/api/api-client", () => ({
@@ -54,7 +62,7 @@ describe("useRoleActions", () => {
 
     result.current.mutate({
       serverId: "server-1",
-      data: { name: "New Role", color: "#ff0000" },
+      data: { name: "New Role", allowView: true, allowPost: true, allowManage: false },
     });
 
     await waitFor(() => {
@@ -63,12 +71,14 @@ describe("useRoleActions", () => {
 
     expect(mockCreateRole).toHaveBeenCalledWith("server-1", {
       name: "New Role",
-      color: "#ff0000",
+      allowView: true,
+      allowPost: true,
+      allowManage: false,
     });
 
     expect(result.current.data).toMatchObject({
       name: "New Role",
-      color: "#ff0000",
+      allowManage: false,
     });
   });
 

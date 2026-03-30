@@ -144,6 +144,59 @@ export type Role = {
   hoist: boolean;
   mentionable: boolean;
   memberCount: number;
+  allowView: boolean;
+  allowPost: boolean;
+  allowManage: boolean;
+  isSystem: boolean;
+};
+
+export type PermissionOverrideValue = "allow" | "deny" | "inherit";
+
+export type ChannelRolePermissionOverride = {
+  roleKey: string;
+  subjectName: string;
+  isSystem: boolean;
+  canView: PermissionOverrideValue;
+  canPost: PermissionOverrideValue;
+};
+
+export type ChannelUserPermissionOverride = {
+  userId: string;
+  subjectName: string;
+  canView: PermissionOverrideValue;
+  canPost: PermissionOverrideValue;
+};
+
+export type ChannelPermissions = {
+  roleOverrides: ChannelRolePermissionOverride[];
+  userOverrides: ChannelUserPermissionOverride[];
+};
+
+export type CreateRoleInput = {
+  name: string;
+  allowView: boolean;
+  allowPost: boolean;
+  allowManage: boolean;
+};
+
+export type UpdateRoleInput = {
+  name?: string;
+  allowView?: boolean;
+  allowPost?: boolean;
+  allowManage?: boolean;
+};
+
+export type ReplaceChannelPermissionsInput = {
+  roleOverrides: Array<{
+    roleKey: string;
+    canView: PermissionOverrideValue;
+    canPost: PermissionOverrideValue;
+  }>;
+  userOverrides: Array<{
+    userId: string;
+    canView: PermissionOverrideValue;
+    canPost: PermissionOverrideValue;
+  }>;
 };
 
 export type Webhook = {
@@ -309,13 +362,17 @@ export type APIClient = {
 
   // Roles
   getRoles(serverId: string): Promise<Role[]>;
-  createRole(
-    serverId: string,
-    data: { name: string; color?: string; permissions?: number },
-  ): Promise<Role>;
-  updateRole(serverId: string, roleId: string, data: Partial<Role>): Promise<Role>;
+  createRole(serverId: string, data: CreateRoleInput): Promise<Role>;
+  updateRole(serverId: string, roleId: string, data: UpdateRoleInput): Promise<Role>;
   deleteRole(serverId: string, roleId: string): Promise<void>;
-  reorderRoles(serverId: string, roles: { id: string; position: number }[]): Promise<void>;
+  reorderRoles(serverId: string, roleKeys: string[]): Promise<Role[]>;
+  replaceMemberRoles(serverId: string, memberId: string, roleKeys: string[]): Promise<GuildMember>;
+  getChannelPermissions(serverId: string, channelId: string): Promise<ChannelPermissions>;
+  replaceChannelPermissions(
+    serverId: string,
+    channelId: string,
+    data: ReplaceChannelPermissionsInput,
+  ): Promise<ChannelPermissions>;
 
   // Webhooks
   getWebhooks(channelId: string): Promise<Webhook[]>;

@@ -1,23 +1,25 @@
 # Documentation
 
 ## Current status
-- Now: `LIN-829` の frontend message timeline/composer 実接続と review fix まで反映済み。
-- Next: 依存導入済み環境で typecheck / Vitest を再実行して最終確認する。
+- `LIN-796` の親要件に相当する invite verify / join / FE 導線は現行 `main` に存在する。
+- このワークツリー `codex/lin-796` は `origin/main` と差分が無く、追加の product code 実装差分は確認できなかった。
 
 ## Decisions
-- 対象 issue は `LIN-829`。
-- guild text channel のみ対象。DM 実装は今回含めない。
-- backend 契約拡張は行わない。
-- message REST/WS の `i64` ID は frontend 境界で string として保持する。
-- reconnect 後の取りこぼし補償は active channel history の再取得で行う。
-- own-message 判定は `principal_id` ベースで行う。
+- 今回の実装は root memory files の是正に限定する。
+- `LIN-796` の追加差分は、具体的な欠落要件または再現不具合が提示された場合にのみ着手する。
+- invite join の `AuthN required / AuthZ excluded` 契約は ADR-004 を維持する。
+- invite access の high-risk fail-close policy は ADR-005 を維持する。
 
-## Validation plan
-- `make validate`
-- `cd typescript && npm run typecheck`
-- 必要に応じて関連 Vitest を個別実行
+## Validation
+- Pass:
+  - `cargo test -p linklynx_backend invite::tests:: -- --nocapture`
+- Blocked by environment:
+  - `cd typescript && npm run test -- --run src/app/invite/[code]/page.test.tsx src/app/invite/[code]/invite-page-client.test.tsx src/features/invite-flow/api/join-invite.test.ts`
+  - `cd typescript && npm run typecheck`
+  - `make validate`
 
 ## Notes
-- `typescript/node_modules` が存在しないためローカル typecheck / Vitest は未実行。
-- local 開発では `make dev` が `scylla-bootstrap` を先行実行するように変更した。
-- `scylla-bootstrap` は `.env` を読み込んだうえで `scylla-wait` を通すため、Scylla 起動直後の race で Rust API が不健康な session を掴む確率を下げている。
+- frontend 検証失敗の主因はコードではなく依存未導入。
+  - `vitest: not found`
+  - `prettier: not found`
+- 現時点で invite 関連の repo-tracked code 変更は加えていない。

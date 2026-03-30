@@ -1,0 +1,4 @@
+# low-budget prod-only path keeps a public GKE control plane for GitHub Actions based Terraform apply.
+# Standard-path security baseline now documents the same tradeoff; private control plane and
+# master-authorized-network hardening remain a dedicated follow-up beyond LIN-973.
+AVD-GCP-0061

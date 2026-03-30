@@ -24,14 +24,10 @@
                         └──────┬──────┘
                                │
                     ┌──────────▼──────────┐
-                    │    Cloudflare        │
-                    │  DNS + CDN + WAF     │
-                    │  + DDoS 防御         │
-                    └──────────┬──────────┘
-                               │
-                    ┌──────────▼──────────┐
-                    │  GCP Global LB (L7)  │
-                    │  WebSocket 対応       │
+                    │   GCP Native Edge    │
+                    │ Cloud DNS + CertMgr  │
+                    │ GCLB + Cloud Armor   │
+                    │ + optional Cloud CDN │
                     └──────────┬──────────┘
                                │
               ┌────────────────┼────────────────┐
@@ -76,6 +72,7 @@
 | 初期リージョン | **us-east1**（米国東部） |
 | マルチリージョン | Phase 1 では単一リージョン。拡張を妨げない設計 |
 | 長期方針 | クラウド非依存。将来の移行を前提に抽象化 |
+| Bootstrap / State | **`linklynx-bootstrap` project + GCS state bucket** を採用。runtime 環境とは分離 |
 
 ### 3. コンピュート
 
@@ -83,18 +80,21 @@
 |------|------|
 | 基盤 | **GKE Autopilot** |
 | 段階 | Autopilot → Standard → Self-hosted (成長に応じて) |
-| 環境 | **dev + staging + prod**（3環境、GCPプロジェクト分離） |
+| 環境 | **Phase 1 は staging + prod**（2環境、各環境 1 cluster）。`dev` は後続で追加検討 |
+| 標準 path cluster baseline | **`staging` / `prod` に 1 cluster ずつ** |
+| 標準 path namespace baseline | **`frontend` / `api` / `ai` / `data` / `ops` / `observability`** |
+| autoscaling baseline | **VPA primary / HPA later**。`ai` は spot-ready、core path は通常 capacity |
 
 ### 4. データストア
 
 | DB | ホスティング | 理由 |
 |----|------------|------|
-| **PostgreSQL** | Cloud SQL（マネージド） | PITR/HA/バックアップ自動。運用負荷最小 |
-| **ScyllaDB** | ScyllaDB Cloud or GCE 専用 | K8s 外。Autopilot の制限回避 |
-| **Dragonfly** | K8s 上 StatefulSet | 軽量。Redis 互換 |
-| **Redpanda** | K8s 上 Helm chart | 公式 Operator あり |
-| **NATS** | K8s 上 Helm chart | 軽量、K8s native |
-| **OpenSearch** | Elastic Cloud（初期） | 運用負荷回避。将来 K8s 上も可 |
+| **PostgreSQL** | Cloud SQL（マネージド） | PITR/バックアップ自動。標準 path は `staging=ZONAL / prod=REGIONAL(HA)`、初期 read replica なし。low-budget path は `prod-only` 単一 instance から開始 |
+| **ScyllaDB** | ScyllaDB Cloud or GCE 専用 | K8s 外。Autopilot の制限回避。standard path は ScyllaDB Cloud の contact-point / Secret Manager / accessor baseline を整え、low-budget path は external Scylla の runtime wiring と ops baseline を先に整える |
+| **Dragonfly** | K8s 上（標準 path は `StatefulSet + PVC + PDB`、low-budget path は volatile single Deployment） | 軽量。Redis 互換。Autopilot では dedicated pool の代わりに workload-scoped isolation を採る |
+| **Redpanda** | Redpanda Cloud（標準 path） | standard path は Secret Manager / accessor IAM / smoke topic baseline を整え、low-budget path は Secret Manager placeholder と ops baseline を先に整える |
+| **NATS** | Synadia Cloud（標準 path） | standard path は Secret Manager / accessor IAM / smoke subject baseline を整え、low-budget path は Secret Manager placeholder と ops baseline を先に整える |
+| **OpenSearch** | Elastic Cloud（標準 / low-budget の初期採用） | Phase 1 は Elastic Cloud を採用し、standard path は Secret Manager / accessor IAM / connectivity smoke / snapshot baseline、low-budget path は secret placeholder と snapshot / lifecycle baseline を先に整える。self-managed OpenSearch は fallback として別 issue で扱う |
 
 ### 5. 認証・認可
 
@@ -108,11 +108,16 @@
 
 | 項目 | 決定 |
 |------|------|
-| DNS + CDN | **Cloudflare** |
-| WAF + DDoS | **Cloudflare** |
-| ロードバランサー | **GCP Global HTTP(S) LB**（WebSocket 対応） |
-| TLS | Cloudflare（エッジ）+ GCP managed cert（オリジン） |
+| DNS | **Cloud DNS** |
+| CDN | **Cloud CDN（静的配信のみ。API / WS はキャッシュしない）** |
+| WAF + Edge 保護 | **Cloud Armor** |
+| ロードバランサー | **GCP External Application Load Balancer**（WebSocket 対応） |
+| TLS | **Certificate Manager + GCLB で終端** |
 | ドメイン | 取得済み（具体名は別途確認） |
+| low-budget CI security scan | **Gitleaks（repo secret）+ Trivy config（`infra/` misconfig）** |
+| low-budget cluster ingress isolation | **Kubernetes NetworkPolicy baseline**（`rust-api-smoke:8080 only`, `dragonfly:6379 only from rust-api-smoke`） |
+| standard security baseline | **Cloud Armor attach + Dependency Review + Semgrep changed-files + Trivy config + Trivy image + manual ZAP DAST** |
+| standard audit baseline | **Secret Manager / IAM Data Access audit + Terraform / GitOps change history** |
 
 ### 7. CI/CD・デプロイ
 
@@ -124,26 +129,47 @@
 | GitOps | **ArgoCD** |
 | マニフェスト管理 | **Helm（サードパーティ）+ Kustomize（自社アプリ）** |
 | デプロイ方式 | **Canary（Argo Rollouts）** |
+| standard path promotion gate | **staging auto-sync / prod manual sync** |
 | DB マイグレーション | CI 検証 → staging 自動 → prod 手動承認 → 自動実行 |
+| low-budget deploy path | **GitHub Actions + Terraform plan/apply + `prod` manual approval** |
 
 ### 8. 監視・オブザーバビリティ
 
 | 項目 | 決定 |
 |------|------|
-| メトリクス | **Prometheus** |
-| ダッシュボード | **Grafana** |
-| アラート | **Alertmanager** |
-| ログ | **Loki** |
+| メトリクス | **Prometheus + blackbox exporter**（標準 path） / **Cloud Monitoring**（low-budget `prod-only` path） |
+| ダッシュボード | **Grafana**（標準 path） / **Cloud Monitoring dashboard**（low-budget path） |
+| アラート | **Alertmanager -> Discord**（標準 path 初期導線） / **Cloud Monitoring alert policy**（low-budget path） |
+| ログ | **Loki + Grafana Alloy**（標準 path） / **Cloud Logging**（low-budget path） |
+| external dependency visibility | **provider manual checks + dependency-specific runbook**（low-budget path） |
 | トレーシング | **Tempo**（将来追加） |
-| 通知先 | 後で決定 |
+| 通知先 | **Discord 初期導線**。on-call SaaS は後続で検討 |
 
 ### 9. シークレット管理
 
 | 項目 | 決定 |
 |------|------|
 | バックエンド | **GCP Secret Manager** |
-| K8s 同期 | **External Secrets Operator** |
-| 方針 | Git にシークレットは入れない。将来の AWS 移行も ESO で対応可能 |
+| low-budget baseline | **Workload Identity + direct Secret Manager access** |
+| standard baseline | **Workload Identity + direct Secret Manager access**（`frontend` / `api` / `ai` の workload-scoped identity） |
+| 標準 path 拡張 | **External Secrets Operator** を後続で検討 |
+| 方針 | Git にシークレットは入れない。初期は長期静的キーを排除し、secret-level IAM と audit log を優先する |
+
+### 10. 運用 baseline
+
+| 項目 | 決定 |
+|------|------|
+| standard incident flow | **Discord thread + Incident Commander / Comms / Scribe + specialist runbook handoff** |
+| standard postmortem | **SEV-1 / 30分超のSEV-2 / rollback・restore・reindex 実施時は standard template を必須** |
+| standard capacity envelope | **Registered `100,000 - 1,000,000` / peak WS `2,000 - 10,000` / sustained message ingress `200 - 1,000 msg/s` を planning envelope として採用** |
+| low-budget incident flow | **Discord thread + `hirwatan` / `sabe` / `miwasa` mention** |
+| postmortem | **軽量 template を使って毎回残す** |
+| capacity trigger | **登録者数ではなく observed traffic / latency / DB pressure を優先** |
+| Chaos Engineering | **固定日ではなく readiness 条件が揃ってから開始** |
+
+詳細な標準 path の incident / capacity / postmortem baseline は
+`docs/runbooks/incident-standard-operations-runbook.md` と
+`docs/runbooks/postmortem-standard-template.md` を参照する。
 
 ---
 
@@ -158,14 +184,15 @@
 
 ### Phase 2: アプリケーションデプロイ
 - Rust API / Next.js / Python を K8s にデプロイ
-- Cloud Load Balancer + Cloudflare 接続
+- GCP native edge（Cloud DNS / Certificate Manager / GCLB / Cloud Armor）接続
 - External Secrets Operator セットアップ
 - DB マイグレーション自動化
 
 ### Phase 3: データストア・ミドルウェア
-- NATS / Redpanda / Dragonfly を K8s にデプロイ（Helm）
-- ScyllaDB セットアップ（K8s 外）
-- OpenSearch 接続
+- Dragonfly を K8s にデプロイ
+- Redpanda Cloud / Synadia Cloud 接続 / secret / smoke / ops baseline を整備
+- ScyllaDB Cloud 接続 / secret / ops baseline（K8s 外）
+- Elastic Cloud 接続 / accessor IAM / connectivity smoke / snapshot baseline
 
 ### Phase 4: GitOps・監視
 - ArgoCD + Argo Rollouts セットアップ

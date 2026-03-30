@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, test, vi } from "vitest";
+import { GuildChannelApiError } from "@/shared/api/guild-channel-api-client";
 import { render, screen, userEvent } from "@/test/test-utils";
 import { ChannelEditInvites } from "./channel-edit-invites";
 
@@ -68,5 +69,28 @@ describe("ChannelEditInvites", () => {
 
     expect(screen.getByText("招待がありません")).not.toBeNull();
     expect(screen.getByText("このチャンネルにはアクティブな招待がありません")).not.toBeNull();
+  });
+
+  test("maps invite fetch error with request id", () => {
+    useInvitesMock.mockReturnValue({
+      data: undefined,
+      isPending: false,
+      error: new GuildChannelApiError("この操作を行う権限がありません。", {
+        status: 403,
+        code: "AUTHZ_DENIED",
+        requestId: "req-channel-invites-403",
+      }),
+    });
+    useRevokeInviteMock.mockReturnValue({
+      mutateAsync: vi.fn(),
+      isPending: false,
+      variables: undefined,
+    });
+
+    render(<ChannelEditInvites serverId="2001" channelId="3001" />);
+
+    expect(
+      screen.getByText("この操作を行う権限がありません。 (request_id: req-channel-invites-403)"),
+    ).not.toBeNull();
   });
 });

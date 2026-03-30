@@ -11,7 +11,11 @@ import type {
 } from "@/shared/model/types";
 import { useAuthStore } from "@/shared/model/stores/auth-store";
 import type {
+  ChannelPermissions,
+  ChannelRolePermissionOverride,
+  ChannelUserPermissionOverride,
   CreateMyProfileMediaUploadUrlInput,
+  CreateRoleInput,
   ChannelPermissionSnapshot,
   CreateChannelData,
   CreateGuildData,
@@ -29,9 +33,12 @@ import type {
   ModerationMute,
   ModerationReport,
   PermissionSnapshot,
+  PermissionOverrideValue,
   ProfileMediaTarget,
+  ReplaceChannelPermissionsInput,
   Role,
   SendMessageParams,
+  UpdateRoleInput,
   UpdateGuildData,
   UpdateMyProfileInput,
 } from "./api-client";
@@ -156,11 +163,40 @@ const GUILD_ROLE_SCHEMA = z.object({
   role_key: z.string().trim().min(1),
   name: z.string().trim().min(1),
   priority: z.number().int(),
+  allow_view: z.boolean(),
+  allow_post: z.boolean(),
   allow_manage: z.boolean(),
+  is_system: z.boolean(),
   member_count: z.number().int().nonnegative(),
 });
 const GUILD_ROLES_RESPONSE_SCHEMA = z.object({
   roles: z.array(GUILD_ROLE_SCHEMA),
+});
+const GUILD_ROLE_RESPONSE_SCHEMA = z.object({
+  role: GUILD_ROLE_SCHEMA,
+});
+const GUILD_MEMBER_RESPONSE_SCHEMA = z.object({
+  member: GUILD_MEMBER_SCHEMA,
+});
+const PERMISSION_OVERRIDE_VALUE_SCHEMA = z.enum(["allow", "deny", "inherit"]);
+const CHANNEL_ROLE_PERMISSION_OVERRIDE_SCHEMA = z.object({
+  role_key: z.string().trim().min(1),
+  subject_name: z.string().trim().min(1),
+  is_system: z.boolean(),
+  can_view: PERMISSION_OVERRIDE_VALUE_SCHEMA,
+  can_post: PERMISSION_OVERRIDE_VALUE_SCHEMA,
+});
+const CHANNEL_USER_PERMISSION_OVERRIDE_SCHEMA = z.object({
+  user_id: z.number().int().positive(),
+  subject_name: z.string().trim().min(1),
+  can_view: PERMISSION_OVERRIDE_VALUE_SCHEMA,
+  can_post: PERMISSION_OVERRIDE_VALUE_SCHEMA,
+});
+const CHANNEL_PERMISSIONS_RESPONSE_SCHEMA = z.object({
+  permissions: z.object({
+    role_overrides: z.array(CHANNEL_ROLE_PERMISSION_OVERRIDE_SCHEMA),
+    user_overrides: z.array(CHANNEL_USER_PERMISSION_OVERRIDE_SCHEMA),
+  }),
 });
 const USER_PROFILE_RESPONSE_SCHEMA = z.object({
   profile: z.object({
@@ -336,7 +372,10 @@ type ChannelSummaryResponse = z.infer<typeof CHANNEL_SUMMARY_SCHEMA>;
 type DmChannelListResponse = z.infer<typeof DM_CHANNEL_LIST_RESPONSE_SCHEMA>;
 type MyProfileResponse = z.infer<typeof MY_PROFILE_RESPONSE_SCHEMA>;
 type GuildMembersResponse = z.infer<typeof GUILD_MEMBERS_RESPONSE_SCHEMA>;
+type GuildMemberResponse = z.infer<typeof GUILD_MEMBER_RESPONSE_SCHEMA>;
 type GuildRolesResponse = z.infer<typeof GUILD_ROLES_RESPONSE_SCHEMA>;
+type GuildRoleResponse = z.infer<typeof GUILD_ROLE_RESPONSE_SCHEMA>;
+type ChannelPermissionsResponse = z.infer<typeof CHANNEL_PERMISSIONS_RESPONSE_SCHEMA>;
 type UserProfileResponse = z.infer<typeof USER_PROFILE_RESPONSE_SCHEMA>;
 type ProfileMediaUploadResponse = z.infer<typeof PROFILE_MEDIA_UPLOAD_RESPONSE_SCHEMA>;
 type ProfileMediaDownloadResponse = z.infer<typeof PROFILE_MEDIA_DOWNLOAD_RESPONSE_SCHEMA>;
@@ -788,6 +827,40 @@ function mapRole(entry: GuildRolesResponse["roles"][number]): Role {
     mentionable: false,
     hoist: entry.priority > 100,
     memberCount: entry.member_count,
+    allowView: entry.allow_view,
+    allowPost: entry.allow_post,
+    allowManage: entry.allow_manage,
+    isSystem: entry.is_system,
+  };
+}
+
+function mapChannelRolePermissionOverride(
+  entry: ChannelPermissionsResponse["permissions"]["role_overrides"][number],
+): ChannelRolePermissionOverride {
+  return {
+    roleKey: entry.role_key,
+    subjectName: entry.subject_name,
+    isSystem: entry.is_system,
+    canView: entry.can_view,
+    canPost: entry.can_post,
+  };
+}
+
+function mapChannelUserPermissionOverride(
+  entry: ChannelPermissionsResponse["permissions"]["user_overrides"][number],
+): ChannelUserPermissionOverride {
+  return {
+    userId: String(entry.user_id),
+    subjectName: entry.subject_name,
+    canView: entry.can_view,
+    canPost: entry.can_post,
+  };
+}
+
+function mapChannelPermissions(response: ChannelPermissionsResponse): ChannelPermissions {
+  return {
+    roleOverrides: response.permissions.role_overrides.map(mapChannelRolePermissionOverride),
+    userOverrides: response.permissions.user_overrides.map(mapChannelUserPermissionOverride),
   };
 }
 
@@ -997,7 +1070,7 @@ export class GuildChannelAPIClient extends NoDataAPIClient {
 
   private async requestJson<T>(params: {
     path: string;
-    method: "GET" | "POST" | "PATCH" | "DELETE";
+    method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
     schema: z.ZodType<T>;
     expectedStatus: number;
     body?: Record<string, unknown>;
@@ -1115,6 +1188,22 @@ export class GuildChannelAPIClient extends NoDataAPIClient {
     return this.requestJson({
       path,
       method: "PATCH",
+      body,
+      schema,
+      expectedStatus: 200,
+      parseResponseText: options?.parseResponseText,
+    });
+  }
+
+  private async putJson<T>(
+    path: string,
+    body: Record<string, unknown>,
+    schema: z.ZodType<T>,
+    options?: { parseResponseText?: (rawText: string) => unknown },
+  ): Promise<T> {
+    return this.requestJson({
+      path,
+      method: "PUT",
       body,
       schema,
       expectedStatus: 200,
@@ -1732,6 +1821,199 @@ export class GuildChannelAPIClient extends NoDataAPIClient {
     );
 
     return response.roles.map(mapRole);
+  }
+
+  async createRole(serverId: string, data: CreateRoleInput): Promise<Role> {
+    const normalizedServerId = serverId.trim();
+    const normalizedName = data.name.trim();
+    if (normalizedServerId.length === 0 || normalizedName.length === 0) {
+      throw new GuildChannelApiError(CREATE_ERROR_MESSAGES.validation, {
+        status: 400,
+        code: "VALIDATION_ERROR",
+      });
+    }
+
+    const response = await this.postJson(
+      `/v1/guilds/${encodeURIComponent(normalizedServerId)}/roles`,
+      {
+        name: normalizedName,
+        allow_view: data.allowView,
+        allow_post: data.allowPost,
+        allow_manage: data.allowManage,
+      },
+      GUILD_ROLE_RESPONSE_SCHEMA,
+    );
+
+    return mapRole(response.role);
+  }
+
+  async updateRole(serverId: string, roleId: string, data: UpdateRoleInput): Promise<Role> {
+    const normalizedServerId = serverId.trim();
+    const normalizedRoleId = roleId.trim();
+    const normalizedName = data.name?.trim();
+    if (
+      normalizedServerId.length === 0 ||
+      normalizedRoleId.length === 0 ||
+      (data.name !== undefined && normalizedName !== undefined && normalizedName.length === 0)
+    ) {
+      throw new GuildChannelApiError(UPDATE_ERROR_MESSAGES.validation, {
+        status: 400,
+        code: "VALIDATION_ERROR",
+      });
+    }
+
+    const body: Record<string, unknown> = {};
+    if (normalizedName !== undefined) {
+      body.name = normalizedName;
+    }
+    if (data.allowView !== undefined) {
+      body.allow_view = data.allowView;
+    }
+    if (data.allowPost !== undefined) {
+      body.allow_post = data.allowPost;
+    }
+    if (data.allowManage !== undefined) {
+      body.allow_manage = data.allowManage;
+    }
+    if (Object.keys(body).length === 0) {
+      throw new GuildChannelApiError(UPDATE_ERROR_MESSAGES.validation, {
+        status: 400,
+        code: "VALIDATION_ERROR",
+      });
+    }
+
+    const response = await this.patchJson(
+      `/v1/guilds/${encodeURIComponent(normalizedServerId)}/roles/${encodeURIComponent(
+        normalizedRoleId,
+      )}`,
+      body,
+      GUILD_ROLE_RESPONSE_SCHEMA,
+    );
+
+    return mapRole(response.role);
+  }
+
+  async deleteRole(serverId: string, roleId: string): Promise<void> {
+    const normalizedServerId = serverId.trim();
+    const normalizedRoleId = roleId.trim();
+    if (normalizedServerId.length === 0 || normalizedRoleId.length === 0) {
+      throw new GuildChannelApiError(DELETE_ERROR_MESSAGES.validation, {
+        status: 400,
+        code: "VALIDATION_ERROR",
+      });
+    }
+
+    await this.deleteNoContent(
+      `/v1/guilds/${encodeURIComponent(normalizedServerId)}/roles/${encodeURIComponent(
+        normalizedRoleId,
+      )}`,
+    );
+  }
+
+  async reorderRoles(serverId: string, roleKeys: string[]): Promise<Role[]> {
+    const normalizedServerId = serverId.trim();
+    const normalizedRoleKeys = roleKeys
+      .map((roleKey) => roleKey.trim())
+      .filter((roleKey) => roleKey.length > 0);
+    if (normalizedServerId.length === 0 || normalizedRoleKeys.length === 0) {
+      throw new GuildChannelApiError(UPDATE_ERROR_MESSAGES.validation, {
+        status: 400,
+        code: "VALIDATION_ERROR",
+      });
+    }
+
+    const response = await this.putJson(
+      `/v1/guilds/${encodeURIComponent(normalizedServerId)}/roles/reorder`,
+      {
+        role_keys: normalizedRoleKeys,
+      },
+      GUILD_ROLES_RESPONSE_SCHEMA,
+    );
+
+    return response.roles.map(mapRole);
+  }
+
+  async replaceMemberRoles(
+    serverId: string,
+    memberId: string,
+    roleKeys: string[],
+  ): Promise<GuildMember> {
+    const normalizedServerId = serverId.trim();
+    const normalizedMemberId = memberId.trim();
+    const normalizedRoleKeys = roleKeys
+      .map((roleKey) => roleKey.trim())
+      .filter((roleKey) => roleKey.length > 0);
+    if (normalizedServerId.length === 0 || normalizedMemberId.length === 0) {
+      throw new GuildChannelApiError(UPDATE_ERROR_MESSAGES.validation, {
+        status: 400,
+        code: "VALIDATION_ERROR",
+      });
+    }
+
+    const response = await this.putJson(
+      `/v1/guilds/${encodeURIComponent(normalizedServerId)}/members/${encodeURIComponent(
+        normalizedMemberId,
+      )}/roles`,
+      {
+        role_keys: normalizedRoleKeys,
+      },
+      GUILD_MEMBER_RESPONSE_SCHEMA,
+    );
+
+    return mapGuildMember(response.member);
+  }
+
+  async getChannelPermissions(serverId: string, channelId: string): Promise<ChannelPermissions> {
+    const normalizedServerId = serverId.trim();
+    const normalizedChannelId = channelId.trim();
+    if (normalizedServerId.length === 0 || normalizedChannelId.length === 0) {
+      return { roleOverrides: [], userOverrides: [] };
+    }
+
+    const response = await this.getJson(
+      `/v1/guilds/${encodeURIComponent(normalizedServerId)}/channels/${encodeURIComponent(
+        normalizedChannelId,
+      )}/permissions`,
+      CHANNEL_PERMISSIONS_RESPONSE_SCHEMA,
+    );
+
+    return mapChannelPermissions(response);
+  }
+
+  async replaceChannelPermissions(
+    serverId: string,
+    channelId: string,
+    data: ReplaceChannelPermissionsInput,
+  ): Promise<ChannelPermissions> {
+    const normalizedServerId = serverId.trim();
+    const normalizedChannelId = channelId.trim();
+    if (normalizedServerId.length === 0 || normalizedChannelId.length === 0) {
+      throw new GuildChannelApiError(UPDATE_ERROR_MESSAGES.validation, {
+        status: 400,
+        code: "VALIDATION_ERROR",
+      });
+    }
+
+    const response = await this.putJson(
+      `/v1/guilds/${encodeURIComponent(normalizedServerId)}/channels/${encodeURIComponent(
+        normalizedChannelId,
+      )}/permissions`,
+      {
+        role_overrides: data.roleOverrides.map((override) => ({
+          role_key: override.roleKey,
+          can_view: override.canView,
+          can_post: override.canPost,
+        })),
+        user_overrides: data.userOverrides.map((override) => ({
+          user_id: Number(override.userId),
+          can_view: override.canView,
+          can_post: override.canPost,
+        })),
+      },
+      CHANNEL_PERMISSIONS_RESPONSE_SCHEMA,
+    );
+
+    return mapChannelPermissions(response);
   }
 
   /**

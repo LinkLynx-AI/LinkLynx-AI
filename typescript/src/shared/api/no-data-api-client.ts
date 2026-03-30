@@ -10,10 +10,13 @@ import type {
   CreateMyProfileMediaUploadUrlInput,
   CreateModerationMuteData,
   CreateModerationReportData,
+  CreateRoleInput,
   CreateChannelData,
   CreateGuildData,
+  ChannelPermissions,
   MyProfileMediaDownload,
   MyProfileMediaUpload,
+  ReplaceChannelPermissionsInput,
   UpdateGuildData,
   CreateInviteData,
   Invite,
@@ -314,14 +317,20 @@ export class NoDataAPIClient implements APIClient {
     return Promise.resolve([]);
   }
 
-  createRole(
-    _serverId: string,
-    _data: { name: string; color?: string; permissions?: number },
-  ): Promise<Role> {
+  createRole(_serverId: string, _data: CreateRoleInput): Promise<Role> {
     return unsupportedPromise("createRole");
   }
 
-  updateRole(_serverId: string, _roleId: string, _data: Partial<Role>): Promise<Role> {
+  updateRole(
+    _serverId: string,
+    _roleId: string,
+    _data: {
+      name?: string;
+      allowView?: boolean;
+      allowPost?: boolean;
+      allowManage?: boolean;
+    },
+  ): Promise<Role> {
     return unsupportedPromise("updateRole");
   }
 
@@ -329,8 +338,28 @@ export class NoDataAPIClient implements APIClient {
     return unsupportedPromise("deleteRole");
   }
 
-  reorderRoles(_serverId: string, _roles: { id: string; position: number }[]): Promise<void> {
+  reorderRoles(_serverId: string, _roleKeys: string[]): Promise<Role[]> {
     return unsupportedPromise("reorderRoles");
+  }
+
+  replaceMemberRoles(
+    _serverId: string,
+    _memberId: string,
+    _roleKeys: string[],
+  ): Promise<GuildMember> {
+    return unsupportedPromise("replaceMemberRoles");
+  }
+
+  getChannelPermissions(_serverId: string, _channelId: string): Promise<ChannelPermissions> {
+    return Promise.resolve({ roleOverrides: [], userOverrides: [] });
+  }
+
+  replaceChannelPermissions(
+    _serverId: string,
+    _channelId: string,
+    _data: ReplaceChannelPermissionsInput,
+  ): Promise<ChannelPermissions> {
+    return unsupportedPromise("replaceChannelPermissions");
   }
 
   getWebhooks(_channelId: string): Promise<Webhook[]> {

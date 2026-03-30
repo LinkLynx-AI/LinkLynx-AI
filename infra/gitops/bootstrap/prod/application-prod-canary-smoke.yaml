@@ -1,0 +1,17 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: prod-canary-smoke
+  namespace: ops
+spec:
+  project: linklynx-platform
+  source:
+    repoURL: https://github.com/LinkLynx-AI/LinkLynx-AI.git
+    targetRevision: main
+    path: infra/gitops/apps/prod/canary-smoke
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: api
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=false

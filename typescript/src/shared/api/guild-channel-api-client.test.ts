@@ -612,7 +612,10 @@ describe("GuildChannelAPIClient", () => {
               role_key: "admin",
               name: "Admin",
               priority: 200,
+              allow_view: true,
+              allow_post: true,
               allow_manage: true,
+              is_system: true,
               member_count: 3,
             },
           ],
@@ -634,11 +637,194 @@ describe("GuildChannelAPIClient", () => {
         mentionable: false,
         hoist: true,
         memberCount: 3,
+        allowView: true,
+        allowPost: true,
+        allowManage: true,
+        isSystem: true,
       },
     ]);
 
     const [url] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe("http://localhost:8080/v1/guilds/2001/roles");
+  });
+
+  test("createRole sends guild role contract and maps response", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          role: {
+            role_key: "reviewer",
+            name: "Reviewer",
+            priority: 120,
+            allow_view: true,
+            allow_post: true,
+            allow_manage: false,
+            is_system: false,
+            member_count: 1,
+          },
+        }),
+        { status: 201 },
+      ),
+    );
+
+    const client = new GuildChannelAPIClient();
+    const role = await client.createRole("2001", {
+      name: "Reviewer",
+      allowView: true,
+      allowPost: true,
+      allowManage: false,
+    });
+
+    expect(role).toMatchObject({
+      id: "reviewer",
+      name: "Reviewer",
+      allowView: true,
+      allowPost: true,
+      allowManage: false,
+      isSystem: false,
+    });
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("http://localhost:8080/v1/guilds/2001/roles");
+    expect(init.method).toBe("POST");
+    expect(init.body).toBe(
+      JSON.stringify({
+        name: "Reviewer",
+        allow_view: true,
+        allow_post: true,
+        allow_manage: false,
+      }),
+    );
+  });
+
+  test("replaceMemberRoles sends put request and maps member response", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          member: {
+            user_id: 1001,
+            display_name: "Alice",
+            avatar_key: null,
+            status_text: null,
+            nickname: "alice-owner",
+            joined_at: "2026-03-03T00:00:00Z",
+            role_keys: ["member", "reviewer"],
+          },
+        }),
+        { status: 200 },
+      ),
+    );
+
+    const client = new GuildChannelAPIClient();
+    const member = await client.replaceMemberRoles("2001", "1001", ["member", "reviewer"]);
+
+    expect(member.roles).toEqual(["member", "reviewer"]);
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("http://localhost:8080/v1/guilds/2001/members/1001/roles");
+    expect(init.method).toBe("PUT");
+    expect(init.body).toBe(JSON.stringify({ role_keys: ["member", "reviewer"] }));
+  });
+
+  test("getChannelPermissions maps role and user overrides", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          permissions: {
+            role_overrides: [
+              {
+                role_key: "member",
+                subject_name: "@everyone",
+                is_system: true,
+                can_view: "allow",
+                can_post: "deny",
+              },
+            ],
+            user_overrides: [
+              {
+                user_id: 1002,
+                subject_name: "Bob",
+                can_view: "inherit",
+                can_post: "allow",
+              },
+            ],
+          },
+        }),
+        { status: 200 },
+      ),
+    );
+
+    const client = new GuildChannelAPIClient();
+    const permissions = await client.getChannelPermissions("2001", "3001");
+
+    expect(permissions).toEqual({
+      roleOverrides: [
+        {
+          roleKey: "member",
+          subjectName: "@everyone",
+          isSystem: true,
+          canView: "allow",
+          canPost: "deny",
+        },
+      ],
+      userOverrides: [
+        {
+          userId: "1002",
+          subjectName: "Bob",
+          canView: "inherit",
+          canPost: "allow",
+        },
+      ],
+    });
+  });
+
+  test("replaceChannelPermissions sends tri-state payload", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          permissions: {
+            role_overrides: [
+              {
+                role_key: "member",
+                subject_name: "@everyone",
+                is_system: true,
+                can_view: "allow",
+                can_post: "deny",
+              },
+            ],
+            user_overrides: [],
+          },
+        }),
+        { status: 200 },
+      ),
+    );
+
+    const client = new GuildChannelAPIClient();
+    await client.replaceChannelPermissions("2001", "3001", {
+      roleOverrides: [
+        {
+          roleKey: "member",
+          canView: "allow",
+          canPost: "deny",
+        },
+      ],
+      userOverrides: [],
+    });
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("http://localhost:8080/v1/guilds/2001/channels/3001/permissions");
+    expect(init.method).toBe("PUT");
+    expect(init.body).toBe(
+      JSON.stringify({
+        role_overrides: [
+          {
+            role_key: "member",
+            can_view: "allow",
+            can_post: "deny",
+          },
+        ],
+        user_overrides: [],
+      }),
+    );
   });
 
   test("getUserProfile maps shared user profile response", async () => {

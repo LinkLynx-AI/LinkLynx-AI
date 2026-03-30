@@ -43,7 +43,6 @@
 19. `0019_lin948_message_create_idempotency`
 20. `0020_lin941_channel_category_constraints`
 21. `0021_adhoc_invites_id_sequence_for_issuance`
-22. `0022_lin996_invites_channel_scope`
 
 ### 2.1 型（ENUM）
 
@@ -87,7 +86,6 @@
 - `guilds.id` / `channels.id` / `invites.id` はデフォルト採番（`guilds_id_seq` / `channels_id_seq` / `invites_id_seq`）を許容
 - `auth_identities(provider, provider_subject)` は外部認証主体（例: Firebase UID）を一意化し、`principal_id -> users.id` へ正規化
 - `guild_members(guild_id, user_id)` は `guilds/users` への多対多
-- `invites.channel_id` は LIN-996 で追加された招待ターゲットチャネルの SoR。既存互換のため NULL を許容しつつ、新規 invite は同一 guild の `channels.type='guild_text'` を参照する
 - `channels` は `channel_type` でギルドテキストチャネル/カテゴリコンテナ/DM を表現
 - `guilds.name` と `channels(type in ('guild_text', 'guild_category')).name` は空文字（空白のみ）を拒否
 - `dm_pairs` は `user_low < user_high` 制約と `channel_id` 一意制約で DM 1対1 を保証
@@ -133,7 +131,7 @@
 - `idx_channels_guild`（`type in ('guild_text', 'guild_category')` 条件付き）
 - `idx_channels_guild_created_id`（`type in ('guild_text', 'guild_category')` 条件付き）
 - `idx_dm_participants_user`
-- `idx_invites_guild`, `idx_invites_expires`, `idx_invites_guild_channel`
+- `idx_invites_guild`, `idx_invites_expires`
 - `idx_channel_hierarchies_v2_parent_pos`
 - `idx_channel_hierarchies_v2_guild_kind`
 - `idx_msg_refs_v2_channel_reply`
@@ -157,6 +155,8 @@ The source of truth for Postgres operations (forward-only migration, pool exhaus
 
 - `database/contracts/lin588_postgres_operations_baseline.md`
 - `docs/runbooks/postgres-pitr-runbook.md`
+- `docs/runbooks/cloud-sql-postgres-standard-operations-runbook.md`
+- `docs/runbooks/cloud-sql-postgres-migration-operations-runbook.md`
 
 ### 2.7 Session/Resume Runtime Baseline (LIN-587)
 
@@ -185,6 +185,7 @@ The source of truth for v1 Redpanda event stream operations (topic naming, reten
 
 - `database/contracts/lin601_redpanda_event_stream_baseline.md`
 - `docs/runbooks/redpanda-topic-retention-replay-runbook.md`
+- `docs/runbooks/managed-messaging-cloud-standard-operations-runbook.md`
 
 ### 2.11 Auth Schema Gap Correction (LIN-631)
 
@@ -263,6 +264,12 @@ The source of truth for SpiceDB namespace/relation/permission design aligned wit
 The source of truth for Postgres `*_v2` permission data to canonical SpiceDB tuple conversion, initial backfill contract, outbox delta-sync semantics, and full-resync operational hook is:
 
 - `database/contracts/lin864_postgres_spicedb_tuple_sync_contract.md`
+
+### 2.24 v2 Server Role / Channel Permission / AuthZ Contract (LIN-950)
+
+The source of truth for v2 minimal server role fields, member role assignment rules, channel permission override transport, system role protection, and downstream AuthZ integration points is:
+
+- `database/contracts/lin950_v2_server_role_authz_contract.md`
 ## 3. ScyllaDB の現在状態
 
 基準: `database/scylla/001_lin139_messages.cql`
@@ -297,6 +304,7 @@ The source of truth for Scylla operations (SoR boundary, partition review criter
 
 - `database/contracts/lin589_scylla_sor_partition_baseline.md`
 - `docs/runbooks/scylla-node-loss-backup-runbook.md`
+- `docs/runbooks/scylla-cloud-standard-operations-runbook.md` (standard path connection / secret / provider boundary)
 
 ## 4. 変更時の運用ルール
 
@@ -321,6 +329,8 @@ The source of truth for Scylla operations (SoR boundary, partition review criter
 - LIN-589 Scylla operations baseline:
   - `database/contracts/lin589_scylla_sor_partition_baseline.md`
   - `docs/runbooks/scylla-node-loss-backup-runbook.md`
+- LIN-970 standard ScyllaDB Cloud connection baseline:
+  - `docs/runbooks/scylla-cloud-standard-operations-runbook.md`
 - LIN-590 GCS attachment operations baseline:
   - `database/contracts/lin590_gcs_signed_url_and_retention_baseline.md`
   - `docs/runbooks/gcs-signed-url-retention-operations-runbook.md`
@@ -350,10 +360,5 @@ The source of truth for Scylla operations (SoR boundary, partition review criter
   - `database/contracts/lin948_message_create_idempotency_contract.md`
 - LIN-862 SpiceDB namespace/relation/permission model contract:
   - `database/contracts/lin862_spicedb_namespace_relation_permission_contract.md`
-
-
-### 2.17 Invite Channel Scope Contract (LIN-996)
-
-The source of truth for channel-scoped invite ownership and guild/channel admin list compatibility is:
-
-- `database/contracts/lin996_invite_channel_scope_contract.md`
+- LIN-950 v2 server role / channel permission / AuthZ contract:
+  - `database/contracts/lin950_v2_server_role_authz_contract.md`
