@@ -185,6 +185,93 @@ make authz-spicedb-health
 make rust-dev
 ```
 
+## `main` 最新化とデプロイ
+
+このリポジトリの deploy は「image を publish する段階」と「runtime / infra に反映する段階」が分かれています。
+
+- `CD`
+  - GitHub Actions で image build / smoke test / publish を行います。
+- staging deploy
+  - 現状は Terraform-managed の smoke workload を手動で反映します。
+- prod deploy
+  - GitHub Actions の `Infra Deploy (prod)` を `main` から手動実行します。
+
+### `main` を最新化する
+
+作業前に `main` を最新へ合わせる基本手順です。
+
+```bash
+git fetch origin
+git switch main
+git pull --ff-only origin main
+```
+
+補足:
+
+- untracked file が `main` 側の tracked file と衝突する場合は、先に退避か削除が必要です。
+- `--ff-only` を使うと、意図しない merge commit を作らずに更新できます。
+
+### branch / PR を staging で確認する
+
+「この branch のコードで staging 向け image を作って smoke deploy まで確認したい」ときの流れです。
+
+1. GitHub Actions の `CD` workflow を `workflow_dispatch` で実行する
+2. branch は確認したい branch を選ぶ
+3. `target_environment=staging` を選ぶ
+4. workflow 完了後、Rust image digest を job summary か artifact から控える
+5. `infra/environments/staging/terraform.tfvars` で少なくとも次を確認する
+   - `enable_rust_api_smoke_deploy = true`
+   - `rust_api_public_hostname = "<stg_api_host>"`
+   - `rust_api_image_digest = "<Rust image digest>"`
+6. Terraform を apply する
+7. `/health` と `/ws` を verify する
+
+実行コマンド:
+
+```bash
+cd infra/environments/staging
+terraform init -backend-config=backend.hcl
+terraform plan
+terraform apply
+```
+
+verify:
+
+```bash
+curl -i -sS https://<stg_api_host>/health
+wscat -c wss://<stg_api_host>/ws
+```
+
+詳細は [docs/runbooks/staging-rust-api-smoke-deploy-operations-runbook.md](docs/runbooks/staging-rust-api-smoke-deploy-operations-runbook.md) を参照してください。
+
+### prod に deploy する
+
+prod は branch から直接 apply せず、`main` から行います。
+
+1. 変更を `main` に反映する
+2. `main` push で `CD` が走る、または `CD` を `workflow_dispatch` で `target_environment=prod` 実行する
+3. publish 済み digest を確認する
+4. GitHub Actions の `Infra Deploy (prod)` を `operation=plan` で実行する
+5. Rust API image だけ差し替える場合は workflow input の `rust_api_image_digest=<digest>` を入力する
+6. `prod-terraform-plan` artifact を確認する
+7. 問題なければ同じ digest で `operation=apply` を実行する
+8. `confirm_production_apply=prod` を入れる
+9. GitHub の `prod` environment approval を通す
+
+重要:
+
+- prod apply は `main` からしか実行できません。
+- `CD` は image publish で、prod runtime 反映は `Infra Deploy (prod)` が担当します。
+
+Rust API image だけ差し替える場合の基本フロー:
+
+1. `CD` で新しい digest を publish
+2. `Infra Deploy (prod)` を `plan` で実行
+3. plan を確認
+4. 同じ digest で `apply`
+
+詳細は [docs/runbooks/terraform-low-budget-prod-deploy-runbook.md](docs/runbooks/terraform-low-budget-prod-deploy-runbook.md) を参照してください。
+
 ## よくあるエラー
 
 ### `ERR_CONNECTION_REFUSED`
