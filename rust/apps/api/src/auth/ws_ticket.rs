@@ -232,7 +232,7 @@ impl WsOriginAllowlist {
             Some(raw_origin) => normalize_origin(raw_origin)
                 .map(|origin| self.allowed_origins.contains(&origin))
                 .unwrap_or(false),
-            None => true,
+            None => false,
         }
     }
 }

@@ -23,11 +23,12 @@
                         │   ユーザー    │
                         └──────┬──────┘
                                │
-               ┌───────────────▼────────────────┐
-               │     GCP Native Edge             │
-               │ Cloud DNS + Certificate Manager │
-               │ Cloud Armor + External ALB      │
-               └───────────────┬────────────────┘
+                    ┌──────────▼──────────┐
+                    │   GCP Native Edge    │
+                    │ Cloud DNS + CertMgr  │
+                    │ GCLB + Cloud Armor   │
+                    │ + optional Cloud CDN │
+                    └──────────┬──────────┘
                                │
               ┌────────────────┼────────────────┐
               │                │                │
@@ -79,7 +80,7 @@
 |------|------|
 | 基盤 | **GKE Autopilot** |
 | 段階 | Autopilot → Standard → Self-hosted (成長に応じて) |
-| 環境 | **dev + staging + prod**（3環境、GCPプロジェクト分離） |
+| 環境 | **Phase 1 は staging + prod**（2環境、各環境 1 cluster）。`dev` は後続で追加検討 |
 | 標準 path cluster baseline | **`staging` / `prod` に 1 cluster ずつ** |
 | 標準 path namespace baseline | **`frontend` / `api` / `ai` / `data` / `ops` / `observability`** |
 | autoscaling baseline | **VPA primary / HPA later**。`ai` は spot-ready、core path は通常 capacity |
@@ -108,10 +109,10 @@
 | 項目 | 決定 |
 |------|------|
 | DNS | **Cloud DNS** |
-| CDN | **Cloud CDN**（静的配信のみ。必要時に attach） |
-| WAF + DDoS | **Cloud Armor + Google edge baseline** |
-| ロードバランサー | **External Application Load Balancer**（WebSocket 対応） |
-| TLS | **Certificate Manager** |
+| CDN | **Cloud CDN（静的配信のみ。API / WS はキャッシュしない）** |
+| WAF + Edge 保護 | **Cloud Armor** |
+| ロードバランサー | **GCP External Application Load Balancer**（WebSocket 対応） |
+| TLS | **Certificate Manager + GCLB で終端** |
 | ドメイン | 取得済み（具体名は別途確認） |
 | low-budget CI security scan | **Gitleaks（repo secret）+ Trivy config（`infra/` misconfig）** |
 | low-budget cluster ingress isolation | **Kubernetes NetworkPolicy baseline**（`rust-api-smoke:8080 only`, `dragonfly:6379 only from rust-api-smoke`） |
@@ -176,7 +177,7 @@
 
 ### Phase 2: アプリケーションデプロイ
 - Rust API / Next.js / Python を K8s にデプロイ
-- External Application Load Balancer + Cloud Armor attach
+- GCP native edge（Cloud DNS / Certificate Manager / GCLB / Cloud Armor）接続
 - External Secrets Operator セットアップ
 - DB マイグレーション自動化
 
