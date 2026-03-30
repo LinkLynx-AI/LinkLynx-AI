@@ -262,6 +262,35 @@ inventory と accessor IAM、smoke contract を Terraform で固定する。
 
 詳細な verify / rollback は `docs/runbooks/managed-messaging-cloud-standard-operations-runbook.md` を参照する。
 
+## LIN-975 standard Elastic Cloud search baseline
+
+standard path の検索基盤は `Elastic Cloud` を採用し、`staging` / `prod` で使う接続基盤を
+`Secret Manager + Workload Identity` で揃える。
+
+### Why Elastic Cloud
+
+- derived read model である search に、Phase 1 から self-managed cluster の day-2 ops を背負わせない
+- `database/contracts/lin139_runtime_contracts.md` はすでに `Elastic Cloud on GCP` を第一候補にしている
+- provider boundary を残しつつ、runtime contract と secret boundary は portable に保てる
+
+### What gets added
+
+- `search_elastic_cloud_standard_baseline` module
+- Elastic Cloud 用 secret inventory
+  - `api_key`
+  - `cloud_id`
+  - `endpoint`
+- approved runtime GSA に対する secret-level accessor IAM
+- `messages` index を使う runtime contract output
+- optional search HTTPS probe target wiring
+
+### Boundary
+
+- Elastic Cloud deployment provisioning は Terraform scope 外
+- provider-native metrics ingestion は follow-up
+- self-managed OpenSearch fallback は separate issue で扱う
+- verify / rollback / vendor boundary は `docs/runbooks/search-elastic-cloud-standard-operations-runbook.md` を使う
+
 ## LIN-972 standard observability baseline
 
 standard path では `Prometheus + Grafana + Alertmanager + Loki + Alloy + blackbox exporter`
@@ -284,6 +313,7 @@ standard path では `Prometheus + Grafana + Alertmanager + Loki + Alloy + black
 
 - standard path では `Cloud Monitoring` を主監視にせず、portable な self-hosted stack を主軸にする
 - Cloud SQL / Dragonfly / Scylla / Redpanda / NATS は最初に blackbox probe で reachability を取る
+- search は optional HTTPS probe target と provider console checks を baseline にする
 - アプリ contract metrics は `docs/runbooks/observability-v0-structured-logs-metrics-runbook.md` に合わせる
 - Loki は single-binary で始め、長期 retention / object storage は後続へ回す
 - `Tempo` は follow-up issue に残す

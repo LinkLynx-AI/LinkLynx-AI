@@ -6,6 +6,7 @@ locals {
   enable_standard_gitops                   = var.enable_standard_gitops_baseline
   enable_standard_managed_messaging        = var.enable_standard_managed_messaging_cloud_baseline
   enable_standard_observability            = var.enable_standard_observability_baseline
+  enable_standard_search                   = var.enable_standard_search_baseline
   enable_standard_scylla_cloud             = var.enable_standard_scylla_cloud_baseline
   enable_standard_workload_identities      = var.enable_standard_workload_identity_baseline
   normalized_public_hostnames              = [for hostname in var.public_hostnames : trimsuffix(hostname, ".")]
@@ -58,6 +59,9 @@ locals {
   standard_nats_accessor_service_account_emails = local.enable_standard_managed_messaging ? toset([
     for workload in sort(tolist(var.standard_nats_runtime_workloads)) : module.standard_runtime_identities[workload].google_service_account_email
   ]) : toset([])
+  standard_search_accessor_service_account_emails = local.enable_standard_search ? toset([
+    for workload in sort(tolist(var.standard_search_runtime_workloads)) : module.standard_runtime_identities[workload].google_service_account_email
+  ]) : toset([])
 }
 
 check "rust_api_smoke_prerequisites" {
@@ -98,6 +102,13 @@ check "exclusive_managed_messaging_paths" {
       var.enable_minimal_managed_messaging_secret_baseline
     )
     error_message = "enable_standard_managed_messaging_cloud_baseline and enable_minimal_managed_messaging_secret_baseline cannot both be true in prod."
+  }
+}
+
+check "exclusive_search_paths" {
+  assert {
+    condition     = !(var.enable_standard_search_baseline && var.enable_minimal_search_secret_baseline)
+    error_message = "enable_standard_search_baseline and enable_minimal_search_secret_baseline cannot both be true in prod."
   }
 }
 
@@ -214,6 +225,40 @@ check "standard_managed_messaging_prerequisites" {
       toset(keys(var.standard_nats_secret_ids)),
     )) == 0
     error_message = "standard_nats_secret_ids must define url, creds, and ca_bundle entries."
+  }
+}
+
+check "standard_search_prerequisites" {
+  assert {
+    condition     = !var.enable_standard_search_baseline || var.enable_standard_workload_identity_baseline
+    error_message = "enable_standard_search_baseline requires enable_standard_workload_identity_baseline = true."
+  }
+
+  assert {
+    condition     = !var.enable_standard_search_baseline || length(setsubtract(var.standard_search_runtime_workloads, toset(keys(local.standard_runtime_identities)))) == 0
+    error_message = "standard_search_runtime_workloads must reference known standard runtime workloads."
+  }
+
+  assert {
+    condition     = !var.enable_standard_search_baseline || length(setsubtract(var.standard_search_runtime_workloads, var.standard_gke_namespace_names)) == 0
+    error_message = "standard_search_runtime_workloads must map to namespaces included in standard_gke_namespace_names."
+  }
+
+  assert {
+    condition     = !var.enable_standard_search_baseline || length(setsubtract(toset(["api_key", "cloud_id", "endpoint"]), toset(keys(var.standard_search_secret_ids)))) == 0
+    error_message = "standard_search_secret_ids must define api_key, cloud_id, and endpoint entries."
+  }
+
+  assert {
+    condition     = !var.enable_standard_search_baseline || trimspace(var.standard_search_index_name) != ""
+    error_message = "standard_search_index_name must not be empty."
+  }
+}
+
+check "standard_search_observability_alignment" {
+  assert {
+    condition     = !(var.enable_standard_search_baseline && var.enable_standard_observability_baseline) || length(var.standard_search_probe_targets) > 0
+    error_message = "standard_search_probe_targets must contain at least one HTTPS endpoint when standard search and observability baselines are both enabled."
   }
 }
 
@@ -575,6 +620,20 @@ module "managed_messaging_cloud_standard_baseline" {
   depends_on = [module.standard_runtime_identities]
 }
 
+module "search_elastic_cloud_standard_baseline" {
+  count = local.enable_standard_search ? 1 : 0
+
+  source = "../../modules/search_elastic_cloud_standard_baseline"
+
+  accessor_service_account_emails = local.standard_search_accessor_service_account_emails
+  environment                     = local.environment
+  index_name                      = var.standard_search_index_name
+  labels                          = { environment = local.environment, issue = "lin-975" }
+  secret_ids                      = var.standard_search_secret_ids
+
+  depends_on = [module.standard_runtime_identities]
+}
+
 module "observability_standard_baseline" {
   count = local.enable_standard_observability ? 1 : 0
 
@@ -601,6 +660,7 @@ module "observability_standard_baseline" {
   prometheus_storage_size             = var.standard_observability_prometheus_storage_size
   redpanda_tcp_targets                = var.standard_redpanda_probe_targets
   scylla_tcp_targets                  = var.standard_scylla_hosts
+  search_http_probe_targets           = var.standard_search_probe_targets
 
   depends_on = [
     module.cloud_sql_postgres_standard,
@@ -826,6 +886,10 @@ output "scylla_cloud_standard_baseline" {
 
 output "managed_messaging_cloud_standard_baseline" {
   value = local.enable_standard_managed_messaging ? module.managed_messaging_cloud_standard_baseline[0] : null
+}
+
+output "search_elastic_cloud_standard_baseline" {
+  value = local.enable_standard_search ? module.search_elastic_cloud_standard_baseline[0] : null
 }
 
 output "observability_standard_baseline" {

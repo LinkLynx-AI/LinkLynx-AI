@@ -24,6 +24,7 @@
 - `dragonfly-standard-operations-runbook.md`: standard path の Dragonfly `StatefulSet + PVC + PDB` baseline、Autopilot isolation translation、verify / rollback 手順。
 - `scylla-cloud-standard-operations-runbook.md`: standard path の ScyllaDB Cloud contact-point / Secret Manager / rotation baseline、責務分界、self-managed fallback 境界。
 - `managed-messaging-cloud-standard-operations-runbook.md`: standard path の Redpanda Cloud / Synadia Cloud secret inventory、smoke contract、rotation / incident triage、self-managed fallback 境界。
+- `search-elastic-cloud-standard-operations-runbook.md`: standard path の Elastic Cloud hosting decision、Secret Manager / accessor IAM、snapshot / restore / connectivity smoke、vendor boundary baseline。
 - `observability-standard-operations-runbook.md`: standard path の `Prometheus + Grafana + Loki + Alloy + blackbox` baseline、Discord alert route、SLO dashboard、verify / rollback 手順。
 - `security-standard-operations-runbook.md`: standard path の Cloud Armor attach、CI security scan baseline、manual DAST、audit posture、fail-close / manual-relief 境界。
 - `cloud-sql-postgres-migration-operations-runbook.md`: Cloud SQL-backed PostgreSQL forward-only migration gate, manual approval boundary, and failure-handling baseline for the low-budget prod-only path.

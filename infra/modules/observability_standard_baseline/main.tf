@@ -98,6 +98,19 @@ locals {
     }
   ]
 
+  blackbox_search_targets = [
+    for target in sort(tolist(var.search_http_probe_targets)) : {
+      name   = "search-${substr(md5(target), 0, 8)}"
+      url    = target
+      module = "http_2xx"
+      labels = {
+        dependency  = "search"
+        environment = var.environment
+        target_type = "search"
+      }
+    }
+  ]
+
   blackbox_targets = concat(
     local.blackbox_api_targets,
     local.blackbox_cloud_sql_targets,
@@ -105,6 +118,7 @@ locals {
     local.blackbox_scylla_targets,
     local.blackbox_redpanda_targets,
     local.blackbox_nats_targets,
+    local.blackbox_search_targets,
   )
 
   alertmanager_content = trimspace(var.discord_mention) != "" ? var.discord_mention : "LinkLynx alert"
