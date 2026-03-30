@@ -50,8 +50,8 @@ Out of scope:
   - principal を引けない場合のみ WS session 単位 bucket へ fallback する。
   - `Origin` は allowlist 判定のみに使い、shared rate-limit key には使わない。
 - Compatibility paths:
-  - `GET /ws?ticket=<ticket>`
   - `Authorization` header based WS handshake
+  - `GET /ws?ticket=<ticket>` is disabled by default and may be re-enabled only by explicit runtime opt-in.
 - Close behavior:
   - invalid/expired/replayed ticket, identify timeout, identify-before-ready violation -> `1008`
   - identify rate limited -> `1008` (`identify_rate_limited`)
@@ -86,7 +86,12 @@ Out of scope:
   - `AUTH_IDENTIFY_TIMEOUT_SECONDS` (default: `5`)
   - `WS_TICKET_RATE_LIMIT_MAX_PER_MINUTE` (default: `20`)
   - `WS_IDENTIFY_RATE_LIMIT_MAX_PER_MINUTE` (default: `60`)
+  - `AUTH_ATTEMPT_RATE_LIMIT_MAX_PER_MINUTE` (default: `20`)
   - `WS_ALLOWED_ORIGINS` (default: `http://localhost:3000,http://127.0.0.1:3000`)
+  - `HTTP_ALLOWED_ORIGINS` (default: `http://localhost:3000,http://127.0.0.1:3000`)
+  - `WS_QUERY_TICKET_ENABLED` (default: `false`)
+  - `WS_PREAUTH_MESSAGE_MAX_BYTES` (default: `16384`)
+  - `WS_PREAUTH_MAX_CONNECTIONS_PER_NODE` (default: `100`)
 - WS identify observability baseline:
   - deny / accept log に `rate_limit_key_source` と `rate_limit_scope` を残す。
   - `rate_limit_key_source` は `ticket_principal` または `session_id_fallback` のみを許可する。
@@ -150,6 +155,9 @@ Local steps (runbook-only reproducible flow):
    - `cd typescript && npm run smoke:auth -- --mode=full-discord-flow`
 6. Verify auth path expectations.
    - `happy-path` must complete `Firebase login -> GET /protected/ping -> POST /auth/ws-ticket -> GET /ws + auth.identify`.
+   - `GET /ws?ticket=<ticket>` is not part of the default browser baseline.
+   - `full-discord-flow` must complete `Firebase login -> protected ping -> ws identify -> guild create -> channel create -> channel read -> message post -> moderation report create/resolve -> guild cleanup`.
+   - `GET /ws?ticket=<ticket>` is not part of the default browser baseline.
    - `full-discord-flow` must complete `Firebase login -> protected ping -> ws identify -> guild create -> channel create -> channel read -> message post -> moderation report create/resolve -> guild cleanup`.
    - `protected/ping` success payload must include `request_id`, `principal_id`, `firebase_uid`.
    - `auth.ready` payload must include `principalId` and match the REST `principal_id`.
