@@ -100,7 +100,6 @@ check "minimal_search_secret_prerequisites" {
     error_message = "enable_minimal_search_secret_baseline requires at least one Elastic Cloud secret ID."
   }
 }
-
 module "network_foundation" {
   source = "../../modules/network_foundation"
 

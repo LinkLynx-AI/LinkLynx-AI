@@ -1,11 +1,12 @@
 # Edge REST/WS Routing and WS Drain Runbook (Draft)
 
 - Status: Draft
-- Last updated: 2026-02-26
+- Last updated: 2026-03-27
 - Owner scope: Edge routing and realtime connection continuity baseline for v0
 - References:
   - [ADR-002 Class A/B Event Classification and Delivery Boundary](../adr/ADR-002-class-ab-event-classification-and-delivery-boundary.md)
   - [ADR-005 Dragonfly Outage RateLimit Failure Policy (Hybrid)](../adr/ADR-005-dragonfly-ratelimit-failure-policy.md)
+  - [ADR-006 Phase 1 Edge Baseline on GCP Native Edge](../adr/ADR-006-phase1-edge-baseline-gcp-native-edge.md)
   - [LIN-585](https://linear.app/linklynx-ai/issue/LIN-585)
   - [LIN-586](https://linear.app/linklynx-ai/issue/LIN-586)
   - [LIN-587](https://linear.app/linklynx-ai/issue/LIN-587)
@@ -18,7 +19,7 @@ This runbook fixes one operational baseline for REST/WS edge routing and rolling
 
 In scope:
 
-- Cloudflare -> GCLB -> GKE Ingress -> API routing contract for REST and WS
+- Cloud DNS -> GCLB (+ Cloud Armor, optional Cloud CDN) -> GKE Ingress -> API routing contract for REST and WS
 - Health check contract and routing dependencies
 - WS drain behavior during rollout
 - Failure handling and rollback procedure for LB/Ingress path
@@ -37,9 +38,10 @@ Fill the placeholders below before each rollout.
 
 | key | staging placeholder | production placeholder |
 | --- | --- | --- |
-| Cloudflare zone | `<stg_cf_zone>` | `<prod_cf_zone>` |
+| Cloud DNS managed zone | `<stg_dns_zone>` | `<prod_dns_zone>` |
 | Public API host | `<stg_api_host>` | `<prod_api_host>` |
 | Public WS host | `<stg_ws_host>` | `<prod_ws_host>` |
+| Certificate Manager certificate | `<stg_cert_name>` | `<prod_cert_name>` |
 | GCLB backend service | `<stg_gclb_backend_service>` | `<prod_gclb_backend_service>` |
 | GCLB health check name | `<stg_gclb_health_check>` | `<prod_gclb_health_check>` |
 | Ingress namespace/name | `<stg_ingress_namespace>/<stg_ingress_name>` | `<prod_ingress_namespace>/<prod_ingress_name>` |
@@ -51,21 +53,25 @@ Fill the placeholders below before each rollout.
 
 | protocol | client scheme | edge path | app endpoint | expected behavior |
 | --- | --- | --- | --- | --- |
-| REST | `https://` | Cloudflare -> GCLB -> GKE Ingress | `GET /health` and API REST paths | Path remains available when at least one backend is healthy |
-| WebSocket | `wss://` | Cloudflare (WS passthrough) -> GCLB -> GKE Ingress | `GET /ws` | Upgrade succeeds when backend is healthy and not draining |
+| REST | `https://` | Cloud DNS -> GCLB (+ Cloud Armor, optional Cloud CDN) -> GKE Ingress | `GET /health` and API REST paths | Path remains available when at least one backend is healthy |
+| WebSocket | `wss://` | Cloud DNS -> GCLB (+ Cloud Armor) -> GKE Ingress | `GET /ws` | Upgrade succeeds when backend is healthy and not draining |
 
 ### 3.2 Responsibility boundary
 
-1. Cloudflare:
-- DNS and edge TLS entrypoint for REST/WS.
+1. Cloud DNS:
+- Authoritative public DNS for REST/WS hosts.
+2. Certificate Manager + GCLB:
+- Public TLS termination for REST/WS.
 - Pass WS upgrade traffic without protocol downgrade.
-2. GCLB:
+3. Cloud Armor:
+- WAF and request-filtering policy at the GCP edge.
+4. GCLB:
 - L7 backend health judgment.
 - New connection distribution only to healthy and ready backends.
-3. GKE Ingress:
+5. GKE Ingress:
 - Host/path routing to API service.
 - Remove draining pods from new request distribution via readiness gate.
-4. API:
+6. API:
 - `GET /health` returns health response for LB decision.
 - `GET /ws` handles connection lifecycle, heartbeat, and close semantics.
 
@@ -82,9 +88,11 @@ Fixed baseline:
 
 Operational checks before rollout:
 
-1. Confirm Cloudflare origin points to active GCLB frontend.
-2. Confirm GCLB health check targets Ingress/API `GET /health`.
-3. Confirm Ingress routes both REST and WS host/path to the same API service boundary.
+1. Confirm Cloud DNS host resolves to the active GCLB frontend.
+2. Confirm Certificate Manager certificate is active and attached to the intended target proxy.
+3. Confirm Cloud Armor policy is attached to the intended edge path.
+4. Confirm GCLB health check targets Ingress/API `GET /health`.
+5. Confirm Ingress routes both REST and WS host/path to the same API service boundary.
 
 ## 5. WS connection lifecycle baseline
 
@@ -180,13 +188,13 @@ If any threshold fails, treat rollout policy as non-compliant and open follow-up
 3. Route traffic only to stable backend revision.
 - Rollback decision: if WS upgrade success does not recover to baseline within 15 minutes, rollback deployment and Ingress changes together.
 
-### 8.3 Scenario C: Cloudflare edge/origin mismatch
+### 8.3 Scenario C: GCP edge config mismatch
 
-- Detection: edge-level origin errors while GCLB and Ingress appear healthy.
+- Detection: edge-level certificate, DNS, or policy errors while GCLB and Ingress appear healthy.
 - Temporary mitigation:
-1. Verify Cloudflare origin and DNS target against active GCLB endpoint.
-2. Reapply last validated Cloudflare route config.
-- Rollback decision: if mismatch persists, revert Cloudflare routing entry to previous verified config and stop further rollout.
+1. Verify Cloud DNS record, target proxy certificate attachment, and Cloud Armor policy against the active GCLB endpoint.
+2. Reapply the last validated GCP edge configuration.
+- Rollback decision: if mismatch persists, revert the last validated GCLB / certificate / DNS change set and stop further rollout.
 
 ## 9. Rollout procedure (routing-related changes)
 

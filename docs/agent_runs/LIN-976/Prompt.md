@@ -1,0 +1,21 @@
+# LIN-976 Prompt
+
+- Parent issue: `LIN-976`
+- Goal: finish remaining security hardening child issues in strict order from `LIN-988`.
+- Remaining child issues at start:
+  - `LIN-988`
+  - `LIN-989`
+  - `LIN-990`
+  - `LIN-991`
+  - `LIN-992`
+  - `LIN-993`
+  - `LIN-994`
+  - `LIN-998`
+  - `LIN-999`
+  - `LIN-1000`
+  - `LIN-1002`
+- Constraints:
+  - one issue = one PR in normal delivery flow
+  - no out-of-scope refactors
+  - parent branch is `codex/lin-976`
+  - PR title/description must be Japanese
