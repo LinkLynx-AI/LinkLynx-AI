@@ -9,6 +9,7 @@ locals {
   )
   workload_identity_enabled = length(var.service_account_annotations) > 0
   backend_security_enabled  = trimspace(var.backend_security_policy_name) != ""
+  scylla_runtime_env        = { for key in sort(keys(var.scylla_runtime_env)) : key => var.scylla_runtime_env[key] if trimspace(var.scylla_runtime_env[key]) != "" }
 }
 
 resource "kubernetes_namespace_v1" "this" {
@@ -66,6 +67,15 @@ resource "kubernetes_deployment_v1" "this" {
           env {
             name  = "RUST_LOG"
             value = "info"
+          }
+
+          dynamic "env" {
+            for_each = local.scylla_runtime_env
+
+            content {
+              name  = env.key
+              value = env.value
+            }
           }
 
           readiness_probe {
@@ -128,6 +138,45 @@ resource "kubernetes_service_v1" "this" {
     }
 
     type = "ClusterIP"
+  }
+}
+
+resource "kubernetes_network_policy_v1" "default_deny_ingress" {
+  metadata {
+    name      = "${var.deployment_name}-default-deny-ingress"
+    namespace = kubernetes_namespace_v1.this.metadata[0].name
+    labels    = local.app_labels
+  }
+
+  spec {
+    pod_selector {
+      match_labels = local.app_labels
+    }
+
+    policy_types = ["Ingress"]
+  }
+}
+
+resource "kubernetes_network_policy_v1" "allow_http_ingress" {
+  metadata {
+    name      = "${var.deployment_name}-allow-http-ingress"
+    namespace = kubernetes_namespace_v1.this.metadata[0].name
+    labels    = local.app_labels
+  }
+
+  spec {
+    pod_selector {
+      match_labels = local.app_labels
+    }
+
+    ingress {
+      ports {
+        port     = "8080"
+        protocol = "TCP"
+      }
+    }
+
+    policy_types = ["Ingress"]
   }
 }
 

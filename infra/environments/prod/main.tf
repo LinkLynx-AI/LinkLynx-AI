@@ -1,13 +1,23 @@
 locals {
-  environment                   = "prod"
-  normalized_public_hostnames   = [for hostname in var.public_hostnames : trimsuffix(hostname, ".")]
-  rust_api_public_hostname      = var.rust_api_public_hostname != "" ? trimsuffix(var.rust_api_public_hostname, ".") : (length(local.normalized_public_hostnames) > 0 ? local.normalized_public_hostnames[0] : "")
-  enable_rust_api_smoke         = var.enable_rust_api_smoke_deploy && var.enable_minimal_gke_cluster
-  rust_api_smoke_inputs_are_set = var.rust_api_image_digest != "" && local.rust_api_public_hostname != ""
-  rust_api_smoke_edge_is_ready  = module.network_foundation.public_certificate_map_name != null && module.network_foundation.public_lb_ipv4_name != ""
-  enable_minimal_cloud_sql      = var.enable_minimal_cloud_sql_baseline
-  enable_minimal_monitoring     = var.enable_minimal_monitoring_baseline
-  enable_minimal_security       = var.enable_minimal_security_baseline
+  environment                              = "prod"
+  normalized_public_hostnames              = [for hostname in var.public_hostnames : trimsuffix(hostname, ".")]
+  rust_api_public_hostname                 = var.rust_api_public_hostname != "" ? trimsuffix(var.rust_api_public_hostname, ".") : (length(local.normalized_public_hostnames) > 0 ? local.normalized_public_hostnames[0] : "")
+  enable_rust_api_smoke                    = var.enable_rust_api_smoke_deploy && var.enable_minimal_gke_cluster
+  rust_api_smoke_inputs_are_set            = var.rust_api_image_digest != "" && local.rust_api_public_hostname != ""
+  rust_api_smoke_edge_is_ready             = module.network_foundation.public_certificate_map_name != null && module.network_foundation.public_lb_ipv4_name != ""
+  enable_minimal_cloud_sql                 = var.enable_minimal_cloud_sql_baseline
+  enable_minimal_monitoring                = var.enable_minimal_monitoring_baseline
+  enable_minimal_security                  = var.enable_minimal_security_baseline
+  enable_minimal_dragonfly                 = var.enable_minimal_dragonfly_baseline
+  enable_minimal_scylla_runtime            = var.enable_minimal_scylla_runtime_baseline
+  enable_minimal_managed_messaging_secrets = var.enable_minimal_managed_messaging_secret_baseline
+  enable_minimal_search_secrets            = var.enable_minimal_search_secret_baseline
+  minimal_scylla_runtime_env = local.enable_minimal_scylla_runtime ? {
+    SCYLLA_HOSTS              = join(",", sort(tolist(var.minimal_scylla_hosts)))
+    SCYLLA_KEYSPACE           = var.minimal_scylla_keyspace
+    SCYLLA_SCHEMA_PATH        = var.minimal_scylla_schema_path
+    SCYLLA_REQUEST_TIMEOUT_MS = tostring(var.minimal_scylla_request_timeout_ms)
+  } : {}
 }
 
 check "rust_api_smoke_prerequisites" {
@@ -51,6 +61,45 @@ check "minimal_security_prerequisites" {
   }
 }
 
+check "minimal_dragonfly_prerequisites" {
+  assert {
+    condition     = !var.enable_minimal_dragonfly_baseline || var.enable_minimal_gke_cluster
+    error_message = "enable_minimal_dragonfly_baseline requires enable_minimal_gke_cluster = true."
+  }
+
+  assert {
+    condition     = !var.enable_minimal_dragonfly_baseline || trimspace(var.minimal_dragonfly_image) != ""
+    error_message = "enable_minimal_dragonfly_baseline requires minimal_dragonfly_image to be set."
+  }
+}
+
+check "minimal_scylla_runtime_prerequisites" {
+  assert {
+    condition     = !var.enable_minimal_scylla_runtime_baseline || var.enable_rust_api_smoke_deploy
+    error_message = "enable_minimal_scylla_runtime_baseline requires enable_rust_api_smoke_deploy = true."
+  }
+
+  assert {
+    condition     = !var.enable_minimal_scylla_runtime_baseline || length(var.minimal_scylla_hosts) > 0
+    error_message = "enable_minimal_scylla_runtime_baseline requires at least one minimal_scylla_hosts entry."
+  }
+}
+
+check "minimal_managed_messaging_secret_prerequisites" {
+  assert {
+    condition = !var.enable_minimal_managed_messaging_secret_baseline || (
+      length(var.minimal_redpanda_secret_ids) + length(var.minimal_nats_secret_ids)
+    ) > 0
+    error_message = "enable_minimal_managed_messaging_secret_baseline requires at least one Redpanda or NATS secret ID."
+  }
+}
+
+check "minimal_search_secret_prerequisites" {
+  assert {
+    condition     = !var.enable_minimal_search_secret_baseline || length(var.minimal_search_secret_ids) > 0
+    error_message = "enable_minimal_search_secret_baseline requires at least one Elastic Cloud secret ID."
+  }
+}
 module "network_foundation" {
   source = "../../modules/network_foundation"
 
@@ -136,6 +185,7 @@ module "rust_api_smoke_deploy" {
   namespace                   = "rust-api-smoke"
   public_hostname             = local.rust_api_public_hostname
   route_name                  = "rust-api-route"
+  scylla_runtime_env          = local.minimal_scylla_runtime_env
   service_account_annotations = var.enable_minimal_gke_cluster ? module.rust_api_runtime_identity[0].kubernetes_service_account_annotations : {}
   service_account_name        = "rust-api-smoke"
   service_name                = "rust-api-smoke"
@@ -166,6 +216,51 @@ module "cloud_sql_postgres_minimal" {
   tier              = var.minimal_cloud_sql_tier
 
   depends_on = [module.network_foundation]
+}
+
+module "dragonfly_minimal" {
+  count = local.enable_minimal_dragonfly ? 1 : 0
+
+  source = "../../modules/dragonfly_minimal"
+
+  deployment_name = "dragonfly"
+  image           = var.minimal_dragonfly_image
+  labels = {
+    environment = local.environment
+    issue       = "lin-1022"
+  }
+  namespace            = "dragonfly"
+  service_account_name = "dragonfly"
+  service_name         = "dragonfly"
+
+  depends_on = [module.gke_autopilot_minimal]
+}
+
+module "managed_messaging_secret_placeholders" {
+  count = local.enable_minimal_managed_messaging_secrets ? 1 : 0
+
+  source = "../../modules/managed_messaging_secret_placeholders"
+
+  environment         = local.environment
+  nats_secret_ids     = var.minimal_nats_secret_ids
+  redpanda_secret_ids = var.minimal_redpanda_secret_ids
+  labels = {
+    environment = local.environment
+    issue       = "lin-1024"
+  }
+}
+
+module "search_secret_placeholders" {
+  count = local.enable_minimal_search_secrets ? 1 : 0
+
+  source = "../../modules/search_secret_placeholders"
+
+  elastic_secret_ids = var.minimal_search_secret_ids
+  environment        = local.environment
+  labels = {
+    environment = local.environment
+    issue       = "lin-1025"
+  }
 }
 
 module "cloud_monitoring_minimal" {
@@ -231,4 +326,20 @@ output "cloud_monitoring_minimal" {
 
 output "minimal_security_baseline_enabled" {
   value = local.enable_minimal_security
+}
+
+output "dragonfly_minimal" {
+  value = local.enable_minimal_dragonfly ? module.dragonfly_minimal[0] : null
+}
+
+output "minimal_scylla_runtime_baseline_enabled" {
+  value = local.enable_minimal_scylla_runtime
+}
+
+output "managed_messaging_secret_placeholders" {
+  value = local.enable_minimal_managed_messaging_secrets ? module.managed_messaging_secret_placeholders[0] : null
+}
+
+output "search_secret_placeholders" {
+  value = local.enable_minimal_search_secrets ? module.search_secret_placeholders[0] : null
 }

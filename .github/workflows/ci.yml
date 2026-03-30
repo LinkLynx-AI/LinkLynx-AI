@@ -6,6 +6,58 @@ on:
       - main
 
 jobs:
+  repo-secret-scan:
+    name: Repo Secret Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Gitleaks against the working tree
+        run: |
+          set -euo pipefail
+
+          temp_repo="$(mktemp -d)"
+          cleanup() {
+            rm -rf "${temp_repo}"
+          }
+          trap cleanup EXIT
+
+          git ls-files -z | rsync -a --files-from=- --from0 ./ "${temp_repo}/"
+
+          docker run --rm \
+            -v "${temp_repo}:/repo" \
+            -v "${PWD}/.gitleaks.toml:/config/.gitleaks.toml:ro" \
+            -v "${PWD}/.gitleaksignore:/config/.gitleaksignore:ro" \
+            ghcr.io/gitleaks/gitleaks:v8.24.2 \
+            detect \
+            --no-git \
+            --source /repo \
+            --config /config/.gitleaks.toml \
+            --gitleaks-ignore-path /config/.gitleaksignore \
+            --redact \
+            --exit-code 1 \
+            --no-banner \
+            --no-color \
+            --max-target-megabytes 5
+
+  infra-config-scan:
+    name: Infra Config Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Trivy misconfiguration scan for infra
+        run: |
+          set -euo pipefail
+
+          docker run --rm \
+            -v "${PWD}:/src" \
+            -w /src \
+            aquasec/trivy:0.63.0 \
+            config \
+            --severity HIGH,CRITICAL \
+            --exit-code 1 \
+            --ignorefile .trivyignore \
+            infra
+
   terraform-validate:
     name: Terraform Validate
     runs-on: ubuntu-latest

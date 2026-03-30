@@ -87,11 +87,11 @@
 | DB | ホスティング | 理由 |
 |----|------------|------|
 | **PostgreSQL** | Cloud SQL（マネージド） | PITR/バックアップ自動。標準 path は HA を検討、low-budget path は `prod-only` 単一 instance から開始 |
-| **ScyllaDB** | ScyllaDB Cloud or GCE 専用 | K8s 外。Autopilot の制限回避 |
-| **Dragonfly** | K8s 上 StatefulSet | 軽量。Redis 互換 |
-| **Redpanda** | K8s 上 Helm chart | 公式 Operator あり |
-| **NATS** | K8s 上 Helm chart | 軽量、K8s native |
-| **OpenSearch** | Elastic Cloud（初期） | 運用負荷回避。将来 K8s 上も可 |
+| **ScyllaDB** | ScyllaDB Cloud or GCE 専用 | K8s 外。Autopilot の制限回避。low-budget path は external Scylla の runtime wiring と ops baseline を先に整える |
+| **Dragonfly** | K8s 上（標準 path は StatefulSet、low-budget path は volatile single Deployment） | 軽量。Redis 互換 |
+| **Redpanda** | Redpanda Cloud（標準 path） | low-budget path は Secret Manager placeholder と ops baseline を先に整える |
+| **NATS** | Synadia Cloud（標準 path） | low-budget path は Secret Manager placeholder と ops baseline を先に整える |
+| **OpenSearch** | Elastic Cloud（初期） | 運用負荷回避。将来 K8s 上も可。low-budget path は Elastic Cloud secret placeholder と snapshot / lifecycle baseline を先に整える |
 
 ### 5. 認証・認可
 
@@ -111,6 +111,8 @@
 | ロードバランサー | **GCP External Application Load Balancer**（WebSocket 対応） |
 | TLS | **Certificate Manager + GCLB で終端** |
 | ドメイン | 取得済み（具体名は別途確認） |
+| low-budget CI security scan | **Gitleaks（repo secret）+ Trivy config（`infra/` misconfig）** |
+| low-budget cluster ingress isolation | **Kubernetes NetworkPolicy baseline**（`rust-api-smoke:8080 only`, `dragonfly:6379 only from rust-api-smoke`） |
 
 ### 7. CI/CD・デプロイ
 
@@ -123,6 +125,7 @@
 | マニフェスト管理 | **Helm（サードパーティ）+ Kustomize（自社アプリ）** |
 | デプロイ方式 | **Canary（Argo Rollouts）** |
 | DB マイグレーション | CI 検証 → staging 自動 → prod 手動承認 → 自動実行 |
+| low-budget deploy path | **GitHub Actions + Terraform plan/apply + `prod` manual approval** |
 
 ### 8. 監視・オブザーバビリティ
 
@@ -132,6 +135,7 @@
 | ダッシュボード | **Grafana**（標準 path） / **Cloud Monitoring dashboard**（low-budget path） |
 | アラート | **Alertmanager**（標準 path） / **Cloud Monitoring alert policy**（low-budget path） |
 | ログ | **Loki**（標準 path） / **Cloud Logging**（low-budget path） |
+| external dependency visibility | **provider manual checks + dependency-specific runbook**（low-budget path） |
 | トレーシング | **Tempo**（将来追加） |
 | 通知先 | 後で決定 |
 
@@ -143,6 +147,15 @@
 | low-budget baseline | **Workload Identity + direct Secret Manager access** |
 | 標準 path 拡張 | **External Secrets Operator** を後続で検討 |
 | 方針 | Git にシークレットは入れない。初期は長期静的キーを排除し、secret-level IAM と audit log を優先する |
+
+### 10. 運用 baseline
+
+| 項目 | 決定 |
+|------|------|
+| low-budget incident flow | **Discord thread + `hirwatan` / `sabe` / `miwasa` mention** |
+| postmortem | **軽量 template を使って毎回残す** |
+| capacity trigger | **登録者数ではなく observed traffic / latency / DB pressure を優先** |
+| Chaos Engineering | **固定日ではなく readiness 条件が揃ってから開始** |
 
 ---
 
@@ -162,9 +175,10 @@
 - DB マイグレーション自動化
 
 ### Phase 3: データストア・ミドルウェア
-- NATS / Redpanda / Dragonfly を K8s にデプロイ（Helm）
-- ScyllaDB セットアップ（K8s 外）
-- OpenSearch 接続
+- Dragonfly を K8s にデプロイ
+- Redpanda Cloud / Synadia Cloud 接続 / ops baseline を整備
+- ScyllaDB セットアップ / ops baseline（K8s 外）
+- Elastic Cloud 接続 / snapshot baseline
 
 ### Phase 4: GitOps・監視
 - ArgoCD + Argo Rollouts セットアップ

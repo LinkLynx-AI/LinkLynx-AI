@@ -122,3 +122,91 @@ variable "enable_minimal_security_baseline" {
   type        = bool
   default     = false
 }
+
+variable "enable_minimal_dragonfly_baseline" {
+  description = "Whether to create the low-budget prod-only Dragonfly baseline."
+  type        = bool
+  default     = false
+}
+
+variable "minimal_dragonfly_image" {
+  description = "Dragonfly image used by the low-budget prod-only baseline."
+  type        = string
+  default     = ""
+}
+
+variable "enable_minimal_scylla_runtime_baseline" {
+  description = "Whether to inject the low-budget Scylla runtime baseline into the Rust API smoke workload."
+  type        = bool
+  default     = false
+}
+
+variable "minimal_scylla_hosts" {
+  description = "External Scylla contact points for the low-budget runtime baseline."
+  type        = set(string)
+  default     = []
+}
+
+variable "minimal_scylla_keyspace" {
+  description = "Scylla keyspace used by the low-budget runtime baseline."
+  type        = string
+  default     = "chat"
+}
+
+variable "minimal_scylla_schema_path" {
+  description = "Scylla schema file path inside the Rust API container image."
+  type        = string
+  default     = "/app/database/scylla/001_lin139_messages.cql"
+}
+
+variable "minimal_scylla_request_timeout_ms" {
+  description = "Scylla request timeout in milliseconds for the low-budget runtime baseline."
+  type        = number
+  default     = 1000
+
+  validation {
+    condition     = var.minimal_scylla_request_timeout_ms > 0
+    error_message = "minimal_scylla_request_timeout_ms must be a positive number."
+  }
+}
+
+variable "enable_minimal_managed_messaging_secret_baseline" {
+  description = "Whether to create Secret Manager placeholders for the low-budget managed messaging baseline."
+  type        = bool
+  default     = false
+}
+
+variable "minimal_redpanda_secret_ids" {
+  description = "Secret Manager secret IDs reserved for low-budget Redpanda Cloud connection material."
+  type        = set(string)
+  default = [
+    "linklynx-prod-redpanda-bootstrap-servers",
+    "linklynx-prod-redpanda-sasl-password",
+    "linklynx-prod-redpanda-sasl-username",
+  ]
+}
+
+variable "minimal_nats_secret_ids" {
+  description = "Secret Manager secret IDs reserved for low-budget Synadia / NATS connection material."
+  type        = set(string)
+  default = [
+    "linklynx-prod-nats-creds",
+    "linklynx-prod-nats-url",
+  ]
+}
+
+variable "enable_minimal_search_secret_baseline" {
+  description = "Whether to create Secret Manager placeholders for the low-budget search baseline."
+  type        = bool
+  default     = false
+}
+
+variable "minimal_search_secret_ids" {
+  description = "Secret Manager secret IDs reserved for low-budget Elastic Cloud connection material."
+  type        = set(string)
+  default = [
+    "linklynx-prod-search-elastic-api-key",
+    "linklynx-prod-search-elastic-cloud-id",
+    "linklynx-prod-search-elastic-endpoint",
+  ]
+}

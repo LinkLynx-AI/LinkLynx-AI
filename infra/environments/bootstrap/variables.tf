@@ -192,6 +192,12 @@ variable "github_actions_publisher_service_account_id_prefix" {
   default     = "github-artifact-publisher"
 }
 
+variable "github_actions_terraform_deployer_service_account_id_prefix" {
+  description = "Prefix used for per-environment GitHub Terraform deployer service accounts."
+  type        = string
+  default     = "github-terraform-deployer"
+}
+
 variable "terraform_admin_bootstrap_roles" {
   description = "Project roles granted to the Terraform admin service account on the bootstrap project."
   type        = list(string)
