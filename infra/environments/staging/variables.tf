@@ -33,3 +33,9 @@ variable "public_hostnames" {
   type        = set(string)
   default     = []
 }
+
+variable "artifact_registry_repository_id" {
+  description = "Artifact Registry repository ID for deployable container images."
+  type        = string
+  default     = "application-images"
+}

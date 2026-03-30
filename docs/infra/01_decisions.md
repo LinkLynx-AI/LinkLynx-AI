@@ -86,7 +86,7 @@
 
 | DB | ホスティング | 理由 |
 |----|------------|------|
-| **PostgreSQL** | Cloud SQL（マネージド） | PITR/HA/バックアップ自動。運用負荷最小 |
+| **PostgreSQL** | Cloud SQL（マネージド） | PITR/バックアップ自動。標準 path は HA を検討、low-budget path は `prod-only` 単一 instance から開始 |
 | **ScyllaDB** | ScyllaDB Cloud or GCE 専用 | K8s 外。Autopilot の制限回避 |
 | **Dragonfly** | K8s 上 StatefulSet | 軽量。Redis 互換 |
 | **Redpanda** | K8s 上 Helm chart | 公式 Operator あり |
@@ -128,10 +128,10 @@
 
 | 項目 | 決定 |
 |------|------|
-| メトリクス | **Prometheus** |
-| ダッシュボード | **Grafana** |
-| アラート | **Alertmanager** |
-| ログ | **Loki** |
+| メトリクス | **Prometheus**（標準 path） / **Cloud Monitoring**（low-budget `prod-only` path） |
+| ダッシュボード | **Grafana**（標準 path） / **Cloud Monitoring dashboard**（low-budget path） |
+| アラート | **Alertmanager**（標準 path） / **Cloud Monitoring alert policy**（low-budget path） |
+| ログ | **Loki**（標準 path） / **Cloud Logging**（low-budget path） |
 | トレーシング | **Tempo**（将来追加） |
 | 通知先 | 後で決定 |
 
@@ -140,8 +140,9 @@
 | 項目 | 決定 |
 |------|------|
 | バックエンド | **GCP Secret Manager** |
-| K8s 同期 | **External Secrets Operator** |
-| 方針 | Git にシークレットは入れない。将来の AWS 移行も ESO で対応可能 |
+| low-budget baseline | **Workload Identity + direct Secret Manager access** |
+| 標準 path 拡張 | **External Secrets Operator** を後続で検討 |
+| 方針 | Git にシークレットは入れない。初期は長期静的キーを排除し、secret-level IAM と audit log を優先する |
 
 ---
 

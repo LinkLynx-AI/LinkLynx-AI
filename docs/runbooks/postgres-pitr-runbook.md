@@ -1,13 +1,15 @@
-# PostgreSQL PITR Runbook (Draft)
+# PostgreSQL PITR Runbook
 
 - Status: Draft
-- Last updated: 2026-02-26
-- Owner scope: Postgres operations (v0 baseline)
+- Last updated: 2026-03-29
+- Owner scope: Postgres / Cloud SQL operations (v0 baseline)
 - References:
   - `database/contracts/lin588_postgres_operations_baseline.md`
   - `docs/DATABASE.md`
+  - `docs/runbooks/cloud-sql-postgres-migration-operations-runbook.md`
   - `LIN-588`
   - `LIN-597`
+  - `LIN-1017`
 
 ## 1. Purpose and scope
 
@@ -17,12 +19,12 @@ In scope:
 
 - PITR start decision
 - Target recovery timestamp decision
+- Cloud SQL restore / clone-from-earlier-point procedure baseline
 - Standard restore, validation, and resume procedure
 - Tabletop drill checklist and record template
 
 Out of scope:
 
-- Vendor-specific operation details
 - Production auto-recovery implementation
 - v1 advanced DR operations
 
@@ -66,24 +68,32 @@ After the decision, record start time, expected recovery time, and target timest
 2. Select the point that preserves consistency with minimum loss.
 3. Confirm the selected point is within the RPO target (15 minutes).
 
-### 5.2 Execute restore
+### 5.2 Prepare Cloud SQL restore
 
 1. Stop write paths or switch to maintenance mode.
-2. Prepare restore target instance.
-3. Restore to target timestamp from validated backups/logs.
-4. Run baseline health checks on restored instance.
+2. Record the source instance name, latest successful backup, and earliest / latest restore time.
+3. Prepare a **new restore target instance**. Do not overwrite the source instance in-place.
+4. Choose the target timestamp and instance naming convention before execution.
 
-### 5.3 Validate data and contract consistency
+### 5.3 Execute restore
+
+1. Create a restored clone from the selected point in time.
+2. Wait for restore completion and baseline instance health.
+3. Run validation against the restored instance before any traffic cutover.
+
+### 5.4 Validate data and contract consistency
 
 1. Verify migration applied-state consistency (no divergence).
 2. Validate core table reads.
 3. Validate connectivity for required critical queries.
+4. Confirm the restored instance exposes the expected earliest / latest restore window after recovery.
 
-### 5.4 Resume service
+### 5.5 Resume service
 
 1. Resume read paths first.
 2. Resume write paths gradually after read-path stability.
 3. Keep enhanced monitoring and judge full recovery against RTO.
+4. Keep the source instance isolated until the incident close decision is recorded.
 
 ## 6. Close decision
 
@@ -111,7 +121,13 @@ Escalate immediately when any of the following is true:
 4. Verify close conditions can be judged objectively.
 5. Record follow-up improvements in a format reusable by LIN-597.
 
-## 9. Drill record template
+## 9. Cloud SQL-specific notes
+
+- `LIN-1017` low-budget baseline assumes a single prod instance with backup + PITR enabled and no HA.
+- PITR should restore into a separate instance, then cut over after validation.
+- Schema rollback still follows the forward-only rule. PITR is reserved for data-loss or consistency incidents that corrective forward migration cannot address in time.
+
+## 10. Drill record template
 
 ```markdown
 ### Postgres PITR Drill Record

@@ -13,6 +13,9 @@ LIN-962 で GCP bootstrap と Terraform remote state の最小土台を追加し
 ```text
 infra/
 ├── modules/
+│   ├── artifact_registry_repository/
+│   ├── gke_autopilot_minimal/
+│   ├── github_actions_artifact_publish/
 │   ├── project_baseline/
 │   ├── network_foundation/
 │   └── state_backend/
@@ -112,3 +115,243 @@ domain が未確定でも code は先に用意し、environment ごとの `terra
 - DNS authorization record
 - Google-managed certificate
 - certificate map / entry
+
+## LIN-1014 low-budget GKE path
+
+月額 `1万円` 前後の初期予算では、まず `prod only` の Autopilot cluster 1つに寄せる。
+
+### Why prod only
+
+- GKE cluster management fee は `1 cluster あたり $0.10/hour` だが、Autopilot / zonal cluster には billing account ごとに `月 $74.40` の free tier credit がある
+- そのため、**常設 1 cluster** なら management fee はほぼ吸収できるが、`staging + prod` 常設は edge / DNS / traffic と合わせて初期予算に対して重くなりやすい
+- low-budget path では `Rust API` を先に成立させ、常設 staging は後から足す
+
+### Baseline
+
+- prod: Autopilot cluster 1つ
+- staging: 常設 cluster なし
+- initial workload: Rust API のみ
+- fixed request baseline:
+  - CPU: `500m`
+  - Memory: `512Mi`
+  - Ephemeral storage: `1Gi`
+- VPA: recommendation-only
+- HPA: 未導入
+
+### Upgrade path
+
+次の条件を満たしたら標準 path の `LIN-964` へ移る。
+
+- staging 常設環境がないと deploy safety を維持できない
+- Next.js / Python が常時 production workload になった
+- autoscaling を固定 request では吸収しきれない
+
+## LIN-966 Artifact Registry / CI publish baseline
+
+### What gets created
+
+- runtime project (`staging` / `prod`) ごとに Docker repository `application-images`
+- bootstrap project に GitHub OIDC 用 workload identity pool / provider
+- bootstrap project に environment ごとの publish service account
+  - `github-artifact-publisher-staging`
+  - `github-artifact-publisher-prod`
+
+repository は `immutable_tags = true` を前提にする。
+
+### Image naming baseline
+
+service image name は次の形に統一する。
+
+```text
+<location>-docker.pkg.dev/<project-id>/<repository-id>/<service>
+```
+
+例:
+
+```text
+us-east1-docker.pkg.dev/linklynx-prod/application-images/rust
+us-east1-docker.pkg.dev/linklynx-prod/application-images/typescript
+us-east1-docker.pkg.dev/linklynx-prod/application-images/python
+```
+
+publish tag は mutable tag を避け、`sha-<commit>-run-<run_id>-attempt-<run_attempt>` を使う。
+deploy や promotion の参照は **digest (`@sha256:...`) を canonical** とする。
+
+### GitHub Actions settings baseline
+
+CD workflow は GitHub Actions `environment` を使って `staging` / `prod` を切り替える。
+
+repository variable:
+
+- `GCP_WORKLOAD_IDENTITY_PROVIDER`
+- `GCP_ARTIFACT_REGISTRY_LOCATION` (default `us-east1`)
+- `GCP_ARTIFACT_REGISTRY_REPOSITORY` (default `application-images`)
+
+environment variable (`staging`, `prod`):
+
+- `GCP_ARTIFACT_PUBLISHER_SERVICE_ACCOUNT`
+- `GCP_ARTIFACT_REGISTRY_PROJECT_ID`
+- `NEXT_PUBLIC_API_URL`
+- `NEXT_PUBLIC_FIREBASE_API_KEY`
+- `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`
+- `NEXT_PUBLIC_FIREBASE_PROJECT_ID`
+- `NEXT_PUBLIC_FIREBASE_APP_ID`
+- `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`
+- `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET`
+
+low-budget path でも image publish 自体は `staging` / `prod` の両 project を用意してよい。
+ただし、常設 GKE cluster は `LIN-1014` に従って `prod only` とする。
+
+### Vulnerability scanning baseline
+
+- runtime project では `containerscanning.googleapis.com` を enable する
+- GitHub Actions publish job では `Trivy` で `HIGH` / `CRITICAL` を fail-fast する
+
+これで GCP 側の継続監視と、workflow 側の即時 fail の両方を持てる。
+
+### Promotion flow baseline
+
+1. 検証ブランチ or manual dispatch で `staging` environment に publish する
+2. digest を artifact / workflow summary で記録する
+3. deploy 系 issue では tag ではなく digest を manifest / Terraform に渡す
+4. `prod` publish は protected branch merge または manual approval 付き workflow dispatch で行う
+
+この issue では image copy / promotion の完全自動化までは持たない。
+
+## LIN-1015 prod-only Rust API smoke deploy baseline
+
+low-budget path の最初の workload deploy は `prod` の Rust API 1本に絞る。
+
+### Why default-off
+
+`infra/environments/prod` では smoke workload resource を持つが、default は `enable_rust_api_smoke_deploy = false` にする。
+
+- cluster 作成 (`LIN-1014`) と workload deploy (`LIN-1015`) を分離したい
+- image digest と public host が埋まってから明示的に有効化したい
+- local validation では cluster 未作成状態でも `terraform validate` / `plan` を通したい
+
+`enable_rust_api_smoke_deploy = true` にした状態で digest / host / edge prerequisites が足りないときは、Terraform `check` で fail-fast する。
+
+### Required inputs
+
+- `enable_rust_api_smoke_deploy = true`
+- `rust_api_image_digest = us-east1-docker.pkg.dev/.../rust@sha256:...`
+- `rust_api_public_hostname = api.<domain>`
+
+### What gets created
+
+- Kubernetes namespace / service account / deployment / service
+- GKE Gateway API resource (`Gateway`, `HTTPRoute`)
+- `HealthCheckPolicy` with `/health`
+
+Route baseline は次の通り。
+
+- `https://<rust_api_public_hostname>/health`
+- `wss://<rust_api_public_hostname>/ws`
+
+deploy 後の rollback は `rust_api_image_digest` を直前 digest に戻して再 apply する。
+
+## LIN-1016 prod-only IAM / Workload Identity / Secret Manager baseline
+
+low-budget path では `External Secrets Operator` をまだ入れず、`Workload Identity + direct Secret Manager access` を最初の標準パターンにする。
+
+### Why this pattern
+
+- `prod-only` 1 cluster でまず最小権限と長期静的キー排除を成立させたい
+- `LIN-1015` の Rust API smoke workload にそのままつなげられる
+- 将来 `staging` や標準 path を足すときも、GSA / KSA / secret-level IAM の module を横展開しやすい
+
+### What gets created
+
+- workload ごとの Google service account
+- KSA -> GSA binding (`roles/iam.workloadIdentityUser`)
+- secret placeholder と secret-level `roles/secretmanager.secretAccessor`
+- `secretmanager.googleapis.com` の `ADMIN_READ` / `DATA_READ` audit log baseline
+
+### What stays out of scope
+
+- secret の実値投入
+- External Secrets Operator
+- GitOps 連携
+
+## LIN-1017 prod-only Cloud SQL baseline
+
+low-budget path では `LIN-968` の `staging + prod / 4 vCPU + 16 GB` baseline をそのまま採らず、`prod-only` の単一 Cloud SQL instance から始める。
+
+### Why a sibling issue
+
+- `Cloud SQL` は low-budget path の中でもコスト影響が大きい
+- `LIN-1014` 以降の prod-only path と、標準 path の `staging + prod` baseline を混ぜたくない
+- まず `private IP + backup + PITR + deletion protection` を code 化して、app connectivity や HA は後続へ分離したい
+
+### Baseline
+
+- environment: `prod` only
+- instance count: 1
+- availability: `ZONAL`
+- read replica: none
+- private IP only
+- backup: enabled
+- PITR: enabled
+- maintenance window: fixed
+- deletion protection: enabled
+
+### Cost profile note
+
+- default tier は `db-g1-small` を bootstrap profile として置く
+- これは long-term production size ではなく、初期構築と最小運用線のための profile
+- traffic / migration risk / SLO が立ち上がったら、標準 path に寄せて dedicated-core + HA を検討する
+
+### What stays out of scope
+
+- DB password や runtime `DATABASE_URL` の実値管理
+- Cloud SQL Auth Proxy 導入
+- app runtime 側の TLS / connection change
+- staging 常設 instance
+
+## LIN-1018 prod-only Cloud Monitoring baseline
+
+low-budget path の observability は、まず `Cloud Monitoring + Cloud Logging` で始める。
+
+### Why GCP native first
+
+- `Prometheus + Grafana + Loki` を low-budget path に最初から載せると cluster 内常駐 workload が増える
+- GKE / Cloud SQL / uptime 系の基本指標は Cloud Monitoring で先に可視化できる
+- `prod-only` の最小運用では dashboard / alert / logs を先に成立させる方が効果が高い
+
+### Baseline
+
+- dashboard: GKE workload restart, Cloud SQL CPU
+- alerts: Rust API restart burst, Cloud SQL CPU high
+- notification routing: optional email channel or既存 channel attach
+- logs: Cloud Logging を前提に triage
+
+### What stays out of scope
+
+- Discord forwarder
+- self-hosted metrics / logs / tracing stack
+- Dragonfly / Scylla / messaging の observability
+
+## LIN-1019 prod-only security baseline
+
+low-budget path の security は、まず `Cloud Armor + Trivy + Secret Manager audit log` の組み合わせで始める。
+
+### Why this baseline
+
+- `Cloud Armor` policy は `LIN-963` で作られているが、backend attach と最小 WAF rule は別 issue で閉じる方が確認しやすい
+- image scan は `LIN-966` で既に `Trivy` が入っているので、low-budget path では重複投資せず verify 導線を整える
+- Secret access の監査は `LIN-1016` の audit log baseline を再利用する
+
+### Baseline
+
+- Cloud Armor backend attach: `GCPBackendPolicy`
+- managed WAF rules:
+  - `sqli-v33-stable` (`sensitivity = 1`)
+  - `xss-v33-stable` (`sensitivity = 1`)
+- image scan: `Trivy` `HIGH/CRITICAL` fail-fast
+- secret access audit: `secretmanager.googleapis.com` `ADMIN_READ` / `DATA_READ`
+
+### What stays out of scope
+
+- DAST / bot management / VPC-SC / IAP
+- 標準 path の full security program
