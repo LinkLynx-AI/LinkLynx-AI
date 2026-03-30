@@ -46,3 +46,4 @@
 - `postmortem-low-budget-template.md`: reusable low-budget postmortem template for incident close-out and follow-up actions.
 - `terraform-low-budget-prod-deploy-runbook.md`: GitHub Actions + Workload Identity Federation + manual approval based Terraform deploy/rollback flow for the low-budget prod-only path.
 - `gke-autopilot-standard-operations-runbook.md`: standard path の GKE Autopilot cluster / namespace / RBAC / restricted ingress baseline、VPA/HPA 境界、verify/rollback 手順。
+- `staging-rust-api-smoke-deploy-operations-runbook.md`: standard path の staging Rust API smoke deploy baseline、Terraform apply、`/health` と `/ws` verify、digest rollback 手順。
