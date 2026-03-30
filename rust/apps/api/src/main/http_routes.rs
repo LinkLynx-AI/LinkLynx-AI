@@ -601,6 +601,7 @@ async fn list_guild_invites(
     State(state): State<AppState>,
     Extension(auth_context): Extension<AuthContext>,
     Path(params): Path<GuildPathParams>,
+    Query(query): Query<InviteListQuery>,
 ) -> Response {
     let request_id = auth_context.request_id.clone();
     let guild_id = match parse_guild_id(&params.guild_id) {
@@ -613,9 +614,19 @@ async fn list_guild_invites(
         }
     };
 
+    let channel_id = match parse_optional_channel_id(query.channel_id.as_deref()) {
+        Ok(value) => value,
+        Err(error) => {
+            return invite_error_response(
+                &invite::InviteError::validation(error.reason),
+                request_id,
+            )
+        }
+    };
+
     match state
         .invite_service
-        .list_invites(auth_context.principal_id, guild_id)
+        .list_invites(auth_context.principal_id, guild_id, channel_id)
         .await
     {
         Ok(invites) => Json(ListGuildInvitesResponse {
@@ -1826,6 +1837,11 @@ struct PermissionSnapshotQuery {
     channel_id: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+struct InviteListQuery {
+    channel_id: Option<String>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct PermissionSnapshotAuditFields {
     principal_id: i64,
@@ -2651,6 +2667,7 @@ async fn revoke_guild_invite(
     State(state): State<AppState>,
     Extension(auth_context): Extension<AuthContext>,
     Path(params): Path<GuildInvitePathParams>,
+    Query(query): Query<InviteListQuery>,
 ) -> Response {
     let request_id = auth_context.request_id.clone();
     let guild_id = match parse_guild_id(&params.guild_id) {
@@ -2663,9 +2680,19 @@ async fn revoke_guild_invite(
         }
     };
 
+    let channel_id = match parse_optional_channel_id(query.channel_id.as_deref()) {
+        Ok(value) => value,
+        Err(error) => {
+            return invite_error_response(
+                &invite::InviteError::validation(error.reason),
+                request_id,
+            )
+        }
+    };
+
     match state
         .invite_service
-        .revoke_invite(auth_context.principal_id, guild_id, params.invite_code)
+        .revoke_invite(auth_context.principal_id, guild_id, channel_id, params.invite_code)
         .await
     {
         Ok(()) => StatusCode::NO_CONTENT.into_response(),

@@ -44,7 +44,7 @@ export function ServerInvites({ serverId }: { serverId: string }) {
     <div>
       <h2 className="mb-5 text-xl font-bold text-discord-header-primary">招待</h2>
       <p className="mb-4 text-sm text-discord-text-muted">
-        招待は現在サーバー単位で管理されます。ここには有効な招待のみ表示されます。
+        guild-wide admin view として、アクティブな招待を招待先チャンネル付きで表示します。
       </p>
 
       {errorMessage !== null && (
@@ -67,6 +67,7 @@ export function ServerInvites({ serverId }: { serverId: string }) {
 
           <div className="flex items-center gap-3 border-b border-discord-divider px-3 py-2 text-xs font-bold uppercase text-discord-header-secondary">
             <span className="w-[120px]">コード</span>
+            <span className="w-[140px]">チャンネル</span>
             <span className="flex-1">作成者</span>
             <span className="w-[80px] text-center">使用回数</span>
             <span className="w-[150px]">有効期限</span>
@@ -88,6 +89,9 @@ export function ServerInvites({ serverId }: { serverId: string }) {
                 >
                   <span className="w-[120px] truncate text-sm font-mono text-discord-text-link">
                     {invite.code}
+                  </span>
+                  <span className="w-[140px] truncate text-sm text-discord-text-normal">
+                    {invite.channel === null ? "不明" : `#${invite.channel.name}`}
                   </span>
                   <span className="flex-1 truncate text-sm text-discord-text-normal">
                     {invite.creator?.displayName ?? "不明"}

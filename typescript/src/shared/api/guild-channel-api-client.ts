@@ -353,6 +353,7 @@ const INVITE_CREATE_RESPONSE_SCHEMA = z.object({
 });
 const INVITE_LIST_ITEM_SCHEMA = z.object({
   invite_code: z.string().trim().min(1),
+  channel: INVITE_CHANNEL_SCHEMA.nullable().optional(),
   creator: INVITE_CREATOR_SCHEMA.nullable().optional(),
   expires_at: z.string().trim().min(1).nullable().optional(),
   uses: z.number().int().nonnegative(),
@@ -964,6 +965,13 @@ function mapInvite(response: InviteCreateResponse["invite"]): Invite {
 function mapInviteListItem(response: InviteListResponse["invites"][number]): InviteListItem {
   return {
     code: response.invite_code,
+    channel:
+      response.channel === null || response.channel === undefined
+        ? null
+        : {
+            id: String(response.channel.channel_id),
+            name: response.channel.name,
+          },
     creator:
       response.creator === null || response.creator === undefined
         ? null
@@ -2312,7 +2320,7 @@ export class GuildChannelAPIClient extends NoDataAPIClient {
     return mapInvite(response.invite);
   }
 
-  async getInvites(serverId: string): Promise<InviteListItem[]> {
+  async getInvites(serverId: string, options?: { channelId?: string }): Promise<InviteListItem[]> {
     const normalizedServerId = serverId.trim();
     if (normalizedServerId.length === 0) {
       throw new GuildChannelApiError(CREATE_ERROR_MESSAGES.guildNotFound, {
@@ -2321,14 +2329,32 @@ export class GuildChannelAPIClient extends NoDataAPIClient {
       });
     }
 
+    const normalizedChannelId = options?.channelId?.trim() || "";
+    const search = new URLSearchParams();
+    if (normalizedChannelId.length > 0) {
+      const parsedChannelId = Number.parseInt(normalizedChannelId, 10);
+      if (!Number.isInteger(parsedChannelId) || parsedChannelId <= 0) {
+        throw new GuildChannelApiError(CREATE_ERROR_MESSAGES.validation, {
+          status: 400,
+          code: "VALIDATION_ERROR",
+        });
+      }
+      search.set("channel_id", String(parsedChannelId));
+    }
+
+    const suffix = search.size === 0 ? "" : `?${search.toString()}`;
     const response = await this.getJson(
-      `/v1/guilds/${encodeURIComponent(normalizedServerId)}/invites`,
+      `/v1/guilds/${encodeURIComponent(normalizedServerId)}/invites${suffix}`,
       INVITE_LIST_RESPONSE_SCHEMA,
     );
     return response.invites.map((invite) => mapInviteListItem(invite));
   }
 
-  async revokeInvite(serverId: string, inviteCode: string): Promise<void> {
+  async revokeInvite(
+    serverId: string,
+    inviteCode: string,
+    options?: { channelId?: string },
+  ): Promise<void> {
     const normalizedServerId = serverId.trim();
     if (normalizedServerId.length === 0) {
       throw new GuildChannelApiError(CREATE_ERROR_MESSAGES.guildNotFound, {
@@ -2345,8 +2371,22 @@ export class GuildChannelAPIClient extends NoDataAPIClient {
       });
     }
 
+    const normalizedChannelId = options?.channelId?.trim() || "";
+    const search = new URLSearchParams();
+    if (normalizedChannelId.length > 0) {
+      const parsedChannelId = Number.parseInt(normalizedChannelId, 10);
+      if (!Number.isInteger(parsedChannelId) || parsedChannelId <= 0) {
+        throw new GuildChannelApiError(CREATE_ERROR_MESSAGES.validation, {
+          status: 400,
+          code: "VALIDATION_ERROR",
+        });
+      }
+      search.set("channel_id", String(parsedChannelId));
+    }
+
+    const suffix = search.size === 0 ? "" : `?${search.toString()}`;
     await this.deleteNoContent(
-      `/v1/guilds/${encodeURIComponent(normalizedServerId)}/invites/${encodeURIComponent(normalizedInviteCode)}`,
+      `/v1/guilds/${encodeURIComponent(normalizedServerId)}/invites/${encodeURIComponent(normalizedInviteCode)}${suffix}`,
     );
   }
 

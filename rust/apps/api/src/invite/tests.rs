@@ -215,6 +215,7 @@ mod tests {
             Some(InviteRecord {
                 status: PublicInviteStatus::Expired,
                 guild: sample_guild(),
+                channel: Some(sample_channel()),
                 expires_at: Some("2026-03-07T00:00:00Z".to_owned()),
                 uses: 10,
                 max_uses: Some(10),
@@ -247,6 +248,7 @@ mod tests {
             "DEVJOIN2026".to_owned(),
             Some(InviteJoinRecord {
                 guild_id: 2001,
+                channel: Some(sample_channel()),
                 decision: InviteJoinDecision::Expired,
             }),
         );
@@ -266,6 +268,7 @@ mod tests {
             "DEVJOIN2026".to_owned(),
             Some(InviteJoinRecord {
                 guild_id: 2001,
+                channel: Some(sample_channel()),
                 decision: InviteJoinDecision::AlreadyMember,
             }),
         )
@@ -273,6 +276,7 @@ mod tests {
 
         assert_eq!(result.invite_code, "DEVJOIN2026");
         assert_eq!(result.guild_id, 2001);
+        assert_eq!(result.channel.as_ref().map(|channel| channel.channel_id), Some(3001));
         assert_eq!(result.status, InviteJoinStatus::AlreadyMember);
     }
 
@@ -301,6 +305,7 @@ mod tests {
         let invite = build_guild_invite_summary(
             "DEVJOIN2026".to_owned(),
             GuildInviteSummaryRecord {
+                channel: Some(sample_channel()),
                 creator: Some(InviteCreatorRecord {
                     user_id: 1001,
                     display_name: "Alice".to_owned(),
@@ -314,6 +319,7 @@ mod tests {
         .unwrap();
 
         assert_eq!(invite.invite_code, "DEVJOIN2026");
+        assert_eq!(invite.channel.as_ref().map(|channel| channel.channel_id), Some(3001));
         assert_eq!(invite.creator.unwrap().display_name, "Alice");
         assert_eq!(invite.created_at, "2026-03-14T00:00:00Z");
     }
@@ -335,6 +341,8 @@ mod tests {
         let sql = PostgresInviteService::LIST_INVITES_SQL;
 
         assert!(sql.contains("FROM invites i"));
+        assert!(sql.contains("LEFT JOIN channels c"));
+        assert!(sql.contains("($3::bigint IS NULL OR i.channel_id = $3)"));
         assert!(sql.contains("LEFT JOIN users u"));
         assert!(sql.contains("i.is_disabled = FALSE"));
         assert!(sql.contains("i.expires_at IS NULL OR i.expires_at >= now()"));
@@ -348,6 +356,7 @@ mod tests {
 
         assert!(sql.contains("FROM invites i"));
         assert!(sql.contains("JOIN guilds g"));
+        assert!(sql.contains("LEFT JOIN channels c"));
         assert!(sql.contains("i.is_disabled"));
         assert!(sql.contains("i.max_uses IS NOT NULL AND i.uses >= i.max_uses"));
         assert!(sql.contains("i.expires_at IS NOT NULL AND i.expires_at < now()"));
@@ -401,6 +410,7 @@ mod tests {
 
         assert!(sql.contains("UPDATE invites i"));
         assert!(sql.contains("SET is_disabled = TRUE"));
+        assert!(sql.contains("($4::bigint IS NULL OR i.channel_id = $4)"));
         assert!(sql.contains("INSERT INTO audit_logs"));
         assert!(sql.contains("'INVITE_DISABLE'"));
         assert!(sql.contains("jsonb_build_object"));
@@ -466,7 +476,7 @@ mod tests {
 
         let row = client
             .query_one(
-                "SELECT guild_id, created_by, max_uses, uses
+                "SELECT guild_id, channel_id, created_by, max_uses, uses
                  FROM invites
                  WHERE code = $1",
                 &[&created.invite_code],
@@ -474,9 +484,10 @@ mod tests {
             .await
             .expect("failed to read created invite");
         assert_eq!(row.get::<usize, i64>(0), guild_id);
-        assert_eq!(row.get::<usize, Option<i64>>(1), Some(owner_id));
-        assert_eq!(row.get::<usize, Option<i32>>(2), Some(5));
-        assert_eq!(row.get::<usize, i32>(3), 0);
+        assert_eq!(row.get::<usize, Option<i64>>(1), Some(channel_id));
+        assert_eq!(row.get::<usize, Option<i64>>(2), Some(owner_id));
+        assert_eq!(row.get::<usize, Option<i32>>(3), Some(5));
+        assert_eq!(row.get::<usize, i32>(4), 0);
     }
 
     #[tokio::test]
@@ -488,6 +499,7 @@ mod tests {
         let base_id = next_test_id_block(20);
         let owner_id = base_id;
         let guild_id = base_id + 1;
+        let channel_id = base_id + 5;
         let active_invite_id = base_id + 2;
         let expired_invite_id = base_id + 3;
         let disabled_invite_id = base_id + 4;
@@ -514,9 +526,18 @@ mod tests {
             .expect("failed to seed guild membership");
         client
             .execute(
+                "INSERT INTO channels (id, type, guild_id, name, created_by)
+                 VALUES ($1, 'guild_text', $2, 'general', $3)",
+                &[&channel_id, &guild_id, &owner_id],
+            )
+            .await
+            .expect("failed to seed invite channel");
+        client
+            .execute(
                 "INSERT INTO invites (
                     id,
                     guild_id,
+                    channel_id,
                     created_by,
                     code,
                     expires_at,
@@ -525,9 +546,9 @@ mod tests {
                     is_disabled
                  )
                  VALUES
-                    ($1, $2, $3, $4, now() + interval '7 days', 10, 1, FALSE),
-                    ($5, $2, $3, $6, now() - interval '1 day', 10, 1, FALSE),
-                    ($7, $2, $3, $8, now() + interval '7 days', 10, 1, TRUE)",
+                    ($1, $2, $9, $3, $4, now() + interval '7 days', 10, 1, FALSE),
+                    ($5, $2, $9, $3, $6, now() - interval '1 day', 10, 1, FALSE),
+                    ($7, $2, $9, $3, $8, now() + interval '7 days', 10, 1, TRUE)",
                 &[
                     &active_invite_id,
                     &guild_id,
@@ -537,6 +558,7 @@ mod tests {
                     &expired_invite_code,
                     &disabled_invite_id,
                     &disabled_invite_code,
+                    &channel_id,
                 ],
             )
             .await
@@ -544,12 +566,13 @@ mod tests {
 
         let service = PostgresInviteService::new(database_url, true);
         let invites = service
-            .list_invites(PrincipalId(owner_id), guild_id)
+            .list_invites(PrincipalId(owner_id), guild_id, Some(channel_id))
             .await
             .expect("invite list should succeed");
 
         assert_eq!(invites.len(), 1);
         assert_eq!(invites[0].invite_code, active_invite_code);
+        assert_eq!(invites[0].channel.as_ref().map(|channel| channel.channel_id), Some(channel_id));
         assert_eq!(invites[0].creator.as_ref().map(|creator| creator.user_id), Some(owner_id));
     }
 
@@ -581,6 +604,7 @@ mod tests {
                 "INSERT INTO invites (
                     id,
                     guild_id,
+                    channel_id,
                     created_by,
                     code,
                     expires_at,
@@ -588,7 +612,7 @@ mod tests {
                     uses,
                     is_disabled
                  )
-                 VALUES ($1, $2, $3, $4, now() + interval '7 days', 5, 0, FALSE)",
+                 VALUES ($1, $2, NULL, $3, $4, now() + interval '7 days', 5, 0, FALSE)",
                 &[&invite_id, &guild_id, &owner_id, &invite_code],
             )
             .await
@@ -767,6 +791,7 @@ mod tests {
         let owner_id = base_id;
         let guild_id = base_id + 1;
         let invite_id = base_id + 2;
+        let channel_id = base_id + 3;
         let invite_code = format!("REVOKEINTEGRATION{invite_id}");
 
         seed_user(&client, owner_id, "invite-revoke-owner").await;
@@ -788,9 +813,18 @@ mod tests {
             .expect("failed to seed guild membership");
         client
             .execute(
+                "INSERT INTO channels (id, type, guild_id, name, created_by)
+                 VALUES ($1, 'guild_text', $2, 'general', $3)",
+                &[&channel_id, &guild_id, &owner_id],
+            )
+            .await
+            .expect("failed to seed revoke channel");
+        client
+            .execute(
                 "INSERT INTO invites (
                     id,
                     guild_id,
+                    channel_id,
                     created_by,
                     code,
                     expires_at,
@@ -798,15 +832,15 @@ mod tests {
                     uses,
                     is_disabled
                  )
-                 VALUES ($1, $2, $3, $4, now() + interval '7 days', 10, 2, FALSE)",
-                &[&invite_id, &guild_id, &owner_id, &invite_code],
+                 VALUES ($1, $2, $5, $3, $4, now() + interval '7 days', 10, 2, FALSE)",
+                &[&invite_id, &guild_id, &owner_id, &invite_code, &channel_id],
             )
             .await
             .expect("failed to seed active invite");
 
         let service = PostgresInviteService::new(database_url, true);
         service
-            .revoke_invite(PrincipalId(owner_id), guild_id, invite_code.clone())
+            .revoke_invite(PrincipalId(owner_id), guild_id, None, invite_code.clone())
             .await
             .expect("invite revoke should succeed");
 
