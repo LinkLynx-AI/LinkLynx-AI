@@ -27,6 +27,8 @@
 - `search-elastic-cloud-standard-operations-runbook.md`: standard path の Elastic Cloud hosting decision、Secret Manager / accessor IAM、snapshot / restore / connectivity smoke、vendor boundary baseline。
 - `observability-standard-operations-runbook.md`: standard path の `Prometheus + Grafana + Loki + Alloy + blackbox` baseline、Discord alert route、SLO dashboard、verify / rollback 手順。
 - `security-standard-operations-runbook.md`: standard path の Cloud Armor attach、CI security scan baseline、manual DAST、audit posture、fail-close / manual-relief 境界。
+- `incident-standard-operations-runbook.md`: standard path の Discord incident flow、IC / comms / scribe role baseline、capacity trigger、tabletop / Chaos readiness 条件。
+- `postmortem-standard-template.md`: standard path の postmortem template。SEV-1、長引く SEV-2、rollback / restore / reindex 実施時の close-out に使う。
 - `cloud-sql-postgres-migration-operations-runbook.md`: Cloud SQL-backed PostgreSQL forward-only migration gate, manual approval boundary, and failure-handling baseline for the low-budget prod-only path.
 - `cloud-monitoring-low-budget-operations-runbook.md`: Cloud Monitoring + Cloud Logging baseline, optional notification channel routing, and low-budget prod-only alert triage flow.
 - `external-dependency-observability-low-budget-runbook.md`: low-budget prod-only manual check sources and alert seeds for Scylla, Redpanda Cloud, Synadia Cloud / NATS, and Elastic Cloud.
