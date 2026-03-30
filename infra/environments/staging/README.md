@@ -49,6 +49,21 @@ terraform plan
 
 VPA/HPA 境界と verify / rollback は `docs/runbooks/gke-autopilot-standard-operations-runbook.md` を使う
 
+## LIN-1013 staging Rust API smoke deploy
+
+- `enable_rust_api_smoke_deploy = true` で staging standard cluster 上に Terraform-managed の最小 Rust API smoke workload を作る
+- 使う変数は次
+  - `rust_api_public_hostname`
+  - `rust_api_image_digest`
+- baseline は次
+  - namespace: `rust-api-smoke`
+  - Deployment / Service
+  - Gateway API: `Gateway`, `HTTPRoute`, `HealthCheckPolicy`
+  - image は mutable tag ではなく digest 参照
+- Workload Identity や Secret Manager access はこの issue では入れない
+- `GET /health` と `GET /ws` の staging 公開疎通だけを成功条件にする
+- verify / rollback は `docs/runbooks/staging-rust-api-smoke-deploy-operations-runbook.md` を使う
+
 ## LIN-965 standard Workload Identity / Secret Manager baseline
 
 - `enable_standard_workload_identity_baseline = true` で standard path の runtime identities を作る
@@ -64,6 +79,9 @@ VPA/HPA 境界と verify / rollback は `docs/runbooks/gke-autopilot-standard-op
 - `public_dns_name`
 - `public_hostnames`
 - `artifact_registry_repository_id` (default `application-images`)
+- `enable_rust_api_smoke_deploy`
+- `rust_api_public_hostname`
+- `rust_api_image_digest`
 - `enable_standard_gke_cluster_baseline`
 - `standard_gke_release_channel`
 - `standard_gke_namespace_names`

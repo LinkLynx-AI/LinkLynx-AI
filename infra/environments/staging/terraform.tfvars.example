@@ -12,6 +12,10 @@ public_hostnames = [
   "api.staging.example.com.",
 ]
 
+enable_rust_api_smoke_deploy     = false
+rust_api_public_hostname         = "api.staging.example.com"
+rust_api_image_digest            = "us-east1-docker.pkg.dev/linklynx-staging/application-images/rust@sha256:fill-me"
+
 enable_standard_gke_cluster_baseline   = true
 enable_standard_workload_identity_baseline = true
 enable_standard_gitops_baseline        = true

@@ -1,6 +1,11 @@
 locals {
   environment                         = "staging"
   enable_standard_gke_cluster         = var.enable_standard_gke_cluster_baseline
+  normalized_public_hostnames         = [for hostname in var.public_hostnames : trimsuffix(hostname, ".")]
+  enable_rust_api_smoke               = var.enable_rust_api_smoke_deploy && var.enable_standard_gke_cluster_baseline
+  rust_api_public_hostname            = var.rust_api_public_hostname != "" ? trimsuffix(var.rust_api_public_hostname, ".") : (length(local.normalized_public_hostnames) > 0 ? local.normalized_public_hostnames[0] : "")
+  rust_api_smoke_inputs_are_set       = var.rust_api_image_digest != "" && local.rust_api_public_hostname != ""
+  rust_api_smoke_edge_is_ready        = module.network_foundation.public_certificate_map_name != null && module.network_foundation.public_lb_ipv4_name != ""
   enable_standard_cloud_sql           = var.enable_standard_cloud_sql_baseline
   enable_standard_dragonfly           = var.enable_standard_dragonfly_baseline
   enable_standard_gitops              = var.enable_standard_gitops_baseline
@@ -44,6 +49,23 @@ locals {
   standard_search_accessor_service_account_emails = local.enable_standard_search ? toset([
     for workload in sort(tolist(var.standard_search_runtime_workloads)) : module.standard_runtime_identities[workload].google_service_account_email
   ]) : toset([])
+}
+
+check "rust_api_smoke_prerequisites" {
+  assert {
+    condition     = !var.enable_rust_api_smoke_deploy || var.enable_standard_gke_cluster_baseline
+    error_message = "enable_rust_api_smoke_deploy requires enable_standard_gke_cluster_baseline = true."
+  }
+
+  assert {
+    condition     = !var.enable_rust_api_smoke_deploy || local.rust_api_smoke_inputs_are_set
+    error_message = "enable_rust_api_smoke_deploy requires rust_api_image_digest and a public hostname."
+  }
+
+  assert {
+    condition     = !var.enable_rust_api_smoke_deploy || local.rust_api_smoke_edge_is_ready
+    error_message = "enable_rust_api_smoke_deploy requires LIN-963 edge resources (certificate map and named public IPv4) to be enabled."
+  }
 }
 
 check "standard_workload_identity_prerequisites" {
@@ -301,6 +323,31 @@ module "gke_namespace_baseline" {
   depends_on = [module.gke_autopilot_standard_cluster]
 }
 
+module "rust_api_smoke_deploy" {
+  count = local.enable_rust_api_smoke ? 1 : 0
+
+  source = "../../modules/rust_api_smoke_deploy"
+
+  certificate_map_name         = basename(module.network_foundation.public_certificate_map_name)
+  deployment_name              = "rust-api-smoke"
+  backend_security_policy_name = ""
+  gateway_name                 = "rust-api-gateway"
+  gateway_static_ip_name       = module.network_foundation.public_lb_ipv4_name
+  health_check_policy_name     = "rust-api-healthcheck"
+  image                        = var.rust_api_image_digest
+  labels = {
+    environment = local.environment
+    issue       = "lin-1013"
+  }
+  namespace            = "rust-api-smoke"
+  public_hostname      = local.rust_api_public_hostname
+  route_name           = "rust-api-route"
+  service_account_name = "rust-api-smoke"
+  service_name         = "rust-api-smoke"
+
+  depends_on = [module.gke_autopilot_standard_cluster]
+}
+
 resource "google_project_iam_audit_config" "secret_manager_data_access" {
   count = local.enable_standard_workload_identities ? 1 : 0
 
@@ -549,6 +596,10 @@ output "gke_autopilot_standard_cluster" {
 
 output "gke_namespace_baseline" {
   value = local.enable_standard_gke_cluster ? module.gke_namespace_baseline[0] : null
+}
+
+output "rust_api_smoke_deploy" {
+  value = local.enable_rust_api_smoke ? module.rust_api_smoke_deploy[0] : null
 }
 
 output "standard_runtime_identities" {

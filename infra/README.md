@@ -198,6 +198,40 @@ standard path では `staging` / `prod` に 1 cluster ずつ置き、domain spli
 
 詳細な verify / rollback は `docs/runbooks/gke-autopilot-standard-operations-runbook.md` を参照する。
 
+## LIN-1013 staging Rust API smoke deploy baseline
+
+standard path の最初の app deploy は、`staging` standard cluster 上の Terraform-managed Rust API smoke workload として閉じる。
+
+### What gets created
+
+- dedicated namespace: `rust-api-smoke`
+- Kubernetes resources:
+  - service account
+  - deployment
+  - service
+- GKE Gateway API resources:
+  - `Gateway`
+  - `HTTPRoute`
+  - `HealthCheckPolicy`
+
+### Current boundary
+
+- image は Artifact Registry digest を直接参照する
+- host は `public_hostnames` の先頭、または `rust_api_public_hostname` override を使う
+- Workload Identity / Secret Manager / DB 接続はこの issue に含めない
+- controller-based GitOps ではなく、最初の smoke deploy だけを Terraform で再現する
+- 本格的な promotion / rollout orchestration は `LIN-967` に残す
+
+### Validation
+
+- `terraform fmt -check -recursive infra`
+- `PATH=/tmp/terraform_1.6.6:$PATH make infra-validate`
+- `make validate`
+- staging で `curl -i -sS https://<stg_api_host>/health`
+- staging で `wscat -c wss://<stg_api_host>/ws`
+
+詳細な verify / rollback は `docs/runbooks/staging-rust-api-smoke-deploy-operations-runbook.md` を参照する。
+
 ## LIN-965 standard Workload Identity / Secret Manager baseline
 
 standard path では `frontend` / `api` / `ai` を最初の workload identity 対象とし、KSA / GSA / secret placeholder を workload 単位で分離する。
