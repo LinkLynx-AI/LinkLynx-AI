@@ -158,10 +158,17 @@
 
 | 項目 | 決定 |
 |------|------|
+| standard incident flow | **Discord thread + Incident Commander / Comms / Scribe + specialist runbook handoff** |
+| standard postmortem | **SEV-1 / 30分超のSEV-2 / rollback・restore・reindex 実施時は standard template を必須** |
+| standard capacity envelope | **Registered `100,000 - 1,000,000` / peak WS `2,000 - 10,000` / sustained message ingress `200 - 1,000 msg/s` を planning envelope として採用** |
 | low-budget incident flow | **Discord thread + `hirwatan` / `sabe` / `miwasa` mention** |
 | postmortem | **軽量 template を使って毎回残す** |
 | capacity trigger | **登録者数ではなく observed traffic / latency / DB pressure を優先** |
 | Chaos Engineering | **固定日ではなく readiness 条件が揃ってから開始** |
+
+詳細な標準 path の incident / capacity / postmortem baseline は
+`docs/runbooks/incident-standard-operations-runbook.md` と
+`docs/runbooks/postmortem-standard-template.md` を参照する。
 
 ---
 

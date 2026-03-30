@@ -568,6 +568,24 @@ default では `enable_standard_managed_messaging_cloud_baseline = false` にし
 - `master_authorized_networks` / private control plane は current Terraform / Helm access model と衝突するため、別 issue に残す
 - verify / rollback は `docs/runbooks/security-standard-operations-runbook.md` を使う
 
+## LIN-974 standard ops / capacity baseline
+
+`LIN-974` は standard path 向けに、incident / postmortem / capacity review の最初の運用線を固定する。
+
+### 追加される docs
+
+- `docs/runbooks/incident-standard-operations-runbook.md`
+- `docs/runbooks/postmortem-standard-template.md`
+
+### 運用メモ
+
+- 初動は Discord incident thread を開き、`hirwatan` / `sabe` / `miwasa` を mention する
+- `SEV-1` と sustained `SEV-2` では `Incident Commander` / `Comms owner` / `Scribe` を明示する
+- first check source は `LIN-972` observability と dependency-specific standard runbook を使う
+- registered user 数だけでは scale を決めず、WS concurrency / message ingress / latency / DB-search pressure / cost forecast を使う
+- `SEV-1`、`30分超の SEV-2`、rollback / PITR / restore / reindex 実施時は standard postmortem を必須にする
+- Chaos Engineering は固定日ではなく readiness 条件が揃ってから開始する
+
 ## LIN-1025 prod-only Elastic Cloud secret baseline
 
 `LIN-1025` は low-budget path 向けに、検索基盤を `Elastic Cloud` 前提で受け入れる Secret Manager placeholder baseline を追加する。
